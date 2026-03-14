@@ -1,5 +1,5 @@
 //@version=6
-indicator("cRSI + MFI Gap Highlight + Final Trap", shorttitle="cRSI+MFI Final Trap", overlay=false, max_labels_count=500)
+indicator("cRSI + MFI Reversal Risk Signal", shorttitle="cRSI+MFI RRS", overlay=false, max_labels_count=500)
 
 // ==========================
 // INPUT
@@ -32,31 +32,28 @@ gapMfiColor = input.color(color.blue, title="Gap Color (MFI > cRSI)")
 gapTransparency = input.int(85, minval=0, maxval=100, title="Gap Background Transparency")
 
 // ==========================
-// TRAP OPTIONS
+// REVERSAL RISK OPTIONS
 // ==========================
-showTrapLabels = input.bool(true, title="Show Trap Labels")
-
+showRiskLabels = input.bool(true, title="Show Reversal Risk Labels")
 weakGapThreshold = input.float(10.0, minval=0.0, title="Weak Gap Threshold")
 strongGapThreshold = input.float(14.0, minval=0.0, title="Strong Gap Threshold")
-
-bullZone = input.float(55.0, minval=0.0, maxval=100.0, title="Bull Trap cRSI Zone")
-bearZone = input.float(45.0, minval=0.0, maxval=100.0, title="Bear Trap cRSI Zone")
-
+bullZone = input.float(55.0, minval=0.0, maxval=100.0, title="Bearish Risk cRSI Zone")
+bearZone = input.float(45.0, minval=0.0, maxval=100.0, title="Bullish Risk cRSI Zone")
 volumeAvgLength = input.int(3, minval=1, title="Volume Average Length")
 volumeMultiplier = input.float(1.0, minval=0.1, step=0.1, title="Volume Multiplier")
-
+trendLength = input.int(5, minval=2, title="Trend Length")
+priceStretchThreshold = input.float(1.5, minval=0.1, step=0.1, title="Price Stretch (%)")
 useGapFade = input.bool(true, title="Use Gap Fade Condition")
 gapFadeLookback = input.int(1, minval=1, maxval=5, title="Gap Fade Lookback")
-
-trapLabelTransparency = input.int(0, minval=0, maxval=100, title="Trap Label Transparency")
-bullLabelOffset = input.float(6.0, minval=0.0, maxval=30.0, title="Bull Label Offset")
-bearLabelOffset = input.float(6.0, minval=0.0, maxval=30.0, title="Bear Label Offset")
+riskLabelTransparency = input.int(0, minval=0, maxval=100, title="Risk Label Transparency")
+bearishLabelOffset = input.float(6.0, minval=0.0, maxval=30.0, title="Bearish Label Offset")
+bullishLabelOffset = input.float(6.0, minval=0.0, maxval=30.0, title="Bullish Label Offset")
 
 // ==========================
 // COLORS
 // ==========================
-bullTrapColor = color.new(color.red, trapLabelTransparency)
-bearTrapColor = color.new(color.green, trapLabelTransparency)
+bearishRiskColor = color.new(color.red, riskLabelTransparency)
+bullishRiskColor = color.new(color.green, riskLabelTransparency)
 
 // ==========================
 // cRSI CALCULATION
@@ -133,52 +130,62 @@ mfi = ta.mfi(hlc3, mfiLength)
 // GAP BACKGROUND
 // ==========================
 gap = math.abs(crsi - mfi)
-bullGapBg = crsi > mfi and gap >= gapThreshold
-bearGapBg = mfi > crsi and gap >= gapThreshold
+bearishGapBg = crsi > mfi and gap >= gapThreshold
+bullishGapBg = mfi > crsi and gap >= gapThreshold
 
-bgcolor(showGapBg ? bullGapBg ? color.new(gapCrsiColor, gapTransparency) : bearGapBg ? color.new(gapMfiColor, gapTransparency) : na : na)
+bgcolor(showGapBg ? bearishGapBg ? color.new(gapCrsiColor, gapTransparency) : bullishGapBg ? color.new(gapMfiColor, gapTransparency) : na : na)
 
 // ==========================
-// PRICE / VOLUME / GAP STATE
+// PRICE / VOLUME / REVERSAL STATE
 // ==========================
-priceUp = close > close[2]
-priceDown = close < close[2]
-
 volAvg = ta.sma(volume, volumeAvgLength)
 volumeOkay = volume > volAvg * volumeMultiplier
+isBullCandle = close > open
+isBearCandle = close < open
 
-bullGap = crsi - mfi
-bearGap = mfi - crsi
+priceEma = ta.ema(close, trendLength)
+priceStretchPct = priceEma != 0 ? (close - priceEma) / priceEma * 100.0 : 0.0
+priceExtendedUp = close > close[trendLength] and priceStretchPct >= priceStretchThreshold
+priceExtendedDown = close < close[trendLength] and priceStretchPct <= -priceStretchThreshold
 
-bullWeakGap = bullGap > weakGapThreshold
-bullStrongGap = bullGap > strongGapThreshold
-bearWeakGap = bearGap > weakGapThreshold
-bearStrongGap = bearGap > strongGapThreshold
+bearishGap = crsi - mfi
+bullishGap = mfi - crsi
 
-bullZonePass = crsi > bullZone
-bearZonePass = crsi < bearZone
+bearishGapScore = bearishGap > strongGapThreshold ? 2 : bearishGap > weakGapThreshold ? 1 : 0
+bullishGapScore = bullishGap > strongGapThreshold ? 2 : bullishGap > weakGapThreshold ? 1 : 0
 
-bullGapFade = bullGap < bullGap[gapFadeLookback]
-bearGapFade = bearGap < bearGap[gapFadeLookback]
+bearishZonePass = crsi >= bullZone or (not na(ub) and crsi >= ub)
+bullishZonePass = crsi <= bearZone or (not na(db) and crsi <= db)
+
+bearishGapFade = bearishGap < bearishGap[gapFadeLookback]
+bullishGapFade = bullishGap < bullishGap[gapFadeLookback]
+
+crsiTurningDown = crsi < crsi[1]
+crsiTurningUp = crsi > crsi[1]
+mfiTurningDown = mfi < mfi[1]
+mfiTurningUp = mfi > mfi[1]
 
 // ==========================
 // SCORE
+// Max score = 7
 // ==========================
-bullScore = 0
-bullScore += priceUp ? 1 : 0
-bullScore += volumeOkay ? 1 : 0
-bullScore += bullWeakGap ? 1 : 0
-bullScore += bullStrongGap ? 1 : 0
-bullScore += bullZonePass ? 1 : 0
-bullScore += (useGapFade ? bullGapFade : true) ? 1 : 0
+bearishRiskScore = 0
+bearishRiskScore += bearishGapBg ? 1 : 0
+bearishRiskScore += bearishGapScore
+bearishRiskScore += priceExtendedUp ? 1 : 0
+bearishRiskScore += volumeOkay ? 1 : 0
+bearishRiskScore += bearishZonePass ? 1 : 0
+bearishRiskScore += ((useGapFade and bearishGapFade) or (not useGapFade and crsiTurningDown)) ? 1 : 0
+bearishRiskScore += (crsiTurningDown or mfiTurningDown) ? 1 : 0
 
-bearScore = 0
-bearScore += priceDown ? 1 : 0
-bearScore += volumeOkay ? 1 : 0
-bearScore += bearWeakGap ? 1 : 0
-bearScore += bearStrongGap ? 1 : 0
-bearScore += bearZonePass ? 1 : 0
-bearScore += (useGapFade ? bearGapFade : true) ? 1 : 0
+bullishRiskScore = 0
+bullishRiskScore += bullishGapBg ? 1 : 0
+bullishRiskScore += bullishGapScore
+bullishRiskScore += priceExtendedDown ? 1 : 0
+bullishRiskScore += volumeOkay ? 1 : 0
+bullishRiskScore += bullishZonePass ? 1 : 0
+bullishRiskScore += ((useGapFade and bullishGapFade) or (not useGapFade and crsiTurningUp)) ? 1 : 0
+bullishRiskScore += (crsiTurningUp or mfiTurningUp) ? 1 : 0
 
 // ==========================
 // STRENGTH
@@ -186,70 +193,78 @@ bearScore += (useGapFade ? bearGapFade : true) ? 1 : 0
 // 2 = medium
 // 1 = weakest
 // ==========================
-bullStrength = bullScore >= 5 ? 3 : bullScore == 4 ? 2 : bullScore == 3 ? 1 : 0
-bearStrength = bearScore >= 5 ? 3 : bearScore == 4 ? 2 : bearScore == 3 ? 1 : 0
+bearishRiskStrength = bearishRiskScore >= 7 ? 3 : bearishRiskScore >= 5 ? 2 : bearishRiskScore >= 4 ? 1 : 0
+bullishRiskStrength = bullishRiskScore >= 7 ? 3 : bullishRiskScore >= 5 ? 2 : bullishRiskScore >= 4 ? 1 : 0
 
-bullTrapRaw = bullGapBg and bullStrength > 0 and bearStrength == 0
-bearTrapRaw = bearGapBg and bearStrength > 0 and bullStrength == 0
+bearishRiskRaw = bearishGapBg and isBullCandle and bearishRiskStrength > 0 and bullishRiskStrength == 0
+bullishRiskRaw = bullishGapBg and isBearCandle and bullishRiskStrength > 0 and bearishRiskStrength == 0
 
 // ==========================
 // ONE SIGNAL PER BACKGROUND ZONE
+// confirmed bar only
 // ==========================
-newBullZone = bullGapBg and not bullGapBg[1]
-newBearZone = bearGapBg and not bearGapBg[1]
+newBearishZone = bearishGapBg and not bearishGapBg[1]
+newBullishZone = bullishGapBg and not bullishGapBg[1]
 
-var bool bullSignalFiredInZone = false
-var bool bearSignalFiredInZone = false
+var bool bearishSignalFiredInZone = false
+var bool bullishSignalFiredInZone = false
 
-if newBullZone
-    bullSignalFiredInZone := false
+var bool finalBearishRiskConfirmed = false
+var bool finalBullishRiskConfirmed = false
 
-if newBearZone
-    bearSignalFiredInZone := false
+finalBearishRiskConfirmed := false
+finalBullishRiskConfirmed := false
 
-finalBullTrap = bullTrapRaw and not bullSignalFiredInZone
-finalBearTrap = bearTrapRaw and not bearSignalFiredInZone
+if barstate.isconfirmed
+    if newBearishZone
+        bearishSignalFiredInZone := false
 
-if finalBullTrap
-    bullSignalFiredInZone := true
+    if newBullishZone
+        bullishSignalFiredInZone := false
 
-if finalBearTrap
-    bearSignalFiredInZone := true
+    finalBearishRiskConfirmed := bearishRiskRaw and not bearishSignalFiredInZone
+    finalBullishRiskConfirmed := bullishRiskRaw and not bullishSignalFiredInZone
+
+    if finalBearishRiskConfirmed
+        bearishSignalFiredInZone := true
+
+    if finalBullishRiskConfirmed
+        bullishSignalFiredInZone := true
 
 // ==========================
 // LABEL TEXT
 // ==========================
-bullLabelText = "Bull(" + str.tostring(bullStrength) + ")"
-bearLabelText = "Bear(" + str.tostring(bearStrength) + ")"
+bearishLabelText = bearishRiskStrength == 3 ? "H" : bearishRiskStrength == 2 ? "M" : "L"
+bullishLabelText = bullishRiskStrength == 3 ? "H" : bullishRiskStrength == 2 ? "M" : "L"
 
 // ==========================
 // LABEL POSITION
 // ==========================
-bullLabelPos = math.min(100.0, crsi + bullLabelOffset)
-bearLabelPos = math.max(0.0, crsi - bearLabelOffset)
+bearishLabelPos = math.min(100.0, crsi + bearishLabelOffset)
+bullishLabelPos = math.max(0.0, crsi - bullishLabelOffset)
 
 // ==========================
 // LABELS
 // ==========================
-if showTrapLabels and finalBullTrap
-    label.new(bar_index, bullLabelPos, bullLabelText, style=label.style_label_down, color=bullTrapColor, textcolor=color.white, size=size.small)
+if showRiskLabels and finalBearishRiskConfirmed
+    label.new(bar_index, bearishLabelPos, bearishLabelText, style=label.style_label_down, color=bearishRiskColor, textcolor=color.white, size=size.small)
 
-if showTrapLabels and finalBearTrap
-    label.new(bar_index, bearLabelPos, bearLabelText, style=label.style_label_up, color=bearTrapColor, textcolor=color.white, size=size.small)
+if showRiskLabels and finalBullishRiskConfirmed
+    label.new(bar_index, bullishLabelPos, bullishLabelText, style=label.style_label_up, color=bullishRiskColor, textcolor=color.white, size=size.small)
 
 // ==========================
 // ALERTS
 // ==========================
-alertcondition(finalBullTrap, title="Bull Trap", message="Bull Trap detected")
-alertcondition(finalBearTrap, title="Bear Trap", message="Bear Trap detected")
+alertcondition(finalBearishRiskConfirmed, title="Bearish Reversal Risk", message="Bearish reversal risk detected")
+alertcondition(finalBullishRiskConfirmed, title="Bullish Reversal Risk", message="Bullish reversal risk detected")
 
-alertcondition(finalBullTrap and bullStrength == 3, title="Bull Trap (3)", message="Bull Trap (3) detected")
-alertcondition(finalBullTrap and bullStrength == 2, title="Bull Trap (2)", message="Bull Trap (2) detected")
-alertcondition(finalBullTrap and bullStrength == 1, title="Bull Trap (1)", message="Bull Trap (1) detected")
+alertcondition(finalBearishRiskConfirmed and bearishRiskStrength == 3, title="Bearish Reversal Risk (3)", message="Bearish reversal risk (3) detected")
+alertcondition(finalBearishRiskConfirmed and bearishRiskStrength == 2, title="Bearish Reversal Risk (2)", message="Bearish reversal risk (2) detected")
+alertcondition(finalBearishRiskConfirmed and bearishRiskStrength == 1, title="Bearish Reversal Risk (1)", message="Bearish reversal risk (1) detected")
 
-alertcondition(finalBearTrap and bearStrength == 3, title="Bear Trap (3)", message="Bear Trap (3) detected")
-alertcondition(finalBearTrap and bearStrength == 2, title="Bear Trap (2)", message="Bear Trap (2) detected")
-alertcondition(finalBearTrap and bearStrength == 1, title="Bear Trap (1)", message="Bear Trap (1) detected")
+alertcondition(finalBullishRiskConfirmed and bullishRiskStrength == 3, title="Bullish Reversal Risk (3)", message="Bullish reversal risk (3) detected")
+alertcondition(finalBullishRiskConfirmed and bullishRiskStrength == 2, title="Bullish Reversal Risk (2)", message="Bullish reversal risk (2) detected")
+alertcondition(finalBullishRiskConfirmed and bullishRiskStrength == 1, title="Bullish Reversal Risk (1)", message="Bullish reversal risk (1) detected")
 
 // ==========================
 // REFERENCE LINES
