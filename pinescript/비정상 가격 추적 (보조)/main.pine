@@ -58,38 +58,51 @@ crsi := torque * (2 * rsi - nz(rsi[phasingLag])) + (1 - torque) * nz(crsi[1])
 // ==========================
 float lmax = -999999.0
 float lmin = 999999.0
+int validCount = 0
 
 for i = 0 to cyclicmemory - 1
-    val = nz(crsi[i])
-    if val > lmax
-        lmax := val
-    if val < lmin
-        lmin := val
+    val = crsi[i]
+    if not na(val)
+        validCount += 1
+        if val > lmax
+            lmax := val
+        if val < lmin
+            lmin := val
 
-mstep = (lmax - lmin) / 100.0
+mstep = validCount > 0 ? (lmax - lmin) / 100.0 : na
 aperc = leveling / 100.0
 
-float db = 0.0
-for steps = 0 to 100
-    testvalue = lmin + mstep * steps
-    below = 0
-    for m = 0 to cyclicmemory - 1
-        below += crsi[m] < testvalue ? 1 : 0
-    ratio = below / cyclicmemory
-    if ratio >= aperc
-        db := testvalue
-        break
+float db = na
+if validCount > 0 and not na(mstep)
+    if mstep == 0
+        db := lmin
+    else
+        for steps = 0 to 100
+            testvalue = lmin + mstep * steps
+            below = 0
+            for m = 0 to cyclicmemory - 1
+                sample = crsi[m]
+                below += not na(sample) and sample < testvalue ? 1 : 0
+            ratio = below / validCount
+            if ratio >= aperc
+                db := testvalue
+                break
 
-float ub = 0.0
-for steps = 0 to 100
-    testvalue = lmax - mstep * steps
-    above = 0
-    for m = 0 to cyclicmemory - 1
-        above += crsi[m] >= testvalue ? 1 : 0
-    ratio = above / cyclicmemory
-    if ratio >= aperc
-        ub := testvalue
-        break
+float ub = na
+if validCount > 0 and not na(mstep)
+    if mstep == 0
+        ub := lmax
+    else
+        for steps = 0 to 100
+            testvalue = lmax - mstep * steps
+            above = 0
+            for m = 0 to cyclicmemory - 1
+                sample = crsi[m]
+                above += not na(sample) and sample >= testvalue ? 1 : 0
+            ratio = above / validCount
+            if ratio >= aperc
+                ub := testvalue
+                break
 
 // ==========================
 // MFI
@@ -101,7 +114,7 @@ mfi = ta.mfi(hlc3, mfiLength)
 // ==========================
 gap = math.abs(crsi - mfi)
 
-isGap = gap >= gapThreshold
+isGap = not na(crsi) and not na(mfi) and gap >= gapThreshold
 isCrsiAbove = crsi > mfi
 
 bgColor =
@@ -131,4 +144,4 @@ highBandPlot = plot(ub, "cRSI High Band", color=color.gray)
 plot(crsi, "cRSI", color=crsiColor, linewidth=crsiWidth)
 plot(mfi, "MFI", color=mfiColor, linewidth=mfiWidth)
 
-fill(lowBandPlot, highBandPlot, color=color.new(color.gray, 85))
+fill(lowBandPlot, highBandPlot, color=color.new(color.gray, 75))
