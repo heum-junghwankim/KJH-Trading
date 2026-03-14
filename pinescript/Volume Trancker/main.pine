@@ -1,0 +1,41 @@
+//@version=5
+indicator("Buy/Sell Volume + Abnormal Volume", format=format.volume, precision=0)
+
+// =========================
+// Buy / Sell Volume 계산
+// =========================
+buyVolume  = high == low ? 0 : volume * (close - low) / (high - low)
+sellVolume = high == low ? 0 : volume * (high - close) / (high - low)
+
+// =========================
+// 색상 설정 (기본값 = 스샷 기준)
+// =========================
+normalBuyColor  = input.color(color.white, "정상 Buy 색상")
+normalSellColor = input.color(color.gray, "정상 Sell 색상")
+
+abnormalBuyColor  = input.color(color.lime, "비정상 Buy 색상")
+abnormalSellColor = input.color(color.rgb(251, 64, 64), "비정상 Sell 색상")
+
+// =========================
+// 비정상 거래량 설정
+// =========================
+length = input.int(20, "비교 캔들 수", minval=1)
+multiplier = input.float(1.0, "비정상 배수", minval=0)
+
+// =========================
+// 비정상 거래량 계산
+// =========================
+avgVol = ta.sma(volume, length)
+abnormal = volume > avgVol * (1 + multiplier)
+
+// =========================
+// 색상 결정
+// =========================
+buyColor  = abnormal ? abnormalBuyColor  : normalBuyColor
+sellColor = abnormal ? abnormalSellColor : normalSellColor
+
+// =========================
+// 볼륨 표시
+// =========================
+plot(volume, style=plot.style_columns, color=sellColor, title="Sell Volume")
+plot(buyVolume, style=plot.style_columns, color=buyColor, title="Buy Volume")
