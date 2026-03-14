@@ -3,7 +3,7 @@
 트레이딩뷰에서 사용할 수 있는 Pine Script 지표 설명서입니다.
 
 대상 스크립트:
-- [`main.pine`](./main.pine)
+- [`trend-tracker.pine`](./trend-tracker.pine)
 
 ## 개요
 
@@ -14,7 +14,7 @@
 ## 트레이딩뷰 적용 방법
 
 1. 트레이딩뷰에서 `Pine Editor`를 엽니다.
-2. [`main.pine`](./main.pine) 파일의 전체 내용을 복사합니다.
+2. [`trend-tracker.pine`](./trend-tracker.pine) 파일의 전체 내용을 복사합니다.
 3. Pine Editor에 붙여넣습니다.
 4. `Add to chart` 또는 `차트에 추가`를 클릭합니다.
 5. 필요하면 `Save`로 개인 스크립트로 저장합니다.

@@ -3,7 +3,7 @@
 트레이딩뷰에서 사용할 수 있는 Pine Script 지표 설명서입니다.
 
 대상 스크립트:
-- [`main.pine`](./main.pine)
+- [`abnormal-price-tracker-candles.pine`](./abnormal-price-tracker-candles.pine)
 
 ## 개요
 
@@ -23,7 +23,7 @@
 ## 트레이딩뷰 적용 방법
 
 1. 트레이딩뷰에서 `Pine Editor`를 엽니다.
-2. [`main.pine`](./main.pine) 파일 전체를 복사합니다.
+2. [`abnormal-price-tracker-candles.pine`](./abnormal-price-tracker-candles.pine) 파일 전체를 복사합니다.
 3. Pine Editor에 붙여넣습니다.
 4. `차트에 추가`를 누릅니다.
 5. 필요하면 저장합니다.

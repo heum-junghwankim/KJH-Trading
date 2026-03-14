@@ -1,5 +1,5 @@
 //@version=6
-indicator("MA + cRSI + Vol/Div + ATR Zone (Simple Alerts)", overlay=true, format=format.volume, precision=0)
+indicator("abnormal-price-tracker-candles", overlay=true, format=format.volume, precision=0)
 
 // =========================
 // MA Inputs

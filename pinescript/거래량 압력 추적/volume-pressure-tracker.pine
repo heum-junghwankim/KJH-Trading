@@ -1,5 +1,5 @@
 //@version=6
-indicator("Buy/Sell Volume + Abnormal Volume + Alignment Background", format=format.volume, precision=0)
+indicator("volume-pressure-tracker", format=format.volume, precision=0)
 
 // =========================
 // Buy / Sell Volume 계산
@@ -45,9 +45,9 @@ showAlignmentBg = input.bool(true, "Show Alignment Background", group="Alignment
 bullAlignColor  = input.color(color.new(color.green, 90), "Bull Alignment", group="Alignment Background", inline="bg")
 bearAlignColor  = input.color(color.new(color.purple, 90), "Bear Alignment", group="Alignment Background", inline="bg")
 
-basePeriods         = input.int(26, minval=1, title="Base Line Length", group="Alignment Background")
-laggingSpan2Periods = input.int(52, minval=1, title="Leading Span B Length", group="Alignment Background")
-maLength            = input.int(9, "MA Length", minval=1, group="Alignment Background")
+basePeriods         = input.int(20, minval=1, title="Base Line Length", group="Alignment Background")
+laggingSpan2Periods = input.int(50, minval=1, title="Leading Span B Length", group="Alignment Background")
+maLength            = input.int(5, "MA Length", minval=1, group="Alignment Background")
 maSource            = input.source(close, "MA Source", group="Alignment Background")
 
 // =========================

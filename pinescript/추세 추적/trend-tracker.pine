@@ -3,7 +3,7 @@
 
 // © Zeiierman
 //@version=6
-indicator('Dynamic Swing Anchored VWAP (Zeiierman) + Ichimoku Base/Kumo + MA Alignment', overlay = true, max_bars_back = 5000, max_labels_count = 500, max_polylines_count = 100)
+indicator('trend-tracker', overlay = true, max_bars_back = 5000, max_labels_count = 500, max_polylines_count = 100)
 
 // ~~ Tooltips {
 var string t1 = "Number of bars used to detect swing highs and lows. Larger values identify bigger, more significant swings but react slower. Smaller values detect more frequent swings but may produce more noise."
@@ -47,7 +47,7 @@ maSource = input.source(close, "MA Source", group=maGroup)
 
 // Alignment
 alignGroup      = "Alignment"
-showAlignmentBg = input.bool(true, "Show Alignment Background", group=alignGroup)
+showAlignmentBg = input.bool(false, "Show Alignment Background", group=alignGroup)
 
 bullAlignColor  = input.color(color.new(color.green, 90), "Bull Alignment", group=alignGroup, inline="al1")
 bearAlignColor  = input.color(color.new(color.purple, 90), "BEAR Alignment", group=alignGroup, inline="al1")
