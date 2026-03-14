@@ -208,8 +208,8 @@ finalBullishRiskConfirmed = barstate.isconfirmed and bullishRiskRaw
 // ==========================
 // LABEL TEXT
 // ==========================
-bearishLabelText = bearishRiskStrength == 3 ? "H" : bearishRiskStrength == 2 ? "M" : "L"
-bullishLabelText = bullishRiskStrength == 3 ? "H" : bullishRiskStrength == 2 ? "M" : "L"
+bearishLabelText = bearishRiskStrength >= 2 ? "H" : "L"
+bullishLabelText = bullishRiskStrength >= 2 ? "H" : "L"
 
 // ==========================
 // LABEL POSITION
@@ -232,13 +232,11 @@ if showRiskLabels and finalBullishRiskConfirmed
 alertcondition(finalBearishRiskConfirmed, title="Bearish Reversal Risk", message="Bearish reversal risk detected")
 alertcondition(finalBullishRiskConfirmed, title="Bullish Reversal Risk", message="Bullish reversal risk detected")
 
-alertcondition(finalBearishRiskConfirmed and bearishRiskStrength == 3, title="Bearish Reversal Risk (3)", message="Bearish reversal risk (3) detected")
-alertcondition(finalBearishRiskConfirmed and bearishRiskStrength == 2, title="Bearish Reversal Risk (2)", message="Bearish reversal risk (2) detected")
-alertcondition(finalBearishRiskConfirmed and bearishRiskStrength == 1, title="Bearish Reversal Risk (1)", message="Bearish reversal risk (1) detected")
+alertcondition(finalBearishRiskConfirmed and bearishRiskStrength >= 2, title="Bearish Reversal Risk (H)", message="Bearish reversal risk (H) detected")
+alertcondition(finalBearishRiskConfirmed and bearishRiskStrength == 1, title="Bearish Reversal Risk (L)", message="Bearish reversal risk (L) detected")
 
-alertcondition(finalBullishRiskConfirmed and bullishRiskStrength == 3, title="Bullish Reversal Risk (3)", message="Bullish reversal risk (3) detected")
-alertcondition(finalBullishRiskConfirmed and bullishRiskStrength == 2, title="Bullish Reversal Risk (2)", message="Bullish reversal risk (2) detected")
-alertcondition(finalBullishRiskConfirmed and bullishRiskStrength == 1, title="Bullish Reversal Risk (1)", message="Bullish reversal risk (1) detected")
+alertcondition(finalBullishRiskConfirmed and bullishRiskStrength >= 2, title="Bullish Reversal Risk (H)", message="Bullish reversal risk (H) detected")
+alertcondition(finalBullishRiskConfirmed and bullishRiskStrength == 1, title="Bullish Reversal Risk (L)", message="Bullish reversal risk (L) detected")
 
 // ==========================
 // REFERENCE LINES
