@@ -200,36 +200,10 @@ bearishRiskRaw = bearishGapBg and isBullCandle and bearishRiskStrength > 0 and b
 bullishRiskRaw = bullishGapBg and isBearCandle and bullishRiskStrength > 0 and bearishRiskStrength == 0
 
 // ==========================
-// ONE SIGNAL PER BACKGROUND ZONE
-// confirmed bar only
+// CONFIRMED SIGNAL
 // ==========================
-newBearishZone = bearishGapBg and not bearishGapBg[1]
-newBullishZone = bullishGapBg and not bullishGapBg[1]
-
-var bool bearishSignalFiredInZone = false
-var bool bullishSignalFiredInZone = false
-
-var bool finalBearishRiskConfirmed = false
-var bool finalBullishRiskConfirmed = false
-
-finalBearishRiskConfirmed := false
-finalBullishRiskConfirmed := false
-
-if barstate.isconfirmed
-    if newBearishZone
-        bearishSignalFiredInZone := false
-
-    if newBullishZone
-        bullishSignalFiredInZone := false
-
-    finalBearishRiskConfirmed := bearishRiskRaw and not bearishSignalFiredInZone
-    finalBullishRiskConfirmed := bullishRiskRaw and not bullishSignalFiredInZone
-
-    if finalBearishRiskConfirmed
-        bearishSignalFiredInZone := true
-
-    if finalBullishRiskConfirmed
-        bullishSignalFiredInZone := true
+finalBearishRiskConfirmed = barstate.isconfirmed and bearishRiskRaw
+finalBullishRiskConfirmed = barstate.isconfirmed and bullishRiskRaw
 
 // ==========================
 // LABEL TEXT
