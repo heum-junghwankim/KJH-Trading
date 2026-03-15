@@ -61,18 +61,18 @@
 
 ## 현재 기본 세팅
 
-이 스크립트는 현재 `스윙형` 기준 기본값으로 맞춰져 있습니다.
+이 스크립트는 현재 `나스닥 1시간봉 추세 추적` 기준 기본값으로 맞춰져 있습니다.
 
-- `Swing Period`: `20`
-- `Adaptive Price Tracking`: `40`
-- `Adapt APT by ATR ratio`: `false`
-- `Volatility Bias`: `2.0`
+- `Swing Period`: `14`
+- `Adaptive Price Tracking`: `28`
+- `Adapt APT by ATR ratio`: `true`
+- `Volatility Bias`: `1.4`
 - `Base Line Length`: `26`
 - `Leading Span B Length`: `52`
 - `Displacement`: `26`
-- `MA Length`: `20`
+- `MA Length`: `9`
 
-짧은 노이즈를 과하게 따라가기보다, 한 번 형성된 추세 구조와 중기 기준 가격대를 안정적으로 해석하는 쪽에 무게를 둔 설정입니다.
+1시간봉에서 추세 전환을 너무 늦게 보지 않으면서도, 정렬 판단에 쓰는 단기 `9` 이동평균을 내부 계산으로 유지하도록 맞춘 설정입니다.
 
 ## 주요 기능
 
@@ -83,7 +83,7 @@
 - `Swing Period`: 스윙 고점/저점 탐지 기준 봉 수
 - 스윙이 전환되면 `HH`, `HL`, `LH`, `LL` 라벨이 차트에 표시됩니다.
 
-기본값 `20`은 너무 잦은 전환 신호를 줄이고, 스윙 고점/저점이 어느 정도 의미 있게 형성된 뒤에 구조를 읽도록 맞춘 값입니다.
+기본값 `14`는 나스닥 1시간봉에서 구조 변화를 너무 늦지 않게 포착하면서도, 단기 흔들림을 어느 정도 걸러내도록 맞춘 값입니다.
 
 이 구조를 통해 단순 선 하나가 아니라, 현재 시장이 고점을 높이는지 낮추는지까지 함께 해석할 수 있습니다.
 
@@ -93,7 +93,7 @@
 - `Adapt APT by ATR ratio`: ATR 비율에 따라 반응 속도를 자동 조절할지 여부
 - `Volatility Bias`: 변동성이 반응 속도에 미치는 영향 크기
 
-현재 기본값은 `Adaptive Price Tracking = 40`, `Adapt APT by ATR ratio = false`, `Volatility Bias = 2.0`입니다.
+현재 기본값은 `Adaptive Price Tracking = 28`, `Adapt APT by ATR ratio = true`, `Volatility Bias = 1.4`입니다.
 
 스윙 방향이 바뀌면 해당 스윙 지점부터 VWAP 계산이 다시 시작되고, 이후에는 가격과 거래량을 반영한 적응형 방식으로 선이 이어집니다.
 
@@ -121,9 +121,9 @@
 - `MA Source`: 이동평균 계산 기준 가격
 - `Show Alignment Background`: 배경 표시 여부
 
-현재 기본값 `MA Length = 20`은 스윙 구조 해석과 맞물리도록, 너무 빠르지 않게 정렬 상태를 확인하는 용도에 맞춰져 있습니다.
+현재 기본값 `MA Length = 9`는 나스닥 1시간봉에서 단기 흐름을 정렬 판단에 반영하려는 용도에 맞춘 값입니다.
 
-스크립트는 이동평균선 자체를 차트에 그리지는 않지만, 내부적으로 MA를 계산한 뒤 아래 정렬 조건을 검사합니다.
+스크립트는 이동평균선 자체를 차트에 그리지 않고, 내부적으로 MA를 계산한 뒤 아래 정렬 조건을 검사합니다.
 
 - 강세 정렬: `MA > Ichimoku Base Line > VWAP`
 - 약세 정렬: `MA < Ichimoku Base Line < VWAP`

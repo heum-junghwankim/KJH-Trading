@@ -10,18 +10,18 @@ var string t1 = "Number of bars used to detect swing highs and lows. Larger valu
 var string t2 = "Controls how quickly the VWAP adjusts to new price action. Lower values make the VWAP react faster (tighter to price), higher values make it smoother and slower to change."
 var string t3 = "When enabled, the VWAP reaction speed changes automatically based on market volatility. High volatility shortens the tracking period (more responsive), low volatility lengthens it (smoother)."
 var string t4 = "Controls how strongly volatility influences the VWAP reaction speed. Values above 1 increase the effect of volatility changes; values below 1 make it less sensitive to volatility."
-var string t5 = "Color used for swing high/low labels drawn on the chart to indicate pivot points."
-var string t6 = "Color used for swing low labels when marking pivot points."
+var string t5 = "Color used for positive swing labels such as HH and HL."
+var string t6 = "Color used for negative swing labels such as LL and LH."
 var string t7 = "Color used for VWAP lines when in an uptrend."
 var string t8 = "Color used for VWAP lines when in a downtrend."
 var string t9 = "Width of the VWAP lines drawn on the chart. Larger values make the lines thicker and more visible."
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~}
 
 // ~~ Inputs {
-prd      = input.int(20, title='Swing Period', minval=2, group='Swing Points', tooltip=t1)
-baseAPT  = input.float(40, 'Adaptive Price Tracking', minval=1, step=1, group='Swing Points', tooltip=t2)
-useAdapt = input.bool(false, 'Adapt APT by ATR ratio', group='Swing Points', tooltip=t3)
-volBias  = input.float(2.0, 'Volatility Bias', minval=0.1, step=0.1, group='Swing Points', tooltip=t4)
+prd      = input.int(14, title='Swing Period', minval=2, group='Swing Points', tooltip=t1)
+baseAPT  = input.float(28, 'Adaptive Price Tracking', minval=1, step=1, group='Swing Points', tooltip=t2)
+useAdapt = input.bool(true, 'Adapt APT by ATR ratio', group='Swing Points', tooltip=t3)
+volBias  = input.float(1.4, 'Volatility Bias', minval=0.1, step=0.1, group='Swing Points', tooltip=t4)
 
 highS = input.color(color.rgb(0, 107, 116), title="Swing Labels", group="Style", inline="Swing", tooltip=t5)
 lowS  = input.color(color.rgb(145, 22, 31), title="", group="Style", inline="Swing", tooltip=t6)
@@ -35,14 +35,16 @@ showIchimoku        = input.bool(true, "Show Ichimoku", group=ichimokuGroup)
 basePeriods         = input.int(26, minval=1, title="Base Line Length", group=ichimokuGroup)
 laggingSpan2Periods = input.int(52, minval=1, title="Leading Span B Length", group=ichimokuGroup)
 displacement        = input.int(26, minval=1, title="Displacement", group=ichimokuGroup)
-ichBaseColor        = input.color(color.green, "Base Line Color", group=ichimokuGroup, inline="ich1")
-ichBaseWidth        = input.int(1, minval=1, maxval=5, title="", group=ichimokuGroup, inline="ich1")
+ichBaseBullColor    = input.color(color.rgb(46, 125, 50), "Base Line Colors", group=ichimokuGroup, inline="ich1")
+ichBaseNeutralColor = input.color(color.rgb(158, 158, 158), "", group=ichimokuGroup, inline="ich1")
+ichBaseBearColor    = input.color(color.rgb(198, 40, 40), "", group=ichimokuGroup, inline="ich1")
+ichBaseWidth        = input.int(2, minval=1, maxval=5, title="", group=ichimokuGroup, inline="ich2")
 kumoBullColor       = input.color(color.new(color.gray, 80), "Bull Cloud", group=ichimokuGroup, inline="ich2")
 kumoBearColor       = input.color(color.new(color.gray, 80), "", group=ichimokuGroup, inline="ich2")
 
 // Moving Average (calculation only)
 maGroup  = "Moving Average"
-maLength = input.int(20, "MA Length", minval=1, group=maGroup)
+maLength = input.int(9, "MA Length", minval=1, group=maGroup)
 maSource = input.source(close, "MA Source", group=maGroup)
 
 // Alignment
@@ -104,8 +106,9 @@ conversionLine = donchian(9)
 baseLine = donchian(basePeriods)
 leadLine1 = math.avg(conversionLine, baseLine)
 leadLine2 = donchian(laggingSpan2Periods)
+baseLineColor = close > baseLine and baseLine > vap ? ichBaseBullColor : close < baseLine and baseLine < vap ? ichBaseBearColor : ichBaseNeutralColor
 
-plot(showIchimoku ? baseLine : na, color=ichBaseColor, linewidth=ichBaseWidth, title="Ichimoku Base Line")
+plot(showIchimoku ? baseLine : na, color=baseLineColor, linewidth=ichBaseWidth, title="Ichimoku Base Line")
 p1 = plot(showIchimoku ? leadLine1 : na, offset=displacement - 1, color=color.new(color.gray, 100), title="Leading Span A")
 p2 = plot(showIchimoku ? leadLine2 : na, offset=displacement - 1, color=color.new(color.gray, 100), title="Leading Span B")
 fill(p1, p2, title="Kumo Cloud Fill", color=leadLine1 > leadLine2 ? kumoBullColor : kumoBearColor)
@@ -120,8 +123,8 @@ if dir != dir[1]
     x   = dir > 0 ? plL : phL
     y   = dir > 0 ? pl  : ph
     loc = dir > 0 ? label.style_label_up : label.style_label_down
-    col = dir > 0 ? highS : lowS
     txt = dir > 0 and pl < prev ? 'LL' : dir > 0 and pl > prev ? 'HL' : dir < 0 and ph < prev ? 'LH' : dir < 0 and ph > prev ? 'HH' : ''
+    col = txt == 'HH' or txt == 'HL' ? highS : txt == 'LL' or txt == 'LH' ? lowS : color.gray
     label.new(x, y, text=txt, style=loc, color=color.new(col, 20), textcolor=color.white)
     prev := dir > 0 ? ph[1] : pl[1]
 
