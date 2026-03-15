@@ -4,11 +4,11 @@ indicator("abnormal-price-tracker-candles", overlay=true, format=format.volume, 
 // =========================
 // MA Inputs
 // =========================
-maLength = input.int(20, title="이동평균 기간", minval=1)
+maLength = input.int(9, title="이동평균 기간", minval=1)
 src = input.source(close, title="평균 기준 가격")
-colorAbove = input.color(color.lime, title="종가가 이동평균선 위일 때 색상")
-colorBelow = input.color(color.red, title="종가가 이동평균선 아래일 때 색상")
-lineWidth = input.int(2, title="이동평균선 두께", minval=1, maxval=5)
+colorAbove = input.color(color.rgb(144, 238, 144), title="종가가 이동평균선 위일 때 색상")
+colorBelow = input.color(color.rgb(255, 160, 160), title="종가가 이동평균선 아래일 때 색상")
+lineWidth = input.int(1, title="이동평균선 두께", minval=1, maxval=5)
 
 // =========================
 // cRSI Inputs
