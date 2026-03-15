@@ -36,7 +36,7 @@ sellColor = abnormal ? abnormalSellColor : normalSellColor
 // =========================
 // Alignment Background Inputs
 // =========================
-prd      = input.int(50, "Swing Period", minval=2, group="Alignment Background")
+prd      = input.int(20, "Swing Period", minval=2, group="Alignment Background")
 baseAPT  = input.float(20, "Adaptive Price Tracking", minval=1, step=1, group="Alignment Background")
 useAdapt = input.bool(false, "Adapt APT by ATR ratio", group="Alignment Background")
 volBias  = input.float(10.0, "Volatility Bias", minval=0.1, step=0.1, group="Alignment Background")
@@ -45,19 +45,21 @@ showAlignmentBg = input.bool(true, "Show Alignment Background", group="Alignment
 bullAlignBaseColor = input.color(color.green, "Bull Alignment", group="Alignment Background", inline="bg")
 bearAlignBaseColor = input.color(color.purple, "Bear Alignment", group="Alignment Background", inline="bg")
 
-alignWeakThreshold   = input.float(15.0, "Weak Strength Threshold", minval=0.1, step=0.1, group="Alignment Background")
+alignWeakThreshold   = input.float(10.0, "Weak Strength Threshold", minval=0.1, step=0.1, group="Alignment Background")
+alignMediumThreshold = input.float(20.0, "Medium Strength Threshold", minval=0.1, step=0.1, group="Alignment Background")
 alignStrongThreshold = input.float(35.0, "Strong Strength Threshold", minval=0.1, step=0.1, group="Alignment Background")
 
-bullAlignWeakTransparency   = input.int(92, "Bull Weak Transparency", minval=0, maxval=100, group="Alignment Background")
-bullAlignMediumTransparency = input.int(76, "Bull Medium Transparency", minval=0, maxval=100, group="Alignment Background")
-bullAlignStrongTransparency = input.int(52, "Bull Strong Transparency", minval=0, maxval=100, group="Alignment Background")
+bullAlignVeryWeakTransparency = input.int(85, "Bull Very Weak Transparency", minval=0, maxval=100, group="Alignment Background")
+bullAlignWeakTransparency     = input.int(75, "Bull Weak Transparency", minval=0, maxval=100, group="Alignment Background")
+bullAlignMediumTransparency   = input.int(65, "Bull Medium Transparency", minval=0, maxval=100, group="Alignment Background")
+bullAlignStrongTransparency   = input.int(55, "Bull Strong Transparency", minval=0, maxval=100, group="Alignment Background")
 
-bearAlignWeakTransparency   = input.int(92, "Bear Weak Transparency", minval=0, maxval=100, group="Alignment Background")
-bearAlignMediumTransparency = input.int(76, "Bear Medium Transparency", minval=0, maxval=100, group="Alignment Background")
-bearAlignStrongTransparency = input.int(52, "Bear Strong Transparency", minval=0, maxval=100, group="Alignment Background")
+bearAlignVeryWeakTransparency = input.int(85, "Bear Very Weak Transparency", minval=0, maxval=100, group="Alignment Background")
+bearAlignWeakTransparency     = input.int(75, "Bear Weak Transparency", minval=0, maxval=100, group="Alignment Background")
+bearAlignMediumTransparency   = input.int(65, "Bear Medium Transparency", minval=0, maxval=100, group="Alignment Background")
+bearAlignStrongTransparency   = input.int(55, "Bear Strong Transparency", minval=0, maxval=100, group="Alignment Background")
 
 basePeriods         = input.int(20, minval=1, title="Base Line Length", group="Alignment Background")
-laggingSpan2Periods = input.int(50, minval=1, title="Leading Span B Length", group="Alignment Background")
 maLength            = input.int(5, "MA Length", minval=1, group="Alignment Background")
 maSource            = input.source(close, "MA Source", group="Alignment Background")
 
@@ -132,7 +134,6 @@ else
 // =========================
 donchian(len) => math.avg(ta.lowest(len), ta.highest(len))
 baseLine = donchian(basePeriods)
-_ = donchian(laggingSpan2Periods)  // 구조만 유지, 표시 안 함
 maValue = ta.sma(maSource, maLength)
 
 // =========================
@@ -146,8 +147,12 @@ baseVwapGap = math.abs(baseLine - vap)
 alignmentGap = math.min(maBaseGap, baseVwapGap)
 alignmentStrength = atr > 0 ? alignmentGap / atr * 100.0 : 0.0
 
-bullAlignColor = alignmentStrength >= alignStrongThreshold ? color.new(bullAlignBaseColor, bullAlignStrongTransparency) : alignmentStrength >= alignWeakThreshold ? color.new(bullAlignBaseColor, bullAlignMediumTransparency) : color.new(bullAlignBaseColor, bullAlignWeakTransparency)
-bearAlignColor = alignmentStrength >= alignStrongThreshold ? color.new(bearAlignBaseColor, bearAlignStrongTransparency) : alignmentStrength >= alignWeakThreshold ? color.new(bearAlignBaseColor, bearAlignMediumTransparency) : color.new(bearAlignBaseColor, bearAlignWeakTransparency)
+alignmentColor(baseColor, strength, weakThreshold, mediumThreshold, strongThreshold, veryWeakTransparency, weakTransparency, mediumTransparency, strongTransparency) =>
+    transparency = strength >= strongThreshold ? strongTransparency : strength >= mediumThreshold ? mediumTransparency : strength >= weakThreshold ? weakTransparency : veryWeakTransparency
+    color.new(baseColor, transparency)
+
+bullAlignColor = alignmentColor(bullAlignBaseColor, alignmentStrength, alignWeakThreshold, alignMediumThreshold, alignStrongThreshold, bullAlignVeryWeakTransparency, bullAlignWeakTransparency, bullAlignMediumTransparency, bullAlignStrongTransparency)
+bearAlignColor = alignmentColor(bearAlignBaseColor, alignmentStrength, alignWeakThreshold, alignMediumThreshold, alignStrongThreshold, bearAlignVeryWeakTransparency, bearAlignWeakTransparency, bearAlignMediumTransparency, bearAlignStrongTransparency)
 
 bgcolor(showAlignmentBg ? bullAlignment ? bullAlignColor : bearAlignment ? bearAlignColor : na : na, title="Alignment Background")
 
