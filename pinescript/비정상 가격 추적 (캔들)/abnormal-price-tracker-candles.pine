@@ -366,6 +366,3 @@ plot(showCRSIPlots ? ub : na, title="cRSI 상단 밴드", color=color.new(color.
 plot(showCRSIPlots ? db : na, title="cRSI 하단 밴드", color=color.new(color.aqua, 0))
 plot(showVolumeMA ? avgBuyVolume : na, title="매수 거래량 평균선", color=buyVolumeMAColor)
 plot(showVolumeMA ? avgSellVolume : na, title="매도 거래량 평균선", color=sellVolumeMAColor)
-
-hline(absoluteOB, "절대 과매수", color=color.gray)
-hline(absoluteOS, "절대 과매도", color=color.gray)
