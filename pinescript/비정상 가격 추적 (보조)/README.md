@@ -62,15 +62,17 @@
 - 초록 점선: `MFI <= 20`일 때 활성화되는 하단 기준선
 - 노란색 계열 배경: `cRSI > MFI` 괴리 구간
 - 파란색 계열 배경: `MFI > cRSI` 괴리 구간
-- 붉은색 `H / L`: `Bearish Reversal Risk`
-- 녹색 `H / L`: `Bullish Reversal Risk`
+- 붉은색 `H`: 강한 `Bearish Reversal Risk`
+- 주황색 `L`: 약한 `Bearish Reversal Risk`
+- 파란색 `H`: 강한 `Bullish Reversal Risk`
+- 녹색 `L`: 약한 `Bullish Reversal Risk`
 
 해석은 아래처럼 보면 됩니다.
 
 - 노란 배경 = 가격 모멘텀이 자금 흐름보다 앞선 상태
 - 파란 배경 = 자금 흐름 대비 가격이 더 눌린 상태
-- 붉은색 `Bearish Reversal Risk` = 위에서 꺾일 위험
-- 녹색 `Bullish Reversal Risk` = 아래서 되돌릴 위험
+- 붉은색/주황색 `Bearish Reversal Risk` = 위에서 꺾일 위험
+- 파란색/녹색 `Bullish Reversal Risk` = 아래서 되돌릴 위험
 - `H` = 강한 경고, `L` = 약한 경고
 
 이 지표는 단독 진입 신호라기보다, `지금 구간이 되돌림 또는 반전 위험이 커지는가`를 먼저 거르는 용도입니다.
@@ -123,11 +125,11 @@
   - 롱 추격을 가장 경계하는 신호
   - 익절, 비중축소, 숏 감시 강화에 사용
 
-- 붉은색 `L`:
+- 주황색 `L`:
   - 아직 강한 반전은 아니지만 위쪽 힘 둔화 경고
   - 추격 자제용 약한 경고로 사용
 
-- 녹색 `H`:
+- 파란색 `H`:
   - 숏 추격을 가장 경계하는 신호
   - 반등 감시, 숏 보수화, 롱 감시 강화에 사용
 

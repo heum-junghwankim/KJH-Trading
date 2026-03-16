@@ -54,6 +54,8 @@ bullishLabelOffset = input.float(6.0, minval=0.0, maxval=30.0, title="Bullish La
 // ==========================
 bearishRiskColor = color.new(color.red, riskLabelTransparency)
 bullishRiskColor = color.new(color.green, riskLabelTransparency)
+bearishRiskLowColor = color.new(color.orange, riskLabelTransparency)
+bullishRiskHighColor = color.new(color.blue, riskLabelTransparency)
 
 // ==========================
 // cRSI CALCULATION
@@ -216,6 +218,8 @@ finalBullishRiskConfirmed = barstate.isconfirmed and bullishRiskRaw and bullishM
 // ==========================
 bearishLabelText = bearishRiskStrength >= 2 ? "H" : "L"
 bullishLabelText = bullishRiskStrength >= 2 ? "H" : "L"
+bearishLabelColor = bearishRiskStrength >= 2 ? bearishRiskColor : bearishRiskLowColor
+bullishLabelColor = bullishRiskStrength >= 2 ? bullishRiskHighColor : bullishRiskColor
 
 // ==========================
 // LABEL POSITION
@@ -227,10 +231,10 @@ bullishLabelPos = math.max(0.0, crsi - bullishLabelOffset)
 // LABELS
 // ==========================
 if showRiskLabels and finalBearishRiskConfirmed
-    label.new(bar_index, bearishLabelPos, bearishLabelText, style=label.style_label_down, color=bearishRiskColor, textcolor=color.white, size=size.small)
+    label.new(bar_index, bearishLabelPos, bearishLabelText, style=label.style_label_down, color=bearishLabelColor, textcolor=color.white, size=size.small)
 
 if showRiskLabels and finalBullishRiskConfirmed
-    label.new(bar_index, bullishLabelPos, bullishLabelText, style=label.style_label_up, color=bullishRiskColor, textcolor=color.white, size=size.small)
+    label.new(bar_index, bullishLabelPos, bullishLabelText, style=label.style_label_up, color=bullishLabelColor, textcolor=color.white, size=size.small)
 
 // ==========================
 // ALERTS
