@@ -124,6 +124,9 @@ if validCount > 0 and not na(mstep)
 // ==========================
 // MFI
 // ==========================
+overboughtLevel = 80.0
+oversoldLevel = 20.0
+
 mfi = ta.mfi(hlc3, mfiLength)
 
 // ==========================
@@ -199,11 +202,14 @@ bullishRiskStrength = bullishRiskScore >= 7 ? 3 : bullishRiskScore >= 5 ? 2 : bu
 bearishRiskRaw = bearishGapBg and isBullCandle and bearishRiskStrength > 0 and bullishRiskStrength == 0
 bullishRiskRaw = bullishGapBg and isBearCandle and bullishRiskStrength > 0 and bearishRiskStrength == 0
 
+bearishMfiFilterPass = mfi > oversoldLevel
+bullishMfiFilterPass = mfi < overboughtLevel
+
 // ==========================
 // CONFIRMED SIGNAL
 // ==========================
-finalBearishRiskConfirmed = barstate.isconfirmed and bearishRiskRaw
-finalBullishRiskConfirmed = barstate.isconfirmed and bullishRiskRaw
+finalBearishRiskConfirmed = barstate.isconfirmed and bearishRiskRaw and bearishMfiFilterPass
+finalBullishRiskConfirmed = barstate.isconfirmed and bullishRiskRaw and bullishMfiFilterPass
 
 // ==========================
 // LABEL TEXT
@@ -241,15 +247,19 @@ alertcondition(finalBullishRiskConfirmed and bullishRiskStrength == 1, title="Bu
 // ==========================
 // REFERENCE LINES
 // ==========================
-hline(80, "Overbought", color=color.red)
-hline(50, "Middle", color=color.gray)
-hline(20, "Oversold", color=color.green)
+isMfiOverbought = mfi >= overboughtLevel
+isMfiOversold = mfi <= oversoldLevel
+
+plot(overboughtLevel, "Overbought Base", color=color.gray, linewidth=2, style=plot.style_circles, display=display.pane)
+plot(oversoldLevel, "Oversold Base", color=color.gray, linewidth=2, style=plot.style_circles, display=display.pane)
+plot(isMfiOverbought ? overboughtLevel : na, "Overbought Active", color=color.red, linewidth=4, style=plot.style_circles, display=display.pane)
+plot(isMfiOversold ? oversoldLevel : na, "Oversold Active", color=color.lime, linewidth=4, style=plot.style_circles, display=display.pane)
 
 // ==========================
 // PLOTS
 // ==========================
-lowBandPlot = plot(db, "cRSI Low Band", color=color.gray)
-highBandPlot = plot(ub, "cRSI High Band", color=color.gray)
+lowBandPlot = plot(db, "cRSI Low Band", color=color.gray, display=display.pane)
+highBandPlot = plot(ub, "cRSI High Band", color=color.gray, display=display.pane)
 plot(crsi, "cRSI", color=crsiColor, linewidth=crsiWidth)
 plot(mfi, "MFI", color=mfiColor, linewidth=mfiWidth)
 fill(lowBandPlot, highBandPlot, color=color.new(color.gray, 75))
