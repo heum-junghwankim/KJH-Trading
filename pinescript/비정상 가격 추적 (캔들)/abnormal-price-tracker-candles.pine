@@ -109,6 +109,18 @@ helperUseGapFade = input.bool(true, title="Use Gap Fade Condition", group=helper
 helperGapFadeLookback = input.int(1, minval=1, maxval=5, title="Gap Fade Lookback", group=helperCompositeGroup)
 helperMinStrength = input.int(1, minval=1, maxval=3, title="보조 최소 강도", group=helperCompositeGroup)
 
+// =========================
+// L/S Signal Inputs
+// =========================
+lsSignalGroup = "L/S 진입 신호"
+showStrongLSSignals = input.bool(true, title="Strong L/S 진입 신호 표시", group=lsSignalGroup)
+lsSetupLookback = input.int(12, minval=1, title="세팅 유효 봉 수", group=lsSignalGroup)
+lsMinScore = input.int(8, minval=1, maxval=15, title="최소 진입 점수", group=lsSignalGroup)
+lsStrongScore = input.int(10, minval=1, maxval=15, title="강한 진입 점수", group=lsSignalGroup)
+lsCooldownBars = input.int(8, minval=0, title="동일 방향 신호 쿨다운", group=lsSignalGroup)
+lsRequireTrendAlignment = input.bool(false, title="MA 정렬 필수", group=lsSignalGroup)
+lsRequireVolumeConfirm = input.bool(false, title="거래량 확인 필수", group=lsSignalGroup)
+
 donchian(len) =>
     math.avg(ta.lowest(len), ta.highest(len))
 
@@ -284,8 +296,9 @@ regularBearDiv = bearDivRaw
 // =========================
 // Divergence Markers
 // =========================
-plotshape(regularBullDiv, offset=-lbR, title="일반 강세 다이버전스", style=shape.triangleup, location=location.belowbar, color=oversoldColor, size=size.small)
-plotshape(regularBearDiv, offset=-lbR, title="일반 약세 다이버전스", style=shape.triangledown, location=location.abovebar, color=overboughtColor, size=size.small)
+bearDivMarkerColor = color.rgb(255, 140, 0)
+plotshape(regularBullDiv, offset=-lbR, title="일반 강세 다이버전스", style=shape.triangleup, location=location.belowbar, color=oversoldColor, size=size.tiny)
+plotshape(regularBearDiv, offset=-lbR, title="일반 약세 다이버전스", style=shape.triangledown, location=location.abovebar, color=bearDivMarkerColor, size=size.tiny)
 
 // =========================
 // ATR
@@ -511,6 +524,87 @@ finalBgColor = not na(bullBgColor) ? bullBgColor : not na(bearBgColor) ? bearBgC
 bgcolor(finalBgColor, title="강세/약세 배경 구간")
 
 // =========================
+// L/S Composite Signals
+// =========================
+recentBullDivSignal = recentSignal(regularBullDiv, lsSetupLookback)
+recentBearDivSignal = recentSignal(regularBearDiv, lsSetupLookback)
+recentHelperBullishSignal = recentSignal(helperBullishSignal, lsSetupLookback)
+recentHelperBearishSignal = recentSignal(helperBearishSignal, lsSetupLookback)
+
+bullishVolumeConfirm = bullSmartVolumeSignal or vpBullPressureSignal or (abnormalBuyVolume and buyVolume > sellVolume)
+bearishVolumeConfirm = bearSmartVolumeSignal or vpBearPressureSignal or (abnormalSellVolume and sellVolume > buyVolume)
+
+bullishTrendAligned = close >= ma and ma >= ma[1]
+bearishTrendAligned = close <= ma and ma <= ma[1]
+
+bullSetupScore = 0
+bullSetupScore += recentBullishAbnormalCandle ? 2 : 0
+bullSetupScore += recentBullDivSignal ? 2 : 0
+bullSetupScore += bullBgOn ? 1 : 0
+bullSetupScore += bullBgStrong ? 1 : 0
+bullSetupScore += recentHelperBullishSignal ? 1 : 0
+
+bearSetupScore = 0
+bearSetupScore += recentBearishAbnormalCandle ? 2 : 0
+bearSetupScore += recentBearDivSignal ? 2 : 0
+bearSetupScore += bearBgOn ? 1 : 0
+bearSetupScore += bearBgStrong ? 1 : 0
+bearSetupScore += recentHelperBearishSignal ? 1 : 0
+
+bullConfirmScore = 0
+bullConfirmScore += bullishVolumeConfirm ? 2 : 0
+bullConfirmScore += close >= ma ? 1 : 0
+bullConfirmScore += ma >= ma[1] ? 1 : 0
+bullConfirmScore += close > open ? 1 : 0
+bullConfirmScore += close > close[1] ? 1 : 0
+bullConfirmScore += crsi > crsi[1] ? 1 : 0
+bullConfirmScore += helperMfi > helperMfi[1] ? 1 : 0
+
+bearConfirmScore = 0
+bearConfirmScore += bearishVolumeConfirm ? 2 : 0
+bearConfirmScore += close <= ma ? 1 : 0
+bearConfirmScore += ma <= ma[1] ? 1 : 0
+bearConfirmScore += close < open ? 1 : 0
+bearConfirmScore += close < close[1] ? 1 : 0
+bearConfirmScore += crsi < crsi[1] ? 1 : 0
+bearConfirmScore += helperMfi < helperMfi[1] ? 1 : 0
+
+bullTotalScore = bullSetupScore + bullConfirmScore
+bearTotalScore = bearSetupScore + bearConfirmScore
+
+bullSetupReady = bullSetupScore >= 3
+bearSetupReady = bearSetupScore >= 3
+bullConfirmReady = bullConfirmScore >= 4 and (not lsRequireTrendAlignment or bullishTrendAligned) and (not lsRequireVolumeConfirm or bullishVolumeConfirm)
+bearConfirmReady = bearConfirmScore >= 4 and (not lsRequireTrendAlignment or bearishTrendAligned) and (not lsRequireVolumeConfirm or bearishVolumeConfirm)
+
+bullEntryCandidate = bullSetupReady and bullConfirmReady and bullTotalScore >= lsMinScore and bullTotalScore > bearTotalScore
+bearEntryCandidate = bearSetupReady and bearConfirmReady and bearTotalScore >= lsMinScore and bearTotalScore > bullTotalScore
+
+var int lastLongSignalBar = na
+var int lastShortSignalBar = na
+
+canLongSignal = na(lastLongSignalBar) or bar_index - lastLongSignalBar > lsCooldownBars
+canShortSignal = na(lastShortSignalBar) or bar_index - lastShortSignalBar > lsCooldownBars
+
+longSignal = barstate.isconfirmed and canLongSignal and bullEntryCandidate and not (bullEntryCandidate[1] == true)
+shortSignal = barstate.isconfirmed and canShortSignal and bearEntryCandidate and not (bearEntryCandidate[1] == true)
+
+if longSignal
+    lastLongSignalBar := bar_index
+
+if shortSignal
+    lastShortSignalBar := bar_index
+
+effectiveStrongScore = math.max(lsStrongScore, lsMinScore)
+strongLongSignal = longSignal and bullTotalScore >= effectiveStrongScore
+strongShortSignal = shortSignal and bearTotalScore >= effectiveStrongScore
+strongLongSignalColor = color.rgb(0, 255, 0)
+strongShortSignalColor = color.rgb(255, 0, 0)
+
+plotshape(showStrongLSSignals and strongLongSignal, title="Strong Long Signal", style=shape.circle, location=location.belowbar, color=strongLongSignalColor, size=size.tiny)
+plotshape(showStrongLSSignals and strongShortSignal, title="Strong Short Signal", style=shape.circle, location=location.abovebar, color=strongShortSignalColor, size=size.tiny)
+
+// =========================
 // Entry Alerts
 // =========================
 overboughtEnter = isBearishAbnormalCandle and not (isBearishAbnormalCandle[1] == true)
@@ -539,6 +633,8 @@ alertcondition(bearBgOn, title="매도 감시 구간 진입", message="매도 �
 
 alertcondition(bullBgStrong, title="매수 감시 구간 강화", message="매수 감시 구간 강화")
 alertcondition(bearBgStrong, title="매도 감시 구간 강화", message="매도 감시 구간 강화")
+alertcondition(strongLongSignal, title="Strong Long Signal", message="L/S 진입 신호: Strong Long")
+alertcondition(strongShortSignal, title="Strong Short Signal", message="L/S 진입 신호: Strong Short")
 
 // =========================
 // Optional Plots

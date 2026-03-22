@@ -1,5 +1,5 @@
 //@version=6
-indicator("abnormal-price-tracker-helper", shorttitle="abnormal-price-tracker-helper", overlay=false, max_labels_count=500)
+indicator("Abnormal-Price-Tracker-Helper", shorttitle="Abnormal-Price-Tracker-Helper", overlay=false, max_labels_count=500)
 
 // ==========================
 // INPUT

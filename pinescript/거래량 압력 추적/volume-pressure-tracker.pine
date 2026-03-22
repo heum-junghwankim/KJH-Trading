@@ -1,5 +1,5 @@
 //@version=6
-indicator("volume-pressure-tracker", format=format.volume, precision=0)
+indicator("Volume-Pressure-Tracker", format=format.volume, precision=0)
 
 // =========================
 // Buy / Sell Volume 계산

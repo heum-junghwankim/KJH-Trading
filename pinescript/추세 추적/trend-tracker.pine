@@ -3,7 +3,7 @@
 
 // © Zeiierman
 //@version=6
-indicator('trend-tracker', overlay = true, max_bars_back = 5000, max_labels_count = 500, max_polylines_count = 100)
+indicator('Trend-Tracker', overlay = true, max_bars_back = 5000, max_labels_count = 500, max_polylines_count = 100)
 
 // ~~ Tooltips {
 var string t1 = "Number of bars used to detect swing highs and lows. Larger values identify bigger, more significant swings but react slower. Smaller values detect more frequent swings but may produce more noise."
