@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900" role="img" aria-labelledby="title desc">
+  <title id="title">추세 추적 세력 관점 다이어그램</title>
+  <desc id="desc">강세 수용, 약세 수용, 주도권 교체 후보를 추세 추적 지표 기준으로 요약한 이미지</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f7fbff"/>
+      <stop offset="100%" stop-color="#fff9f4"/>
+    </linearGradient>
+    <linearGradient id="bullFill" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ecfff4"/>
+      <stop offset="100%" stop-color="#d8f5e5"/>
+    </linearGradient>
+    <linearGradient id="bearFill" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fff1f1"/>
+      <stop offset="100%" stop-color="#fde2e2"/>
+    </linearGradient>
+    <linearGradient id="midFill" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f5f0ff"/>
+      <stop offset="100%" stop-color="#eef6ff"/>
+    </linearGradient>
+    <style>
+      .title { font: 700 34px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #122033; }
+      .subtitle { font: 500 17px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #51606f; }
+      .cardTitle { font: 700 24px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #16263a; }
+      .sectionLabel { font: 700 15px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #21405b; letter-spacing: 0.08em; }
+      .body { font: 500 16px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #243648; }
+      .small { font: 500 14px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #4c5d6d; }
+      .mono { font: 700 15px 'Menlo','Consolas',monospace; fill: #0f4a35; }
+      .monoBear { font: 700 15px 'Menlo','Consolas',monospace; fill: #7d2430; }
+      .note { font: 700 15px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #5b4a1e; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="900" fill="#edf2f7"/>
+  <rect x="24" y="24" width="1152" height="852" rx="28" fill="url(#bg)" stroke="#d7e0ea"/>
+
+  <text x="60" y="82" class="title">추세 추적 · 세력 관점</text>
+  <text x="60" y="114" class="subtitle">구조와 평균 체결 단가 정렬이 맞을수록, 큰 자금이 가격을 받아들이는 방향이 더 선명해집니다</text>
+
+  <rect x="60" y="150" width="500" height="300" rx="24" fill="url(#bullFill)" stroke="#b7e6c8"/>
+  <text x="92" y="190" class="sectionLabel">BULLISH ACCEPTANCE</text>
+  <text x="92" y="224" class="cardTitle">강세 수용 구간</text>
+  <rect x="92" y="246" width="196" height="168" rx="18" fill="#ffffff" opacity="0.78" stroke="#cfe8d7"/>
+  <text x="112" y="274" class="mono">HH / HL</text>
+  <text x="112" y="296" class="mono">MA &gt; Base &gt; VWAP</text>
+  <polyline points="112,374 146,356 176,362 206,326 236,332 266,294" fill="none" stroke="#17a566" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="112" y1="388" x2="266" y2="388" stroke="#4db47d" stroke-width="4" stroke-linecap="round"/>
+  <line x1="112" y1="352" x2="266" y2="352" stroke="#2b7bbb" stroke-width="4" stroke-linecap="round"/>
+  <line x1="112" y1="320" x2="266" y2="320" stroke="#1c4430" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="146" cy="356" r="6" fill="#17a566"/>
+  <circle cx="206" cy="326" r="6" fill="#17a566"/>
+  <circle cx="266" cy="294" r="6" fill="#17a566"/>
+  <text x="318" y="274" class="body">세력 해석</text>
+  <text x="318" y="302" class="small">이전 HL 위에서 매물을 반복 흡수하며</text>
+  <text x="318" y="324" class="small">평균 체결 단가를 위로 옮기는 단계</text>
+  <text x="318" y="360" class="body">예상 움직임</text>
+  <text x="318" y="388" class="small">얕은 눌림 후 고점 재시험</text>
+  <text x="318" y="410" class="small">기준선 지지 유지 시 추세 지속 가능성 증가</text>
+
+  <rect x="640" y="150" width="500" height="300" rx="24" fill="url(#bearFill)" stroke="#efc0c5"/>
+  <text x="672" y="190" class="sectionLabel">BEARISH ACCEPTANCE</text>
+  <text x="672" y="224" class="cardTitle">약세 수용 구간</text>
+  <rect x="672" y="246" width="196" height="168" rx="18" fill="#ffffff" opacity="0.78" stroke="#f0d3d6"/>
+  <text x="692" y="274" class="monoBear">LH / LL</text>
+  <text x="692" y="296" class="monoBear">MA &lt; Base &lt; VWAP</text>
+  <polyline points="692,294 722,312 752,306 782,336 812,330 842,366" fill="none" stroke="#d04b5e" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="692" y1="320" x2="842" y2="320" stroke="#8e2e42" stroke-width="4" stroke-linecap="round"/>
+  <line x1="692" y1="352" x2="842" y2="352" stroke="#bb6b78" stroke-width="4" stroke-linecap="round"/>
+  <line x1="692" y1="388" x2="842" y2="388" stroke="#b18be4" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="722" cy="312" r="6" fill="#d04b5e"/>
+  <circle cx="782" cy="336" r="6" fill="#d04b5e"/>
+  <circle cx="842" cy="366" r="6" fill="#d04b5e"/>
+  <text x="898" y="274" class="body">세력 해석</text>
+  <text x="898" y="302" class="small">반등 때마다 공급을 내놓으며</text>
+  <text x="898" y="324" class="small">평균 체결 단가를 아래로 내리는 단계</text>
+  <text x="898" y="360" class="body">예상 움직임</text>
+  <text x="898" y="388" class="small">짧은 반등 후 저점 재시험</text>
+  <text x="898" y="410" class="small">기준선 저항 유지 시 하락 지속 가능성 증가</text>
+
+  <rect x="60" y="490" width="1080" height="280" rx="26" fill="url(#midFill)" stroke="#d8d6f4"/>
+  <text x="94" y="530" class="sectionLabel">CONTROL SHIFT</text>
+  <text x="94" y="566" class="cardTitle">주도권 교체 후보는 "첫 되돌림"에서 판별</text>
+
+  <rect x="94" y="598" width="312" height="112" rx="20" fill="#ffffff" stroke="#cfd9e7"/>
+  <text x="118" y="634" class="body">1. 첫 구조 전환</text>
+  <text x="118" y="662" class="small">VWAP 앵커가 재설정되고</text>
+  <text x="118" y="684" class="small">HH/HL 또는 LH/LL 첫 등장</text>
+
+  <rect x="444" y="598" width="312" height="112" rx="20" fill="#ffffff" stroke="#cfd9e7"/>
+  <text x="468" y="634" class="body">2. 첫 되돌림 유지</text>
+  <text x="468" y="662" class="small">기준선 위 유지면 추세 수용</text>
+  <text x="468" y="684" class="small">바로 이탈하면 가짜 전환 가능성</text>
+
+  <rect x="794" y="598" width="312" height="112" rx="20" fill="#ffffff" stroke="#cfd9e7"/>
+  <text x="818" y="634" class="body">3. 후속 정렬 확인</text>
+  <text x="818" y="662" class="small">정렬 약화면 분산 또는 숏 커버</text>
+  <text x="818" y="684" class="small">정렬 강화면 추세 재개 가능성</text>
+
+  <text x="94" y="744" class="note">핵심: 라벨 하나보다, 첫 되돌림에서 VWAP와 기준선이 지켜지는지까지 봐야 합니다</text>
+</svg>
