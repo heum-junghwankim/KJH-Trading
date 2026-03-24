@@ -159,6 +159,30 @@ recentSignal(cond, lookbackBars) =>
     bars = ta.barssince(cond)
     bars >= 0 and bars <= lookbackBars
 
+bullDivBoxTop(offset) =>
+    open[offset]
+
+bullDivBoxBottom(offset) =>
+    low[offset]
+
+bearDivBoxTop(offset) =>
+    high[offset]
+
+bearDivBoxBottom(offset) =>
+    open[offset]
+
+bullSignalBoxTop(offset) =>
+    close[offset]
+
+bullSignalBoxBottom(offset) =>
+    low[offset]
+
+bearSignalBoxTop(offset) =>
+    high[offset]
+
+bearSignalBoxBottom(offset) =>
+    close[offset]
+
 // =========================
 // Moving Average
 // =========================
@@ -349,16 +373,16 @@ plotshape(regularBearDiv, offset=-lbR, title="일반 약세 다이버전스", st
 
 if barstate.isconfirmed and regularBullDiv and showDivergenceCandleZone
     bullDivReferenceIndex = bar_index - lbR
-    bullDivReferenceTop = close[lbR]
-    bullDivReferenceBottom = low[lbR]
+    bullDivReferenceTop = bullDivBoxTop(lbR)
+    bullDivReferenceBottom = bullDivBoxBottom(lbR)
     bullDivReferenceBox = box.new(bullDivReferenceIndex, bullDivReferenceTop, bullDivReferenceIndex + divergenceExtendBars, bullDivReferenceBottom, xloc=xloc.bar_index, bgcolor=divergenceBullZoneColor, border_color=color.new(divergenceBullZoneColor, 0))
     array.push(divergenceBoxes, bullDivReferenceBox)
     trimDivergenceObjects()
 
 if barstate.isconfirmed and regularBearDiv and showDivergenceCandleZone
     bearDivReferenceIndex = bar_index - lbR
-    bearDivReferenceTop = high[lbR]
-    bearDivReferenceBottom = close[lbR]
+    bearDivReferenceTop = bearDivBoxTop(lbR)
+    bearDivReferenceBottom = bearDivBoxBottom(lbR)
     bearDivReferenceBox = box.new(bearDivReferenceIndex, bearDivReferenceTop, bearDivReferenceIndex + divergenceExtendBars, bearDivReferenceBottom, xloc=xloc.bar_index, bgcolor=divergenceBearZoneColor, border_color=color.new(divergenceBearZoneColor, 0))
     array.push(divergenceBoxes, bearDivReferenceBox)
     trimDivergenceObjects()
@@ -706,15 +730,15 @@ confirmedStrongLongSignal = barstate.isconfirmed and strongLongSignal
 confirmedStrongShortSignal = barstate.isconfirmed and strongShortSignal
 
 if confirmedStrongLongSignal and showReferenceCandleZone
-    longReferenceTop = close
-    longReferenceBottom = low
+    longReferenceTop = bullSignalBoxTop(0)
+    longReferenceBottom = bullSignalBoxBottom(0)
     longReferenceBox = box.new(bar_index, longReferenceTop, bar_index + referenceExtendBars, longReferenceBottom, xloc=xloc.bar_index, bgcolor=referenceBullZoneColor, border_color=strongLongSignalColor)
     array.push(referenceBoxes, longReferenceBox)
     trimReferenceObjects()
 
 if confirmedStrongShortSignal and showReferenceCandleZone
-    shortReferenceTop = high
-    shortReferenceBottom = close
+    shortReferenceTop = bearSignalBoxTop(0)
+    shortReferenceBottom = bearSignalBoxBottom(0)
     shortReferenceBox = box.new(bar_index, shortReferenceTop, bar_index + referenceExtendBars, shortReferenceBottom, xloc=xloc.bar_index, bgcolor=referenceBearZoneColor, border_color=strongShortSignalColor)
     array.push(referenceBoxes, shortReferenceBox)
     trimReferenceObjects()
