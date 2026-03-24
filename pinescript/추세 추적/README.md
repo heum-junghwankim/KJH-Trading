@@ -76,59 +76,19 @@
 
 ## 주요 기능
 
-### 1. 스윙 포인트 탐지
+| 기능 | 핵심 의미 | 주요 설정/조건 |
+| --- | --- | --- |
+| 스윙 포인트 탐지 | 최근 구조를 `HH / HL / LH / LL`로 표시해 방향성을 먼저 분류합니다. | `Swing Period` |
+| Dynamic Swing Anchored VWAP | 스윙 전환 시점마다 기준 가격을 다시 잡아 평균 체결 단가 흐름을 추적합니다. | `Adaptive Price Tracking`, `Adapt APT by ATR ratio`, `Volatility Bias` |
+| 일목 기준선/구름 | 현재 가격이 중기 기준 가격대 위인지 아래인지 빠르게 보여줍니다. | `Base Line Length`, `Leading Span B Length`, `Displacement` |
+| MA Alignment 배경 | 기준선 배열이 정돈됐는지 확인합니다. | 강세: `MA > Base > VWAP`, 약세: `MA < Base < VWAP` |
 
-스크립트는 일정 구간 내 고점/저점을 기준으로 새로운 스윙 고점과 저점을 찾습니다.
+짧게 보면:
 
-- `Swing Period`: 스윙 고점/저점 탐지 기준 봉 수
-- 스윙이 전환되면 `HH`, `HL`, `LH`, `LL` 라벨이 차트에 표시됩니다.
-
-기본값 `14`는 나스닥 1시간봉에서 구조 변화를 너무 늦지 않게 포착하면서도, 단기 흔들림을 어느 정도 걸러내도록 맞춘 값입니다.
-
-이 구조를 통해 단순 선 하나가 아니라, 현재 시장이 고점을 높이는지 낮추는지까지 함께 해석할 수 있습니다.
-
-### 2. Dynamic Swing Anchored VWAP
-
-- `Adaptive Price Tracking`: VWAP 반응 속도 조절값
-- `Adapt APT by ATR ratio`: ATR 비율에 따라 반응 속도를 자동 조절할지 여부
-- `Volatility Bias`: 변동성이 반응 속도에 미치는 영향 크기
-
-현재 기본값은 `Adaptive Price Tracking = 28`, `Adapt APT by ATR ratio = true`, `Volatility Bias = 1.4`입니다.
-
-스윙 방향이 바뀌면 해당 스윙 지점부터 VWAP 계산이 다시 시작되고, 이후에는 가격과 거래량을 반영한 적응형 방식으로 선이 이어집니다.
-
-변동성이 커지면 더 빠르게, 변동성이 작아지면 더 부드럽게 반응하도록 설정할 수 있습니다.
-
-### 3. 일목균형표 기준선과 구름
-
-- `Show Ichimoku`: 일목 표시 여부
-- `Base Line Length`: 기준선 길이
-- `Leading Span B Length`: 선행 스팬 B 길이
-- `Displacement`: 구름 이동 거리
-
-차트에는 아래 요소가 함께 표시됩니다.
-
-- `Base Line`
-- `Leading Span A`
-- `Leading Span B`
-- `Kumo Cloud Fill`
-
-이를 통해 현재 가격이 어느 추세 영역에 있는지, 그리고 중기 기준 가격대가 어디에 형성되는지 함께 볼 수 있습니다.
-
-### 4. MA Alignment 배경 강조
-
-- `MA Length`: 이동평균 길이
-- `MA Source`: 이동평균 계산 기준 가격
-- `Show Alignment Background`: 배경 표시 여부
-
-현재 기본값 `MA Length = 9`는 나스닥 1시간봉에서 단기 흐름을 정렬 판단에 반영하려는 용도에 맞춘 값입니다.
-
-스크립트는 이동평균선 자체를 차트에 그리지 않고, 내부적으로 MA를 계산한 뒤 아래 정렬 조건을 검사합니다.
-
-- 강세 정렬: `MA > Ichimoku Base Line > VWAP`
-- 약세 정렬: `MA < Ichimoku Base Line < VWAP`
-
-조건이 충족되면 배경색으로 정렬 상태를 강조해서, 추세가 단순 상승/하락이 아니라 기준선 배열까지 정돈된 상태인지 빠르게 확인할 수 있습니다.
+- 스윙 라벨은 `구조`
+- VWAP는 `평균 단가`
+- 일목은 `중기 기준 가격`
+- 배경은 `정렬 상태`
 
 ## 추천 사용 흐름
 
