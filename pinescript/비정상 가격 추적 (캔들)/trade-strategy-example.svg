@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="920" viewBox="0 0 1280 920" role="img" aria-labelledby="title desc">
+  <title id="title">비정상 가격 추적 캔들 롱숏 전략 예시</title>
+  <desc id="desc">비정상 과매수과매도 캔들, 다이버전스, ATR 배경, Strong Long and Short를 이용한 전략 예시</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f8fbff"/>
+      <stop offset="100%" stop-color="#fff8f2"/>
+    </linearGradient>
+    <style>
+      .title { font: 700 34px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #15263a; }
+      .subtitle { font: 500 17px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #58697b; }
+      .panelTitle { font: 700 24px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #17283b; }
+      .label { font: 700 14px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #2e4b69; letter-spacing: 0.06em; }
+      .body { font: 500 16px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #273a4d; }
+      .small { font: 500 14px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #56687a; }
+    </style>
+  </defs>
+  <rect width="1280" height="920" fill="#edf2f7"/>
+  <rect x="24" y="24" width="1232" height="872" rx="28" fill="url(#bg)" stroke="#d6e0ea"/>
+  <text x="60" y="82" class="title">비정상 가격 추적 (캔들) · 실전 롱/숏 전략 예시</text>
+  <text x="60" y="114" class="subtitle">비정상 캔들 + 다이버전스 + ATR 배경 + Strong L/S 신호가 겹치는 자리만 실제 진입 후보로 압축합니다.</text>
+
+  <rect x="60" y="150" width="540" height="690" rx="26" fill="#eef8ff" stroke="#c7dff5"/>
+  <text x="96" y="190" class="label">LONG SETUP</text>
+  <text x="96" y="226" class="panelTitle">과매도 스윕 + Strong Long에서 롱</text>
+  <rect x="96" y="250" width="468" height="340" rx="18" fill="#ffffff" stroke="#d7e3ed"/>
+  <rect x="236" y="370" width="140" height="180" fill="#e6f7ff"/>
+  <polyline points="126,390 172,366 218,352 264,372 310,430 356,404 402,370 448,334 494,308 540,286" fill="none" stroke="#f2c94c" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="136" y1="430" x2="136" y2="372" stroke="#df5c6c" stroke-width="6" stroke-linecap="round"/>
+  <rect x="120" y="388" width="32" height="32" rx="6" fill="#df5c6c"/>
+  <line x1="184" y1="414" x2="184" y2="358" stroke="#df5c6c" stroke-width="6" stroke-linecap="round"/>
+  <rect x="168" y="372" width="32" height="32" rx="6" fill="#df5c6c"/>
+  <line x1="232" y1="474" x2="232" y2="350" stroke="#53c7f2" stroke-width="6" stroke-linecap="round"/>
+  <rect x="216" y="392" width="32" height="66" rx="6" fill="#53c7f2"/>
+  <polygon points="232,492 220,510 244,510" fill="#33a8dc"/>
+  <line x1="280" y1="430" x2="280" y2="360" stroke="#20a36c" stroke-width="6" stroke-linecap="round"/>
+  <rect x="264" y="376" width="32" height="42" rx="6" fill="#20a36c"/>
+  <circle cx="280" cy="430" r="16" fill="#1d4ed8"/>
+  <text x="275" y="436" class="body" fill="#ffffff">1</text>
+  <line x1="328" y1="404" x2="328" y2="334" stroke="#20a36c" stroke-width="6" stroke-linecap="round"/>
+  <rect x="312" y="352" width="32" height="42" rx="6" fill="#20a36c"/>
+  <line x1="376" y1="370" x2="376" y2="302" stroke="#20a36c" stroke-width="6" stroke-linecap="round"/>
+  <rect x="360" y="318" width="32" height="42" rx="6" fill="#20a36c"/>
+  <line x1="424" y1="338" x2="424" y2="272" stroke="#20a36c" stroke-width="6" stroke-linecap="round"/>
+  <rect x="408" y="288" width="32" height="40" rx="6" fill="#20a36c"/>
+  <circle cx="424" cy="288" r="16" fill="#16a34a"/>
+  <text x="419" y="294" class="body" fill="#ffffff">2</text>
+  <polygon points="232,528 220,544 244,544" fill="#38bdf8"/>
+  <polygon points="328,336 316,320 340,320" fill="#22c55e"/>
+  <rect x="374" y="260" width="140" height="28" rx="14" fill="#ebfff3" stroke="#bde8ce"/>
+  <text x="392" y="279" class="small">Strong Long</text>
+  <text x="142" y="528" class="small">강세 다이버전스</text>
+
+  <text x="96" y="626" class="body">롱 전략</text>
+  <text x="96" y="654" class="small">1. `비정상 과매도 캔들` + 강세 다이버전스 확인</text>
+  <text x="96" y="676" class="small">2. `강세 ATR 배경` 또는 `Strong Long`에서 롱 매수</text>
+  <text x="96" y="698" class="small">3. 상단 저항 또는 약세 배경 전환에서 롱 매도</text>
+  <text x="96" y="720" class="small">4. 비정상 저점 재이탈이면 무효화</text>
+
+  <rect x="680" y="150" width="540" height="690" rx="26" fill="#fff0f2" stroke="#efc3c9"/>
+  <text x="716" y="190" class="label">SHORT SETUP</text>
+  <text x="716" y="226" class="panelTitle">과매수 스윕 + Strong Short에서 숏</text>
+  <rect x="716" y="250" width="468" height="340" rx="18" fill="#ffffff" stroke="#d7e3ed"/>
+  <rect x="900" y="284" width="140" height="180" fill="#fff0e6"/>
+  <polyline points="746,318 792,298 838,276 884,262 930,288 976,340 1022,374 1068,398 1114,420 1160,438" fill="none" stroke="#f2c94c" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="760" y1="348" x2="760" y2="290" stroke="#20a36c" stroke-width="6" stroke-linecap="round"/>
+  <rect x="744" y="304" width="32" height="32" rx="6" fill="#20a36c"/>
+  <line x1="808" y1="326" x2="808" y2="270" stroke="#20a36c" stroke-width="6" stroke-linecap="round"/>
+  <rect x="792" y="284" width="32" height="32" rx="6" fill="#20a36c"/>
+  <line x1="856" y1="286" x2="856" y2="410" stroke="#e85d70" stroke-width="6" stroke-linecap="round"/>
+  <rect x="840" y="300" width="32" height="66" rx="6" fill="#e85d70"/>
+  <polygon points="856,270 844,252 868,252" fill="#dc4b60"/>
+  <line x1="904" y1="336" x2="904" y2="404" stroke="#df5c6c" stroke-width="6" stroke-linecap="round"/>
+  <rect x="888" y="350" width="32" height="42" rx="6" fill="#df5c6c"/>
+  <circle cx="904" cy="350" r="16" fill="#dc2626"/>
+  <text x="899" y="356" class="body" fill="#ffffff">1</text>
+  <line x1="952" y1="368" x2="952" y2="436" stroke="#df5c6c" stroke-width="6" stroke-linecap="round"/>
+  <rect x="936" y="382" width="32" height="42" rx="6" fill="#df5c6c"/>
+  <line x1="1000" y1="400" x2="1000" y2="468" stroke="#df5c6c" stroke-width="6" stroke-linecap="round"/>
+  <rect x="984" y="414" width="32" height="42" rx="6" fill="#df5c6c"/>
+  <circle cx="1000" cy="414" r="16" fill="#16a34a"/>
+  <text x="995" y="420" class="body" fill="#ffffff">2</text>
+  <polygon points="856,236 844,220 868,220" fill="#ef4444"/>
+  <polygon points="1000,470 988,486 1012,486" fill="#ef4444"/>
+  <rect x="828" y="260" width="152" height="28" rx="14" fill="#fff0f0" stroke="#efb4b4"/>
+  <text x="846" y="279" class="small">Strong Short</text>
+  <text x="926" y="520" class="small">약세 다이버전스</text>
+
+  <text x="716" y="626" class="body">숏 전략</text>
+  <text x="716" y="654" class="small">1. `비정상 과매수 캔들` + 약세 다이버전스 확인</text>
+  <text x="716" y="676" class="small">2. `약세 ATR 배경` 또는 `Strong Short`에서 숏 매도</text>
+  <text x="716" y="698" class="small">3. 하단 지지 또는 강세 배경 전환에서 숏 매수</text>
+  <text x="716" y="720" class="small">4. 비정상 고점 재회복이면 무효화</text>
+</svg>
