@@ -345,17 +345,17 @@ plotshape(regularBearDiv, offset=-lbR, title="일반 약세 다이버전스", st
 
 if barstate.isconfirmed and regularBullDiv and showDivergenceCandleZone
     bullDivReferenceIndex = bar_index - lbR
-    bullDivReferenceHigh = high[lbR]
-    bullDivReferenceLow = low[lbR]
-    bullDivReferenceBox = box.new(bullDivReferenceIndex, bullDivReferenceHigh, bullDivReferenceIndex + divergenceExtendBars, bullDivReferenceLow, xloc=xloc.bar_index, bgcolor=divergenceBullZoneColor, border_color=color.new(divergenceBullZoneColor, 0))
+    bullDivReferenceTop = close[lbR]
+    bullDivReferenceBottom = low[lbR]
+    bullDivReferenceBox = box.new(bullDivReferenceIndex, bullDivReferenceTop, bullDivReferenceIndex + divergenceExtendBars, bullDivReferenceBottom, xloc=xloc.bar_index, bgcolor=divergenceBullZoneColor, border_color=color.new(divergenceBullZoneColor, 0))
     array.push(divergenceBoxes, bullDivReferenceBox)
     trimDivergenceObjects()
 
 if barstate.isconfirmed and regularBearDiv and showDivergenceCandleZone
     bearDivReferenceIndex = bar_index - lbR
-    bearDivReferenceHigh = high[lbR]
-    bearDivReferenceLow = low[lbR]
-    bearDivReferenceBox = box.new(bearDivReferenceIndex, bearDivReferenceHigh, bearDivReferenceIndex + divergenceExtendBars, bearDivReferenceLow, xloc=xloc.bar_index, bgcolor=divergenceBearZoneColor, border_color=color.new(divergenceBearZoneColor, 0))
+    bearDivReferenceTop = high[lbR]
+    bearDivReferenceBottom = close[lbR]
+    bearDivReferenceBox = box.new(bearDivReferenceIndex, bearDivReferenceTop, bearDivReferenceIndex + divergenceExtendBars, bearDivReferenceBottom, xloc=xloc.bar_index, bgcolor=divergenceBearZoneColor, border_color=color.new(divergenceBearZoneColor, 0))
     array.push(divergenceBoxes, bearDivReferenceBox)
     trimDivergenceObjects()
 
@@ -690,16 +690,16 @@ confirmedStrongLongSignal = barstate.isconfirmed and strongLongSignal
 confirmedStrongShortSignal = barstate.isconfirmed and strongShortSignal
 
 if confirmedStrongLongSignal and showReferenceCandleZone
-    longReferenceHigh = high
-    longReferenceLow = low
-    longReferenceBox = box.new(bar_index, longReferenceHigh, bar_index + referenceExtendBars, longReferenceLow, xloc=xloc.bar_index, bgcolor=referenceBullZoneColor, border_color=strongLongSignalColor)
+    longReferenceTop = close
+    longReferenceBottom = low
+    longReferenceBox = box.new(bar_index, longReferenceTop, bar_index + referenceExtendBars, longReferenceBottom, xloc=xloc.bar_index, bgcolor=referenceBullZoneColor, border_color=strongLongSignalColor)
     array.push(referenceBoxes, longReferenceBox)
     trimReferenceObjects()
 
 if confirmedStrongShortSignal and showReferenceCandleZone
-    shortReferenceHigh = high
-    shortReferenceLow = low
-    shortReferenceBox = box.new(bar_index, shortReferenceHigh, bar_index + referenceExtendBars, shortReferenceLow, xloc=xloc.bar_index, bgcolor=referenceBearZoneColor, border_color=strongShortSignalColor)
+    shortReferenceTop = high
+    shortReferenceBottom = close
+    shortReferenceBox = box.new(bar_index, shortReferenceTop, bar_index + referenceExtendBars, shortReferenceBottom, xloc=xloc.bar_index, bgcolor=referenceBearZoneColor, border_color=strongShortSignalColor)
     array.push(referenceBoxes, shortReferenceBox)
     trimReferenceObjects()
 
