@@ -123,8 +123,12 @@ lsStrongScore = input.int(10, minval=1, maxval=15, title="강한 진입 점수",
 lsCooldownBars = input.int(8, minval=0, title="동일 방향 신호 쿨다운", group=lsSignalGroup)
 lsRequireTrendAlignment = input.bool(false, title="MA 정렬 필수", group=lsSignalGroup)
 lsRequireVolumeConfirm = input.bool(false, title="거래량 확인 필수", group=lsSignalGroup)
+lsRequireOrderVolumeAvg = input.bool(true, title="주문량 평균 미만 신호 차단", group=lsSignalGroup)
+lsOrderVolumeAvgLength = input.int(20, minval=1, title="주문량 평균 기준 봉 수", group=lsSignalGroup)
 lsStrongBgBonusLookback = input.int(3, minval=1, maxval=20, title="강한 배경 근접 봉 수", group=lsSignalGroup)
 lsStrongBgBonusScore = input.int(2, minval=0, maxval=5, title="강한 배경 가산점", group=lsSignalGroup)
+lsBgAbnormalVolumeLookback = input.int(3, minval=1, maxval=20, title="배경 근접 비정상 주문량 봉 수", group=lsSignalGroup)
+lsBgAbnormalVolumeBonusScore = input.int(2, minval=0, maxval=5, title="배경 근접 비정상 주문량 가산점", group=lsSignalGroup)
 lsRequirePreviousBg = input.bool(true, title="이전 봉 배경 확인 필수", group=lsSignalGroup)
 lsRequireOppositeBgReset = input.bool(true, title="반대 배경 전환 후 방향 전환", group=lsSignalGroup)
 
@@ -595,6 +599,16 @@ recentHelperBullishSignal = recentSignal(helperBullishSignal, lsSetupLookback)
 recentHelperBearishSignal = recentSignal(helperBearishSignal, lsSetupLookback)
 recentBullStrongBgSignal = recentSignal(bullBgStrong, lsStrongBgBonusLookback)
 recentBearStrongBgSignal = recentSignal(bearBgStrong, lsStrongBgBonusLookback)
+bullOrderVolumeAvg = ta.sma(buyVolume, lsOrderVolumeAvgLength)
+bearOrderVolumeAvg = ta.sma(sellVolume, lsOrderVolumeAvgLength)
+bullOrderVolumeEnough = not lsRequireOrderVolumeAvg or (not na(bullOrderVolumeAvg) and buyVolume >= bullOrderVolumeAvg)
+bearOrderVolumeEnough = not lsRequireOrderVolumeAvg or (not na(bearOrderVolumeAvg) and sellVolume >= bearOrderVolumeAvg)
+recentBullBgSignal = recentSignal(bullBgOn or bullBgStrong, lsBgAbnormalVolumeLookback)
+recentBearBgSignal = recentSignal(bearBgOn or bearBgStrong, lsBgAbnormalVolumeLookback)
+recentBullAbnormalOrderVolume = recentSignal(abnormalBuyVolume and buyVolume > sellVolume, lsBgAbnormalVolumeLookback)
+recentBearAbnormalOrderVolume = recentSignal(abnormalSellVolume and sellVolume > buyVolume, lsBgAbnormalVolumeLookback)
+bullBgAbnormalVolumeBonusReady = recentBullBgSignal and recentBullAbnormalOrderVolume
+bearBgAbnormalVolumeBonusReady = recentBearBgSignal and recentBearAbnormalOrderVolume
 
 bullishVolumeConfirm = bullSmartVolumeSignal or vpBullPressureSignal or (abnormalBuyVolume and buyVolume > sellVolume)
 bearishVolumeConfirm = bearSmartVolumeSignal or vpBearPressureSignal or (abnormalSellVolume and sellVolume > buyVolume)
@@ -609,6 +623,7 @@ bullSetupScore += bullBgOn ? 1 : 0
 bullSetupScore += bullBgStrong ? 1 : 0
 bullSetupScore += recentHelperBullishSignal ? 1 : 0
 bullSetupScore += recentBullStrongBgSignal ? lsStrongBgBonusScore : 0
+bullSetupScore += bullBgAbnormalVolumeBonusReady ? lsBgAbnormalVolumeBonusScore : 0
 
 bearSetupScore = 0
 bearSetupScore += recentBearishAbnormalCandle ? 2 : 0
@@ -617,6 +632,7 @@ bearSetupScore += bearBgOn ? 1 : 0
 bearSetupScore += bearBgStrong ? 1 : 0
 bearSetupScore += recentHelperBearishSignal ? 1 : 0
 bearSetupScore += recentBearStrongBgSignal ? lsStrongBgBonusScore : 0
+bearSetupScore += bearBgAbnormalVolumeBonusReady ? lsBgAbnormalVolumeBonusScore : 0
 
 bullConfirmScore = 0
 bullConfirmScore += bullishVolumeConfirm ? 2 : 0
@@ -644,8 +660,8 @@ bearSetupReady = bearSetupScore >= 3
 bullConfirmReady = bullConfirmScore >= 4 and (not lsRequireTrendAlignment or bullishTrendAligned) and (not lsRequireVolumeConfirm or bullishVolumeConfirm)
 bearConfirmReady = bearConfirmScore >= 4 and (not lsRequireTrendAlignment or bearishTrendAligned) and (not lsRequireVolumeConfirm or bearishVolumeConfirm)
 
-bullEntryCandidate = bullSetupReady and bullConfirmReady and bullTotalScore >= lsMinScore and bullTotalScore > bearTotalScore
-bearEntryCandidate = bearSetupReady and bearConfirmReady and bearTotalScore >= lsMinScore and bearTotalScore > bullTotalScore
+bullEntryCandidate = bullSetupReady and bullConfirmReady and bullOrderVolumeEnough and bullTotalScore >= lsMinScore and bullTotalScore > bearTotalScore
+bearEntryCandidate = bearSetupReady and bearConfirmReady and bearOrderVolumeEnough and bearTotalScore >= lsMinScore and bearTotalScore > bullTotalScore
 
 var int lastLongSignalBar = na
 var int lastShortSignalBar = na
