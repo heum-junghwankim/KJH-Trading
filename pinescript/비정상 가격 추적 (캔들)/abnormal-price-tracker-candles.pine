@@ -19,7 +19,7 @@ leveling = input.float(10.0, minval=1.0, maxval=50.0, title="cRSI Leveling (%)")
 absoluteOB = input.float(70.0, title="절대 과매수 값")
 absoluteOS = input.float(30.0, title="절대 과매도 값")
 paintBars = input.bool(true, title="비정상 과매수/과매도 캔들 시 색상 변경")
-overboughtColor = input.color(color.red, title="과매수+상단 밴드 초과 캔들 색상")
+overboughtColor = input.color(color.rgb(255, 140, 60), title="과매수+상단 밴드 초과 캔들 색상")
 oversoldColor = input.color(color.aqua, title="과매도+하단 밴드 초과 캔들 색상")
 showCRSIPlots = input.bool(false, title="cRSI / 밴드 플롯 표시")
 enableRepeatingOBOSAlert = input.bool(true, title="비정상 과매수/과매도 반복 알림 사용")
@@ -117,6 +117,7 @@ helperMinStrength = input.int(1, minval=1, maxval=3, title="보조 최소 강도
 // =========================
 lsSignalGroup = "L/S 진입 신호"
 showStrongLSSignals = input.bool(true, title="Strong L/S 진입 신호 표시", group=lsSignalGroup)
+showLiquiditySweepSignals = input.bool(true, title="유동성 스윕 봉 색상 표시", group=lsSignalGroup)
 lsSetupLookback = input.int(12, minval=1, title="세팅 유효 봉 수", group=lsSignalGroup)
 lsMinScore = input.int(8, minval=1, maxval=15, title="최소 진입 점수", group=lsSignalGroup)
 lsStrongScore = input.int(10, minval=1, maxval=15, title="강한 진입 점수", group=lsSignalGroup)
@@ -131,13 +132,24 @@ lsBgAbnormalVolumeLookback = input.int(3, minval=1, maxval=20, title="배경 근
 lsBgAbnormalVolumeBonusScore = input.int(2, minval=0, maxval=5, title="배경 근접 비정상 주문량 가산점", group=lsSignalGroup)
 lsRequirePreviousBg = input.bool(true, title="이전 봉 배경 확인 필수", group=lsSignalGroup)
 lsRequireOppositeBgReset = input.bool(true, title="반대 배경 전환 후 방향 전환", group=lsSignalGroup)
+lsSweepConfirmVolumeRatio = input.float(0.5, minval=0.0, step=0.05, title="스윕 확인 최소 거래량 비율", group=lsSignalGroup)
+
+visualGroup = "시각화"
+strongLongSignalColorInput = input.color(color.rgb(0, 145, 0), title="Strong Long 동그라미 색상", group=visualGroup)
+strongShortSignalColorInput = input.color(color.rgb(210, 25, 25), title="Strong Short 동그라미 색상", group=visualGroup)
+bullSweepSignalColorInput = input.color(color.rgb(0, 255, 0), title="강세 스윕 다이아몬드/봉 색상", group=visualGroup)
+bearSweepSignalColorInput = input.color(color.rgb(255, 0, 0), title="약세 스윕 다이아몬드/봉 색상", group=visualGroup)
+divergenceBullMarkerColor = input.color(color.aqua, title="강세 다이버전스 삼각형 색상", group=visualGroup)
+divergenceBearMarkerColor = input.color(color.rgb(255, 140, 0), title="약세 다이버전스 삼각형 색상", group=visualGroup)
 
 referenceGroup = "기준봉"
 showReferenceCandleZone = input.bool(true, title="기준봉 존 표시", group=referenceGroup)
 referenceExtendBars = input.int(30, minval=1, maxval=300, title="기준봉 우측 연장 봉 수", group=referenceGroup)
 referenceMaxObjects = input.int(8, minval=1, maxval=30, title="최대 기준봉 표시 수", group=referenceGroup)
-referenceBullZoneColor = input.color(color.new(color.lime, 78), title="롱 기준봉 존 색상", group=referenceGroup)
-referenceBearZoneColor = input.color(color.new(color.red, 78), title="숏 기준봉 존 색상", group=referenceGroup)
+referenceBullZoneColor = input.color(color.new(color.rgb(0, 110, 0), 78), title="롱 기준봉 존 색상", group=referenceGroup)
+referenceBearZoneColor = input.color(color.new(color.rgb(170, 0, 0), 78), title="숏 기준봉 존 색상", group=referenceGroup)
+sweepBullZoneColor = input.color(color.new(color.rgb(0, 255, 0), 78), title="강세 스윕 존 색상", group=referenceGroup)
+sweepBearZoneColor = input.color(color.new(color.rgb(255, 0, 0), 78), title="약세 스윕 존 색상", group=referenceGroup)
 showDivergenceCandleZone = input.bool(true, title="다이버전스 기준봉 존 표시", group=referenceGroup)
 divergenceExtendBars = input.int(30, minval=1, maxval=300, title="다이버전스 존 우측 연장 봉 수", group=referenceGroup)
 divergenceMaxObjects = input.int(8, minval=1, maxval=30, title="최대 다이버전스 존 표시 수", group=referenceGroup)
@@ -192,6 +204,48 @@ plot(ma, title="이동평균선", color=maColor, linewidth=lineWidth, display=di
 
 var box[] referenceBoxes = array.new_box()
 var box[] divergenceBoxes = array.new_box()
+var float[] bullSweepZoneTops = array.new_float()
+var float[] bullSweepZoneBottoms = array.new_float()
+var int[] bullSweepZoneRights = array.new_int()
+var float[] bearSweepZoneTops = array.new_float()
+var float[] bearSweepZoneBottoms = array.new_float()
+var int[] bearSweepZoneRights = array.new_int()
+
+trimBullSweepZones() =>
+    maxZones = referenceMaxObjects + divergenceMaxObjects
+    while array.size(bullSweepZoneTops) > maxZones
+        array.shift(bullSweepZoneTops)
+        array.shift(bullSweepZoneBottoms)
+        array.shift(bullSweepZoneRights)
+
+trimBearSweepZones() =>
+    maxZones = referenceMaxObjects + divergenceMaxObjects
+    while array.size(bearSweepZoneTops) > maxZones
+        array.shift(bearSweepZoneTops)
+        array.shift(bearSweepZoneBottoms)
+        array.shift(bearSweepZoneRights)
+
+addBullSweepZone(top, bottom, right) =>
+    array.push(bullSweepZoneTops, top)
+    array.push(bullSweepZoneBottoms, bottom)
+    array.push(bullSweepZoneRights, right)
+    trimBullSweepZones()
+
+addBearSweepZone(top, bottom, right) =>
+    array.push(bearSweepZoneTops, top)
+    array.push(bearSweepZoneBottoms, bottom)
+    array.push(bearSweepZoneRights, right)
+    trimBearSweepZones()
+
+removeBullSweepZone(index) =>
+    array.remove(bullSweepZoneTops, index)
+    array.remove(bullSweepZoneBottoms, index)
+    array.remove(bullSweepZoneRights, index)
+
+removeBearSweepZone(index) =>
+    array.remove(bearSweepZoneTops, index)
+    array.remove(bearSweepZoneBottoms, index)
+    array.remove(bearSweepZoneRights, index)
 
 trimReferenceObjects() =>
     while array.size(referenceBoxes) > referenceMaxObjects
@@ -303,7 +357,6 @@ isVisuallyBearishOutsideBand = upperVisualOutside > 0 and upperVisualBreakRatio 
 isVisuallyBullishOutsideBand = lowerVisualOutside > 0 and lowerVisualBreakRatio >= bbVisualBreakRatio
 
 barCol = isBearishAbnormalCandle and isVisuallyBearishOutsideBand ? overboughtColor : isBullishAbnormalCandle and isVisuallyBullishOutsideBand ? oversoldColor : na
-barcolor(paintBars ? barCol : na)
 
 // =========================
 // Buy / Sell Volume
@@ -367,24 +420,27 @@ regularBearDiv = bearDivRaw
 // =========================
 // Divergence Markers
 // =========================
-bearDivMarkerColor = color.rgb(255, 140, 0)
-plotshape(regularBullDiv, offset=-lbR, title="일반 강세 다이버전스", style=shape.triangleup, location=location.belowbar, color=oversoldColor, size=size.tiny)
-plotshape(regularBearDiv, offset=-lbR, title="일반 약세 다이버전스", style=shape.triangledown, location=location.abovebar, color=bearDivMarkerColor, size=size.tiny)
+plotshape(regularBullDiv, offset=-lbR, title="일반 강세 다이버전스", style=shape.triangleup, location=location.belowbar, color=divergenceBullMarkerColor, size=size.tiny)
+plotshape(regularBearDiv, offset=-lbR, title="일반 약세 다이버전스", style=shape.triangledown, location=location.abovebar, color=divergenceBearMarkerColor, size=size.tiny)
 
 if barstate.isconfirmed and regularBullDiv and showDivergenceCandleZone
     bullDivReferenceIndex = bar_index - lbR
     bullDivReferenceTop = bullDivBoxTop(lbR)
     bullDivReferenceBottom = bullDivBoxBottom(lbR)
-    bullDivReferenceBox = box.new(bullDivReferenceIndex, bullDivReferenceTop, bullDivReferenceIndex + divergenceExtendBars, bullDivReferenceBottom, xloc=xloc.bar_index, bgcolor=divergenceBullZoneColor, border_color=color.new(divergenceBullZoneColor, 0))
+    bullDivReferenceRight = bullDivReferenceIndex + divergenceExtendBars
+    bullDivReferenceBox = box.new(bullDivReferenceIndex, bullDivReferenceTop, bullDivReferenceRight, bullDivReferenceBottom, xloc=xloc.bar_index, bgcolor=divergenceBullZoneColor, border_color=color.new(divergenceBullZoneColor, 0))
     array.push(divergenceBoxes, bullDivReferenceBox)
+    addBullSweepZone(bullDivReferenceTop, bullDivReferenceBottom, bullDivReferenceRight)
     trimDivergenceObjects()
 
 if barstate.isconfirmed and regularBearDiv and showDivergenceCandleZone
     bearDivReferenceIndex = bar_index - lbR
     bearDivReferenceTop = bearDivBoxTop(lbR)
     bearDivReferenceBottom = bearDivBoxBottom(lbR)
-    bearDivReferenceBox = box.new(bearDivReferenceIndex, bearDivReferenceTop, bearDivReferenceIndex + divergenceExtendBars, bearDivReferenceBottom, xloc=xloc.bar_index, bgcolor=divergenceBearZoneColor, border_color=color.new(divergenceBearZoneColor, 0))
+    bearDivReferenceRight = bearDivReferenceIndex + divergenceExtendBars
+    bearDivReferenceBox = box.new(bearDivReferenceIndex, bearDivReferenceTop, bearDivReferenceRight, bearDivReferenceBottom, xloc=xloc.bar_index, bgcolor=divergenceBearZoneColor, border_color=color.new(divergenceBearZoneColor, 0))
     array.push(divergenceBoxes, bearDivReferenceBox)
+    addBearSweepZone(bearDivReferenceTop, bearDivReferenceBottom, bearDivReferenceRight)
     trimDivergenceObjects()
 
 // =========================
@@ -704,8 +760,12 @@ longDirectionResetReady = not lsRequireOppositeBgReset or na(lastShortSignalBar)
 shortDirectionResetReady = not lsRequireOppositeBgReset or na(lastLongSignalBar) or bearBgSeenSinceLong
 
 signalBarReady = realtimeLSSignals or barstate.isconfirmed
-longSignal = signalBarReady and canLongSignal and prevBullBgReady and longDirectionResetReady and bullEntryCandidate and not (bullEntryCandidate[1] == true)
-shortSignal = signalBarReady and canShortSignal and prevBearBgReady and shortDirectionResetReady and bearEntryCandidate and not (bearEntryCandidate[1] == true)
+bullSignalReady = canLongSignal and prevBullBgReady and longDirectionResetReady and bullEntryCandidate
+bearSignalReady = canShortSignal and prevBearBgReady and shortDirectionResetReady and bearEntryCandidate
+bullSignalReadyState = bullSignalReady ? 1 : 0
+bearSignalReadyState = bearSignalReady ? 1 : 0
+longSignal = signalBarReady and bullSignalReady and (nz(bullSignalReadyState[1], 0) == 0)
+shortSignal = signalBarReady and bearSignalReady and (nz(bearSignalReadyState[1], 0) == 0)
 
 if longSignal and (barstate.isconfirmed or not realtimeLSSignals)
     lastLongSignalBar := bar_index
@@ -718,8 +778,10 @@ if shortSignal and (barstate.isconfirmed or not realtimeLSSignals)
 effectiveStrongScore = math.max(lsStrongScore, lsMinScore)
 strongLongSignal = longSignal and bullTotalScore >= effectiveStrongScore
 strongShortSignal = shortSignal and bearTotalScore >= effectiveStrongScore
-strongLongSignalColor = color.rgb(0, 255, 0)
-strongShortSignalColor = color.rgb(255, 0, 0)
+strongLongSignalColor = strongLongSignalColorInput
+strongShortSignalColor = strongShortSignalColorInput
+bullSweepSignalColor = bullSweepSignalColorInput
+bearSweepSignalColor = bearSweepSignalColorInput
 
 plotshape(showStrongLSSignals and strongLongSignal, title="Strong Long Signal", style=shape.circle, location=location.belowbar, color=strongLongSignalColor, size=size.tiny)
 plotshape(showStrongLSSignals and strongShortSignal, title="Strong Short Signal", style=shape.circle, location=location.abovebar, color=strongShortSignalColor, size=size.tiny)
@@ -730,15 +792,77 @@ confirmedStrongShortSignal = barstate.isconfirmed and strongShortSignal
 if confirmedStrongLongSignal and showReferenceCandleZone
     longReferenceTop = bullSignalBoxTop(0)
     longReferenceBottom = bullSignalBoxBottom(0)
-    longReferenceBox = box.new(bar_index, longReferenceTop, bar_index + referenceExtendBars, longReferenceBottom, xloc=xloc.bar_index, bgcolor=referenceBullZoneColor, border_color=strongLongSignalColor)
+    longReferenceRight = bar_index + referenceExtendBars
+    longReferenceBox = box.new(bar_index, longReferenceTop, longReferenceRight, longReferenceBottom, xloc=xloc.bar_index, bgcolor=referenceBullZoneColor, border_color=strongLongSignalColor)
     array.push(referenceBoxes, longReferenceBox)
+    addBullSweepZone(longReferenceTop, longReferenceBottom, longReferenceRight)
     trimReferenceObjects()
 
 if confirmedStrongShortSignal and showReferenceCandleZone
     shortReferenceTop = bearSignalBoxTop(0)
     shortReferenceBottom = bearSignalBoxBottom(0)
-    shortReferenceBox = box.new(bar_index, shortReferenceTop, bar_index + referenceExtendBars, shortReferenceBottom, xloc=xloc.bar_index, bgcolor=referenceBearZoneColor, border_color=strongShortSignalColor)
+    shortReferenceRight = bar_index + referenceExtendBars
+    shortReferenceBox = box.new(bar_index, shortReferenceTop, shortReferenceRight, shortReferenceBottom, xloc=xloc.bar_index, bgcolor=referenceBearZoneColor, border_color=strongShortSignalColor)
     array.push(referenceBoxes, shortReferenceBox)
+    addBearSweepZone(shortReferenceTop, shortReferenceBottom, shortReferenceRight)
+    trimReferenceObjects()
+
+bullLiquiditySweep = false
+bearLiquiditySweep = false
+bullSweepReady = signalBarReady and close < open and vpAbnormalVolume and sellVolume > buyVolume
+bearSweepReady = signalBarReady and close > open and vpAbnormalVolume and buyVolume > sellVolume
+
+if array.size(bullSweepZoneTops) > 0
+    i = array.size(bullSweepZoneTops) - 1
+    while i >= 0
+        bullSweepRight = array.get(bullSweepZoneRights, i)
+        bullSweepBottom = array.get(bullSweepZoneBottoms, i)
+        if bar_index > bullSweepRight
+            removeBullSweepZone(i)
+        else if bullSweepReady and close < bullSweepBottom
+            bullLiquiditySweep := true
+            removeBullSweepZone(i)
+        i -= 1
+
+if array.size(bearSweepZoneTops) > 0
+    i = array.size(bearSweepZoneTops) - 1
+    while i >= 0
+        bearSweepRight = array.get(bearSweepZoneRights, i)
+        bearSweepTop = array.get(bearSweepZoneTops, i)
+        if bar_index > bearSweepRight
+            removeBearSweepZone(i)
+        else if bearSweepReady and close > bearSweepTop
+            bearLiquiditySweep := true
+            removeBearSweepZone(i)
+        i -= 1
+
+finalBarColor = showLiquiditySweepSignals and bullLiquiditySweep ? bullSweepSignalColor : showLiquiditySweepSignals and bearLiquiditySweep ? bearSweepSignalColor : paintBars ? barCol : na
+barcolor(finalBarColor)
+
+confirmedBullSweepFollowThrough = barstate.isconfirmed and bullLiquiditySweep[1] and close > open and buyVolume > sellVolume and volume >= nz(volume[1]) * lsSweepConfirmVolumeRatio
+confirmedBearSweepFollowThrough = barstate.isconfirmed and bearLiquiditySweep[1] and close < open and sellVolume > buyVolume and volume >= nz(volume[1]) * lsSweepConfirmVolumeRatio
+
+plotshape(showLiquiditySweepSignals and confirmedBullSweepFollowThrough, title="Bull Liquidity Sweep Confirmed", style=shape.diamond, location=location.belowbar, color=bullSweepSignalColor, size=size.tiny)
+plotshape(showLiquiditySweepSignals and confirmedBearSweepFollowThrough, title="Bear Liquidity Sweep Confirmed", style=shape.diamond, location=location.abovebar, color=bearSweepSignalColor, size=size.tiny)
+
+if showLiquiditySweepSignals and confirmedBullSweepFollowThrough and showReferenceCandleZone
+    bullSweepReferenceIndex = bar_index
+    bullSweepReferenceTop = bullSignalBoxTop(0)
+    bullSweepReferenceBottom = bullSignalBoxBottom(0)
+    bullSweepReferenceRight = bullSweepReferenceIndex + referenceExtendBars
+    bullSweepReferenceBox = box.new(bullSweepReferenceIndex, bullSweepReferenceTop, bullSweepReferenceRight, bullSweepReferenceBottom, xloc=xloc.bar_index, bgcolor=sweepBullZoneColor, border_color=bullSweepSignalColor)
+    array.push(referenceBoxes, bullSweepReferenceBox)
+    addBullSweepZone(bullSweepReferenceTop, bullSweepReferenceBottom, bullSweepReferenceRight)
+    trimReferenceObjects()
+
+if showLiquiditySweepSignals and confirmedBearSweepFollowThrough and showReferenceCandleZone
+    bearSweepReferenceIndex = bar_index
+    bearSweepReferenceTop = bearSignalBoxTop(0)
+    bearSweepReferenceBottom = bearSignalBoxBottom(0)
+    bearSweepReferenceRight = bearSweepReferenceIndex + referenceExtendBars
+    bearSweepReferenceBox = box.new(bearSweepReferenceIndex, bearSweepReferenceTop, bearSweepReferenceRight, bearSweepReferenceBottom, xloc=xloc.bar_index, bgcolor=sweepBearZoneColor, border_color=bearSweepSignalColor)
+    array.push(referenceBoxes, bearSweepReferenceBox)
+    addBearSweepZone(bearSweepReferenceTop, bearSweepReferenceBottom, bearSweepReferenceRight)
     trimReferenceObjects()
 
 // =========================

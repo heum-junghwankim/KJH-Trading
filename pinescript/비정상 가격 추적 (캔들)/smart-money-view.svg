@@ -1,84 +1,116 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="980" viewBox="0 0 1200 980" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1360" height="1040" viewBox="0 0 1360 1040" role="img" aria-labelledby="title desc">
   <title id="title">비정상 가격 추적 캔들 세력 관점 다이어그램</title>
-  <desc id="desc">비정상 캔들, 다이버전스, ATR 배경, Strong Long/Short를 세력 관점으로 해석한 이미지</desc>
+  <desc id="desc">비정상 캔들, 다이버전스, Strong 신호, 유동성 스윕 확인 규칙을 현재 코드 기준으로 정리한 이미지</desc>
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#f8fbff"/>
-      <stop offset="100%" stop-color="#fff8f2"/>
+      <stop offset="0%" stop-color="#f7fbff"/>
+      <stop offset="100%" stop-color="#fff8f0"/>
     </linearGradient>
     <style>
       .title { font: 700 34px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #122033; }
-      .subtitle { font: 500 17px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #556678; }
-      .cardTitle { font: 700 24px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #16263a; }
-      .label { font: 700 15px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #2f4d6c; letter-spacing: 0.08em; }
-      .body { font: 500 16px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #26384a; }
-      .small { font: 500 14px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #4d6070; }
-      .note { font: 700 15px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #6d4d14; }
+      .subtitle { font: 500 17px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #526578; }
+      .label { font: 700 14px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #35506b; letter-spacing: 0.08em; }
+      .cardTitle { font: 700 24px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #172739; }
+      .body { font: 500 16px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #25384a; }
+      .small { font: 500 14px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #56697b; }
+      .note { font: 700 15px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #6a4c16; }
+      .center { text-anchor: middle; }
     </style>
   </defs>
 
-  <rect width="1200" height="980" fill="#eef2f8"/>
-  <rect x="24" y="24" width="1152" height="932" rx="28" fill="url(#bg)" stroke="#dae3ec"/>
+  <rect width="1360" height="1040" fill="#eef2f7"/>
+  <rect x="24" y="24" width="1312" height="992" rx="28" fill="url(#bg)" stroke="#d7e0ea"/>
 
-  <text x="60" y="82" class="title">비정상 가격 추적 (캔들) · 세력 관점</text>
-  <text x="60" y="114" class="subtitle">비정상 캔들은 스윕, 다이버전스는 효율 저하, ATR 배경은 후속 displacement를 압축해서 보여줍니다</text>
+  <text x="60" y="86" class="title">비정상 가격 추적 (캔들) · 현재 코드 기준 해석</text>
+  <text x="60" y="118" class="subtitle">비정상 캔들로 자리, 다이버전스로 효율 저하, Strong으로 진입 후보, Sweep 다이아몬드로 후속 확인을 읽습니다.</text>
 
-  <rect x="60" y="154" width="500" height="300" rx="24" fill="#fff1f1" stroke="#efc2c6"/>
-  <text x="92" y="192" class="label">UPPER SWEEP</text>
-  <text x="92" y="226" class="cardTitle">비정상 과매수 캔들</text>
-  <rect x="92" y="248" width="186" height="170" rx="18" fill="#ffffff" opacity="0.84" stroke="#f2d7da"/>
-  <line x1="122" y1="384" x2="122" y2="314" stroke="#cb4456" stroke-width="8" stroke-linecap="round"/>
-  <rect x="100" y="334" width="44" height="74" rx="8" fill="#e85d70"/>
-  <line x1="186" y1="392" x2="186" y2="338" stroke="#cb4456" stroke-width="8" stroke-linecap="round"/>
-  <rect x="164" y="356" width="44" height="52" rx="8" fill="#f59aa5"/>
-  <line x1="248" y1="394" x2="248" y2="304" stroke="#cb4456" stroke-width="8" stroke-linecap="round"/>
-  <rect x="226" y="324" width="44" height="78" rx="8" fill="#d74357"/>
-  <text x="308" y="274" class="body">세력 해석</text>
-  <text x="308" y="302" class="small">전고점 위, 저항 돌파 직후라면</text>
-  <text x="308" y="324" class="small">위 유동성 스윕과 분산 후보</text>
-  <text x="308" y="360" class="body">후속 확인</text>
-  <text x="308" y="388" class="small">약세 ATR 배경, 약세 다이버전스</text>
-  <text x="308" y="410" class="small">고가 미유지 시 Short 후보 강화</text>
+  <rect x="60" y="154" width="610" height="290" rx="24" fill="#fff3ef" stroke="#efc9c0"/>
+  <text x="92" y="192" class="label">OVERBOUGHT / BEARISH</text>
+  <text x="92" y="226" class="cardTitle">과매수 비정상 캔들 + 약세 해석</text>
+  <rect x="92" y="246" width="210" height="160" rx="16" fill="#ffffff" stroke="#e7d5cf"/>
+  <rect x="110" y="260" width="174" height="132" rx="12" fill="#fff7e8" stroke="#f2dfaa"/>
+  <line x1="145" y1="380" x2="145" y2="298" stroke="#d85a4f" stroke-width="6" stroke-linecap="round"/>
+  <rect x="130" y="320" width="30" height="48" rx="6" fill="#ff8c3c"/>
+  <line x1="193" y1="364" x2="193" y2="286" stroke="#cd5849" stroke-width="6" stroke-linecap="round"/>
+  <rect x="178" y="304" width="30" height="46" rx="6" fill="#ff9b54"/>
+  <line x1="241" y1="356" x2="241" y2="278" stroke="#ba3e34" stroke-width="6" stroke-linecap="round"/>
+  <rect x="226" y="294" width="30" height="50" rx="6" fill="#ff7f32"/>
+  <polygon points="241,270 229,252 253,252" fill="#ff8c00"/>
+  <rect x="268" y="270" width="10" height="98" rx="5" fill="#ffdbdb"/>
+  <rect x="268" y="294" width="10" height="74" rx="5" fill="#ff5a5a"/>
+  <text x="338" y="272" class="body">세력 해석</text>
+  <text x="338" y="302" class="small">상단 돌파 직후라면 위 유동성 스윕,</text>
+  <text x="338" y="324" class="small">분산, 불트랩 가능성을 먼저 봅니다.</text>
+  <text x="338" y="360" class="body">후속 체크</text>
+  <text x="338" y="390" class="small">약세 다이버전스 삼각형, 약세 ATR 배경,</text>
+  <text x="338" y="412" class="small">Strong Short 점수 누적 여부를 같이 확인합니다.</text>
 
-  <rect x="640" y="154" width="500" height="300" rx="24" fill="#eef9ff" stroke="#c4e1f5"/>
-  <text x="672" y="192" class="label">LOWER SWEEP</text>
-  <text x="672" y="226" class="cardTitle">비정상 과매도 캔들</text>
-  <rect x="672" y="248" width="186" height="170" rx="18" fill="#ffffff" opacity="0.84" stroke="#d6e7f4"/>
-  <line x1="702" y1="306" x2="702" y2="400" stroke="#2589c4" stroke-width="8" stroke-linecap="round"/>
-  <rect x="680" y="308" width="44" height="74" rx="8" fill="#55b5ea"/>
-  <line x1="766" y1="316" x2="766" y2="400" stroke="#2589c4" stroke-width="8" stroke-linecap="round"/>
-  <rect x="744" y="328" width="44" height="52" rx="8" fill="#92d6f7"/>
-  <line x1="828" y1="292" x2="828" y2="404" stroke="#2589c4" stroke-width="8" stroke-linecap="round"/>
-  <rect x="806" y="318" width="44" height="78" rx="8" fill="#2f9ed8"/>
-  <text x="888" y="274" class="body">세력 해석</text>
-  <text x="888" y="302" class="small">전저점 아래, 지지 이탈 직후라면</text>
-  <text x="888" y="324" class="small">투매 스윕과 바닥 흡수 후보</text>
-  <text x="888" y="360" class="body">후속 확인</text>
-  <text x="888" y="388" class="small">강세 ATR 배경, 강세 다이버전스</text>
-  <text x="888" y="410" class="small">저가 회복 시 Long 후보 강화</text>
+  <rect x="690" y="154" width="610" height="290" rx="24" fill="#eef9ff" stroke="#c8e0f4"/>
+  <text x="722" y="192" class="label">OVERSOLD / BULLISH</text>
+  <text x="722" y="226" class="cardTitle">과매도 비정상 캔들 + 강세 해석</text>
+  <rect x="722" y="246" width="210" height="160" rx="16" fill="#ffffff" stroke="#d6e5f2"/>
+  <rect x="740" y="260" width="174" height="132" rx="12" fill="#eef8ff" stroke="#cbe4f7"/>
+  <line x1="775" y1="286" x2="775" y2="372" stroke="#25a0cf" stroke-width="6" stroke-linecap="round"/>
+  <rect x="760" y="302" width="30" height="46" rx="6" fill="#57d2f5"/>
+  <line x1="823" y1="294" x2="823" y2="382" stroke="#2a93bc" stroke-width="6" stroke-linecap="round"/>
+  <rect x="808" y="312" width="30" height="48" rx="6" fill="#6fe4ff"/>
+  <line x1="871" y1="272" x2="871" y2="366" stroke="#1a83ab" stroke-width="6" stroke-linecap="round"/>
+  <rect x="856" y="290" width="30" height="54" rx="6" fill="#44c7ee"/>
+  <polygon points="823,390 811,408 835,408" fill="#69e6ff"/>
+  <rect x="898" y="270" width="10" height="98" rx="5" fill="#dcefff"/>
+  <rect x="898" y="286" width="10" height="82" rx="5" fill="#2f7ef7"/>
+  <text x="968" y="272" class="body">세력 해석</text>
+  <text x="968" y="302" class="small">하단 이탈 직후라면 아래 유동성 스윕,</text>
+  <text x="968" y="324" class="small">투매 흡수, 숏트랩 가능성을 먼저 봅니다.</text>
+  <text x="968" y="360" class="body">후속 체크</text>
+  <text x="968" y="390" class="small">강세 다이버전스 삼각형, 강세 ATR 배경,</text>
+  <text x="968" y="412" class="small">Strong Long 점수 누적 여부를 같이 확인합니다.</text>
 
-  <rect x="60" y="492" width="1080" height="206" rx="26" fill="#ffffff" stroke="#d3dce6"/>
-  <text x="92" y="534" class="label">FOLLOW-THROUGH</text>
-  <text x="92" y="568" class="cardTitle">다이버전스 + ATR 배경 = 꼬리가 아니라 후속 파동 확인</text>
+  <rect x="60" y="476" width="1240" height="250" rx="24" fill="#ffffff" stroke="#d7e0ea"/>
+  <text x="92" y="514" class="label">VISUAL RULES</text>
+  <text x="92" y="548" class="cardTitle">Strong과 Sweep은 색과 박스를 분리해서 읽습니다</text>
 
-  <rect x="92" y="598" width="286" height="64" rx="16" fill="#fff7d9" stroke="#f0d57f"/>
-  <text x="114" y="636" class="body">1. 비정상 캔들: 스윕 또는 과열 분출</text>
+  <rect x="92" y="576" width="272" height="118" rx="18" fill="#f2fff5" stroke="#c9e6d0"/>
+  <text x="228" y="606" class="body center">Strong Long</text>
+  <circle cx="132" cy="638" r="9" fill="#009100"/>
+  <rect x="154" y="620" width="74" height="34" rx="8" fill="#009100" opacity="0.23" stroke="#009100" stroke-width="2"/>
+  <text x="246" y="638" class="small">어두운 녹색 동그라미</text>
+  <text x="246" y="660" class="small">저가~종가 기준봉 박스</text>
 
-  <rect x="456" y="598" width="286" height="64" rx="16" fill="#eef6ff" stroke="#c7ddf7"/>
-  <text x="478" y="636" class="body">2. 다이버전스: 가격 효율 둔화 또는 흡수</text>
+  <rect x="394" y="576" width="272" height="118" rx="18" fill="#fff3f4" stroke="#efcbcf"/>
+  <text x="530" y="606" class="body center">Strong Short</text>
+  <circle cx="434" cy="638" r="9" fill="#d21919"/>
+  <rect x="456" y="620" width="74" height="34" rx="8" fill="#d21919" opacity="0.22" stroke="#d21919" stroke-width="2"/>
+  <text x="548" y="638" class="small">어두운 빨강 동그라미</text>
+  <text x="548" y="660" class="small">고가~종가 기준봉 박스</text>
 
-  <rect x="820" y="598" width="286" height="64" rx="16" fill="#edf8f1" stroke="#c6e8d1"/>
-  <text x="842" y="636" class="body">3. ATR 배경: 실제 displacement 시작</text>
+  <rect x="696" y="576" width="272" height="118" rx="18" fill="#f1fff4" stroke="#cde9d1"/>
+  <text x="832" y="606" class="body center">Bull Sweep Confirm</text>
+  <rect x="738" y="618" width="20" height="40" rx="5" fill="#00ff00"/>
+  <polygon points="792,616 804,634 780,634" fill="#00ff00"/>
+  <rect x="820" y="620" width="88" height="34" rx="8" fill="#00ff00" opacity="0.20" stroke="#00ff00" stroke-width="2"/>
+  <text x="832" y="676" class="small center">다음 양봉 + 거래량 50% 이상</text>
 
-  <rect x="60" y="736" width="500" height="118" rx="24" fill="#ebfff3" stroke="#c3e9d0"/>
-  <text x="92" y="776" class="cardTitle">Strong Long</text>
-  <text x="92" y="806" class="small">아래 유동성 회수 + 강세 배경 + 거래량 확인</text>
-  <text x="92" y="828" class="small">MA 복귀가 함께 겹친 자리</text>
+  <rect x="998" y="576" width="272" height="118" rx="18" fill="#fff3f3" stroke="#f0cece"/>
+  <text x="1134" y="606" class="body center">Bear Sweep Confirm</text>
+  <rect x="1040" y="618" width="20" height="40" rx="5" fill="#ff0000"/>
+  <polygon points="1094,640 1106,622 1082,622" fill="#ff0000"/>
+  <rect x="1122" y="620" width="88" height="34" rx="8" fill="#ff0000" opacity="0.18" stroke="#ff0000" stroke-width="2"/>
+  <text x="1134" y="676" class="small center">다음 음봉 + 거래량 50% 이상</text>
 
-  <rect x="640" y="736" width="500" height="118" rx="24" fill="#fff1f1" stroke="#efc2c6"/>
-  <text x="672" y="776" class="cardTitle">Strong Short</text>
-  <text x="672" y="806" class="small">위 유동성 회수 + 약세 배경 + 거래량 확인</text>
-  <text x="672" y="828" class="small">MA 이탈이 함께 겹친 자리</text>
+  <rect x="60" y="756" width="1240" height="220" rx="24" fill="#fffdf8" stroke="#e6dccb"/>
+  <text x="92" y="794" class="label">ENTRY STACK</text>
+  <text x="92" y="828" class="cardTitle">롱/숏 최종 점수는 자리 + 체결 + 배경 순서를 동시에 봅니다</text>
 
-  <text x="60" y="902" class="note">핵심: Strong 신호도 상위 추세와 반대면 짧은 반등·반락으로 끝날 수 있으니 무효화 기준을 먼저 잡아야 합니다</text>
+  <rect x="92" y="850" width="562" height="94" rx="18" fill="#eef9ff" stroke="#c8e0f4"/>
+  <text x="118" y="882" class="body">롱 우선순위</text>
+  <text x="118" y="908" class="small">총 거래량 &gt; 10MA, buyVolume &gt; sellVolume, 강세 배경/보너스, Strong Long 점수 누적</text>
+  <text x="118" y="930" class="small">이후 박스 하단 스윕이 나오고 다음 봉 거래량이 50% 이상이면 밝은 초록 다이아몬드로 재확인</text>
+
+  <rect x="706" y="850" width="562" height="94" rx="18" fill="#fff1f2" stroke="#efc9cf"/>
+  <text x="732" y="882" class="body">숏 우선순위</text>
+  <text x="732" y="908" class="small">총 거래량 &gt; 10MA, sellVolume &gt; buyVolume, 약세 배경/보너스, Strong Short 점수 누적</text>
+  <text x="732" y="930" class="small">이후 박스 상단 스윕이 나오고 다음 봉 거래량이 50% 이상이면 밝은 빨강 다이아몬드로 재확인</text>
+
+  <text x="60" y="1002" class="note">핵심: Strong은 진입 후보, Sweep 다이아몬드는 그 후보를 한 번 더 확인하는 후속 신호입니다.</text>
 </svg>
