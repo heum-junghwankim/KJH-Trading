@@ -1,5 +1,5 @@
 //@version=6
-indicator("Abnormal-Price-Tracker-Candles", overlay=true, format=format.volume, precision=0, max_labels_count=500)
+indicator("Abnormal-Price-Tracker-Candles", overlay=true, format=format.volume, precision=0, max_labels_count=500, max_boxes_count=500)
 
 // =========================
 // MA Inputs
@@ -144,15 +144,16 @@ divergenceBearMarkerColor = input.color(color.rgb(255, 140, 0), title="약세 �
 
 referenceGroup = "기준봉"
 showReferenceCandleZone = input.bool(true, title="기준봉 존 표시", group=referenceGroup)
+keepHistoricalBoxes = input.bool(true, title="과거 박스 모두 유지", group=referenceGroup)
 referenceExtendBars = input.int(30, minval=1, maxval=300, title="기준봉 우측 연장 봉 수", group=referenceGroup)
-referenceMaxObjects = input.int(8, minval=1, maxval=30, title="최대 기준봉 표시 수", group=referenceGroup)
+referenceMaxObjects = input.int(8, minval=1, maxval=500, title="최대 기준봉 표시 수", group=referenceGroup)
 referenceBullZoneColor = input.color(color.new(color.rgb(0, 110, 0), 78), title="롱 기준봉 존 색상", group=referenceGroup)
 referenceBearZoneColor = input.color(color.new(color.rgb(170, 0, 0), 78), title="숏 기준봉 존 색상", group=referenceGroup)
 sweepBullZoneColor = input.color(color.new(color.rgb(0, 255, 0), 78), title="강세 스윕 존 색상", group=referenceGroup)
 sweepBearZoneColor = input.color(color.new(color.rgb(255, 0, 0), 78), title="약세 스윕 존 색상", group=referenceGroup)
 showDivergenceCandleZone = input.bool(true, title="다이버전스 기준봉 존 표시", group=referenceGroup)
 divergenceExtendBars = input.int(30, minval=1, maxval=300, title="다이버전스 존 우측 연장 봉 수", group=referenceGroup)
-divergenceMaxObjects = input.int(8, minval=1, maxval=30, title="최대 다이버전스 존 표시 수", group=referenceGroup)
+divergenceMaxObjects = input.int(8, minval=1, maxval=500, title="최대 다이버전스 존 표시 수", group=referenceGroup)
 divergenceBullZoneColor = input.color(color.new(color.aqua, 82), title="강세 다이버전스 존 색상", group=referenceGroup)
 divergenceBearZoneColor = input.color(color.new(color.orange, 82), title="약세 다이버전스 존 색상", group=referenceGroup)
 
@@ -212,14 +213,14 @@ var float[] bearSweepZoneBottoms = array.new_float()
 var int[] bearSweepZoneRights = array.new_int()
 
 trimBullSweepZones() =>
-    maxZones = referenceMaxObjects + divergenceMaxObjects
+    maxZones = keepHistoricalBoxes ? 500 : referenceMaxObjects + divergenceMaxObjects
     while array.size(bullSweepZoneTops) > maxZones
         array.shift(bullSweepZoneTops)
         array.shift(bullSweepZoneBottoms)
         array.shift(bullSweepZoneRights)
 
 trimBearSweepZones() =>
-    maxZones = referenceMaxObjects + divergenceMaxObjects
+    maxZones = keepHistoricalBoxes ? 500 : referenceMaxObjects + divergenceMaxObjects
     while array.size(bearSweepZoneTops) > maxZones
         array.shift(bearSweepZoneTops)
         array.shift(bearSweepZoneBottoms)
@@ -248,12 +249,14 @@ removeBearSweepZone(index) =>
     array.remove(bearSweepZoneRights, index)
 
 trimReferenceObjects() =>
-    while array.size(referenceBoxes) > referenceMaxObjects
+    maxVisibleBoxes = keepHistoricalBoxes ? math.max(1, 500 - array.size(divergenceBoxes)) : referenceMaxObjects
+    while array.size(referenceBoxes) > maxVisibleBoxes
         oldBox = array.shift(referenceBoxes)
         box.delete(oldBox)
 
 trimDivergenceObjects() =>
-    while array.size(divergenceBoxes) > divergenceMaxObjects
+    maxVisibleBoxes = keepHistoricalBoxes ? math.max(1, 500 - array.size(referenceBoxes)) : divergenceMaxObjects
+    while array.size(divergenceBoxes) > maxVisibleBoxes
         oldBox = array.shift(divergenceBoxes)
         box.delete(oldBox)
 
@@ -839,8 +842,10 @@ if array.size(bearSweepZoneTops) > 0
 finalBarColor = showLiquiditySweepSignals and bullLiquiditySweep ? bullSweepSignalColor : showLiquiditySweepSignals and bearLiquiditySweep ? bearSweepSignalColor : paintBars ? barCol : na
 barcolor(finalBarColor)
 
-confirmedBullSweepFollowThrough = barstate.isconfirmed and bullLiquiditySweep[1] and close > open and buyVolume > sellVolume and volume >= nz(volume[1]) * lsSweepConfirmVolumeRatio
-confirmedBearSweepFollowThrough = barstate.isconfirmed and bearLiquiditySweep[1] and close < open and sellVolume > buyVolume and volume >= nz(volume[1]) * lsSweepConfirmVolumeRatio
+bullSweepFollowThroughVolumeReady = volume >= nz(volume[1]) * lsSweepConfirmVolumeRatio
+bearSweepFollowThroughVolumeReady = volume >= nz(volume[1]) * lsSweepConfirmVolumeRatio
+confirmedBullSweepFollowThrough = barstate.isconfirmed and bullLiquiditySweep[1] and close > open and buyVolume > sellVolume and bullSweepFollowThroughVolumeReady
+confirmedBearSweepFollowThrough = barstate.isconfirmed and bearLiquiditySweep[1] and close < open and sellVolume > buyVolume and bearSweepFollowThroughVolumeReady
 
 plotshape(showLiquiditySweepSignals and confirmedBullSweepFollowThrough, title="Bull Liquidity Sweep Confirmed", style=shape.diamond, location=location.belowbar, color=bullSweepSignalColor, size=size.tiny)
 plotshape(showLiquiditySweepSignals and confirmedBearSweepFollowThrough, title="Bear Liquidity Sweep Confirmed", style=shape.diamond, location=location.abovebar, color=bearSweepSignalColor, size=size.tiny)
