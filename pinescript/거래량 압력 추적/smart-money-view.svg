@@ -14,7 +14,7 @@
       .body { font: 500 16px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #26384b; }
       .small { font: 500 14px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #4d6070; }
       .accent { font: 700 16px 'Menlo','Consolas',monospace; fill: #0d5f3c; }
-      .accentBear { font: 700 16px 'Menlo','Consolas',monospace; fill: #8a2438; }
+      .accentBear { font: 700 16px 'Menlo','Consolas',monospace; fill: #7c3aed; }
       .warn { font: 700 15px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #7d5b12; }
     </style>
   </defs>
@@ -27,7 +27,7 @@
 
   <rect x="60" y="150" width="500" height="290" rx="24" fill="#ebfff3" stroke="#c3e9d0"/>
   <text x="92" y="188" class="label">ALIGNED PRESSURE</text>
-  <text x="92" y="222" class="cardTitle">초록 배경 + 연두 비정상 매수</text>
+  <text x="92" y="222" class="cardTitle">녹색 배경 + 연두 비정상 매수</text>
   <rect x="92" y="246" width="178" height="154" rx="18" fill="#ffffff" opacity="0.82" stroke="#d6eadb"/>
   <text x="112" y="274" class="accent">trend up</text>
   <rect x="112" y="348" width="18" height="30" rx="5" fill="#95d5b2"/>
@@ -42,10 +42,10 @@
   <text x="298" y="388" class="small">저점 방어 -> 직전 고점 재도전</text>
   <text x="298" y="410" class="small">돌파 시도와 추세 재가속 가능성</text>
 
-  <rect x="640" y="150" width="500" height="290" rx="24" fill="#fff0f2" stroke="#efc0c8"/>
+  <rect x="640" y="150" width="500" height="290" rx="24" fill="#f6efff" stroke="#dbc6f3"/>
   <text x="672" y="188" class="label">ALIGNED PRESSURE</text>
-  <text x="672" y="222" class="cardTitle">자주 배경 + 빨강 비정상 매도</text>
-  <rect x="672" y="246" width="178" height="154" rx="18" fill="#ffffff" opacity="0.82" stroke="#f1d7db"/>
+  <text x="672" y="222" class="cardTitle">보라색 배경 + 빨강 비정상 매도</text>
+  <rect x="672" y="246" width="178" height="154" rx="18" fill="#ffffff" opacity="0.82" stroke="#e7d9f4"/>
   <text x="692" y="274" class="accentBear">trend down</text>
   <rect x="692" y="264" width="18" height="114" rx="5" fill="#d04b5e"/>
   <rect x="722" y="292" width="18" height="86" rx="5" fill="#d96a78"/>
@@ -61,7 +61,7 @@
 
   <rect x="60" y="478" width="500" height="290" rx="24" fill="#fff8e9" stroke="#f0d694"/>
   <text x="92" y="516" class="label">MISMATCHED PRESSURE</text>
-  <text x="92" y="550" class="cardTitle">초록 배경 + 빨강 비정상 매도</text>
+  <text x="92" y="550" class="cardTitle">녹색 배경 + 빨강 비정상 매도</text>
   <rect x="92" y="578" width="436" height="150" rx="18" fill="#ffffff" opacity="0.86" stroke="#eadcb3"/>
   <text x="116" y="612" class="body">가능성</text>
   <text x="116" y="638" class="small">롱 청산, 눌림 테스트, 단기 손절 유도</text>
@@ -69,10 +69,10 @@
   <text x="116" y="698" class="small">다음 봉 회복 + 매수 압력 재등장 = 흡수 가능성</text>
   <text x="116" y="720" class="small">기준선 이탈 + 빨강 반복 = 분산 시작 가능성</text>
 
-  <rect x="640" y="478" width="500" height="290" rx="24" fill="#eef6ff" stroke="#c8dff6"/>
+  <rect x="640" y="478" width="500" height="290" rx="24" fill="#f2ecff" stroke="#d8c8f4"/>
   <text x="672" y="516" class="label">MISMATCHED PRESSURE</text>
-  <text x="672" y="550" class="cardTitle">자주 배경 + 연두 비정상 매수</text>
-  <rect x="672" y="578" width="436" height="150" rx="18" fill="#ffffff" opacity="0.86" stroke="#d0e0f1"/>
+  <text x="672" y="550" class="cardTitle">보라색 배경 + 연두 비정상 매수</text>
+  <rect x="672" y="578" width="436" height="150" rx="18" fill="#ffffff" opacity="0.86" stroke="#e2d5f5"/>
   <text x="696" y="612" class="body">가능성</text>
   <text x="696" y="638" class="small">숏 커버, 반등 함정, 바닥 훼손 후 되감기</text>
   <text x="696" y="672" class="body">확인할 것</text>

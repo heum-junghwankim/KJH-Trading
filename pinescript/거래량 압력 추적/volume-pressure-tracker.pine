@@ -49,15 +49,15 @@ alignWeakThreshold   = input.float(10.0, "Weak Strength Threshold", minval=0.1, 
 alignMediumThreshold = input.float(20.0, "Medium Strength Threshold", minval=0.1, step=0.1, group="Alignment Background")
 alignStrongThreshold = input.float(35.0, "Strong Strength Threshold", minval=0.1, step=0.1, group="Alignment Background")
 
-bullAlignVeryWeakTransparency = input.int(85, "Bull Very Weak Transparency", minval=0, maxval=100, group="Alignment Background")
-bullAlignWeakTransparency     = input.int(75, "Bull Weak Transparency", minval=0, maxval=100, group="Alignment Background")
+bullAlignVeryWeakTransparency = input.int(90, "Bull Very Weak Transparency", minval=0, maxval=100, group="Alignment Background")
+bullAlignWeakTransparency     = input.int(80, "Bull Weak Transparency", minval=0, maxval=100, group="Alignment Background")
 bullAlignMediumTransparency   = input.int(65, "Bull Medium Transparency", minval=0, maxval=100, group="Alignment Background")
-bullAlignStrongTransparency   = input.int(55, "Bull Strong Transparency", minval=0, maxval=100, group="Alignment Background")
+bullAlignStrongTransparency   = input.int(50, "Bull Strong Transparency", minval=0, maxval=100, group="Alignment Background")
 
-bearAlignVeryWeakTransparency = input.int(85, "Bear Very Weak Transparency", minval=0, maxval=100, group="Alignment Background")
-bearAlignWeakTransparency     = input.int(75, "Bear Weak Transparency", minval=0, maxval=100, group="Alignment Background")
+bearAlignVeryWeakTransparency = input.int(90, "Bear Very Weak Transparency", minval=0, maxval=100, group="Alignment Background")
+bearAlignWeakTransparency     = input.int(80, "Bear Weak Transparency", minval=0, maxval=100, group="Alignment Background")
 bearAlignMediumTransparency   = input.int(65, "Bear Medium Transparency", minval=0, maxval=100, group="Alignment Background")
-bearAlignStrongTransparency   = input.int(55, "Bear Strong Transparency", minval=0, maxval=100, group="Alignment Background")
+bearAlignStrongTransparency   = input.int(50, "Bear Strong Transparency", minval=0, maxval=100, group="Alignment Background")
 
 basePeriods         = input.int(20, minval=1, title="Base Line Length", group="Alignment Background")
 maLength            = input.int(5, "MA Length", minval=1, group="Alignment Background")

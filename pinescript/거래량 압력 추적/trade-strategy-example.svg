@@ -22,7 +22,7 @@
 
   <rect x="60" y="150" width="540" height="660" rx="26" fill="#ecfff3" stroke="#bfe7cf"/>
   <text x="96" y="190" class="label">LONG SETUP</text>
-  <text x="96" y="226" class="panelTitle">초록 배경 + 연두 비정상 매수에서 롱</text>
+  <text x="96" y="226" class="panelTitle">녹색 배경 + 연두 비정상 매수에서 롱</text>
   <rect x="96" y="250" width="468" height="220" rx="20" fill="#ffffff" stroke="#d7e3ed"/>
   <polyline points="120,424 166,404 212,386 258,398 304,366 350,342 396,320 442,300 488,282 534,264" fill="none" stroke="#f2c94c" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
   <rect x="242" y="386" width="136" height="28" rx="14" fill="#dff2ff" stroke="#98c9f5"/>
@@ -54,7 +54,7 @@
   <rect x="372" y="534" width="18" height="48" rx="6" fill="#d2d6db"/>
   <rect x="404" y="520" width="18" height="62" rx="6" fill="#d2d6db"/>
   <text x="96" y="642" class="body">롱 전략</text>
-  <text x="96" y="670" class="small">1. 가격 눌림 뒤 `초록 배경` 유지 확인</text>
+  <text x="96" y="670" class="small">1. 가격 눌림 뒤 `녹색 배경` 유지 확인</text>
   <text x="96" y="692" class="small">2. `연두 비정상 매수` 막대에서 롱 매수</text>
   <text x="96" y="714" class="small">3. 목표 구간에서 `빨강 비정상 매도` 나오면 롱 매도</text>
   <circle cx="253" cy="498" r="18" fill="#16a34a"/>
@@ -62,9 +62,9 @@
   <circle cx="349" cy="548" r="18" fill="#f59e0b"/>
   <text x="343" y="555" class="body" fill="#ffffff">2</text>
 
-  <rect x="680" y="150" width="540" height="660" rx="26" fill="#fff0f2" stroke="#efc3c9"/>
+  <rect x="680" y="150" width="540" height="660" rx="26" fill="#f6efff" stroke="#dbc6f3"/>
   <text x="716" y="190" class="label">SHORT SETUP</text>
-  <text x="716" y="226" class="panelTitle">자주 배경 + 빨강 비정상 매도에서 숏</text>
+  <text x="716" y="226" class="panelTitle">보라색 배경 + 빨강 비정상 매도에서 숏</text>
   <rect x="716" y="250" width="468" height="220" rx="20" fill="#ffffff" stroke="#d7e3ed"/>
   <polyline points="740,272 786,296 832,320 878,344 924,328 970,352 1016,382 1062,408 1108,430 1154,452" fill="none" stroke="#f2c94c" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
   <rect x="916" y="316" width="136" height="28" rx="14" fill="#ffe4e6" stroke="#f1aab3"/>
@@ -84,7 +84,7 @@
   <line x1="1038" y1="392" x2="1038" y2="452" stroke="#df5c6c" stroke-width="6" stroke-linecap="round"/>
   <rect x="1022" y="410" width="32" height="32" rx="6" fill="#df5c6c"/>
 
-  <rect x="716" y="490" width="468" height="126" rx="18" fill="#fff7f8" stroke="#f1d5d9"/>
+  <rect x="716" y="490" width="468" height="126" rx="18" fill="#f7f1ff" stroke="#e1d2f5"/>
   <rect x="736" y="548" width="18" height="34" rx="6" fill="#d2d6db"/>
   <rect x="768" y="534" width="18" height="48" rx="6" fill="#d2d6db"/>
   <rect x="800" y="520" width="18" height="62" rx="6" fill="#d2d6db"/>
@@ -96,7 +96,7 @@
   <rect x="992" y="536" width="18" height="46" rx="6" fill="#d2d6db"/>
   <rect x="1024" y="548" width="18" height="34" rx="6" fill="#d2d6db"/>
   <text x="716" y="642" class="body">숏 전략</text>
-  <text x="716" y="670" class="small">1. 반등 뒤 `자주 배경` 유지 확인</text>
+  <text x="716" y="670" class="small">1. 반등 뒤 `보라색 배경` 유지 확인</text>
   <text x="716" y="692" class="small">2. `빨강 비정상 매도` 막대에서 숏 매도</text>
   <text x="716" y="714" class="small">3. 하단에서 `연두 비정상 매수` 나오면 숏 매수</text>
   <circle cx="841" cy="506" r="18" fill="#dc2626"/>
