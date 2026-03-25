@@ -781,16 +781,23 @@ if shortSignal and (barstate.isconfirmed or not realtimeLSSignals)
 effectiveStrongScore = math.max(lsStrongScore, lsMinScore)
 strongLongSignal = longSignal and bullTotalScore >= effectiveStrongScore
 strongShortSignal = shortSignal and bearTotalScore >= effectiveStrongScore
+displayStrongLongSignal = strongLongSignal
+displayStrongShortSignal = strongShortSignal
+
+if not na(volume[1]) and volume[1] > 0 and volume < volume[1] * 0.5
+    displayStrongLongSignal := false
+    displayStrongShortSignal := false
+
 strongLongSignalColor = strongLongSignalColorInput
 strongShortSignalColor = strongShortSignalColorInput
 bullSweepSignalColor = bullSweepSignalColorInput
 bearSweepSignalColor = bearSweepSignalColorInput
 
-plotshape(showStrongLSSignals and strongLongSignal, title="Strong Long Signal", style=shape.circle, location=location.belowbar, color=strongLongSignalColor, size=size.tiny)
-plotshape(showStrongLSSignals and strongShortSignal, title="Strong Short Signal", style=shape.circle, location=location.abovebar, color=strongShortSignalColor, size=size.tiny)
+plotshape(showStrongLSSignals and displayStrongLongSignal, title="Strong Long Signal", style=shape.circle, location=location.belowbar, color=strongLongSignalColor, size=size.tiny)
+plotshape(showStrongLSSignals and displayStrongShortSignal, title="Strong Short Signal", style=shape.circle, location=location.abovebar, color=strongShortSignalColor, size=size.tiny)
 
-confirmedStrongLongSignal = barstate.isconfirmed and strongLongSignal
-confirmedStrongShortSignal = barstate.isconfirmed and strongShortSignal
+confirmedStrongLongSignal = barstate.isconfirmed and displayStrongLongSignal
+confirmedStrongShortSignal = barstate.isconfirmed and displayStrongShortSignal
 
 if confirmedStrongLongSignal and showReferenceCandleZone
     longReferenceTop = bullSignalBoxTop(0)
