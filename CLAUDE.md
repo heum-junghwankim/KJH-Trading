@@ -35,3 +35,11 @@ The 4 indicators form a layered analysis system read in order: **Trend → Candl
 - Pine Script files are not compiled/tested locally — they are copied to TradingView's Pine Editor
 - There is no build system, linter, or test framework
 - Changes are validated by loading the script in TradingView and visually confirming indicator behavior
+
+## Trading Analysis Reports
+
+- 분석 리포트 작성 시 반드시 `report/principle.md`를 먼저 읽고 따른다
+- 리포트는 `report/{YYMMDD}/` 디렉토리에 저장한다
+- 차트 스크린샷은 `report/{YYMMDD}/imgs/`에 종목명으로 저장한다
+- PDF 파일명: `{종목}_매매전략_김프로_{YYMMDD}.pdf`
+- PDF 생성은 WeasyPrint (HTML -> PDF) 방식만 사용한다 (fpdf2 등 금지)
