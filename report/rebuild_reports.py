@@ -143,9 +143,9 @@ def build_hpsp(chart_b64):
 <div class="stage-box s3">
   <span class="stage-label s3">3단계</span>
   <div class="stage-title">거래량 확인 -- 실제로 힘이 붙었는가?</div>
-  <div class="stage-sub">사용 지표: 매수/매도 거래량 분리 + 비정상 거래량 표시 + 정렬 배경</div>
+  <div class="stage-sub">사용 지표: 매수/매도 거래량 분리 + 비정상 거래량 표시 + 전체 거래량 평균선</div>
   <div class="check">- 현재 거래량: 특별한 비정상 거래량 없음 (매수/매도 평균 수준)</div>
-  <div class="check">- 정렬 배경: 녹색 배경 약화 구간 = 정렬 강도 느슨해지는 중</div>
+  <div class="check">- 평균선 위치: 현재 거래량은 평균선 부근 = 아직 강한 실행은 아님</div>
   <div class="check">- 진입 시 확인할 것: 눌림 바닥에서 연두색(비정상 매수) 막대 출현 여부</div>
   <div class="conclusion">결론: 아직 매수 거래량 미확인. 비정상 매수 출현 시 진입 근거 강화.</div>
 </div>
@@ -297,7 +297,7 @@ def build_korea_carbon(chart_b64):
 <div class="stage-box s3">
   <span class="stage-label s3">3단계</span>
   <div class="stage-title">거래량 확인 -- 실제로 힘이 붙었는가?</div>
-  <div class="stage-sub">사용 지표: 매수/매도 거래량 분리 + 비정상 거래량 + 정렬 배경</div>
+  <div class="stage-sub">사용 지표: 매수/매도 거래량 분리 + 비정상 거래량 + 전체 거래량 평균선</div>
   <div class="check">- 최근 거래량: 상승 과정에서 거래량 동반 = 실제 매수 유입 확인</div>
   <div class="check">- 비정상 거래량: 급등 구간에서 비정상 매수 거래량 다수 출현 (확인 완료)</div>
   <div class="check">- 주의점: 고점 부근에서 비정상 매도 거래량이 나오면 세력 분산 시작 신호</div>

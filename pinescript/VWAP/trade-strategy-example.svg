@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="880" viewBox="0 0 1280 880" role="img" aria-labelledby="title desc">
+  <title id="title">멀티 앵커 VWAP 롱숏 전략 예시</title>
+  <desc id="desc">Session, 5-Day, 20-Day VWAP 정렬을 이용한 롱과 숏 전략 예시 이미지</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f7fbff"/>
+      <stop offset="100%" stop-color="#fff9f2"/>
+    </linearGradient>
+    <style>
+      .title { font: 700 34px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #14263a; }
+      .subtitle { font: 500 17px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #58697b; }
+      .panelTitle { font: 700 24px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #17283b; }
+      .label { font: 700 14px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #2e4b69; letter-spacing: 0.06em; }
+      .body { font: 500 16px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #273a4d; }
+      .small { font: 500 14px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #56687a; }
+    </style>
+  </defs>
+
+  <rect width="1280" height="880" fill="#edf2f7"/>
+  <rect x="24" y="24" width="1232" height="832" rx="28" fill="url(#bg)" stroke="#d6e0ea"/>
+  <text x="60" y="82" class="title">멀티 앵커 VWAP · 실전 롱/숏 전략 예시</text>
+  <text x="60" y="114" class="subtitle">핵심은 Session 기준 첫 반응을 보되, 5-Day와 20-Day가 같은 방향으로 받치거나 눌리는지 같이 확인하는 것입니다</text>
+
+  <rect x="60" y="150" width="540" height="640" rx="26" fill="#ecfff3" stroke="#bfe7cf"/>
+  <text x="96" y="190" class="label">LONG SETUP</text>
+  <text x="96" y="226" class="panelTitle">정렬 유지 + Session 눌림 확인 뒤 롱 준비</text>
+  <rect x="96" y="250" width="468" height="304" rx="20" fill="#ffffff" stroke="#d7e3ed"/>
+  <line x1="126" y1="510" x2="534" y2="510" stroke="#edf2f6"/>
+  <line x1="126" y1="450" x2="534" y2="450" stroke="#edf2f6"/>
+  <line x1="126" y1="390" x2="534" y2="390" stroke="#edf2f6"/>
+  <line x1="126" y1="330" x2="534" y2="330" stroke="#edf2f6"/>
+  <line x1="126" y1="270" x2="534" y2="270" stroke="#edf2f6"/>
+  <line x1="126" y1="428" x2="534" y2="428" stroke="#2962ff" stroke-width="4" stroke-dasharray="10 9"/>
+  <line x1="126" y1="306" x2="534" y2="306" stroke="#9c27b0" stroke-width="4"/>
+  <line x1="126" y1="356" x2="534" y2="356" stroke="#ff9800" stroke-width="4"/>
+  <polyline points="126,408 166,412 206,404 246,394 286,404 326,382 366,372 406,352 446,334 486,322 526,314" fill="none" stroke="#2962ff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="126,428 166,424 206,420 246,418 286,414 326,408 366,402 406,396 446,392 486,388 526,384" fill="none" stroke="#ff9800" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="126,306 166,306 206,307 246,308 286,309 326,310 366,311 406,312 446,313 486,314 526,315" fill="none" stroke="#9c27b0" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="126,388 156,370 186,378 216,346 246,354 276,336 306,344 336,316 366,324 396,298 426,286 456,272 486,266 516,258" fill="none" stroke="#16a34a" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="246" cy="354" r="18" fill="#16a34a"/>
+  <text x="240" y="361" class="body" fill="#ffffff">1</text>
+  <circle cx="396" cy="298" r="18" fill="#f59e0b"/>
+  <text x="390" y="305" class="body" fill="#ffffff">2</text>
+  <circle cx="486" cy="266" r="18" fill="#2563eb"/>
+  <text x="480" y="273" class="body" fill="#ffffff">3</text>
+  <rect x="304" y="566" width="244" height="34" rx="17" fill="#ecfff3" stroke="#bfe7cf"/>
+  <text x="324" y="588" class="small">1. Session 눌림이 5-Day 위에서 멈춤</text>
+  <rect x="304" y="608" width="244" height="34" rx="17" fill="#fff7df" stroke="#efd07a"/>
+  <text x="324" y="630" class="small">2. Session 재탈환 뒤 롱 우선</text>
+  <rect x="304" y="650" width="244" height="34" rx="17" fill="#eef5ff" stroke="#bfd4ff"/>
+  <text x="324" y="672" class="small">3. 직전 고점 / Band 확장에서 분할 청산</text>
+  <text x="96" y="606" class="body">롱 전략</text>
+  <text x="96" y="634" class="small">1. Price &gt; Session &gt; 5-Day &gt; 20-Day 정렬 확인</text>
+  <text x="96" y="656" class="small">2. 첫 눌림이 Session 근처에서 멈추는지 확인</text>
+  <text x="96" y="678" class="small">3. Session 재안착과 거래량 반응이 붙으면 롱 우선</text>
+  <text x="96" y="700" class="small">4. 5-Day 아래로 무너지면 시나리오 약화</text>
+
+  <rect x="680" y="150" width="540" height="640" rx="26" fill="#fff0f2" stroke="#efc3c9"/>
+  <text x="716" y="190" class="label">SHORT SETUP</text>
+  <text x="716" y="226" class="panelTitle">정렬 유지 + Session 반등 실패 뒤 숏 준비</text>
+  <rect x="716" y="250" width="468" height="304" rx="20" fill="#ffffff" stroke="#d7e3ed"/>
+  <line x1="746" y1="510" x2="1154" y2="510" stroke="#edf2f6"/>
+  <line x1="746" y1="450" x2="1154" y2="450" stroke="#edf2f6"/>
+  <line x1="746" y1="390" x2="1154" y2="390" stroke="#edf2f6"/>
+  <line x1="746" y1="330" x2="1154" y2="330" stroke="#edf2f6"/>
+  <line x1="746" y1="270" x2="1154" y2="270" stroke="#edf2f6"/>
+  <line x1="746" y1="360" x2="1154" y2="360" stroke="#2962ff" stroke-width="4" stroke-dasharray="10 9"/>
+  <line x1="746" y1="418" x2="1154" y2="418" stroke="#ff9800" stroke-width="4"/>
+  <line x1="746" y1="470" x2="1154" y2="470" stroke="#9c27b0" stroke-width="4"/>
+  <polyline points="746,378 786,382 826,388 866,394 906,402 946,412 986,420 1026,432 1066,444 1106,452 1146,460" fill="none" stroke="#2962ff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="746,418 786,418 826,419 866,420 906,421 946,422 986,424 1026,426 1066,428 1106,430 1146,432" fill="none" stroke="#ff9800" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="746,470 786,469 826,468 866,468 906,467 946,466 986,466 1026,465 1066,464 1106,464 1146,463" fill="none" stroke="#9c27b0" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="746,348 776,360 806,352 836,386 866,378 896,402 926,394 956,424 986,416 1016,442 1046,454 1076,466 1106,480 1136,490" fill="none" stroke="#dc2626" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="866" cy="378" r="18" fill="#dc2626"/>
+  <text x="860" y="385" class="body" fill="#ffffff">1</text>
+  <circle cx="986" cy="416" r="18" fill="#f59e0b"/>
+  <text x="980" y="423" class="body" fill="#ffffff">2</text>
+  <circle cx="1106" cy="480" r="18" fill="#2563eb"/>
+  <text x="1100" y="487" class="body" fill="#ffffff">3</text>
+  <rect x="910" y="566" width="244" height="34" rx="17" fill="#fff0f2" stroke="#efc3c9"/>
+  <text x="930" y="588" class="small">1. Session 반등이 5-Day 아래에서 막힘</text>
+  <rect x="910" y="608" width="244" height="34" rx="17" fill="#fff7df" stroke="#efd07a"/>
+  <text x="930" y="630" class="small">2. Session 재이탈 뒤 숏 우선</text>
+  <rect x="910" y="650" width="244" height="34" rx="17" fill="#eef5ff" stroke="#bfd4ff"/>
+  <text x="930" y="672" class="small">3. 직전 저점 / Band 확장에서 분할 청산</text>
+  <text x="716" y="606" class="body">숏 전략</text>
+  <text x="716" y="634" class="small">1. Price &lt; Session &lt; 5-Day &lt; 20-Day 정렬 확인</text>
+  <text x="716" y="656" class="small">2. 첫 반등이 Session 근처에서 실패하는지 확인</text>
+  <text x="716" y="678" class="small">3. Session 재이탈과 거래량 반응이 붙으면 숏 우선</text>
+  <text x="716" y="700" class="small">4. 5-Day 위로 복귀하면 시나리오 약화</text>
+</svg>

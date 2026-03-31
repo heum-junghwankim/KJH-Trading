@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="880" viewBox="0 0 1280 880" role="img" aria-labelledby="title desc">
+  <title id="title">볼륨 델타 롱숏 전략 예시</title>
+  <desc id="desc">세션 또는 고정 봉 집계 기준에서 볼륨 델타 요약 박스를 읽는 롱숏 전략 예시</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f7fbff"/>
+      <stop offset="100%" stop-color="#fff9f2"/>
+    </linearGradient>
+    <style>
+      .title { font: 700 34px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #14263a; }
+      .subtitle { font: 500 17px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #58697b; }
+      .panelTitle { font: 700 24px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #17283b; }
+      .label { font: 700 14px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #2e4b69; letter-spacing: 0.06em; }
+      .body { font: 500 16px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #273a4d; }
+      .small { font: 500 14px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #56687a; }
+    </style>
+  </defs>
+
+  <rect width="1280" height="880" fill="#edf2f7"/>
+  <rect x="24" y="24" width="1232" height="832" rx="28" fill="url(#bg)" stroke="#d6e0ea"/>
+  <text x="60" y="82" class="title">볼륨 델타 · 실전 롱/숏 전략 예시</text>
+  <text x="60" y="114" class="subtitle">핵심은 요약 박스 숫자만 보는 게 아니라, 델타와 가격 변화가 같은 방향으로 유지되는지 확인하는 것입니다</text>
+
+  <rect x="60" y="150" width="540" height="640" rx="26" fill="#ecfff3" stroke="#bfe7cf"/>
+  <text x="96" y="190" class="label">LONG SETUP</text>
+  <text x="96" y="226" class="panelTitle">매수 우위가 실제 상승으로 이어질 때 롱 준비</text>
+  <rect x="96" y="250" width="468" height="304" rx="20" fill="#ffffff" stroke="#d7e3ed"/>
+  <rect x="128" y="284" width="404" height="44" rx="12" fill="#fff6dd" stroke="#ebd18a"/>
+  <text x="152" y="313" class="small">구분          세션</text>
+  <rect x="128" y="334" width="404" height="38" rx="12" fill="#f7fbff" stroke="#d8e3ed"/>
+  <text x="152" y="359" class="small">매수      5.08K (51.6%)</text>
+  <rect x="128" y="378" width="404" height="38" rx="12" fill="#f7fbff" stroke="#d8e3ed"/>
+  <text x="152" y="403" class="small">델타      +291 (+2.9%)</text>
+  <rect x="128" y="422" width="404" height="38" rx="12" fill="#f7fbff" stroke="#d8e3ed"/>
+  <text x="152" y="447" class="small">가격 변화 +1.7%</text>
+  <rect x="128" y="466" width="404" height="38" rx="12" fill="#f7fbff" stroke="#d8e3ed"/>
+  <text x="152" y="491" class="small">평가      매수 우위</text>
+  <circle cx="502" cy="403" r="18" fill="#16a34a"/>
+  <text x="496" y="410" class="body" fill="#ffffff">1</text>
+  <circle cx="502" cy="447" r="18" fill="#f59e0b"/>
+  <text x="496" y="454" class="body" fill="#ffffff">2</text>
+  <rect x="320" y="566" width="228" height="34" rx="17" fill="#ecfff3" stroke="#bfe7cf"/>
+  <text x="340" y="588" class="small">1. 델타와 가격 변화가 같이 플러스</text>
+  <rect x="320" y="608" width="228" height="34" rx="17" fill="#fff7df" stroke="#efd07a"/>
+  <text x="340" y="630" class="small">2. 평가가 매수 우위면 롱 우선</text>
+  <rect x="320" y="650" width="228" height="34" rx="17" fill="#eef5ff" stroke="#bfd4ff"/>
+  <text x="340" y="672" class="small">3. 수치 둔화 시 분할 청산 고려</text>
+  <text x="96" y="606" class="body">롱 전략</text>
+  <text x="96" y="634" class="small">1. 매수 비율 우세와 플러스 델타를 먼저 확인</text>
+  <text x="96" y="656" class="small">2. 가격 변화도 플러스로 따라오는지 확인</text>
+  <text x="96" y="678" class="small">3. 평가가 매수 우위 이상이면 롱 쪽 우선순위 상승</text>
+  <text x="96" y="700" class="small">4. 델타가 줄거나 가격이 못 따라오면 추격보다 경계</text>
+
+  <rect x="680" y="150" width="540" height="640" rx="26" fill="#fff0f2" stroke="#efc3c9"/>
+  <text x="716" y="190" class="label">SHORT SETUP</text>
+  <text x="716" y="226" class="panelTitle">매도 우위가 실제 하락으로 이어질 때 숏 준비</text>
+  <rect x="716" y="250" width="468" height="304" rx="20" fill="#ffffff" stroke="#d7e3ed"/>
+  <rect x="748" y="284" width="404" height="44" rx="12" fill="#fff6dd" stroke="#ebd18a"/>
+  <text x="772" y="313" class="small">구분          세션</text>
+  <rect x="748" y="334" width="404" height="38" rx="12" fill="#f7fbff" stroke="#d8e3ed"/>
+  <text x="772" y="359" class="small">매도      5.21K (52.4%)</text>
+  <rect x="748" y="378" width="404" height="38" rx="12" fill="#f7fbff" stroke="#d8e3ed"/>
+  <text x="772" y="403" class="small">델타      -438 (-4.1%)</text>
+  <rect x="748" y="422" width="404" height="38" rx="12" fill="#f7fbff" stroke="#d8e3ed"/>
+  <text x="772" y="447" class="small">가격 변화 -1.5%</text>
+  <rect x="748" y="466" width="404" height="38" rx="12" fill="#f7fbff" stroke="#d8e3ed"/>
+  <text x="772" y="491" class="small">평가      매도 우위</text>
+  <circle cx="1122" cy="403" r="18" fill="#dc2626"/>
+  <text x="1116" y="410" class="body" fill="#ffffff">1</text>
+  <circle cx="1122" cy="447" r="18" fill="#f59e0b"/>
+  <text x="1116" y="454" class="body" fill="#ffffff">2</text>
+  <rect x="940" y="566" width="214" height="34" rx="17" fill="#fff0f2" stroke="#efc3c9"/>
+  <text x="960" y="588" class="small">1. 델타와 가격 변화가 같이 마이너스</text>
+  <rect x="940" y="608" width="214" height="34" rx="17" fill="#fff7df" stroke="#efd07a"/>
+  <text x="960" y="630" class="small">2. 평가가 매도 우위면 숏 우선</text>
+  <rect x="940" y="650" width="214" height="34" rx="17" fill="#eef5ff" stroke="#bfd4ff"/>
+  <text x="960" y="672" class="small">3. 수치 둔화 시 분할 청산 고려</text>
+  <text x="716" y="606" class="body">숏 전략</text>
+  <text x="716" y="634" class="small">1. 매도 비율 우세와 마이너스 델타를 먼저 확인</text>
+  <text x="716" y="656" class="small">2. 가격 변화도 마이너스로 따라오는지 확인</text>
+  <text x="716" y="678" class="small">3. 평가가 매도 우위 이상이면 숏 쪽 우선순위 상승</text>
+  <text x="716" y="700" class="small">4. 델타는 강한데 가격이 안 밀리면 흡수 가능성 점검</text>
+</svg>

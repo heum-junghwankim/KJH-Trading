@@ -1,0 +1,159 @@
+//@version=6
+indicator(title="Advanced Multi Anchor VWAP", shorttitle="Multi VWAP", overlay=true, timeframe="", timeframe_gaps=true)
+
+VWAP_GROUP = "VWAP Settings"
+PRIMARY_GROUP = "Primary VWAP"
+SECONDARY_GROUP = "Secondary VWAP"
+TERTIARY_GROUP = "Tertiary VWAP"
+BANDS_GROUP = "Bands Settings"
+
+hideonDWM = input(false, title="Hide VWAP on 1D or Above", group=VWAP_GROUP, display=display.none)
+breakLinesOnReset = input.bool(true, title="Break Lines on Anchor Reset", group=VWAP_GROUP, display=display.none)
+src = input(title="Source", defval=hlc3, group=VWAP_GROUP, display=display.none)
+offset = input.int(0, title="Offset", group=VWAP_GROUP, display=display.none)
+
+showPrimary = input.bool(true, "Show Primary VWAP", group=PRIMARY_GROUP)
+primaryAnchor = input.string(defval="Session", title="Anchor Period",
+     options=["Session", "Week", "Month", "Quarter", "Year", "Decade", "Century", "Earnings", "Dividends", "Splits"],
+     group=PRIMARY_GROUP)
+primaryColor = input.color(#2962FF, title="Color", group=PRIMARY_GROUP, inline="primary_style")
+primaryWidth = input.int(2, title="Width", minval=1, maxval=5, group=PRIMARY_GROUP, inline="primary_style")
+
+showSecondary = input.bool(true, "Show Secondary VWAP", group=SECONDARY_GROUP)
+secondaryAnchor = input.string(defval="Week", title="Anchor Period",
+     options=["Session", "Week", "Month", "Quarter", "Year", "Decade", "Century", "Earnings", "Dividends", "Splits"],
+     group=SECONDARY_GROUP)
+secondaryColor = input.color(color.orange, title="Color", group=SECONDARY_GROUP, inline="secondary_style")
+secondaryWidth = input.int(2, title="Width", minval=1, maxval=5, group=SECONDARY_GROUP, inline="secondary_style")
+
+showTertiary = input.bool(true, "Show Tertiary VWAP", group=TERTIARY_GROUP)
+tertiaryAnchor = input.string(defval="Month", title="Anchor Period",
+     options=["Session", "Week", "Month", "Quarter", "Year", "Decade", "Century", "Earnings", "Dividends", "Splits"],
+     group=TERTIARY_GROUP)
+tertiaryColor = input.color(color.rgb(156, 39, 176), title="Color", group=TERTIARY_GROUP, inline="tertiary_style")
+tertiaryWidth = input.int(2, title="Width", minval=1, maxval=5, group=TERTIARY_GROUP, inline="tertiary_style")
+
+CALC_MODE_TOOLTIP = "Determines the units used to calculate the distance of the bands. When 'Percentage' is selected, a multiplier of 1 means 1%. Bands are calculated from the primary VWAP only."
+calcModeInput = input.string("Standard Deviation", "Bands Calculation Mode",
+     options=["Standard Deviation", "Percentage"], group=BANDS_GROUP, tooltip=CALC_MODE_TOOLTIP, display=display.none)
+
+showBand_1 = input(true, title="Show", group=BANDS_GROUP, inline="band_1", display=display.none)
+bandMult_1 = input.float(1.0, title="Band #1", group=BANDS_GROUP, inline="band_1", step=0.5, minval=0, display=display.none, active=showBand_1)
+
+showBand_2 = input(false, title="Show", group=BANDS_GROUP, inline="band_2", display=display.none)
+bandMult_2 = input.float(2.0, title="Band #2", group=BANDS_GROUP, inline="band_2", step=0.5, minval=0, display=display.none, active=showBand_2)
+
+showBand_3 = input(false, title="Show", group=BANDS_GROUP, inline="band_3", display=display.none)
+bandMult_3 = input.float(3.0, title="Band #3", group=BANDS_GROUP, inline="band_3", step=0.5, minval=0, display=display.none, active=showBand_3)
+
+cumVolume = ta.cum(volume)
+if barstate.islast and cumVolume == 0
+    runtime.error("No volume is provided by the data vendor.")
+
+anchorReset(anchorPeriod) =>
+    isEventAnchor = anchorPeriod == "Earnings" or anchorPeriod == "Dividends" or anchorPeriod == "Splits"
+    isNewPeriod = switch anchorPeriod
+        "Earnings" =>
+            newEarningsActual = request.earnings(syminfo.tickerid, earnings.actual, barmerge.gaps_on, barmerge.lookahead_on, ignore_invalid_symbol=true)
+            newEarningsStandardized = request.earnings(syminfo.tickerid, earnings.standardized, barmerge.gaps_on, barmerge.lookahead_on, ignore_invalid_symbol=true)
+            not na(newEarningsActual) or not na(newEarningsStandardized)
+        "Dividends" =>
+            newDividends = request.dividends(syminfo.tickerid, dividends.gross, barmerge.gaps_on, barmerge.lookahead_on, ignore_invalid_symbol=true)
+            not na(newDividends)
+        "Splits" =>
+            newSplit = request.splits(syminfo.tickerid, splits.denominator, barmerge.gaps_on, barmerge.lookahead_on, ignore_invalid_symbol=true)
+            not na(newSplit)
+        "Session" =>
+            timeframe.change("D")
+        "Week" =>
+            timeframe.change("W")
+        "Month" =>
+            timeframe.change("M")
+        "Quarter" =>
+            timeframe.change("3M")
+        "Year" =>
+            timeframe.change("12M")
+        "Decade" =>
+            timeframe.change("12M") and year % 10 == 0
+        "Century" =>
+            timeframe.change("12M") and year % 100 == 0
+        =>
+            false
+    if na(src[1]) and not isEventAnchor
+        isNewPeriod := true
+    isNewPeriod
+
+calculateAnchorVwap(anchorPeriod) =>
+    isNewPeriod = anchorReset(anchorPeriod)
+    [anchorVwap, anchorStdevUpper, _] = ta.vwap(src, isNewPeriod, 1)
+    [anchorVwap, anchorStdevUpper, isNewPeriod]
+
+shouldHideAll = hideonDWM and timeframe.isdwm
+
+float primaryVwap = na
+float secondaryVwap = na
+float tertiaryVwap = na
+float upperBandValue1 = na
+float lowerBandValue1 = na
+float upperBandValue2 = na
+float lowerBandValue2 = na
+float upperBandValue3 = na
+float lowerBandValue3 = na
+
+bool primaryReset = false
+bool secondaryReset = false
+bool tertiaryReset = false
+
+if not shouldHideAll
+    [primaryRawVwap, primaryStdevUpper, primaryIsNewPeriod] = calculateAnchorVwap(primaryAnchor)
+    primaryVwap := primaryRawVwap
+    primaryReset := bar_index > 0 and primaryIsNewPeriod
+
+    primaryStdevAbs = primaryStdevUpper - primaryRawVwap
+    primaryBandBasis = calcModeInput == "Standard Deviation" ? primaryStdevAbs : primaryRawVwap * 0.01
+    upperBandValue1 := primaryRawVwap + primaryBandBasis * bandMult_1
+    lowerBandValue1 := primaryRawVwap - primaryBandBasis * bandMult_1
+    upperBandValue2 := primaryRawVwap + primaryBandBasis * bandMult_2
+    lowerBandValue2 := primaryRawVwap - primaryBandBasis * bandMult_2
+    upperBandValue3 := primaryRawVwap + primaryBandBasis * bandMult_3
+    lowerBandValue3 := primaryRawVwap - primaryBandBasis * bandMult_3
+
+    [secondaryRawVwap, _, secondaryIsNewPeriod] = calculateAnchorVwap(secondaryAnchor)
+    secondaryVwap := secondaryRawVwap
+    secondaryReset := bar_index > 0 and secondaryIsNewPeriod
+
+    [tertiaryRawVwap, _, tertiaryIsNewPeriod] = calculateAnchorVwap(tertiaryAnchor)
+    tertiaryVwap := tertiaryRawVwap
+    tertiaryReset := bar_index > 0 and tertiaryIsNewPeriod
+
+primaryPlotColor = showPrimary ? (breakLinesOnReset and primaryReset ? na : primaryColor) : na
+secondaryPlotColor = showSecondary ? (breakLinesOnReset and secondaryReset ? na : secondaryColor) : na
+tertiaryPlotColor = showTertiary ? (breakLinesOnReset and tertiaryReset ? na : tertiaryColor) : na
+
+band1BaseColor = #2962FF
+band1LineColor = breakLinesOnReset and primaryReset ? na : band1BaseColor
+band1FillColor = breakLinesOnReset and primaryReset ? na : color.new(band1BaseColor, 92)
+band2LineColor = breakLinesOnReset and primaryReset ? na : color.olive
+band2FillColor = breakLinesOnReset and primaryReset ? na : color.new(color.olive, 95)
+band3LineColor = breakLinesOnReset and primaryReset ? na : color.teal
+band3FillColor = breakLinesOnReset and primaryReset ? na : color.new(color.teal, 95)
+
+plot(showPrimary ? primaryVwap : na, title="Primary VWAP", color=primaryPlotColor, linewidth=primaryWidth, offset=offset)
+plot(showSecondary ? secondaryVwap : na, title="Secondary VWAP", color=secondaryPlotColor, linewidth=secondaryWidth, offset=offset)
+plot(showTertiary ? tertiaryVwap : na, title="Tertiary VWAP", color=tertiaryPlotColor, linewidth=tertiaryWidth, offset=offset)
+
+displayBand1 = showPrimary and showBand_1 ? display.all : display.none
+displayBand1Fill = display.none
+upperBand_1 = plot(showPrimary ? upperBandValue1 : na, title="Primary Upper Band #1", color=band1LineColor, offset=offset, display=displayBand1, editable=showBand_1, style=plot.style_linebr, linestyle=plot.linestyle_dashed)
+lowerBand_1 = plot(showPrimary ? lowerBandValue1 : na, title="Primary Lower Band #1", color=band1LineColor, offset=offset, display=displayBand1, editable=showBand_1, style=plot.style_linebr, linestyle=plot.linestyle_dashed)
+fill(upperBand_1, lowerBand_1, title="Primary Bands Fill #1", color=band1FillColor, display=displayBand1Fill, editable=showBand_1)
+
+displayBand2 = showPrimary and showBand_2 ? display.all : display.none
+upperBand_2 = plot(showPrimary ? upperBandValue2 : na, title="Primary Upper Band #2", color=band2LineColor, offset=offset, display=displayBand2, editable=showBand_2)
+lowerBand_2 = plot(showPrimary ? lowerBandValue2 : na, title="Primary Lower Band #2", color=band2LineColor, offset=offset, display=displayBand2, editable=showBand_2)
+fill(upperBand_2, lowerBand_2, title="Primary Bands Fill #2", color=band2FillColor, display=displayBand2, editable=showBand_2)
+
+displayBand3 = showPrimary and showBand_3 ? display.all : display.none
+upperBand_3 = plot(showPrimary ? upperBandValue3 : na, title="Primary Upper Band #3", color=band3LineColor, offset=offset, display=displayBand3, editable=showBand_3)
+lowerBand_3 = plot(showPrimary ? lowerBandValue3 : na, title="Primary Lower Band #3", color=band3LineColor, offset=offset, display=displayBand3, editable=showBand_3)
+fill(upperBand_3, lowerBand_3, title="Primary Bands Fill #3", color=band3FillColor, display=displayBand3, editable=showBand_3)

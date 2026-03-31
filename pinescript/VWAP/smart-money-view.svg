@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900" role="img" aria-labelledby="title desc">
+  <title id="title">멀티 앵커 VWAP 세력 관점 다이어그램</title>
+  <desc id="desc">Session, 5-Day, 20-Day VWAP 정렬을 강세 수용과 약세 수용 관점으로 요약한 이미지</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f7fbff"/>
+      <stop offset="100%" stop-color="#fff9f1"/>
+    </linearGradient>
+    <linearGradient id="bullFill" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ecfff3"/>
+      <stop offset="100%" stop-color="#daf5e6"/>
+    </linearGradient>
+    <linearGradient id="bearFill" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fff1f2"/>
+      <stop offset="100%" stop-color="#fde1e4"/>
+    </linearGradient>
+    <linearGradient id="midFill" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#eef5ff"/>
+      <stop offset="100%" stop-color="#f7f1ff"/>
+    </linearGradient>
+    <style>
+      .title { font: 700 34px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #13253a; }
+      .subtitle { font: 500 17px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #58697a; }
+      .sectionLabel { font: 700 15px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #23425b; letter-spacing: 0.08em; }
+      .cardTitle { font: 700 24px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #18293b; }
+      .body { font: 500 16px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #27384a; }
+      .small { font: 500 14px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #556778; }
+      .monoBull { font: 700 15px 'Menlo','Consolas',monospace; fill: #0f5f45; }
+      .monoBear { font: 700 15px 'Menlo','Consolas',monospace; fill: #88273a; }
+      .note { font: 700 15px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #5c4c18; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="900" fill="#edf2f7"/>
+  <rect x="24" y="24" width="1152" height="852" rx="28" fill="url(#bg)" stroke="#d6e0ea"/>
+
+  <text x="60" y="82" class="title">멀티 앵커 VWAP · 세력 관점</text>
+  <text x="60" y="114" class="subtitle">Session, 5-Day, 20-Day 평균 단가 정렬이 맞을수록 시장이 현재 가격을 받아들이는 방향이 더 선명해집니다</text>
+
+  <rect x="60" y="150" width="500" height="300" rx="24" fill="url(#bullFill)" stroke="#bde5cc"/>
+  <text x="92" y="190" class="sectionLabel">BULLISH ACCEPTANCE</text>
+  <text x="92" y="224" class="cardTitle">강세 수용 구간</text>
+  <rect x="92" y="246" width="196" height="168" rx="18" fill="#ffffff" opacity="0.8" stroke="#cfe6d8"/>
+  <text x="112" y="274" class="monoBull">Price &gt; Session &gt; 5D &gt; 20D</text>
+  <polyline points="112,374 144,360 176,366 208,330 240,336 272,296" fill="none" stroke="#18a562" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="112" y1="390" x2="272" y2="390" stroke="#9c27b0" stroke-width="4" stroke-linecap="round"/>
+  <line x1="112" y1="354" x2="272" y2="354" stroke="#ff9800" stroke-width="4" stroke-linecap="round"/>
+  <line x1="112" y1="320" x2="272" y2="320" stroke="#2962ff" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="144" cy="360" r="6" fill="#18a562"/>
+  <circle cx="208" cy="330" r="6" fill="#18a562"/>
+  <circle cx="272" cy="296" r="6" fill="#18a562"/>
+  <text x="318" y="274" class="body">세력 해석</text>
+  <text x="318" y="302" class="small">오늘 체결 평균이 단기와 중기 평균 위에서</text>
+  <text x="318" y="324" class="small">지속 수용되는 구간에 가깝습니다</text>
+  <text x="318" y="360" class="body">예상 움직임</text>
+  <text x="318" y="388" class="small">Session 지지 유지 시 눌림 뒤 재상승</text>
+  <text x="318" y="410" class="small">5-Day와 20-Day가 아래에서 받치면 추세 지속 확률 증가</text>
+
+  <rect x="640" y="150" width="500" height="300" rx="24" fill="url(#bearFill)" stroke="#efc0c7"/>
+  <text x="672" y="190" class="sectionLabel">BEARISH ACCEPTANCE</text>
+  <text x="672" y="224" class="cardTitle">약세 수용 구간</text>
+  <rect x="672" y="246" width="196" height="168" rx="18" fill="#ffffff" opacity="0.8" stroke="#f1d3d7"/>
+  <text x="692" y="274" class="monoBear">Price &lt; Session &lt; 5D &lt; 20D</text>
+  <polyline points="692,294 724,308 756,302 788,336 820,332 852,366" fill="none" stroke="#d4485d" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="692" y1="320" x2="852" y2="320" stroke="#2962ff" stroke-width="4" stroke-linecap="round"/>
+  <line x1="692" y1="354" x2="852" y2="354" stroke="#ff9800" stroke-width="4" stroke-linecap="round"/>
+  <line x1="692" y1="390" x2="852" y2="390" stroke="#9c27b0" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="724" cy="308" r="6" fill="#d4485d"/>
+  <circle cx="788" cy="336" r="6" fill="#d4485d"/>
+  <circle cx="852" cy="366" r="6" fill="#d4485d"/>
+  <text x="898" y="274" class="body">세력 해석</text>
+  <text x="898" y="302" class="small">오늘 평균까지 위로 눌리면서 공급이</text>
+  <text x="898" y="324" class="small">짧은 반등마다 계속 나오는 단계에 가깝습니다</text>
+  <text x="898" y="360" class="body">예상 움직임</text>
+  <text x="898" y="388" class="small">Session 저항 유지 시 반등 뒤 재하락</text>
+  <text x="898" y="410" class="small">5-Day와 20-Day가 위에서 눌리면 하락 지속 확률 증가</text>
+
+  <rect x="60" y="490" width="1080" height="280" rx="26" fill="url(#midFill)" stroke="#d9d7f2"/>
+  <text x="94" y="530" class="sectionLabel">ROLLING DAILY WINDOW</text>
+  <text x="94" y="566" class="cardTitle">5-Day / 20-Day는 "현재 일봉 포함" rolling 평균</text>
+
+  <rect x="94" y="598" width="312" height="112" rx="20" fill="#ffffff" stroke="#d0d9e6"/>
+  <text x="118" y="634" class="body">1. Session VWAP</text>
+  <text x="118" y="662" class="small">오늘 세션 안에서 누적되는</text>
+  <text x="118" y="684" class="small">가장 빠른 평균 체결 단가</text>
+
+  <rect x="444" y="598" width="312" height="112" rx="20" fill="#ffffff" stroke="#d0d9e6"/>
+  <text x="468" y="634" class="body">2. 5-Day VWAP</text>
+  <text x="468" y="662" class="small">현재 일봉 + 완료된 최근 4일</text>
+  <text x="468" y="684" class="small">단기 스윙 수용 가격 확인용</text>
+
+  <rect x="794" y="598" width="312" height="112" rx="20" fill="#ffffff" stroke="#d0d9e6"/>
+  <text x="818" y="634" class="body">3. 20-Day VWAP</text>
+  <text x="818" y="662" class="small">현재 일봉 + 완료된 최근 19일</text>
+  <text x="818" y="684" class="small">더 큰 방향과 수급 기준 확인용</text>
+
+  <text x="94" y="744" class="note">핵심: Session 하나보다, 5-Day와 20-Day가 같은 방향으로 받치거나 눌리는지까지 같이 봐야 합니다</text>
+</svg>

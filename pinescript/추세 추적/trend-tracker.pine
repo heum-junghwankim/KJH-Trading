@@ -32,6 +32,7 @@ xx    = input.int(2, minval=1, title="", group="Style", inline="VWAP", tooltip=t
 // Ichimoku
 ichimokuGroup       = "Ichimoku"
 showIchimoku        = input.bool(true, "Show Ichimoku", group=ichimokuGroup)
+showBaseLine        = input.bool(false, "Show Base Line", group=ichimokuGroup)
 basePeriods         = input.int(26, minval=1, title="Base Line Length", group=ichimokuGroup)
 laggingSpan2Periods = input.int(52, minval=1, title="Leading Span B Length", group=ichimokuGroup)
 displacement        = input.int(26, minval=1, title="Displacement", group=ichimokuGroup)
@@ -108,7 +109,7 @@ leadLine1 = math.avg(conversionLine, baseLine)
 leadLine2 = donchian(laggingSpan2Periods)
 baseLineColor = close > baseLine and baseLine > vap ? ichBaseBullColor : close < baseLine and baseLine < vap ? ichBaseBearColor : ichBaseNeutralColor
 
-plot(showIchimoku ? baseLine : na, color=baseLineColor, linewidth=ichBaseWidth, title="Ichimoku Base Line")
+plot(showIchimoku and showBaseLine ? baseLine : na, color=baseLineColor, linewidth=ichBaseWidth, title="Ichimoku Base Line")
 p1 = plot(showIchimoku ? leadLine1 : na, offset=displacement - 1, color=color.new(color.gray, 100), title="Leading Span A")
 p2 = plot(showIchimoku ? leadLine2 : na, offset=displacement - 1, color=color.new(color.gray, 100), title="Leading Span B")
 fill(p1, p2, title="Kumo Cloud Fill", color=leadLine1 > leadLine2 ? kumoBullColor : kumoBearColor)

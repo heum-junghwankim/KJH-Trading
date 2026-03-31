@@ -71,8 +71,9 @@
 - `Leading Span B Length`: `52`
 - `Displacement`: `26`
 - `MA Length`: `9`
+- `Show Base Line`: `false`
 
-1시간봉에서 추세 전환을 너무 늦게 보지 않으면서도, 정렬 판단에 쓰는 단기 `9` 이동평균을 내부 계산으로 유지하도록 맞춘 설정입니다.
+1시간봉에서 추세 전환을 너무 늦게 보지 않으면서도, 정렬 판단에 쓰는 단기 `9` 이동평균을 내부 계산으로 유지하도록 맞춘 설정입니다. 가운데 일목 기준선은 기본적으로 숨겨서 차트를 조금 더 가볍게 보도록 두었습니다.
 
 ## 주요 기능
 
@@ -80,7 +81,7 @@
 | --- | --- | --- |
 | 스윙 포인트 탐지 | 최근 구조를 `HH / HL / LH / LL`로 표시해 방향성을 먼저 분류합니다. | `Swing Period` |
 | Dynamic Swing Anchored VWAP | 스윙 전환 시점마다 기준 가격을 다시 잡아 평균 체결 단가 흐름을 추적합니다. | `Adaptive Price Tracking`, `Adapt APT by ATR ratio`, `Volatility Bias` |
-| 일목 기준선/구름 | 현재 가격이 중기 기준 가격대 위인지 아래인지 빠르게 보여줍니다. | `Base Line Length`, `Leading Span B Length`, `Displacement` |
+| 일목 기준선/구름 | 현재 가격이 중기 기준 가격대 위인지 아래인지 빠르게 보여줍니다. 기준선은 기본 숨김입니다. | `Show Base Line`, `Base Line Length`, `Leading Span B Length`, `Displacement` |
 | MA Alignment 배경 | 기준선 배열이 정돈됐는지 확인합니다. | 강세: `MA > Base > VWAP`, 약세: `MA < Base < VWAP` |
 
 짧게 보면:

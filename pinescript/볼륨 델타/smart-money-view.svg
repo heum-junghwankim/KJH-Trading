@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900" role="img" aria-labelledby="title desc">
+  <title id="title">볼륨 델타 세력 관점 다이어그램</title>
+  <desc id="desc">델타와 가격 변화가 일치하거나 어긋날 때의 해석을 정리한 이미지</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f7fbff"/>
+      <stop offset="100%" stop-color="#fff9f1"/>
+    </linearGradient>
+    <linearGradient id="bullFill" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ecfff3"/>
+      <stop offset="100%" stop-color="#daf5e6"/>
+    </linearGradient>
+    <linearGradient id="bearFill" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fff1f2"/>
+      <stop offset="100%" stop-color="#fde1e4"/>
+    </linearGradient>
+    <linearGradient id="mixedFill" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#eef5ff"/>
+      <stop offset="100%" stop-color="#fff8df"/>
+    </linearGradient>
+    <style>
+      .title { font: 700 34px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #13253a; }
+      .subtitle { font: 500 17px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #58697a; }
+      .sectionLabel { font: 700 15px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #23425b; letter-spacing: 0.08em; }
+      .cardTitle { font: 700 24px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #18293b; }
+      .body { font: 500 16px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #27384a; }
+      .small { font: 500 14px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #556778; }
+      .monoBull { font: 700 15px 'Menlo','Consolas',monospace; fill: #0f5f45; }
+      .monoBear { font: 700 15px 'Menlo','Consolas',monospace; fill: #88273a; }
+      .monoMix { font: 700 15px 'Menlo','Consolas',monospace; fill: #846100; }
+      .note { font: 700 15px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #5c4c18; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="900" fill="#edf2f7"/>
+  <rect x="24" y="24" width="1152" height="852" rx="28" fill="url(#bg)" stroke="#d6e0ea"/>
+
+  <text x="60" y="82" class="title">볼륨 델타 · 세력 관점</text>
+  <text x="60" y="114" class="subtitle">핵심은 "누가 더 많이 쳤는가"보다 그 압력이 실제 가격 이동으로 이어졌는지, 아니면 흡수됐는지 함께 보는 것입니다</text>
+
+  <rect x="60" y="150" width="500" height="300" rx="24" fill="url(#bullFill)" stroke="#bde5cc"/>
+  <text x="92" y="190" class="sectionLabel">BULLISH FOLLOW-THROUGH</text>
+  <text x="92" y="224" class="cardTitle">델타 플러스 + 가격 변화 플러스</text>
+  <rect x="92" y="246" width="196" height="168" rx="18" fill="#ffffff" opacity="0.82" stroke="#cfe6d8"/>
+  <text x="112" y="274" class="monoBull">Delta &gt; 0</text>
+  <text x="112" y="298" class="monoBull">Price Change &gt; 0</text>
+  <rect x="112" y="322" width="34" height="54" rx="8" fill="#15b866"/>
+  <rect x="160" y="336" width="34" height="40" rx="8" fill="#25c06f"/>
+  <rect x="208" y="312" width="34" height="64" rx="8" fill="#0fa958"/>
+  <polyline points="112,386 146,370 180,356 214,340 248,326" fill="none" stroke="#1f6feb" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="318" y="274" class="body">세력 해석</text>
+  <text x="318" y="302" class="small">매수 압력이 실제 가격 상승으로 이어진 상태라서</text>
+  <text x="318" y="324" class="small">시장가 매수가 위 가격을 받아들이는 구간에 가깝습니다</text>
+  <text x="318" y="360" class="body">예상 움직임</text>
+  <text x="318" y="388" class="small">추세 재개, 눌림 매수, 상단 수용 가능성 증가</text>
+  <text x="318" y="410" class="small">평가가 `매수 우위` 이상이면 더 읽기 쉬워집니다</text>
+
+  <rect x="640" y="150" width="500" height="300" rx="24" fill="url(#bearFill)" stroke="#efc0c7"/>
+  <text x="672" y="190" class="sectionLabel">BEARISH FOLLOW-THROUGH</text>
+  <text x="672" y="224" class="cardTitle">델타 마이너스 + 가격 변화 마이너스</text>
+  <rect x="672" y="246" width="196" height="168" rx="18" fill="#ffffff" opacity="0.82" stroke="#f1d3d7"/>
+  <text x="692" y="274" class="monoBear">Delta &lt; 0</text>
+  <text x="692" y="298" class="monoBear">Price Change &lt; 0</text>
+  <rect x="692" y="322" width="34" height="54" rx="8" fill="#ff4d5e"/>
+  <rect x="740" y="336" width="34" height="40" rx="8" fill="#ef3e4f"/>
+  <rect x="788" y="312" width="34" height="64" rx="8" fill="#db2d42"/>
+  <polyline points="692,326 726,340 760,354 794,368 828,382" fill="none" stroke="#1f6feb" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="898" y="274" class="body">세력 해석</text>
+  <text x="898" y="302" class="small">매도 압력이 실제 가격 하락으로 이어진 상태라서</text>
+  <text x="898" y="324" class="small">반등보다 하단 진행 가능성을 더 높게 봅니다</text>
+  <text x="898" y="360" class="body">예상 움직임</text>
+  <text x="898" y="388" class="small">반등 매도, 저점 재시험, 하단 이탈 가능성 증가</text>
+  <text x="898" y="410" class="small">평가가 `매도 우위` 이상이면 해석이 더 단순해집니다</text>
+
+  <rect x="60" y="490" width="1080" height="280" rx="26" fill="url(#mixedFill)" stroke="#d9d7f2"/>
+  <text x="94" y="530" class="sectionLabel">ABSORPTION / MISMATCH</text>
+  <text x="94" y="566" class="cardTitle">델타와 가격이 어긋나면 "누군가 받아내고 있는지"를 먼저 의심</text>
+
+  <rect x="94" y="598" width="312" height="112" rx="20" fill="#ffffff" stroke="#d0d9e6"/>
+  <text x="118" y="634" class="monoMix">Delta &gt; 0, Price weak</text>
+  <text x="118" y="662" class="small">매수는 많았지만 가격이 덜 움직임</text>
+  <text x="118" y="684" class="small">위에서 매도 흡수 또는 분산 가능성</text>
+
+  <rect x="444" y="598" width="312" height="112" rx="20" fill="#ffffff" stroke="#d0d9e6"/>
+  <text x="468" y="634" class="monoMix">Delta &lt; 0, Price weak down</text>
+  <text x="468" y="662" class="small">매도는 많았지만 가격이 덜 밀림</text>
+  <text x="468" y="684" class="small">아래에서 매수 흡수 또는 바닥 방어 가능성</text>
+
+  <rect x="794" y="598" width="312" height="112" rx="20" fill="#ffffff" stroke="#d0d9e6"/>
+  <text x="818" y="634" class="body">실전 체크 포인트</text>
+  <text x="818" y="662" class="small">평가, 가격 구조, 상위 추세를 함께 확인</text>
+  <text x="818" y="684" class="small">숫자 하나보다 방향 일치/불일치를 먼저 봄</text>
+
+  <text x="94" y="744" class="note">핵심: 델타는 체결 우위, 가격 변화는 결과입니다. 둘이 어긋나면 결과를 만들어낼 흡수 주체가 있는지 먼저 봐야 합니다</text>
+</svg>

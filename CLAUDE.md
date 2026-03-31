@@ -11,7 +11,8 @@ KJH-Trading is a collection of TradingView Pine Script (v6) indicators for crypt
 - `pinescript/` — All Pine Script indicators, each in its own Korean-named subdirectory with a README and `.pine` file
   - **추세 추적** (`trend-tracker.pine`) — Overlay indicator: adaptive VWAP, swing HH/HL/LH/LL labels, Ichimoku cloud, MA, alignment background
   - **비정상 가격 추적 (캔들)** (`abnormal-price-tracker-candles.pine`) — Overlay indicator: cRSI extreme + Bollinger Band breach candle coloring, RSI divergence, ATR background, smart volume signals
-  - **거래량 압력 추적** (`volume-pressure-tracker.pine`) — Separate pane: buy/sell volume split, abnormal volume highlighting, alignment background
+  - **거래량 압력 추적** (`volume-pressure-tracker.pine`) — Separate pane: buy/sell volume split, abnormal volume highlighting, total volume average line
+  - **볼륨 델타** (`volume-delta.pine`) — Overlay summary: session/fixed-bar delta with buy/sell ratios and price change
   - **비정상 가격 추적 (보조)** (`abnormal-price-tracker-helper.pine`) — Separate pane: cRSI vs MFI gap, bearish/bullish reversal risk labels
 
 ## Key Concepts

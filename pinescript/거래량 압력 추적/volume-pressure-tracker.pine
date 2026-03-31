@@ -22,10 +22,18 @@ length     = input.int(20, "비교 캔들 수", minval=1, group="Abnormal Volume
 multiplier = input.float(1.0, "비정상 배수", minval=0, group="Abnormal Volume")
 
 // =========================
+// 평균선 설정
+// =========================
+showAverageLines = input.bool(true, "평균선 표시", group="Average Lines")
+avgLineLength    = input.int(20, "평균선 봉 수", minval=1, group="Average Lines")
+totalAvgColor    = input.color(color.orange, "전체 주문량 평균선", group="Average Lines")
+
+// =========================
 // 비정상 거래량 계산
 // =========================
-avgVol    = ta.sma(volume, length)
-abnormal  = volume > avgVol * (1 + multiplier)
+avgVol           = ta.sma(volume, length)
+avgTotalVolume   = ta.sma(volume, avgLineLength)
+abnormal         = volume > avgVol * (1 + multiplier)
 
 // =========================
 // 색상 결정
@@ -34,130 +42,8 @@ buyColor  = abnormal ? abnormalBuyColor : normalBuyColor
 sellColor = abnormal ? abnormalSellColor : normalSellColor
 
 // =========================
-// Alignment Background Inputs
-// =========================
-prd      = input.int(20, "Swing Period", minval=2, group="Alignment Background")
-baseAPT  = input.float(20, "Adaptive Price Tracking", minval=1, step=1, group="Alignment Background")
-useAdapt = input.bool(false, "Adapt APT by ATR ratio", group="Alignment Background")
-volBias  = input.float(10.0, "Volatility Bias", minval=0.1, step=0.1, group="Alignment Background")
-
-showAlignmentBg = input.bool(true, "Show Alignment Background", group="Alignment Background")
-bullAlignBaseColor = input.color(color.green, "Bull Alignment", group="Alignment Background", inline="bg")
-bearAlignBaseColor = input.color(color.purple, "Bear Alignment", group="Alignment Background", inline="bg")
-
-alignWeakThreshold   = input.float(10.0, "Weak Strength Threshold", minval=0.1, step=0.1, group="Alignment Background")
-alignMediumThreshold = input.float(20.0, "Medium Strength Threshold", minval=0.1, step=0.1, group="Alignment Background")
-alignStrongThreshold = input.float(35.0, "Strong Strength Threshold", minval=0.1, step=0.1, group="Alignment Background")
-
-bullAlignVeryWeakTransparency = input.int(90, "Bull Very Weak Transparency", minval=0, maxval=100, group="Alignment Background")
-bullAlignWeakTransparency     = input.int(80, "Bull Weak Transparency", minval=0, maxval=100, group="Alignment Background")
-bullAlignMediumTransparency   = input.int(65, "Bull Medium Transparency", minval=0, maxval=100, group="Alignment Background")
-bullAlignStrongTransparency   = input.int(50, "Bull Strong Transparency", minval=0, maxval=100, group="Alignment Background")
-
-bearAlignVeryWeakTransparency = input.int(90, "Bear Very Weak Transparency", minval=0, maxval=100, group="Alignment Background")
-bearAlignWeakTransparency     = input.int(80, "Bear Weak Transparency", minval=0, maxval=100, group="Alignment Background")
-bearAlignMediumTransparency   = input.int(65, "Bear Medium Transparency", minval=0, maxval=100, group="Alignment Background")
-bearAlignStrongTransparency   = input.int(50, "Bear Strong Transparency", minval=0, maxval=100, group="Alignment Background")
-
-basePeriods         = input.int(20, minval=1, title="Base Line Length", group="Alignment Background")
-maLength            = input.int(5, "MA Length", minval=1, group="Alignment Background")
-maSource            = input.source(close, "MA Source", group="Alignment Background")
-
-// =========================
-// 내부 계산용 변수
-// =========================
-b = bar_index
-
-var float ph = na
-var float pl = na
-var int phL = 0
-var int plL = 0
-var float prev = na
-
-ph  := ta.highestbars(high, prd) == 0 ? high : ph
-pl  := ta.lowestbars(low, prd) == 0 ? low : pl
-phL := ta.highestbars(high, prd) == 0 ? b : phL
-plL := ta.lowestbars(low, prd) == 0 ? b : plL
-dir = phL > plL ? 1 : -1
-
-atrLen = 50
-atr    = ta.atr(atrLen)
-atrAvg = ta.rma(atr, atrLen)
-ratio  = atrAvg > 0 ? atr / atrAvg : 1.0
-
-aptRaw     = useAdapt ? baseAPT / math.pow(ratio, volBias) : baseAPT
-aptClamped = math.max(5.0, math.min(300.0, aptRaw))
-aptSeries  = math.round(aptClamped)
-
-alphaFromAPT(apt) =>
-    decay = math.exp(-math.log(2.0) / math.max(1.0, apt))
-    1.0 - decay
-
-// =========================
-// Dynamic Swing Anchored VWAP 내부 계산
-// =========================
-var float p = hlc3 * volume
-var float vol = volume
-var float vap = na
-
-if dir != dir[1]
-    x = dir > 0 ? plL : phL
-    y = dir > 0 ? pl : ph
-    prev := dir > 0 ? ph[1] : pl[1]
-
-    barsback = b - x
-    p   := y * volume[barsback]
-    vol := volume[barsback]
-    vap := vol > 0 ? p / vol : na
-
-    for i = barsback to 0 by 1
-        apt_i = aptSeries[i]
-        alpha = alphaFromAPT(apt_i)
-        pxv   = hlc3[i] * volume[i]
-        v_i   = volume[i]
-        p     := (1.0 - alpha) * p + alpha * pxv
-        vol   := (1.0 - alpha) * vol + alpha * v_i
-        vappe = vol > 0 ? p / vol : na
-        if i == 0
-            vap := vappe
-else
-    apt_0 = aptSeries
-    alpha = alphaFromAPT(apt_0)
-    pxv   = hlc3 * volume
-    v0    = volume
-    p     := (1.0 - alpha) * p + alpha * pxv
-    vol   := (1.0 - alpha) * vol + alpha * v0
-    vap   := vol > 0 ? p / vol : na
-
-// =========================
-// Ichimoku Base + MA 계산
-// =========================
-donchian(len) => math.avg(ta.lowest(len), ta.highest(len))
-baseLine = donchian(basePeriods)
-maValue = ta.sma(maSource, maLength)
-
-// =========================
-// Alignment Background Logic
-// =========================
-bullAlignment = not na(vap) and not na(baseLine) and not na(maValue) and maValue > baseLine and baseLine > vap
-bearAlignment = not na(vap) and not na(baseLine) and not na(maValue) and maValue < baseLine and baseLine < vap
-
-maBaseGap = math.abs(maValue - baseLine)
-baseVwapGap = math.abs(baseLine - vap)
-alignmentGap = math.min(maBaseGap, baseVwapGap)
-alignmentStrength = atr > 0 ? alignmentGap / atr * 100.0 : 0.0
-
-alignmentColor(baseColor, strength, weakThreshold, mediumThreshold, strongThreshold, veryWeakTransparency, weakTransparency, mediumTransparency, strongTransparency) =>
-    transparency = strength >= strongThreshold ? strongTransparency : strength >= mediumThreshold ? mediumTransparency : strength >= weakThreshold ? weakTransparency : veryWeakTransparency
-    color.new(baseColor, transparency)
-
-bullAlignColor = alignmentColor(bullAlignBaseColor, alignmentStrength, alignWeakThreshold, alignMediumThreshold, alignStrongThreshold, bullAlignVeryWeakTransparency, bullAlignWeakTransparency, bullAlignMediumTransparency, bullAlignStrongTransparency)
-bearAlignColor = alignmentColor(bearAlignBaseColor, alignmentStrength, alignWeakThreshold, alignMediumThreshold, alignStrongThreshold, bearAlignVeryWeakTransparency, bearAlignWeakTransparency, bearAlignMediumTransparency, bearAlignStrongTransparency)
-
-bgcolor(showAlignmentBg ? bullAlignment ? bullAlignColor : bearAlignment ? bearAlignColor : na : na, title="Alignment Background")
-
-// =========================
 // 볼륨 표시
 // =========================
 plot(volume, style=plot.style_columns, color=sellColor, title="Sell Volume")
 plot(buyVolume, style=plot.style_columns, color=buyColor, title="Buy Volume")
+plot(showAverageLines ? avgTotalVolume : na, title="Total Volume SMA", color=totalAvgColor, linewidth=2)
