@@ -1,0 +1,147 @@
+//@version=6
+indicator("Moving Average Ribbon", shorttitle = "MA Ribbon", overlay = true, max_labels_count = 500)
+
+ma(source, length, MAtype) =>
+    switch MAtype
+        "SMA"        => ta.sma(source, length)
+        "EMA"        => ta.ema(source, length)
+        "SMMA (RMA)" => ta.rma(source, length)
+        "WMA"        => ta.wma(source, length)
+        "VWMA"       => ta.vwma(source, length)
+        => na
+
+label_size(labelSize) =>
+    switch labelSize
+        "Tiny"   => size.tiny
+        "Small"  => size.small
+        "Normal" => size.normal
+        "Large"  => size.large
+        => size.huge
+
+is_label_above(position) =>
+    position == "On Candle High" or position == "Above Candle"
+
+label_y(position, baseOffset, stackIndex) =>
+    aboveLabel = is_label_above(position)
+    anchorY = position == "On Candle High" ? high : position == "Above Candle" ? high + baseOffset : position == "On Candle Low" ? low : low - baseOffset
+    stackOffset = baseOffset * stackIndex
+    aboveLabel ? anchorY + stackOffset : anchorY - stackOffset
+
+label_style(position) =>
+    is_label_above(position) ? label.style_label_down : label.style_label_up
+
+append_cross_text(existingText, shouldAppend, pairText) =>
+    shouldAppend ? (str.length(existingText) > 0 ? existingText + "\n" + pairText : pairText) : existingText
+
+show_ma1   = input(true, "MA #1", inline = "MA #1", display = display.none)
+ma1_type   = input.string("SMA", "", inline = "MA #1", active = show_ma1, options = ["SMA", "EMA", "SMMA (RMA)", "WMA", "VWMA"])
+ma1_source = input(close, "", inline = "MA #1", active = show_ma1, display = display.none)
+ma1_length = input.int(20, "", inline = "MA #1", active = show_ma1, minval = 1)
+ma1_color  = input(#1FB6CF, "", inline = "MA #1", active = show_ma1, display = display.none)
+
+show_ma2   = input(true, "MA #2", inline = "MA #2", display = display.none)
+ma2_type   = input.string("SMA", "", inline = "MA #2", active = show_ma2, options = ["SMA", "EMA", "SMMA (RMA)", "WMA", "VWMA"])
+ma2_source = input(close, "", inline = "MA #2", active = show_ma2, display = display.none)
+ma2_length = input.int(50, "", inline = "MA #2", active = show_ma2, minval = 1)
+ma2_color  = input(#2962FF, "", inline = "MA #2", active = show_ma2, display = display.none)
+
+show_ma3   = input(true, "MA #3", inline = "MA #3", display = display.none)
+ma3_type   = input.string("SMA", "", inline = "MA #3", active = show_ma3, options = ["SMA", "EMA", "SMMA (RMA)", "WMA", "VWMA"])
+ma3_source = input(close, "", inline = "MA #3", active = show_ma3, display = display.none)
+ma3_length = input.int(100, "", inline = "MA #3", active = show_ma3, minval = 1)
+ma3_color  = input(#FFE54C, "", inline = "MA #3", active = show_ma3, display = display.none)
+
+show_ma4   = input(true, "MA #4", inline = "MA #4", display = display.none)
+ma4_type   = input.string("SMA", "", inline = "MA #4", active = show_ma4, options = ["SMA", "EMA", "SMMA (RMA)", "WMA", "VWMA"])
+ma4_source = input(close, "", inline = "MA #4", active = show_ma4, display = display.none)
+ma4_length = input.int(200, "", inline = "MA #4", active = show_ma4, minval = 1)
+ma4_color  = input(#673AB7, "", inline = "MA #4", active = show_ma4, display = display.none)
+
+show_cross_labels = input.bool(true, "Show Cross Labels", group = "Cross Signals")
+cross_label_size  = input.string("Small", "Label Size", options = ["Tiny", "Small", "Normal", "Large", "Huge"], group = "Cross Signals")
+cross_label_position = input.string("Above Candle", "Label Position", options = ["On Candle High", "Above Candle", "On Candle Low", "Below Candle"], group = "Cross Signals")
+golden_color      = input.color(#2962FF, "Golden Cross Color", group = "Cross Signals")
+dead_color        = input.color(#B71D1C, "Dead Cross Color", group = "Cross Signals")
+
+ma1 = show_ma1 ? ma(ma1_source, ma1_length, ma1_type) : na
+ma2 = show_ma2 ? ma(ma2_source, ma2_length, ma2_type) : na
+ma3 = show_ma3 ? ma(ma3_source, ma3_length, ma3_type) : na
+ma4 = show_ma4 ? ma(ma4_source, ma4_length, ma4_type) : na
+
+pair12_ready = show_ma1 and show_ma2 and not na(ma1) and not na(ma2)
+pair23_ready = show_ma2 and show_ma3 and not na(ma2) and not na(ma3)
+pair34_ready = show_ma3 and show_ma4 and not na(ma3) and not na(ma4)
+
+golden12 = pair12_ready and ta.crossover(ma1, ma2)
+dead12   = pair12_ready and ta.crossunder(ma1, ma2)
+golden23 = pair23_ready and ta.crossover(ma2, ma3)
+dead23   = pair23_ready and ta.crossunder(ma2, ma3)
+golden34 = pair34_ready and ta.crossover(ma3, ma4)
+dead34   = pair34_ready and ta.crossunder(ma3, ma4)
+
+var bool ma1_dead_state = false
+var bool ma2_dead_state = false
+var bool ma3_dead_state = false
+
+ma1_first_pair_bar = pair12_ready and (na(ma1[1]) or na(ma2[1]))
+ma2_first_pair_bar = pair23_ready and (na(ma2[1]) or na(ma3[1]))
+ma3_first_pair_bar = pair34_ready and (na(ma3[1]) or na(ma4[1]))
+
+if not pair12_ready
+    ma1_dead_state := false
+else if ma1_first_pair_bar
+    ma1_dead_state := ma1 < ma2
+else if dead12
+    ma1_dead_state := true
+else if golden12
+    ma1_dead_state := false
+
+if not pair23_ready
+    ma2_dead_state := false
+else if ma2_first_pair_bar
+    ma2_dead_state := ma2 < ma3
+else if dead23
+    ma2_dead_state := true
+else if golden23
+    ma2_dead_state := false
+
+if not pair34_ready
+    ma3_dead_state := false
+else if ma3_first_pair_bar
+    ma3_dead_state := ma3 < ma4
+else if dead34
+    ma3_dead_state := true
+else if golden34
+    ma3_dead_state := false
+
+plot(show_ma1 and not ma1_dead_state ? ma1 : na, "MA #1", ma1_color, 2, plot.style_linebr)
+plot(show_ma1 and ma1_dead_state ? ma1 : na, "MA #1 Dead Cross", ma1_color, 1, plot.style_linebr, linestyle = plot.linestyle_dotted)
+plot(show_ma2 and not ma2_dead_state ? ma2 : na, "MA #2", ma2_color, 2, plot.style_linebr)
+plot(show_ma2 and ma2_dead_state ? ma2 : na, "MA #2 Dead Cross", ma2_color, 1, plot.style_linebr, linestyle = plot.linestyle_dotted)
+plot(show_ma3 and not ma3_dead_state ? ma3 : na, "MA #3", ma3_color, 2, plot.style_linebr)
+plot(show_ma3 and ma3_dead_state ? ma3 : na, "MA #3 Dead Cross", ma3_color, 1, plot.style_linebr, linestyle = plot.linestyle_dotted)
+plot(ma4, "MA #4", ma4_color, 2, plot.style_linebr, display = show_ma4 ? display.all : display.none)
+
+goldenCrossText = ""
+goldenCrossText := append_cross_text(goldenCrossText, golden12, str.tostring(ma1_length) + "/" + str.tostring(ma2_length))
+goldenCrossText := append_cross_text(goldenCrossText, golden23, str.tostring(ma2_length) + "/" + str.tostring(ma3_length))
+goldenCrossText := append_cross_text(goldenCrossText, golden34, str.tostring(ma3_length) + "/" + str.tostring(ma4_length))
+
+deadCrossText = ""
+deadCrossText := append_cross_text(deadCrossText, dead12, str.tostring(ma1_length) + "/" + str.tostring(ma2_length))
+deadCrossText := append_cross_text(deadCrossText, dead23, str.tostring(ma2_length) + "/" + str.tostring(ma3_length))
+deadCrossText := append_cross_text(deadCrossText, dead34, str.tostring(ma3_length) + "/" + str.tostring(ma4_length))
+
+crossLabelOffset = math.max(nz(ta.atr(14) * 0.2, 0.0), math.max(high - low, syminfo.mintick * 20))
+crossLabelSize = label_size(cross_label_size)
+crossLabelStyle = label_style(cross_label_position)
+hasGoldenCross = str.length(goldenCrossText) > 0
+hasDeadCross = str.length(deadCrossText) > 0
+goldenCrossY = label_y(cross_label_position, crossLabelOffset, 0)
+deadCrossY = label_y(cross_label_position, crossLabelOffset, hasGoldenCross ? 1 : 0)
+
+if show_cross_labels and hasGoldenCross
+    label.new(bar_index, goldenCrossY, goldenCrossText, style = crossLabelStyle, color = golden_color, textcolor = color.white, size = crossLabelSize)
+
+if show_cross_labels and hasDeadCross
+    label.new(bar_index, deadCrossY, deadCrossText, style = crossLabelStyle, color = dead_color, textcolor = color.white, size = crossLabelSize)

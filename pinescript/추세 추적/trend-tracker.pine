@@ -15,6 +15,7 @@ var string t6 = "Color used for negative swing labels such as LL and LH."
 var string t7 = "Color used for VWAP lines when in an uptrend."
 var string t8 = "Color used for VWAP lines when in a downtrend."
 var string t9 = "Width of the VWAP lines drawn on the chart. Larger values make the lines thicker and more visible."
+var string t10 = "Show or hide the anchored VWAP lines on the chart. The VWAP value still remains available for internal calculations even when hidden."
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~}
 
 // ~~ Inputs {
@@ -25,6 +26,7 @@ volBias  = input.float(1.4, 'Volatility Bias', minval=0.1, step=0.1, group='Swin
 
 highS = input.color(color.rgb(0, 107, 116), title="Swing Labels", group="Style", inline="Swing", tooltip=t5)
 lowS  = input.color(color.rgb(145, 22, 31), title="", group="Style", inline="Swing", tooltip=t6)
+showAnchoredVWAP = input.bool(false, title="Show Anchored VWAP", group="Style", tooltip=t10)
 S     = input.color(color.rgb(233, 92, 146), title="VWAP Lines", group="Style", inline="VWAP", tooltip=t7)
 R     = input.color(color.rgb(83, 198, 220), title="", group="Style", inline="VWAP", tooltip=t8)
 xx    = input.int(2, minval=1, title="", group="Style", inline="VWAP", tooltip=t9)
@@ -135,7 +137,8 @@ if dir != dir[1]
     vap := p / vol
 
     vwap.poly.delete()
-    polyline.new(vwap.points, false, false, line_color = dir < 0 ? R : S, line_width = xx)
+    if showAnchoredVWAP
+        polyline.new(vwap.points, false, false, line_color = dir < 0 ? R : S, line_width = xx)
     vwap.points.clear()
 
     for i = barsback to 0 by 1
@@ -150,7 +153,7 @@ if dir != dir[1]
         if i == 0
             vap := vappe
 
-    vwap.poly := polyline.new(vwap.points, false, false, line_color = dir < 0 ? R : S, line_width = xx)
+    vwap.poly := showAnchoredVWAP ? polyline.new(vwap.points, false, false, line_color = dir < 0 ? R : S, line_width = xx) : na
 
 else
     apt_0 = aptSeries
@@ -163,7 +166,7 @@ else
 
     vwap.poly.delete()
     vwap.points.push(chart.point.from_index(b, vap))
-    vwap.poly := polyline.new(vwap.points, false, false, line_color = dir > 0 ? R : S, line_width = xx)
+    vwap.poly := showAnchoredVWAP ? polyline.new(vwap.points, false, false, line_color = dir > 0 ? R : S, line_width = xx) : na
 //~~ }
 
 // ~~ Alignment Logic {
