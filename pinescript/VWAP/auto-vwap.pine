@@ -1,0 +1,86 @@
+//@version=6
+indicator(title="Auto VWAP", shorttitle="Auto VWAP", overlay=true, timeframe="", timeframe_gaps=true)
+
+hideonDWM = input(false, title="Hide VWAP on 1D or Above", group="VWAP Settings", display=display.none)
+anchorMode = input.string(defval="Session", title="Anchor Mode", options=["Session", "Recent Trading Days"], group="VWAP Settings")
+recentTradingDays = input.int(defval=5, title="Recent Trading Days", minval=1, group="VWAP Settings", display=display.none, active=anchorMode == "Recent Trading Days")
+src = input(title="Source", defval=hlc3, group="VWAP Settings", display=display.none)
+offset = input.int(0, title="Offset", group="VWAP Settings", display=display.none)
+
+BANDS_GROUP = "Bands Settings"
+CALC_MODE_TOOLTIP = "Determines the units used to calculate the distance of the bands. When 'Percentage' is selected, a multiplier of 1 means 1%."
+calcModeInput = input.string("Standard Deviation", "Bands Calculation Mode", options=["Standard Deviation", "Percentage"], group=BANDS_GROUP, tooltip=CALC_MODE_TOOLTIP, display=display.none)
+showBand_1 = input(true, title="", group=BANDS_GROUP, inline="band_1", display=display.none)
+bandMult_1 = input.float(1.0, title="Bands Multiplier #1", group=BANDS_GROUP, inline="band_1", step=0.5, minval=0, display=display.none, active=showBand_1)
+showBand_2 = input(true, title="", group=BANDS_GROUP, inline="band_2", display=display.none)
+bandMult_2 = input.float(2.0, title="Bands Multiplier #2", group=BANDS_GROUP, inline="band_2", step=0.5, minval=0, display=display.none, active=showBand_2)
+
+DEFAULT_LINE_COLOR = #00FF00
+
+cumVolume = ta.cum(volume)
+if barstate.islast and cumVolume == 0
+    runtime.error("No volume is provided by the data vendor.")
+
+isNewSession = barstate.isfirst or timeframe.change("D")
+sessionTime = time("D")
+sessionCloseTime = time_close("D")
+isLatestSession = sessionTime <= last_bar_time and sessionCloseTime > last_bar_time
+
+var array<float> sessionStartPV = array.new_float()
+var array<float> sessionStartVolume = array.new_float()
+var array<float> sessionStartP2V = array.new_float()
+
+var float cumulativePV = 0.0
+var float cumulativeVolume = 0.0
+var float cumulativeP2V = 0.0
+
+if isNewSession
+    array.push(sessionStartPV, cumulativePV)
+    array.push(sessionStartVolume, cumulativeVolume)
+    array.push(sessionStartP2V, cumulativeP2V)
+
+barPV = src * volume
+barP2V = src * src * volume
+cumulativePV += barPV
+cumulativeVolume += volume
+cumulativeP2V += barP2V
+
+sessionCount = array.size(sessionStartPV)
+anchorSessionIndex = anchorMode == "Session" ? sessionCount - 1 : math.max(sessionCount - recentTradingDays, 0)
+anchorPV = array.get(sessionStartPV, anchorSessionIndex)
+anchorVolume = array.get(sessionStartVolume, anchorSessionIndex)
+anchorP2V = array.get(sessionStartP2V, anchorSessionIndex)
+
+windowPV = cumulativePV - anchorPV
+windowVolume = cumulativeVolume - anchorVolume
+windowP2V = cumulativeP2V - anchorP2V
+
+float vwapValue = na
+float upperBandValue1 = na
+float lowerBandValue1 = na
+float upperBandValue2 = na
+float lowerBandValue2 = na
+
+shouldPlot = not (hideonDWM and timeframe.isdwm) and windowVolume > 0 and (anchorMode != "Session" or isLatestSession)
+
+if shouldPlot
+    vwapValue := windowPV / windowVolume
+    weightedVariance = math.max(windowP2V / windowVolume - math.pow(vwapValue, 2), 0)
+    stdevAbs = math.sqrt(weightedVariance)
+    bandBasis = calcModeInput == "Standard Deviation" ? stdevAbs : vwapValue * 0.01
+    upperBandValue1 := vwapValue + bandBasis * bandMult_1
+    lowerBandValue1 := vwapValue - bandBasis * bandMult_1
+    upperBandValue2 := vwapValue + bandBasis * bandMult_2
+    lowerBandValue2 := vwapValue - bandBasis * bandMult_2
+
+plot(vwapValue, title="브이왑", color=DEFAULT_LINE_COLOR, offset=offset, editable=true, linestyle=plot.linestyle_solid)
+
+displayBand1 = showBand_1 ? display.all : display.none
+upperBand_1 = plot(upperBandValue1, title="Upper Band #1", color=DEFAULT_LINE_COLOR, offset=offset, display=displayBand1, editable=true, linestyle=plot.linestyle_dotted)
+lowerBand_1 = plot(lowerBandValue1, title="Lower Band #1", color=DEFAULT_LINE_COLOR, offset=offset, display=displayBand1, editable=true, linestyle=plot.linestyle_dotted)
+fill(upperBand_1, lowerBand_1, title="Bands Fill #1", color=color.new(DEFAULT_LINE_COLOR, 92), display=display.none, editable=true)
+
+displayBand2 = showBand_2 ? display.all : display.none
+upperBand_2 = plot(upperBandValue2, title="Upper Band #2", color=DEFAULT_LINE_COLOR, offset=offset, display=displayBand2, editable=true, linestyle=plot.linestyle_dashed)
+lowerBand_2 = plot(lowerBandValue2, title="Lower Band #2", color=DEFAULT_LINE_COLOR, offset=offset, display=displayBand2, editable=true, linestyle=plot.linestyle_dashed)
+fill(upperBand_2, lowerBand_2, title="Bands Fill #2", color=color.new(DEFAULT_LINE_COLOR, 92), display=display.none, editable=true)

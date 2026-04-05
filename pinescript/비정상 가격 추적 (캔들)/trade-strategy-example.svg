@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1460" viewBox="0 0 1200 1460" role="img" aria-labelledby="title desc">
   <title id="title">비정상 가격 추적 캔들 실전 전략 예시</title>
-  <desc id="desc">롱/숏 진입 후보와 스윕 다이아몬드를 이용한 롱숏 전략 예시</desc>
+  <desc id="desc">롱/숏 진입 후보와 스윕 다이아몬드를 이용한 롱숏 전략 예시를 봉 마감 확정 기준으로 정리한 이미지</desc>
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#f8fbff"/>
@@ -22,7 +22,7 @@
   <rect x="24" y="24" width="1152" height="1412" rx="28" fill="url(#bg)" stroke="#d6e0ea"/>
 
   <text x="60" y="86" class="title">비정상 가격 추적 (캔들) · 실전 전략 예시</text>
-  <text x="60" y="118" class="subtitle">롱/숏 진입 후보는 첫 진입 후보, 다이아몬드는 스윕 다음 봉 재확인 신호로 보는 구조입니다.</text>
+  <text x="60" y="118" class="subtitle">롱/숏 진입 후보는 첫 진입 후보, 다이아몬드는 스윕 다음 봉 재확인 신호로 보는 구조입니다. 모든 예시는 봉 마감 확정 기준입니다.</text>
 
   <rect x="60" y="152" width="1080" height="560" rx="26" fill="#eef8ff" stroke="#c7dff5"/>
   <text x="92" y="190" class="label">LONG EXAMPLE</text>

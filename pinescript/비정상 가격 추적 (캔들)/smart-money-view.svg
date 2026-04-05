@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1260" viewBox="0 0 1200 1260" role="img" aria-labelledby="title desc">
   <title id="title">비정상 가격 추적 캔들 세력 관점 다이어그램</title>
-  <desc id="desc">비정상 캔들, 다이버전스, 진입 후보 신호, 유동성 스윕 다이아몬드 규칙을 요약한 카드형 이미지</desc>
+  <desc id="desc">비정상 캔들, 다이버전스, 진입 후보 신호, 유동성 스윕 다이아몬드 규칙을 봉 마감 확정 기준으로 요약한 카드형 이미지</desc>
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#f7fbff"/>
@@ -22,7 +22,7 @@
   <rect x="24" y="24" width="1152" height="1212" rx="28" fill="url(#bg)" stroke="#d7e0ea"/>
 
   <text x="60" y="86" class="title">비정상 가격 추적 (캔들) · 세력 관점</text>
-  <text x="60" y="118" class="subtitle">자리 확인은 비정상 캔들, 효율 저하는 다이버전스, 첫 진입 판단은 롱/숏 진입 후보, 재확인은 유동성 스윕 다이아몬드로 읽습니다.</text>
+  <text x="60" y="118" class="subtitle">자리 확인은 비정상 캔들, 효율 저하는 다이버전스, 첫 진입 판단은 롱/숏 진입 후보, 재확인은 유동성 스윕 다이아몬드로 읽습니다. 모든 표시는 봉 마감 확정 기준입니다.</text>
 
   <rect x="60" y="154" width="1080" height="250" rx="24" fill="#fff4ef" stroke="#efc9c0"/>
   <text x="92" y="192" class="label">OVERBOUGHT / BEARISH</text>
