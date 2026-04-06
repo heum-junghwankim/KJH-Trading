@@ -248,8 +248,13 @@ reportTimeText(signalTime) =>
     formattedTimeZone = reportTimeZoneInput == "" ? "Asia/Seoul" : reportTimeZoneInput
     na(signalTime) ? "OFF" : str.format_time(signalTime, "yy-MM-dd HH:mm", formattedTimeZone)
 
-reportEndTimeText(signalTime, inProgress) =>
-    inProgress ? "-" : reportTimeText(signalTime)
+reportEndTimeText(startTime, endTime, inProgress) =>
+    if na(startTime)
+        "OFF"
+    else if inProgress
+        "-"
+    else
+        reportTimeText(endTime)
 
 reportSignedPctText(value) =>
     roundedValue = math.round(value * 10.0) / 10.0
@@ -1020,18 +1025,18 @@ var float bullReportFirstSignalClose = na
 var float bearReportFirstSignalClose = na
 var int bullReportFirstSignalTime = na
 var int bearReportFirstSignalTime = na
-var float bullReportEndClose = na
-var float bearReportEndClose = na
 var int bullReportEndTime = na
 var int bearReportEndTime = na
+var float bullReportLastTrackedClose = na
+var float bearReportLastTrackedClose = na
 var bool bullReportTrackingActive = false
 var bool bearReportTrackingActive = false
 
 if barstate.isconfirmed
     if bearReportAnyEvent
         if bullReportTrackingActive
-            bullReportEndClose := close
             bullReportEndTime := time_close
+            bullReportLastTrackedClose := close
         bullReportTrackingActive := false
     else if bullReportAnyEvent and not bullReportTrackingActive
         bullReportStartCount := 0
@@ -1043,10 +1048,11 @@ if barstate.isconfirmed
         bullReportConfirmCount := 0
         bullReportFirstSignalClose := na
         bullReportFirstSignalTime := na
-        bullReportEndClose := na
         bullReportEndTime := na
+        bullReportLastTrackedClose := na
         bullReportFirstSignalClose := close
         bullReportFirstSignalTime := time_close
+        bullReportLastTrackedClose := close
         bullReportStartCount += bullReportStartEvent ? 1 : 0
         bullReportHoldCount += bullReportHoldEvent ? 1 : 0
         bullReportHintCount += bullReportHintEvent ? 1 : 0
@@ -1063,11 +1069,12 @@ if barstate.isconfirmed
         bullReportWatchStrongCount += bullReportWatchStrongEvent ? 1 : 0
         bullReportCandidateCount += bullReportCandidateEvent ? 1 : 0
         bullReportConfirmCount += bullReportConfirmEvent ? 1 : 0
+        bullReportLastTrackedClose := close
 
     if bullReportAnyEvent
         if bearReportTrackingActive
-            bearReportEndClose := close
             bearReportEndTime := time_close
+            bearReportLastTrackedClose := close
         bearReportTrackingActive := false
     else if bearReportAnyEvent and not bearReportTrackingActive
         bearReportStartCount := 0
@@ -1079,10 +1086,11 @@ if barstate.isconfirmed
         bearReportConfirmCount := 0
         bearReportFirstSignalClose := na
         bearReportFirstSignalTime := na
-        bearReportEndClose := na
         bearReportEndTime := na
+        bearReportLastTrackedClose := na
         bearReportFirstSignalClose := close
         bearReportFirstSignalTime := time_close
+        bearReportLastTrackedClose := close
         bearReportStartCount += bearReportStartEvent ? 1 : 0
         bearReportHoldCount += bearReportHoldEvent ? 1 : 0
         bearReportHintCount += bearReportHintEvent ? 1 : 0
@@ -1099,17 +1107,12 @@ if barstate.isconfirmed
         bearReportWatchStrongCount += bearReportWatchStrongEvent ? 1 : 0
         bearReportCandidateCount += bearReportCandidateEvent ? 1 : 0
         bearReportConfirmCount += bearReportConfirmEvent ? 1 : 0
+        bearReportLastTrackedClose := close
 
 bullReportProgressScore = reportProgressScore(bullReportStartCount, bullReportHoldCount, bullReportHintCount, bullReportWatchCount, bullReportWatchStrongCount, bullReportCandidateCount, bullReportConfirmCount)
 bearReportProgressScore = reportProgressScore(bearReportStartCount, bearReportHoldCount, bearReportHintCount, bearReportWatchCount, bearReportWatchStrongCount, bearReportCandidateCount, bearReportConfirmCount)
 bullReportInProgress = bullReportTrackingActive
 bearReportInProgress = bearReportTrackingActive
-lastConfirmedReportClose = barstate.isconfirmed ? close : nz(close[1], close)
-lastConfirmedReportTime = barstate.isconfirmed ? time_close : nz(time_close[1], time_close)
-bullReportDisplayEndClose = bullReportTrackingActive ? lastConfirmedReportClose : bullReportEndClose
-bearReportDisplayEndClose = bearReportTrackingActive ? lastConfirmedReportClose : bearReportEndClose
-bullReportDisplayEndTime = bullReportTrackingActive ? lastConfirmedReportTime : bullReportEndTime
-bearReportDisplayEndTime = bearReportTrackingActive ? lastConfirmedReportTime : bearReportEndTime
 
 reportBorderColor = color.new(reportNeutralColor, math.max(reportBackgroundTransparency - 50, 0))
 reportFrameColor = color.new(reportNeutralColor, math.max(reportBackgroundTransparency - 65, 0))
@@ -1163,10 +1166,10 @@ if showTradeReport
         table.cell(tradeReportTable, 2, 9, reportProgressText(bearReportInProgress), text_color=reportProgressColor(bearReportInProgress, reportBearColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
         table.cell(tradeReportTable, 1, 10, reportTimeText(bullReportFirstSignalTime), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
         table.cell(tradeReportTable, 2, 10, reportTimeText(bearReportFirstSignalTime), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 1, 11, reportEndTimeText(bullReportDisplayEndTime, bullReportInProgress), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 2, 11, reportEndTimeText(bearReportDisplayEndTime, bearReportInProgress), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 1, 12, reportPriceChangeText(bullReportFirstSignalClose, bullReportDisplayEndClose), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 2, 12, reportPriceChangeText(bearReportFirstSignalClose, bearReportDisplayEndClose), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+        table.cell(tradeReportTable, 1, 11, reportEndTimeText(bullReportFirstSignalTime, bullReportEndTime, bullReportInProgress), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+        table.cell(tradeReportTable, 2, 11, reportEndTimeText(bearReportFirstSignalTime, bearReportEndTime, bearReportInProgress), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+        table.cell(tradeReportTable, 1, 12, reportPriceChangeText(bullReportFirstSignalClose, bullReportLastTrackedClose), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+        table.cell(tradeReportTable, 2, 12, reportPriceChangeText(bearReportFirstSignalClose, bearReportLastTrackedClose), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
 else if barstate.islast and reportTableStaticInitialized
     table.clear(tradeReportTable, 0, 0, 2, 12)
     reportTableStaticInitialized := false
