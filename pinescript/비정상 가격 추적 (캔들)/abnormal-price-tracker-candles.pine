@@ -160,7 +160,7 @@ reportBackgroundTransparency = input.int(78, minval=0, maxval=100, title="리포
 reportBullColor = input.color(color.rgb(0, 170, 90), title="리포트 롱 강조 색상", group=reportGroup)
 reportBearColor = input.color(color.rgb(210, 70, 70), title="리포트 숏 강조 색상", group=reportGroup)
 reportNeutralColor = input.color(color.silver, title="리포트 중립 색상", group=reportGroup)
-reportTimeZoneInput = input.string("Asia/Seoul", title="기준 시간 표시 시간대", tooltip="차트 시간대는 Pine에서 직접 읽을 수 없습니다. 기본값은 KST(Asia/Seoul)입니다. 차트와 같은 현지시간으로 보려면 IANA 시간대(예: Asia/Seoul) 또는 UTC 표기(예: UTC+9)를 입력하세요.", group=reportGroup)
+reportTimeZoneInput = input.string("Asia/Seoul", title="리포트 시간 표시 시간대", tooltip="차트 시간대는 Pine에서 직접 읽을 수 없습니다. 기본값은 KST(Asia/Seoul)입니다. 차트와 같은 현지시간으로 보려면 IANA 시간대(예: Asia/Seoul) 또는 UTC 표기(예: UTC+9)를 입력하세요.", group=reportGroup)
 
 performanceGroup = "성능 / 반응 속도"
 useFastCRSIBands = input.bool(true, title="빠른 cRSI 밴드 계산 사용", group=performanceGroup)
@@ -244,12 +244,24 @@ reportScoreColor(firstSignalClose, score, activeColor, neutralColor) =>
     else
         color.new(activeColor, 40)
 
-reportReferenceTimeText(firstSignalTime) =>
+reportTimeText(signalTime) =>
     formattedTimeZone = reportTimeZoneInput == "" ? "Asia/Seoul" : reportTimeZoneInput
-    na(firstSignalTime) ? "OFF" : str.format_time(firstSignalTime, "yy-MM-dd HH:mm", formattedTimeZone)
+    na(signalTime) ? "OFF" : str.format_time(signalTime, "yy-MM-dd HH:mm", formattedTimeZone)
 
-reportReferenceTimeColor(firstSignalTime, activeColor, inactiveColor) =>
-    na(firstSignalTime) ? inactiveColor : activeColor
+reportEndTimeText(signalTime, inProgress) =>
+    inProgress ? "-" : reportTimeText(signalTime)
+
+reportSignedPctText(value) =>
+    roundedValue = math.round(value * 10.0) / 10.0
+    absRoundedValue = math.abs(roundedValue)
+    roundedText = str.tostring(absRoundedValue, "0.0")
+    roundedValue > 0 ? "+" + roundedText + "%" : roundedValue < 0 ? "-" + roundedText + "%" : "0.0%"
+
+reportPriceChangeText(startClose, endClose) =>
+    if na(startClose) or na(endClose) or startClose == 0
+        "OFF"
+    else
+        reportSignedPctText((endClose - startClose) / startClose * 100.0)
 
 reportProgressText(inProgress) =>
     inProgress ? "ON" : "OFF"
@@ -1008,11 +1020,18 @@ var float bullReportFirstSignalClose = na
 var float bearReportFirstSignalClose = na
 var int bullReportFirstSignalTime = na
 var int bearReportFirstSignalTime = na
+var float bullReportEndClose = na
+var float bearReportEndClose = na
+var int bullReportEndTime = na
+var int bearReportEndTime = na
 var bool bullReportTrackingActive = false
 var bool bearReportTrackingActive = false
 
 if barstate.isconfirmed
     if bearReportAnyEvent
+        if bullReportTrackingActive
+            bullReportEndClose := close
+            bullReportEndTime := time_close
         bullReportTrackingActive := false
     else if bullReportAnyEvent and not bullReportTrackingActive
         bullReportStartCount := 0
@@ -1024,6 +1043,8 @@ if barstate.isconfirmed
         bullReportConfirmCount := 0
         bullReportFirstSignalClose := na
         bullReportFirstSignalTime := na
+        bullReportEndClose := na
+        bullReportEndTime := na
         bullReportFirstSignalClose := close
         bullReportFirstSignalTime := time_close
         bullReportStartCount += bullReportStartEvent ? 1 : 0
@@ -1044,6 +1065,9 @@ if barstate.isconfirmed
         bullReportConfirmCount += bullReportConfirmEvent ? 1 : 0
 
     if bullReportAnyEvent
+        if bearReportTrackingActive
+            bearReportEndClose := close
+            bearReportEndTime := time_close
         bearReportTrackingActive := false
     else if bearReportAnyEvent and not bearReportTrackingActive
         bearReportStartCount := 0
@@ -1055,6 +1079,8 @@ if barstate.isconfirmed
         bearReportConfirmCount := 0
         bearReportFirstSignalClose := na
         bearReportFirstSignalTime := na
+        bearReportEndClose := na
+        bearReportEndTime := na
         bearReportFirstSignalClose := close
         bearReportFirstSignalTime := time_close
         bearReportStartCount += bearReportStartEvent ? 1 : 0
@@ -1078,8 +1104,16 @@ bullReportProgressScore = reportProgressScore(bullReportStartCount, bullReportHo
 bearReportProgressScore = reportProgressScore(bearReportStartCount, bearReportHoldCount, bearReportHintCount, bearReportWatchCount, bearReportWatchStrongCount, bearReportCandidateCount, bearReportConfirmCount)
 bullReportInProgress = bullReportTrackingActive
 bearReportInProgress = bearReportTrackingActive
+lastConfirmedReportClose = barstate.isconfirmed ? close : nz(close[1], close)
+lastConfirmedReportTime = barstate.isconfirmed ? time_close : nz(time_close[1], time_close)
+bullReportDisplayEndClose = bullReportTrackingActive ? lastConfirmedReportClose : bullReportEndClose
+bearReportDisplayEndClose = bearReportTrackingActive ? lastConfirmedReportClose : bearReportEndClose
+bullReportDisplayEndTime = bullReportTrackingActive ? lastConfirmedReportTime : bullReportEndTime
+bearReportDisplayEndTime = bearReportTrackingActive ? lastConfirmedReportTime : bearReportEndTime
 
-var table tradeReportTable = table.new(tablePosition(reportPositionInput), 3, 11, border_width=1)
+reportBorderColor = color.new(reportNeutralColor, math.max(reportBackgroundTransparency - 50, 0))
+reportFrameColor = color.new(reportNeutralColor, math.max(reportBackgroundTransparency - 65, 0))
+var table tradeReportTable = table.new(tablePosition(reportPositionInput), 3, 13, border_width=1, border_color=reportBorderColor, frame_width=1, frame_color=reportFrameColor)
 reportHeaderBgColor = color.new(reportHeaderColor, reportBackgroundTransparency)
 reportLabelBgColorValue = color.new(reportLabelBgColor, math.max(reportBackgroundTransparency - 28, 0))
 reportFieldBgColorValue = color.new(reportFieldBgColor, reportBackgroundTransparency)
@@ -1105,7 +1139,9 @@ if showTradeReport
             table.cell(tradeReportTable, 0, 7, "[6] 스윕 확인", text_color=color.white, text_halign=text.align_left, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
             table.cell(tradeReportTable, 0, 8, "총 점수", text_color=color.white, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
             table.cell(tradeReportTable, 0, 9, "진행 상태", text_color=color.white, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
-            table.cell(tradeReportTable, 0, 10, "기준 시간", text_color=color.white, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
+            table.cell(tradeReportTable, 0, 10, "시작 시간", text_color=color.white, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
+            table.cell(tradeReportTable, 0, 11, "종료 시간", text_color=color.white, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
+            table.cell(tradeReportTable, 0, 12, "가격 변화", text_color=color.white, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
             reportTableStaticInitialized := true
         table.cell(tradeReportTable, 1, 1, reportStatusText(bullReportStartCount), text_color=reportStatusColor(bullReportStartCount, reportBullColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
         table.cell(tradeReportTable, 2, 1, reportStatusText(bearReportStartCount), text_color=reportStatusColor(bearReportStartCount, reportBearColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
@@ -1125,10 +1161,14 @@ if showTradeReport
         table.cell(tradeReportTable, 2, 8, reportScoreText(bearReportFirstSignalClose, bearReportProgressScore), text_color=reportScoreColor(bearReportFirstSignalClose, bearReportProgressScore, reportBearColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
         table.cell(tradeReportTable, 1, 9, reportProgressText(bullReportInProgress), text_color=reportProgressColor(bullReportInProgress, reportBullColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
         table.cell(tradeReportTable, 2, 9, reportProgressText(bearReportInProgress), text_color=reportProgressColor(bearReportInProgress, reportBearColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 1, 10, reportReferenceTimeText(bullReportFirstSignalTime), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 2, 10, reportReferenceTimeText(bearReportFirstSignalTime), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+        table.cell(tradeReportTable, 1, 10, reportTimeText(bullReportFirstSignalTime), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+        table.cell(tradeReportTable, 2, 10, reportTimeText(bearReportFirstSignalTime), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+        table.cell(tradeReportTable, 1, 11, reportEndTimeText(bullReportDisplayEndTime, bullReportInProgress), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+        table.cell(tradeReportTable, 2, 11, reportEndTimeText(bearReportDisplayEndTime, bearReportInProgress), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+        table.cell(tradeReportTable, 1, 12, reportPriceChangeText(bullReportFirstSignalClose, bullReportDisplayEndClose), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+        table.cell(tradeReportTable, 2, 12, reportPriceChangeText(bearReportFirstSignalClose, bearReportDisplayEndClose), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
 else if barstate.islast and reportTableStaticInitialized
-    table.clear(tradeReportTable, 0, 0, 2, 10)
+    table.clear(tradeReportTable, 0, 0, 2, 12)
     reportTableStaticInitialized := false
 
 // =========================
