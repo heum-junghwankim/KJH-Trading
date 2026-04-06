@@ -219,70 +219,30 @@ reportStatusText(signalCount) =>
 reportStatusColor(signalCount, activeColor, inactiveColor) =>
     signalCount > 0 ? activeColor : inactiveColor
 
-reportFirstPriceText(firstSignalClose) =>
+reportProgressScore(startCount, holdCount, hintCount, watchCount, watchStrongCount, candidateCount, confirmCount) =>
+    startCount * 1.0 +
+     holdCount * 1.0 +
+     hintCount * 2.0 +
+     watchCount * 3.0 +
+     watchStrongCount * 4.0 +
+     candidateCount * 5.0 +
+     confirmCount * 6.0
+
+reportScoreText(firstSignalClose, score) =>
     if na(firstSignalClose)
         "OFF"
     else
-        str.tostring(firstSignalClose, format.mintick)
+        str.tostring(math.round(score))
 
-reportFirstPriceColor(firstSignalClose, activeColor, neutralColor) =>
-    if na(firstSignalClose)
+reportScoreColor(firstSignalClose, score, activeColor, neutralColor) =>
+    if na(firstSignalClose) or score <= 0
         neutralColor
-    else
+    else if score >= 12
         activeColor
-
-reportVolumeDeltaText(accumBuyVolume, accumSellVolume) =>
-    if na(accumBuyVolume) or na(accumSellVolume)
-        "OFF"
+    else if score >= 6
+        color.new(activeColor, 20)
     else
-        totalVolume = accumBuyVolume + accumSellVolume
-        if totalVolume <= 0
-            "0%"
-        else
-            deltaRatioPct = (accumBuyVolume - accumSellVolume) / totalVolume * 100.0
-            deltaRatioText = deltaRatioPct > 0 ? "+" + str.tostring(deltaRatioPct, "#.##") : str.tostring(deltaRatioPct, "#.##")
-            deltaRatioText + "%"
-
-reportVolumeDeltaColor(accumBuyVolume, accumSellVolume, positiveColor, negativeColor, neutralColor) =>
-    if na(accumBuyVolume) or na(accumSellVolume)
-        neutralColor
-    else
-        totalVolume = accumBuyVolume + accumSellVolume
-        if totalVolume <= 0
-            neutralColor
-        else
-            deltaRatioPct = (accumBuyVolume - accumSellVolume) / totalVolume * 100.0
-            deltaRatioPct > 0 ? positiveColor : deltaRatioPct < 0 ? negativeColor : neutralColor
-
-reportSignedPctText(value) =>
-    value > 0 ? "+" + str.tostring(value, "#.##") : str.tostring(value, "#.##")
-
-reportProfitPct(entryPrice, referencePrice, isLong) =>
-    if na(entryPrice) or entryPrice == 0 or na(referencePrice)
-        na
-    else
-        rawProfitPct = (referencePrice - entryPrice) / entryPrice * 100.0
-        isLong ? rawProfitPct : -rawProfitPct
-
-reportProfitRangeText(firstSignalClose, lastSignalClose, referencePrice, isLong) =>
-    firstProfitPct = reportProfitPct(firstSignalClose, referencePrice, isLong)
-    lastProfitPct = reportProfitPct(lastSignalClose, referencePrice, isLong)
-    if na(firstProfitPct) or na(lastProfitPct)
-        "OFF"
-    else
-        minProfitPct = math.min(firstProfitPct, lastProfitPct)
-        maxProfitPct = math.max(firstProfitPct, lastProfitPct)
-        reportSignedPctText(minProfitPct) + " ~ " + reportSignedPctText(maxProfitPct) + "%"
-
-reportProfitRangeColor(firstSignalClose, lastSignalClose, referencePrice, profitColor, lossColor, neutralColor, isLong) =>
-    firstProfitPct = reportProfitPct(firstSignalClose, referencePrice, isLong)
-    lastProfitPct = reportProfitPct(lastSignalClose, referencePrice, isLong)
-    if na(firstProfitPct) or na(lastProfitPct)
-        neutralColor
-    else
-        minProfitPct = math.min(firstProfitPct, lastProfitPct)
-        maxProfitPct = math.max(firstProfitPct, lastProfitPct)
-        maxProfitPct > 0 and minProfitPct >= 0 ? profitColor : minProfitPct < 0 and maxProfitPct <= 0 ? lossColor : neutralColor
+        color.new(activeColor, 40)
 
 reportReferenceTimeText(firstSignalTime) =>
     formattedTimeZone = reportTimeZoneInput == "" ? "Asia/Seoul" : reportTimeZoneInput
@@ -920,7 +880,7 @@ bearLiquiditySweep = false
 bullSweepReady = barstate.isconfirmed and close < open and vpAbnormalVolume and sellVolume > buyVolume
 bearSweepReady = barstate.isconfirmed and close > open and vpAbnormalVolume and buyVolume > sellVolume
 
-if array.size(bullSweepZoneTops) > 0
+if barstate.isconfirmed and array.size(bullSweepZoneTops) > 0
     i = array.size(bullSweepZoneTops) - 1
     while i >= 0
         bullSweepRight = array.get(bullSweepZoneRights, i)
@@ -932,7 +892,7 @@ if array.size(bullSweepZoneTops) > 0
             removeBullSweepZone(i)
         i -= 1
 
-if array.size(bearSweepZoneTops) > 0
+if barstate.isconfirmed and array.size(bearSweepZoneTops) > 0
     i = array.size(bearSweepZoneTops) - 1
     while i >= 0
         bearSweepRight = array.get(bearSweepZoneRights, i)
@@ -1046,29 +1006,15 @@ var int bullReportConfirmCount = 0
 var int bearReportConfirmCount = 0
 var float bullReportFirstSignalClose = na
 var float bearReportFirstSignalClose = na
-var float bullReportHighestSignalClose = na
-var float bearReportHighestSignalClose = na
-var float bullReportLowestSignalClose = na
-var float bearReportLowestSignalClose = na
 var int bullReportFirstSignalTime = na
 var int bearReportFirstSignalTime = na
-var float bullReportTrackedOpen = na
-var float bearReportTrackedOpen = na
-var float bullReportExitPrice = na
-var float bearReportExitPrice = na
-var float bullReportAccumBuyVolume = na
-var float bullReportAccumSellVolume = na
-var float bearReportAccumBuyVolume = na
-var float bearReportAccumSellVolume = na
-var bool bullReportInProgress = false
-var bool bearReportInProgress = false
+var bool bullReportTrackingActive = false
+var bool bearReportTrackingActive = false
 
 if barstate.isconfirmed
     if bearReportAnyEvent
-        if bullReportInProgress
-            bullReportExitPrice := close
-        bullReportInProgress := false
-    else if bullReportAnyEvent and not bullReportInProgress
+        bullReportTrackingActive := false
+    else if bullReportAnyEvent and not bullReportTrackingActive
         bullReportStartCount := 0
         bullReportHoldCount := 0
         bullReportHintCount := 0
@@ -1077,20 +1023,9 @@ if barstate.isconfirmed
         bullReportCandidateCount := 0
         bullReportConfirmCount := 0
         bullReportFirstSignalClose := na
-        bullReportHighestSignalClose := na
-        bullReportLowestSignalClose := na
         bullReportFirstSignalTime := na
-        bullReportTrackedOpen := na
-        bullReportExitPrice := na
-        bullReportAccumBuyVolume := na
-        bullReportAccumSellVolume := na
         bullReportFirstSignalClose := close
-        bullReportHighestSignalClose := close
-        bullReportLowestSignalClose := close
         bullReportFirstSignalTime := time_close
-        bullReportTrackedOpen := open
-        bullReportAccumBuyVolume := buyVolume
-        bullReportAccumSellVolume := sellVolume
         bullReportStartCount += bullReportStartEvent ? 1 : 0
         bullReportHoldCount += bullReportHoldEvent ? 1 : 0
         bullReportHintCount += bullReportHintEvent ? 1 : 0
@@ -1098,14 +1033,8 @@ if barstate.isconfirmed
         bullReportWatchStrongCount += bullReportWatchStrongEvent ? 1 : 0
         bullReportCandidateCount += bullReportCandidateEvent ? 1 : 0
         bullReportConfirmCount += bullReportConfirmEvent ? 1 : 0
-        bullReportInProgress := true
-    else if bullReportInProgress
-        bullReportTrackedOpen := open
-        bullReportAccumBuyVolume += buyVolume
-        bullReportAccumSellVolume += sellVolume
-        if bullReportAnyEvent
-            bullReportHighestSignalClose := na(bullReportHighestSignalClose) ? close : math.max(bullReportHighestSignalClose, close)
-            bullReportLowestSignalClose := na(bullReportLowestSignalClose) ? close : math.min(bullReportLowestSignalClose, close)
+        bullReportTrackingActive := true
+    else if bullReportTrackingActive
         bullReportStartCount += bullReportStartEvent ? 1 : 0
         bullReportHoldCount += bullReportHoldEvent ? 1 : 0
         bullReportHintCount += bullReportHintEvent ? 1 : 0
@@ -1115,10 +1044,8 @@ if barstate.isconfirmed
         bullReportConfirmCount += bullReportConfirmEvent ? 1 : 0
 
     if bullReportAnyEvent
-        if bearReportInProgress
-            bearReportExitPrice := close
-        bearReportInProgress := false
-    else if bearReportAnyEvent and not bearReportInProgress
+        bearReportTrackingActive := false
+    else if bearReportAnyEvent and not bearReportTrackingActive
         bearReportStartCount := 0
         bearReportHoldCount := 0
         bearReportHintCount := 0
@@ -1127,20 +1054,9 @@ if barstate.isconfirmed
         bearReportCandidateCount := 0
         bearReportConfirmCount := 0
         bearReportFirstSignalClose := na
-        bearReportHighestSignalClose := na
-        bearReportLowestSignalClose := na
         bearReportFirstSignalTime := na
-        bearReportTrackedOpen := na
-        bearReportExitPrice := na
-        bearReportAccumBuyVolume := na
-        bearReportAccumSellVolume := na
         bearReportFirstSignalClose := close
-        bearReportHighestSignalClose := close
-        bearReportLowestSignalClose := close
         bearReportFirstSignalTime := time_close
-        bearReportTrackedOpen := open
-        bearReportAccumBuyVolume := buyVolume
-        bearReportAccumSellVolume := sellVolume
         bearReportStartCount += bearReportStartEvent ? 1 : 0
         bearReportHoldCount += bearReportHoldEvent ? 1 : 0
         bearReportHintCount += bearReportHintEvent ? 1 : 0
@@ -1148,14 +1064,8 @@ if barstate.isconfirmed
         bearReportWatchStrongCount += bearReportWatchStrongEvent ? 1 : 0
         bearReportCandidateCount += bearReportCandidateEvent ? 1 : 0
         bearReportConfirmCount += bearReportConfirmEvent ? 1 : 0
-        bearReportInProgress := true
-    else if bearReportInProgress
-        bearReportTrackedOpen := open
-        bearReportAccumBuyVolume += buyVolume
-        bearReportAccumSellVolume += sellVolume
-        if bearReportAnyEvent
-            bearReportHighestSignalClose := na(bearReportHighestSignalClose) ? close : math.max(bearReportHighestSignalClose, close)
-            bearReportLowestSignalClose := na(bearReportLowestSignalClose) ? close : math.min(bearReportLowestSignalClose, close)
+        bearReportTrackingActive := true
+    else if bearReportTrackingActive
         bearReportStartCount += bearReportStartEvent ? 1 : 0
         bearReportHoldCount += bearReportHoldEvent ? 1 : 0
         bearReportHintCount += bearReportHintEvent ? 1 : 0
@@ -1164,11 +1074,12 @@ if barstate.isconfirmed
         bearReportCandidateCount += bearReportCandidateEvent ? 1 : 0
         bearReportConfirmCount += bearReportConfirmEvent ? 1 : 0
 
-lastConfirmedClose = barstate.isconfirmed ? close : nz(close[1], close)
-bullReportProfitReferencePrice = bullReportInProgress ? lastConfirmedClose : bullReportExitPrice
-bearReportProfitReferencePrice = bearReportInProgress ? lastConfirmedClose : bearReportExitPrice
+bullReportProgressScore = reportProgressScore(bullReportStartCount, bullReportHoldCount, bullReportHintCount, bullReportWatchCount, bullReportWatchStrongCount, bullReportCandidateCount, bullReportConfirmCount)
+bearReportProgressScore = reportProgressScore(bearReportStartCount, bearReportHoldCount, bearReportHintCount, bearReportWatchCount, bearReportWatchStrongCount, bearReportCandidateCount, bearReportConfirmCount)
+bullReportInProgress = bullReportTrackingActive
+bearReportInProgress = bearReportTrackingActive
 
-var table tradeReportTable = table.new(tablePosition(reportPositionInput), 3, 13, border_width=1)
+var table tradeReportTable = table.new(tablePosition(reportPositionInput), 3, 11, border_width=1)
 reportHeaderBgColor = color.new(reportHeaderColor, reportBackgroundTransparency)
 reportLabelBgColorValue = color.new(reportLabelBgColor, math.max(reportBackgroundTransparency - 28, 0))
 reportFieldBgColorValue = color.new(reportFieldBgColor, reportBackgroundTransparency)
@@ -1176,50 +1087,49 @@ reportBullHeaderBgColor = color.new(reportBullColor, math.max(reportBackgroundTr
 reportBearHeaderBgColor = color.new(reportBearColor, math.max(reportBackgroundTransparency - 20, 0))
 reportTextSize = tableTextSize(reportTextSizeInput)
 reportHeaderText = "시그널"
+var bool reportTableStaticInitialized = false
+reportTableRefresh = barstate.islast and (barstate.isnew or barstate.isconfirmed or not reportTableStaticInitialized)
 
 if showTradeReport
-    if barstate.islast
-        table.cell(tradeReportTable, 0, 0, reportHeaderText, text_color=color.white, bgcolor=reportHeaderBgColor, text_size=reportTextSize)
-        table.cell(tradeReportTable, 1, 0, "롱 반등 감시", text_color=color.white, bgcolor=reportBullHeaderBgColor, text_size=reportTextSize)
-        table.cell(tradeReportTable, 2, 0, "숏 반등 감시", text_color=color.white, bgcolor=reportBearHeaderBgColor, text_size=reportTextSize)
-        table.cell(tradeReportTable, 0, 1, "비정상 시작", text_color=color.white, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
+    if reportTableRefresh
+        if not reportTableStaticInitialized
+            table.cell(tradeReportTable, 0, 0, reportHeaderText, text_color=color.white, bgcolor=reportHeaderBgColor, text_size=reportTextSize)
+            table.cell(tradeReportTable, 1, 0, "롱 반등 감시", text_color=color.white, bgcolor=reportBullHeaderBgColor, text_size=reportTextSize)
+            table.cell(tradeReportTable, 2, 0, "숏 반등 감시", text_color=color.white, bgcolor=reportBearHeaderBgColor, text_size=reportTextSize)
+            table.cell(tradeReportTable, 0, 1, "[1] 비정상 시작", text_color=color.white, text_halign=text.align_left, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
+            table.cell(tradeReportTable, 0, 2, "[1] 비정상 유지", text_color=color.white, text_halign=text.align_left, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
+            table.cell(tradeReportTable, 0, 3, "[2] 다이버전스", text_color=color.white, text_halign=text.align_left, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
+            table.cell(tradeReportTable, 0, 4, "[3] ATR 배경", text_color=color.white, text_halign=text.align_left, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
+            table.cell(tradeReportTable, 0, 5, "[4] ATR 강화", text_color=color.white, text_halign=text.align_left, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
+            table.cell(tradeReportTable, 0, 6, "[5] 진입 후보", text_color=color.white, text_halign=text.align_left, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
+            table.cell(tradeReportTable, 0, 7, "[6] 스윕 확인", text_color=color.white, text_halign=text.align_left, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
+            table.cell(tradeReportTable, 0, 8, "총 점수", text_color=color.white, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
+            table.cell(tradeReportTable, 0, 9, "진행 상태", text_color=color.white, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
+            table.cell(tradeReportTable, 0, 10, "기준 시간", text_color=color.white, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
+            reportTableStaticInitialized := true
         table.cell(tradeReportTable, 1, 1, reportStatusText(bullReportStartCount), text_color=reportStatusColor(bullReportStartCount, reportBullColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
         table.cell(tradeReportTable, 2, 1, reportStatusText(bearReportStartCount), text_color=reportStatusColor(bearReportStartCount, reportBearColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 0, 2, "비정상 유지", text_color=color.white, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
         table.cell(tradeReportTable, 1, 2, reportStatusText(bullReportHoldCount), text_color=reportStatusColor(bullReportHoldCount, reportBullColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
         table.cell(tradeReportTable, 2, 2, reportStatusText(bearReportHoldCount), text_color=reportStatusColor(bearReportHoldCount, reportBearColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 0, 3, "다이버전스", text_color=color.white, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
         table.cell(tradeReportTable, 1, 3, reportStatusText(bullReportHintCount), text_color=reportStatusColor(bullReportHintCount, reportBullColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
         table.cell(tradeReportTable, 2, 3, reportStatusText(bearReportHintCount), text_color=reportStatusColor(bearReportHintCount, reportBearColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 0, 4, "ATR 배경", text_color=color.white, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
         table.cell(tradeReportTable, 1, 4, reportStatusText(bullReportWatchCount), text_color=reportStatusColor(bullReportWatchCount, reportBullColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
         table.cell(tradeReportTable, 2, 4, reportStatusText(bearReportWatchCount), text_color=reportStatusColor(bearReportWatchCount, reportBearColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 0, 5, "ATR 강화", text_color=color.white, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
         table.cell(tradeReportTable, 1, 5, reportStatusText(bullReportWatchStrongCount), text_color=reportStatusColor(bullReportWatchStrongCount, reportBullColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
         table.cell(tradeReportTable, 2, 5, reportStatusText(bearReportWatchStrongCount), text_color=reportStatusColor(bearReportWatchStrongCount, reportBearColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 0, 6, "진입 후보", text_color=color.white, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
         table.cell(tradeReportTable, 1, 6, reportStatusText(bullReportCandidateCount), text_color=reportStatusColor(bullReportCandidateCount, reportBullColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
         table.cell(tradeReportTable, 2, 6, reportStatusText(bearReportCandidateCount), text_color=reportStatusColor(bearReportCandidateCount, reportBearColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 0, 7, "스윕 확인", text_color=color.white, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
         table.cell(tradeReportTable, 1, 7, reportStatusText(bullReportConfirmCount), text_color=reportStatusColor(bullReportConfirmCount, reportBullColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
         table.cell(tradeReportTable, 2, 7, reportStatusText(bearReportConfirmCount), text_color=reportStatusColor(bearReportConfirmCount, reportBearColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 0, 8, "기준 시간", text_color=color.white, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 1, 8, reportReferenceTimeText(bullReportFirstSignalTime), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 2, 8, reportReferenceTimeText(bearReportFirstSignalTime), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 0, 9, "최초 가격", text_color=color.white, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 1, 9, reportFirstPriceText(bullReportFirstSignalClose), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 2, 9, reportFirstPriceText(bearReportFirstSignalClose), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 0, 10, "볼륨 델타", text_color=color.white, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 1, 10, reportVolumeDeltaText(bullReportAccumBuyVolume, bullReportAccumSellVolume), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 2, 10, reportVolumeDeltaText(bearReportAccumBuyVolume, bearReportAccumSellVolume), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 0, 11, "수익률", text_color=color.white, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 1, 11, reportProfitRangeText(bullReportLowestSignalClose, bullReportHighestSignalClose, bullReportProfitReferencePrice, true), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 2, 11, reportProfitRangeText(bearReportLowestSignalClose, bearReportHighestSignalClose, bearReportProfitReferencePrice, false), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 0, 12, "진행 상태", text_color=color.white, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 1, 12, reportProgressText(bullReportInProgress), text_color=reportProgressColor(bullReportInProgress, reportBullColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 2, 12, reportProgressText(bearReportInProgress), text_color=reportProgressColor(bearReportInProgress, reportBearColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-else
-    table.clear(tradeReportTable, 0, 0, 2, 12)
+        table.cell(tradeReportTable, 1, 8, reportScoreText(bullReportFirstSignalClose, bullReportProgressScore), text_color=reportScoreColor(bullReportFirstSignalClose, bullReportProgressScore, reportBullColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+        table.cell(tradeReportTable, 2, 8, reportScoreText(bearReportFirstSignalClose, bearReportProgressScore), text_color=reportScoreColor(bearReportFirstSignalClose, bearReportProgressScore, reportBearColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+        table.cell(tradeReportTable, 1, 9, reportProgressText(bullReportInProgress), text_color=reportProgressColor(bullReportInProgress, reportBullColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+        table.cell(tradeReportTable, 2, 9, reportProgressText(bearReportInProgress), text_color=reportProgressColor(bearReportInProgress, reportBearColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+        table.cell(tradeReportTable, 1, 10, reportReferenceTimeText(bullReportFirstSignalTime), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+        table.cell(tradeReportTable, 2, 10, reportReferenceTimeText(bearReportFirstSignalTime), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+else if barstate.islast and reportTableStaticInitialized
+    table.clear(tradeReportTable, 0, 0, 2, 10)
+    reportTableStaticInitialized := false
 
 // =========================
 // Optional Plots
