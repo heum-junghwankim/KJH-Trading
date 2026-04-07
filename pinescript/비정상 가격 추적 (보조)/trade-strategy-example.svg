@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="920" viewBox="0 0 1280 920" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1700" height="920" viewBox="0 0 1700 920" role="img" aria-labelledby="title desc">
   <title id="title">비정상 가격 추적 보조 롱숏 전략 예시</title>
   <desc id="desc">cRSI와 MFI 보조지표에서 Bullish H와 Bearish H를 이용해 진입과 청산을 설명하는 가상 차트</desc>
   <defs>
@@ -7,17 +7,17 @@
       <stop offset="100%" stop-color="#f3f8ff"/>
     </linearGradient>
     <style>
-      .title { font: 700 34px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #15263a; }
-      .subtitle { font: 500 17px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #58697b; }
-      .panelTitle { font: 700 24px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #17283b; }
+      .title { font: 700 32px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #15263a; }
+      .subtitle { font: 500 16px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #58697b; }
+      .panelTitle { font: 700 22px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #17283b; }
       .label { font: 700 14px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #2e4b69; letter-spacing: 0.06em; }
-      .body { font: 500 16px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #273a4d; }
-      .small { font: 500 14px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #56687a; }
+      .body { font: 500 15px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #273a4d; }
+      .small { font: 500 13px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #56687a; }
       .axis { font: 500 12px 'Menlo','Consolas',monospace; fill: #68798a; }
     </style>
   </defs>
-  <rect width="1280" height="920" fill="#edf2f7"/>
-  <rect x="24" y="24" width="1232" height="872" rx="28" fill="url(#bg)" stroke="#d6e0ea"/>
+  <rect width="1700" height="920" fill="#edf2f7"/>
+  <rect x="24" y="24" width="1652" height="872" rx="28" fill="url(#bg)" stroke="#d6e0ea"/>
   <text x="60" y="82" class="title">비정상 가격 추적 (보조) · 실전 롱/숏 전략 예시</text>
   <text x="60" y="114" class="subtitle">이 지표는 단독 진입보다 추격 금지와 반대 방향 준비에 강합니다. H는 강한 경고, L은 약한 경고로 씁니다.</text>
 
@@ -62,44 +62,46 @@
   <text x="96" y="748" class="small">3. 위쪽에서 `Bearish H/L` 보이면 롱 매도</text>
   <text x="96" y="770" class="small">4. 신호 봉 저가 이탈이면 무효화</text>
 
-  <rect x="680" y="150" width="540" height="690" rx="26" fill="#fff7df" stroke="#eed38b"/>
-  <text x="716" y="190" class="label">SHORT SETUP</text>
-  <text x="716" y="226" class="panelTitle">노란 배경 + Bearish H 뒤 숏 매도</text>
-  <rect x="716" y="250" width="468" height="204" rx="18" fill="#ffffff" stroke="#d7e3ed"/>
-  <polyline points="746,330 792,312 838,296 884,286 930,300 976,320 1022,350 1068,378 1114,396 1160,410" fill="none" stroke="#f2c94c" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
-  <line x1="760" y1="346" x2="760" y2="292" stroke="#20a36c" stroke-width="6" stroke-linecap="round"/>
-  <rect x="744" y="306" width="32" height="30" rx="6" fill="#20a36c"/>
-  <line x1="808" y1="324" x2="808" y2="266" stroke="#20a36c" stroke-width="6" stroke-linecap="round"/>
-  <rect x="792" y="280" width="32" height="34" rx="6" fill="#20a36c"/>
-  <line x1="856" y1="300" x2="856" y2="236" stroke="#20a36c" stroke-width="6" stroke-linecap="round"/>
-  <rect x="840" y="252" width="32" height="38" rx="6" fill="#20a36c"/>
-  <line x1="904" y1="266" x2="904" y2="356" stroke="#df5c6c" stroke-width="6" stroke-linecap="round"/>
-  <rect x="888" y="282" width="32" height="52" rx="6" fill="#df5c6c"/>
-  <line x1="952" y1="310" x2="952" y2="384" stroke="#df5c6c" stroke-width="6" stroke-linecap="round"/>
-  <rect x="936" y="326" width="32" height="42" rx="6" fill="#df5c6c"/>
-  <line x1="1000" y1="342" x2="1000" y2="416" stroke="#df5c6c" stroke-width="6" stroke-linecap="round"/>
-  <rect x="984" y="358" width="32" height="42" rx="6" fill="#df5c6c"/>
-  <circle cx="856" cy="236" r="18" fill="#dc2626"/>
-  <text x="850" y="243" class="body" fill="#ffffff">H</text>
-  <circle cx="904" cy="282" r="18" fill="#dc2626"/>
-  <text x="898" y="289" class="body" fill="#ffffff">1</text>
-  <circle cx="1070" cy="378" r="18" fill="#16a34a"/>
-  <text x="1064" y="385" class="body" fill="#ffffff">2</text>
+  <g transform="translate(-80 0)">
+    <rect x="680" y="150" width="540" height="690" rx="26" fill="#fff7df" stroke="#eed38b"/>
+    <text x="716" y="190" class="label">SHORT SETUP</text>
+    <text x="716" y="226" class="panelTitle">노란 배경 + Bearish H 뒤 숏 매도</text>
+    <rect x="716" y="250" width="468" height="204" rx="18" fill="#ffffff" stroke="#d7e3ed"/>
+    <polyline points="746,330 792,312 838,296 884,286 930,300 976,320 1022,350 1068,378 1114,396 1160,410" fill="none" stroke="#f2c94c" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    <line x1="760" y1="346" x2="760" y2="292" stroke="#20a36c" stroke-width="6" stroke-linecap="round"/>
+    <rect x="744" y="306" width="32" height="30" rx="6" fill="#20a36c"/>
+    <line x1="808" y1="324" x2="808" y2="266" stroke="#20a36c" stroke-width="6" stroke-linecap="round"/>
+    <rect x="792" y="280" width="32" height="34" rx="6" fill="#20a36c"/>
+    <line x1="856" y1="300" x2="856" y2="236" stroke="#20a36c" stroke-width="6" stroke-linecap="round"/>
+    <rect x="840" y="252" width="32" height="38" rx="6" fill="#20a36c"/>
+    <line x1="904" y1="266" x2="904" y2="356" stroke="#df5c6c" stroke-width="6" stroke-linecap="round"/>
+    <rect x="888" y="282" width="32" height="52" rx="6" fill="#df5c6c"/>
+    <line x1="952" y1="310" x2="952" y2="384" stroke="#df5c6c" stroke-width="6" stroke-linecap="round"/>
+    <rect x="936" y="326" width="32" height="42" rx="6" fill="#df5c6c"/>
+    <line x1="1000" y1="342" x2="1000" y2="416" stroke="#df5c6c" stroke-width="6" stroke-linecap="round"/>
+    <rect x="984" y="358" width="32" height="42" rx="6" fill="#df5c6c"/>
+    <circle cx="856" cy="236" r="18" fill="#dc2626"/>
+    <text x="850" y="243" class="body" fill="#ffffff">H</text>
+    <circle cx="904" cy="282" r="18" fill="#dc2626"/>
+    <text x="898" y="289" class="body" fill="#ffffff">1</text>
+    <circle cx="1070" cy="378" r="18" fill="#16a34a"/>
+    <text x="1064" y="385" class="body" fill="#ffffff">2</text>
 
-  <rect x="716" y="474" width="468" height="168" rx="18" fill="#fffdf4" stroke="#efe1ba"/>
-  <rect x="730" y="486" width="440" height="144" rx="14" fill="#fff5cf"/>
-  <line x1="730" y1="522" x2="1170" y2="522" stroke="#eee1b8"/>
-  <line x1="730" y1="558" x2="1170" y2="558" stroke="#eee1b8"/>
-  <line x1="730" y1="594" x2="1170" y2="594" stroke="#eee1b8"/>
-  <rect x="820" y="488" width="140" height="140" fill="#fff1a6" opacity="0.9"/>
-  <polyline points="742,542 786,530 830,510 874,492 918,500 962,516 1006,536 1050,556 1094,574 1138,592" fill="none" stroke="#f2cf3a" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-  <polyline points="742,574 786,580 830,568 874,550 918,546 962,552 1006,564 1050,578 1094,588 1138,598" fill="none" stroke="#3b82f6" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-  <rect x="852" y="500" width="78" height="28" rx="14" fill="#ffe7aa" stroke="#e7c75a"/>
-  <text x="864" y="518" class="small">Bearish H</text>
+    <rect x="716" y="474" width="468" height="168" rx="18" fill="#fffdf4" stroke="#efe1ba"/>
+    <rect x="730" y="486" width="440" height="144" rx="14" fill="#fff5cf"/>
+    <line x1="730" y1="522" x2="1170" y2="522" stroke="#eee1b8"/>
+    <line x1="730" y1="558" x2="1170" y2="558" stroke="#eee1b8"/>
+    <line x1="730" y1="594" x2="1170" y2="594" stroke="#eee1b8"/>
+    <rect x="820" y="488" width="140" height="140" fill="#fff1a6" opacity="0.9"/>
+    <polyline points="742,542 786,530 830,510 874,492 918,500 962,516 1006,536 1050,556 1094,574 1138,592" fill="none" stroke="#f2cf3a" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <polyline points="742,574 786,580 830,568 874,550 918,546 962,552 1006,564 1050,578 1094,588 1138,598" fill="none" stroke="#3b82f6" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="852" y="500" width="78" height="28" rx="14" fill="#ffe7aa" stroke="#e7c75a"/>
+    <text x="864" y="518" class="small">Bearish H</text>
 
-  <text x="716" y="676" class="body">숏 전략</text>
-  <text x="716" y="704" class="small">1. 가격 고점 스윕 + `노란 배경` 확인</text>
-  <text x="716" y="726" class="small">2. `Bearish H` 뒤 확인 봉에서 숏 매도</text>
-  <text x="716" y="748" class="small">3. 아래에서 `Bullish H/L` 보이면 숏 매수</text>
-  <text x="716" y="770" class="small">4. 신호 봉 고가 회복이면 무효화</text>
+    <text x="716" y="676" class="body">숏 전략</text>
+    <text x="716" y="704" class="small">1. 가격 고점 스윕 + `노란 배경` 확인</text>
+    <text x="716" y="726" class="small">2. `Bearish H` 뒤 확인 봉에서 숏 매도</text>
+    <text x="716" y="748" class="small">3. 아래에서 `Bullish H/L` 보이면 숏 매수</text>
+    <text x="716" y="770" class="small">4. 신호 봉 고가 회복이면 무효화</text>
+  </g>
 </svg>

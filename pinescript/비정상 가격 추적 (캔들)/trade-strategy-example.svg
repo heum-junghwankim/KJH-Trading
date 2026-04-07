@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1180" viewBox="0 0 1200 1180" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1180" viewBox="0 0 1500 1180" role="img" aria-labelledby="title desc">
   <title id="title">비정상 가격 추적 캔들 실전 운용 흐름</title>
   <desc id="desc">비정상 가격 추적 캔들의 롱과 숏 운용 흐름, 스윕 확인, 후보 남발 방지 필터를 정리한 이미지</desc>
   <defs>
@@ -7,19 +7,19 @@
       <stop offset="100%" stop-color="#fff8ef"/>
     </linearGradient>
     <style>
-      .title { font: 700 34px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #16263a; }
-      .subtitle { font: 500 17px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #5c6d7d; }
+      .title { font: 700 32px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #16263a; }
+      .subtitle { font: 500 16px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #5c6d7d; }
       .section { font: 700 14px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #49627a; letter-spacing: 0.08em; }
-      .panelTitle { font: 700 24px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #17283b; }
-      .body { font: 500 16px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #283a4d; }
-      .small { font: 500 14px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #5a6c7d; }
-      .tiny { font: 600 13px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #607182; }
+      .panelTitle { font: 700 22px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #17283b; }
+      .body { font: 500 15px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #283a4d; }
+      .small { font: 500 13px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #5a6c7d; }
+      .tiny { font: 600 12px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #607182; }
       .center { text-anchor: middle; }
     </style>
   </defs>
 
-  <rect width="1200" height="1180" fill="#eef2f7"/>
-  <rect x="24" y="24" width="1152" height="1132" rx="28" fill="url(#bg)" stroke="#d7e0ea"/>
+  <rect width="1500" height="1180" fill="#eef2f7"/>
+  <rect x="24" y="24" width="1452" height="1132" rx="28" fill="url(#bg)" stroke="#d7e0ea"/>
 
   <text x="60" y="86" class="title">비정상 가격 추적 (캔들) · 실전 운용 흐름</text>
   <text x="60" y="118" class="subtitle">롱과 숏은 같은 구조를 반대로 읽습니다. 핵심은 `자리 -> 감시 -> 진입 후보 -> 스윕`, 그리고 리포트 `포지션` 확인입니다.</text>

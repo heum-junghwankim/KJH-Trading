@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
   <title id="title">MACD 다이버전스 추적 세력 관점 다이어그램</title>
   <desc id="desc">초록 다이버전스, 빨강 다이버전스, 튐 방지 필터를 MACD 다이버전스 추적 지표 기준으로 요약한 이미지</desc>
   <defs>
@@ -19,21 +19,21 @@
       <stop offset="100%" stop-color="#eef6ff"/>
     </linearGradient>
     <style>
-      .title { font: 700 34px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #122033; }
-      .subtitle { font: 500 17px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #51606f; }
-      .cardTitle { font: 700 24px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #16263a; }
+      .title { font: 700 32px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #122033; }
+      .subtitle { font: 500 16px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #51606f; }
+      .cardTitle { font: 700 22px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #16263a; }
       .sectionLabel { font: 700 15px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #21405b; letter-spacing: 0.08em; }
-      .body { font: 500 16px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #243648; }
-      .small { font: 500 14px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #4c5d6d; }
+      .body { font: 500 15px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #243648; }
+      .small { font: 500 13px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #4c5d6d; }
       .mono { font: 700 15px 'Menlo','Consolas',monospace; fill: #0f4a35; }
       .monoBear { font: 700 15px 'Menlo','Consolas',monospace; fill: #7d2430; }
-      .note { font: 700 15px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #53411c; }
+      .note { font: 700 14px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #53411c; }
       .axis { font: 500 12px 'Menlo','Consolas',monospace; fill: #67788a; }
     </style>
   </defs>
 
-  <rect width="1200" height="900" fill="#edf2f7"/>
-  <rect x="24" y="24" width="1152" height="852" rx="28" fill="url(#bg)" stroke="#d7e0ea"/>
+  <rect width="1600" height="900" fill="#edf2f7"/>
+  <rect x="24" y="24" width="1552" height="852" rx="28" fill="url(#bg)" stroke="#d7e0ea"/>
 
   <text x="60" y="82" class="title">MACD 다이버전스 추적 · 세력 관점</text>
   <text x="60" y="114" class="subtitle">가격 이평 기울기와 MACD 방향이 어긋날 때, 내부 모멘텀과 표면 가격의 괴리를 먼저 읽는 방식입니다</text>
@@ -61,28 +61,30 @@
   <text x="318" y="388" class="small">눌림 후 재상승, 고점 재시험</text>
   <text x="318" y="410" class="small">초록 막대 지속 시 추세 재개 가능성 증가</text>
 
-  <rect x="640" y="150" width="500" height="300" rx="24" fill="url(#bearFill)" stroke="#efc0c5"/>
-  <text x="672" y="190" class="sectionLabel">BEARISH DIVERGENCE</text>
-  <text x="672" y="224" class="cardTitle">빨강 다이버전스 구간</text>
-  <rect x="672" y="246" width="196" height="168" rx="18" fill="#ffffff" opacity="0.82" stroke="#f0d3d6"/>
-  <text x="692" y="274" class="monoBear">MACD &lt; Signal</text>
-  <text x="692" y="296" class="monoBear">Price MA slope ↑</text>
-  <line x1="692" y1="356" x2="846" y2="356" stroke="#f1e3e6"/>
-  <line x1="692" y1="326" x2="846" y2="326" stroke="#f1e3e6"/>
-  <polyline points="692,344 722,336 752,340 782,326 812,330 842,320" fill="none" stroke="#2563eb" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
-  <polyline points="692,306 722,314 752,322 782,330 812,338 842,346" fill="none" stroke="#dc2626" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
-  <rect x="704" y="336" width="16" height="24" rx="5" fill="#ff1744"/>
-  <rect x="732" y="332" width="16" height="28" rx="5" fill="#c62828"/>
-  <rect x="760" y="326" width="16" height="34" rx="5" fill="#ff1744"/>
-  <rect x="788" y="320" width="16" height="40" rx="5" fill="#c62828"/>
-  <rect x="816" y="312" width="16" height="48" rx="5" fill="#ff1744"/>
-  <circle cx="782" cy="330" r="7" fill="#dc2626"/>
-  <text x="898" y="274" class="body">세력 해석</text>
-  <text x="898" y="302" class="small">표면 반등은 나오지만 내부 모멘텀이</text>
-  <text x="898" y="324" class="small">약해 반등 매도 구간이 될 수 있음</text>
-  <text x="898" y="360" class="body">예상 움직임</text>
-  <text x="898" y="388" class="small">짧은 반등 후 재하락, 저점 재시험</text>
-  <text x="898" y="410" class="small">빨강 막대 지속 시 약세 재개 가능성 증가</text>
+  <g transform="translate(-80 0)">
+    <rect x="640" y="150" width="500" height="300" rx="24" fill="url(#bearFill)" stroke="#efc0c5"/>
+    <text x="672" y="190" class="sectionLabel">BEARISH DIVERGENCE</text>
+    <text x="672" y="224" class="cardTitle">빨강 다이버전스 구간</text>
+    <rect x="672" y="246" width="196" height="168" rx="18" fill="#ffffff" opacity="0.82" stroke="#f0d3d6"/>
+    <text x="692" y="274" class="monoBear">MACD &lt; Signal</text>
+    <text x="692" y="296" class="monoBear">Price MA slope ↑</text>
+    <line x1="692" y1="356" x2="846" y2="356" stroke="#f1e3e6"/>
+    <line x1="692" y1="326" x2="846" y2="326" stroke="#f1e3e6"/>
+    <polyline points="692,344 722,336 752,340 782,326 812,330 842,320" fill="none" stroke="#2563eb" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <polyline points="692,306 722,314 752,322 782,330 812,338 842,346" fill="none" stroke="#dc2626" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="704" y="336" width="16" height="24" rx="5" fill="#ff1744"/>
+    <rect x="732" y="332" width="16" height="28" rx="5" fill="#c62828"/>
+    <rect x="760" y="326" width="16" height="34" rx="5" fill="#ff1744"/>
+    <rect x="788" y="320" width="16" height="40" rx="5" fill="#c62828"/>
+    <rect x="816" y="312" width="16" height="48" rx="5" fill="#ff1744"/>
+    <circle cx="782" cy="330" r="7" fill="#dc2626"/>
+    <text x="898" y="274" class="body">세력 해석</text>
+    <text x="898" y="302" class="small">표면 반등은 나오지만 내부 모멘텀이</text>
+    <text x="898" y="324" class="small">약해 반등 매도 구간이 될 수 있음</text>
+    <text x="898" y="360" class="body">예상 움직임</text>
+    <text x="898" y="388" class="small">짧은 반등 후 재하락, 저점 재시험</text>
+    <text x="898" y="410" class="small">빨강 막대 지속 시 약세 재개 가능성 증가</text>
+  </g>
 
   <rect x="60" y="490" width="1080" height="280" rx="26" fill="url(#midFill)" stroke="#d8d6f4"/>
   <text x="94" y="530" class="sectionLabel">NOISE CONTROL</text>
@@ -98,10 +100,12 @@
   <text x="468" y="662" class="small">이평 변화폭이 너무 작으면</text>
   <text x="468" y="684" class="small">실질 변화로 인정하지 않음</text>
 
-  <rect x="794" y="598" width="312" height="112" rx="20" fill="#ffffff" stroke="#cfd9e7"/>
-  <text x="818" y="634" class="body">3. 해석 우선순위</text>
-  <text x="818" y="662" class="small">원은 타이밍, 색은 조건,</text>
-  <text x="818" y="684" class="small">선 관계는 방향으로 분리해서 해석</text>
+  <g transform="translate(-80 0)">
+    <rect x="794" y="598" width="312" height="112" rx="20" fill="#ffffff" stroke="#cfd9e7"/>
+    <text x="818" y="634" class="body">3. 해석 우선순위</text>
+    <text x="818" y="662" class="small">원은 타이밍, 색은 조건,</text>
+    <text x="818" y="684" class="small">선 관계는 방향으로 분리해서 해석</text>
+  </g>
 
   <text x="94" y="744" class="note">핵심: 한 봉짜리 흔들림보다, 다이버전스 색이 몇 봉 유지되는지와 MACD/Signal 관계를 함께 봐야 합니다</text>
 </svg>
