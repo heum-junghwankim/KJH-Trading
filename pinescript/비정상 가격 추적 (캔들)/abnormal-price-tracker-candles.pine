@@ -175,6 +175,9 @@ reportTimeZoneInput = input.string("Asia/Seoul", title="리포트 시간 표시 
 
 performanceGroup = "성능 / 반응 속도"
 useFastCRSIBands = input.bool(true, title="빠른 cRSI 밴드 계산 사용", group=performanceGroup)
+useLightweightRendering = input.bool(true, title="경량 렌더링 모드", group=performanceGroup)
+lightweightMaxObjects = input.int(4, minval=1, maxval=50, title="경량 모드 최대 박스 수", group=performanceGroup)
+lightweightMaxExtendBars = input.int(18, minval=5, maxval=100, title="경량 모드 최대 박스 길이", group=performanceGroup)
 
 donchian(len) =>
     math.avg(ta.lowest(len), ta.highest(len))
@@ -264,14 +267,16 @@ reportPositionColor(positionCode, activeColor, neutralColor) =>
     positionCode == 4 ? activeColor : positionCode == 3 ? color.new(activeColor, 0) : positionCode == 2 ? color.new(activeColor, 15) : positionCode == 1 ? color.new(activeColor, 35) : neutralColor
 
 reportPositionScoreGuideText(minScore, strongScore) =>
-    if strongScore <= minScore
-        str.tostring(minScore) + "점 미만 관찰 / " + str.tostring(minScore) + "점 이상 진입"
-    else
-        str.tostring(minScore) + "점 미만 관찰 / " + str.tostring(minScore) + "~" + str.tostring(strongScore - 1) + "점 후보 / " + str.tostring(strongScore) + "점 이상 진입"
+    "1~4점 약함 / 5~8점 누적 / 9~12점 우세 / 13~16점 과열"
+
+effectiveKeepHistoricalBoxes = keepHistoricalBoxes and not useLightweightRendering
+effectiveReferenceMaxObjects = useLightweightRendering ? math.min(referenceMaxObjects, lightweightMaxObjects) : referenceMaxObjects
+effectiveDivergenceMaxObjects = useLightweightRendering ? math.min(divergenceMaxObjects, lightweightMaxObjects) : divergenceMaxObjects
+effectiveReferenceExtendBars = useLightweightRendering ? math.min(referenceExtendBars, lightweightMaxExtendBars) : referenceExtendBars
+effectiveDivergenceExtendBars = useLightweightRendering ? math.min(divergenceExtendBars, lightweightMaxExtendBars) : divergenceExtendBars
 
 reportTimeText(signalTime) =>
-    formattedTimeZone = reportTimeZoneInput == "" ? "Asia/Seoul" : reportTimeZoneInput
-    na(signalTime) ? "OFF" : str.format_time(signalTime, "yy-MM-dd HH:mm", formattedTimeZone)
+    na(signalTime) ? "OFF" : str.format_time(signalTime, "yy-MM-dd HH:mm", reportTimeZoneInput == "" ? "Asia/Seoul" : reportTimeZoneInput)
 
 reportEndTimeText(startTime, endTime, isTrackingActive) =>
     if na(startTime)
@@ -362,14 +367,14 @@ var float[] bearSweepZoneBottoms = array.new_float()
 var int[] bearSweepZoneRights = array.new_int()
 
 trimBullSweepZones() =>
-    maxZones = keepHistoricalBoxes ? 500 : referenceMaxObjects + divergenceMaxObjects
+    maxZones = effectiveKeepHistoricalBoxes ? 500 : effectiveReferenceMaxObjects + effectiveDivergenceMaxObjects
     while array.size(bullSweepZoneTops) > maxZones
         array.shift(bullSweepZoneTops)
         array.shift(bullSweepZoneBottoms)
         array.shift(bullSweepZoneRights)
 
 trimBearSweepZones() =>
-    maxZones = keepHistoricalBoxes ? 500 : referenceMaxObjects + divergenceMaxObjects
+    maxZones = effectiveKeepHistoricalBoxes ? 500 : effectiveReferenceMaxObjects + effectiveDivergenceMaxObjects
     while array.size(bearSweepZoneTops) > maxZones
         array.shift(bearSweepZoneTops)
         array.shift(bearSweepZoneBottoms)
@@ -398,13 +403,13 @@ removeBearSweepZone(index) =>
     array.remove(bearSweepZoneRights, index)
 
 trimReferenceObjects() =>
-    maxVisibleBoxes = keepHistoricalBoxes ? math.max(1, 500 - array.size(divergenceBoxes)) : referenceMaxObjects
+    maxVisibleBoxes = effectiveKeepHistoricalBoxes ? math.max(1, 500 - array.size(divergenceBoxes)) : effectiveReferenceMaxObjects
     while array.size(referenceBoxes) > maxVisibleBoxes
         oldBox = array.shift(referenceBoxes)
         box.delete(oldBox)
 
 trimDivergenceObjects() =>
-    maxVisibleBoxes = keepHistoricalBoxes ? math.max(1, 500 - array.size(referenceBoxes)) : divergenceMaxObjects
+    maxVisibleBoxes = effectiveKeepHistoricalBoxes ? math.max(1, 500 - array.size(referenceBoxes)) : effectiveDivergenceMaxObjects
     while array.size(divergenceBoxes) > maxVisibleBoxes
         oldBox = array.shift(divergenceBoxes)
         box.delete(oldBox)
@@ -578,7 +583,7 @@ if barstate.isconfirmed and regularBullDiv and showDivergenceCandleZone
     bullDivReferenceIndex = bar_index - lbR
     bullDivReferenceTop = bullDivBoxTop(lbR)
     bullDivReferenceBottom = bullDivBoxBottom(lbR)
-    bullDivReferenceRight = bullDivReferenceIndex + divergenceExtendBars
+    bullDivReferenceRight = bullDivReferenceIndex + effectiveDivergenceExtendBars
     bullDivReferenceBox = box.new(bullDivReferenceIndex, bullDivReferenceTop, bullDivReferenceRight, bullDivReferenceBottom, xloc=xloc.bar_index, bgcolor=divergenceBullZoneColor, border_color=color.new(divergenceBullZoneColor, 0))
     array.push(divergenceBoxes, bullDivReferenceBox)
     trimDivergenceObjects()
@@ -587,7 +592,7 @@ if barstate.isconfirmed and regularBearDiv and showDivergenceCandleZone
     bearDivReferenceIndex = bar_index - lbR
     bearDivReferenceTop = bearDivBoxTop(lbR)
     bearDivReferenceBottom = bearDivBoxBottom(lbR)
-    bearDivReferenceRight = bearDivReferenceIndex + divergenceExtendBars
+    bearDivReferenceRight = bearDivReferenceIndex + effectiveDivergenceExtendBars
     bearDivReferenceBox = box.new(bearDivReferenceIndex, bearDivReferenceTop, bearDivReferenceRight, bearDivReferenceBottom, xloc=xloc.bar_index, bgcolor=divergenceBearZoneColor, border_color=color.new(divergenceBearZoneColor, 0))
     array.push(divergenceBoxes, bearDivReferenceBox)
     trimDivergenceObjects()
@@ -978,7 +983,7 @@ confirmedShortSignal = barstate.isconfirmed and displayShortSignal
 if confirmedLongSignal and showReferenceCandleZone
     longReferenceTop = bullSignalBoxTop(0)
     longReferenceBottom = bullSignalBoxBottom(0)
-    longReferenceRight = bar_index + referenceExtendBars
+    longReferenceRight = bar_index + effectiveReferenceExtendBars
     longReferenceBox = box.new(bar_index, longReferenceTop, longReferenceRight, longReferenceBottom, xloc=xloc.bar_index, bgcolor=referenceBullZoneColor, border_color=strongLongSignalColor)
     array.push(referenceBoxes, longReferenceBox)
     addBullSweepZone(longReferenceTop, longReferenceBottom, longReferenceRight)
@@ -987,7 +992,7 @@ if confirmedLongSignal and showReferenceCandleZone
 if confirmedShortSignal and showReferenceCandleZone
     shortReferenceTop = bearSignalBoxTop(0)
     shortReferenceBottom = bearSignalBoxBottom(0)
-    shortReferenceRight = bar_index + referenceExtendBars
+    shortReferenceRight = bar_index + effectiveReferenceExtendBars
     shortReferenceBox = box.new(bar_index, shortReferenceTop, shortReferenceRight, shortReferenceBottom, xloc=xloc.bar_index, bgcolor=referenceBearZoneColor, border_color=strongShortSignalColor)
     array.push(referenceBoxes, shortReferenceBox)
     addBearSweepZone(shortReferenceTop, shortReferenceBottom, shortReferenceRight)
@@ -1037,7 +1042,7 @@ if showLiquiditySweepSignals and confirmedBullSweepFollowThrough and showReferen
     bullSweepReferenceIndex = bar_index
     bullSweepReferenceTop = bullSignalBoxTop(0)
     bullSweepReferenceBottom = bullSignalBoxBottom(0)
-    bullSweepReferenceRight = bullSweepReferenceIndex + referenceExtendBars
+    bullSweepReferenceRight = bullSweepReferenceIndex + effectiveReferenceExtendBars
     bullSweepReferenceBox = box.new(bullSweepReferenceIndex, bullSweepReferenceTop, bullSweepReferenceRight, bullSweepReferenceBottom, xloc=xloc.bar_index, bgcolor=sweepBullZoneColor, border_color=bullSweepSignalColor)
     array.push(referenceBoxes, bullSweepReferenceBox)
     trimReferenceObjects()
@@ -1046,7 +1051,7 @@ if showLiquiditySweepSignals and confirmedBearSweepFollowThrough and showReferen
     bearSweepReferenceIndex = bar_index
     bearSweepReferenceTop = bearSignalBoxTop(0)
     bearSweepReferenceBottom = bearSignalBoxBottom(0)
-    bearSweepReferenceRight = bearSweepReferenceIndex + referenceExtendBars
+    bearSweepReferenceRight = bearSweepReferenceIndex + effectiveReferenceExtendBars
     bearSweepReferenceBox = box.new(bearSweepReferenceIndex, bearSweepReferenceTop, bearSweepReferenceRight, bearSweepReferenceBottom, xloc=xloc.bar_index, bgcolor=sweepBearZoneColor, border_color=bearSweepSignalColor)
     array.push(referenceBoxes, bearSweepReferenceBox)
     trimReferenceObjects()
@@ -1217,7 +1222,7 @@ reportBearHeaderBgColor = color.new(reportBearColor, math.max(reportBackgroundTr
 reportTextSize = tableTextSize(reportTextSizeInput)
 reportHeaderText = "시그널"
 var bool reportTableStaticInitialized = false
-reportTableRefresh = barstate.islast and (barstate.isnew or barstate.isconfirmed or not reportTableStaticInitialized)
+reportTableRefresh = showTradeReport and barstate.islast and (barstate.isnew or barstate.isconfirmed or not reportTableStaticInitialized)
 
 if showTradeReport
     if reportTableRefresh
