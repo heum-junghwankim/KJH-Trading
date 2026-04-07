@@ -267,7 +267,7 @@ reportPositionColor(positionCode, activeColor, neutralColor) =>
     positionCode == 4 ? activeColor : positionCode == 3 ? color.new(activeColor, 0) : positionCode == 2 ? color.new(activeColor, 15) : positionCode == 1 ? color.new(activeColor, 35) : neutralColor
 
 reportPositionScoreGuideText(minScore, strongScore) =>
-    "1~4점 약함 / 5~8점 누적 / 9~12점 우세 / 13~16점 과열"
+    "1~4점 약 / 5~7점 형성 / 8~9점 기준 / 10점+ 강화"
 
 effectiveKeepHistoricalBoxes = keepHistoricalBoxes and not useLightweightRendering
 effectiveReferenceMaxObjects = useLightweightRendering ? math.min(referenceMaxObjects, lightweightMaxObjects) : referenceMaxObjects
