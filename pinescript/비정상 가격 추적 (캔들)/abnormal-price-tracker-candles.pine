@@ -106,11 +106,11 @@ helperMinStrength = input.int(1, minval=1, maxval=3, title="보조 최소 강도
 // L/S Signal Inputs
 // =========================
 lsSignalGroup = "L/S 진입 신호"
-showStrongLSSignals = input.bool(true, title="롱/숏 진입 후보 표시", group=lsSignalGroup)
+showStrongLSSignals = input.bool(true, title="롱/숏 기준 봉 표시", group=lsSignalGroup)
 showLiquiditySweepSignals = input.bool(true, title="유동성 스윕 봉 색상 표시", group=lsSignalGroup)
 lsSetupLookback = input.int(12, minval=1, title="세팅 유효 봉 수", group=lsSignalGroup)
 lsMinScore = input.int(8, minval=1, maxval=15, title="최소 진입 점수", group=lsSignalGroup)
-lsStrongScore = input.int(10, minval=1, maxval=15, title="진입 후보 점수", group=lsSignalGroup)
+lsStrongScore = input.int(10, minval=1, maxval=15, title="점수 강화 기준", group=lsSignalGroup)
 lsCooldownBars = input.int(8, minval=0, title="동일 방향 신호 쿨다운", group=lsSignalGroup)
 lsRequireVolumeConfirm = input.bool(false, title="거래량 확인 필수", group=lsSignalGroup)
 lsRequireOrderVolumeAvg = input.bool(true, title="총 거래량 MA 미만 신호 차단", group=lsSignalGroup)
@@ -138,8 +138,8 @@ lsSweepConfirmVolumeRatio = input.float(0.5, minval=0.0, step=0.05, title="스�
 lsUseTrendExtensionFilter = input.bool(true, title="강한 추세 연장 추가 진입 차단", group=lsSignalGroup)
 
 visualGroup = "시각화"
-strongLongSignalColorInput = input.color(color.rgb(0, 95, 0), title="롱 진입 후보 동그라미 색상", group=visualGroup)
-strongShortSignalColorInput = input.color(color.rgb(150, 0, 0), title="숏 진입 후보 동그라미 색상", group=visualGroup)
+strongLongSignalColorInput = input.color(color.rgb(0, 95, 0), title="롱 기준 봉 동그라미 색상", group=visualGroup)
+strongShortSignalColorInput = input.color(color.rgb(150, 0, 0), title="숏 기준 봉 동그라미 색상", group=visualGroup)
 bullSweepSignalColorInput = input.color(color.rgb(0, 255, 0), title="강세 스윕 다이아몬드/봉 색상", group=visualGroup)
 bearSweepSignalColorInput = input.color(color.rgb(255, 0, 0), title="약세 스윕 다이아몬드/봉 색상", group=visualGroup)
 divergenceBullMarkerColor = input.color(color.rgb(55, 145, 155), title="강세 다이버전스 삼각형 색상", group=visualGroup)
@@ -166,12 +166,14 @@ reportPositionInput = input.string("우측 상단", title="리포트 표시 위�
 reportTextSizeInput = input.string("작게", title="리포트 글자 크기", options=["아주 작게", "작게", "보통"], group=reportGroup)
 reportHeaderColor = input.color(color.rgb(41, 54, 82), title="리포트 헤더 배경색", group=reportGroup)
 reportLabelBgColor = input.color(color.rgb(34, 46, 68), title="리포트 항목 배경색", group=reportGroup)
-reportFieldBgColor = input.color(color.black, title="리포트 일반 배경색", group=reportGroup)
+reportFieldBgColor = input.color(color.rgb(18, 24, 38), title="리포트 일반 배경색", group=reportGroup)
 reportBackgroundTransparency = input.int(78, minval=0, maxval=100, title="리포트 배경 투명도", group=reportGroup)
-reportBullColor = input.color(color.rgb(0, 170, 90), title="리포트 롱 강조 색상", group=reportGroup)
-reportBearColor = input.color(color.rgb(210, 70, 70), title="리포트 숏 강조 색상", group=reportGroup)
-reportNeutralColor = input.color(color.silver, title="리포트 중립 색상", group=reportGroup)
+reportBullColor = input.color(color.rgb(120, 238, 178), title="리포트 롱 강조 색상", group=reportGroup)
+reportBearColor = input.color(color.rgb(255, 150, 150), title="리포트 숏 강조 색상", group=reportGroup)
+reportNeutralColor = input.color(color.rgb(223, 227, 235), title="리포트 중립 색상", group=reportGroup)
 reportTimeZoneInput = input.string("Asia/Seoul", title="리포트 시간 표시 시간대", tooltip="차트 시간대는 Pine에서 직접 읽을 수 없습니다. 기본값은 KST(Asia/Seoul)입니다. 차트와 같은 현지시간으로 보려면 IANA 시간대(예: Asia/Seoul) 또는 UTC 표기(예: UTC+9)를 입력하세요.", group=reportGroup)
+reportBoxContainmentModeInput = input.string("윅 포함", title="포지션 박스 유지 판정", options=["윅 포함", "몸통만", "종가만"], group=reportGroup)
+reportBoxToleranceTicks = input.int(0, minval=0, title="포지션 박스 허용 틱 수", tooltip="박스 상단/하단에 허용할 최소 틱 여유입니다. 0이면 여유 없이 판정합니다.", group=reportGroup)
 
 performanceGroup = "성능 / 반응 속도"
 useFastCRSIBands = input.bool(true, title="빠른 cRSI 밴드 계산 사용", group=performanceGroup)
@@ -227,6 +229,47 @@ tableTextSize(sizeInput) =>
         "보통" => size.normal
         => size.small
 
+reportStateOff = 0
+reportStateWatch = 1
+reportStateReference = 2
+reportStateCandidate = 3
+reportStateSweep = 4
+
+reportBoxTolerancePrice() =>
+    reportBoxToleranceTicks * syminfo.mintick
+
+boxContainsBar(boxTop, boxBottom, boxRight) =>
+    tolerancePrice = reportBoxTolerancePrice()
+    upperBound = boxTop + tolerancePrice
+    lowerBound = boxBottom - tolerancePrice
+    bodyTop = math.max(open, close)
+    bodyBottom = math.min(open, close)
+    not na(boxTop) and not na(boxBottom) and not na(boxRight) and bar_index <= boxRight and (reportBoxContainmentModeInput == "몸통만" ? bodyTop <= upperBound and bodyBottom >= lowerBound : reportBoxContainmentModeInput == "종가만" ? close <= upperBound and close >= lowerBound : high <= upperBound and low >= lowerBound)
+
+boxExitReason(boxLabel, boxTop, boxBottom, boxRight) =>
+    if na(boxTop) or na(boxBottom) or na(boxRight)
+        ""
+    else if bar_index > boxRight
+        boxLabel + " 만료"
+    else
+        tolerancePrice = reportBoxTolerancePrice()
+        upperBound = boxTop + tolerancePrice
+        lowerBound = boxBottom - tolerancePrice
+        bodyTop = math.max(open, close)
+        bodyBottom = math.min(open, close)
+        if reportBoxContainmentModeInput == "몸통만"
+            bodyTop > upperBound or bodyBottom < lowerBound ? boxLabel + " 이탈" : ""
+        else if reportBoxContainmentModeInput == "종가만"
+            close > upperBound or close < lowerBound ? boxLabel + " 이탈" : ""
+        else
+            high > upperBound or low < lowerBound ? boxLabel + " 이탈" : ""
+
+reportWatchReason(startEvent, holdEvent, hintEvent, watchEvent, watchStrongEvent, fallbackReason) =>
+    watchStrongEvent ? "ATR 강화" : watchEvent ? "ATR 배경" : hintEvent ? "다이버전스" : holdEvent ? "비정상 유지" : startEvent ? "비정상 시작" : fallbackReason
+
+reportStateReason(state, triggerReason, fallbackReason) =>
+    state == reportStateSweep ? (triggerReason == "" ? "스윕 박스" : triggerReason) : state == reportStateCandidate ? (triggerReason == "" ? "기준 박스" : triggerReason) : state == reportStateReference ? (triggerReason == "" ? "기준 봉" : triggerReason) : state == reportStateWatch ? (triggerReason == "" ? fallbackReason : triggerReason) : (triggerReason == "" ? "OFF" : triggerReason)
+
 reportStatusText(signalCount) =>
     signalCount > 0 ? "ON(" + str.tostring(signalCount) + ")" : "OFF"
 
@@ -241,33 +284,48 @@ strongBgPullbackBonus(streak) =>
     adjustedBonus = streak > holdEndStreak ? peakBonus - (streak - holdEndStreak) * lsStrongBgPullbackPenaltyScore : peakBonus
     math.max(math.min(adjustedBonus, lsStrongBgPullbackMaxBonusScore), 0)
 
-reportPositionCode(firstSignalClose, trackingActive, candidateReady, strongReady, confirmCount) =>
-    if na(firstSignalClose) or not trackingActive
-        0
-    else if confirmCount > 0
-        4
-    else if strongReady
-        3
+reportPositionCode(trackingActive, referenceReady, candidateReady, sweepReady) =>
+    if not trackingActive
+        reportStateOff
+    else if sweepReady
+        reportStateSweep
     else if candidateReady
-        2
+        reportStateCandidate
+    else if referenceReady
+        reportStateReference
     else
-        1
+        reportStateWatch
 
 reportPositionLabel(positionCode) =>
-    positionCode == 4 ? "스윕" : positionCode == 3 ? "진입" : positionCode == 2 ? "후보" : positionCode == 1 ? "관찰" : "OFF"
+    positionCode == reportStateSweep ? "스윕" : positionCode == reportStateCandidate ? "후보" : positionCode == reportStateReference ? "기준" : positionCode == reportStateWatch ? "관찰" : "OFF"
 
-reportPositionText(firstSignalClose, positionCode, score) =>
+reportPositionText(positionCode, score) =>
     positionLabel = reportPositionLabel(positionCode)
-    if na(firstSignalClose) or positionCode <= 0 or na(score)
+    if positionCode <= 0 or na(score)
         positionLabel
     else
         positionLabel + " (" + str.tostring(math.round(score)) + ")"
 
-reportPositionColor(positionCode, activeColor, neutralColor) =>
-    positionCode == 4 ? activeColor : positionCode == 3 ? color.new(activeColor, 0) : positionCode == 2 ? color.new(activeColor, 15) : positionCode == 1 ? color.new(activeColor, 35) : neutralColor
+reportPositionDisplayScore(positionCode, score, lastCandidateScore, lastSweepScore) =>
+    if positionCode == reportStateSweep and not na(lastSweepScore)
+        na(score) ? lastSweepScore : math.max(score, lastSweepScore)
+    else if (positionCode == reportStateReference or positionCode == reportStateCandidate) and not na(lastCandidateScore)
+        na(score) ? lastCandidateScore : math.max(score, lastCandidateScore)
+    else
+        score
 
-reportPositionScoreGuideText(minScore, strongScore) =>
-    "1~4점 약 / 5~7점 형성 / 8~9점 기준 / 10점+ 강화"
+reportPositionColor(positionCode, activeColor, neutralColor) =>
+    positionCode == reportStateSweep ? activeColor : positionCode == reportStateCandidate ? color.new(activeColor, 0) : positionCode == reportStateReference ? color.new(activeColor, 15) : positionCode == reportStateWatch ? color.new(activeColor, 35) : neutralColor
+
+reportPositionScoreGuideText() =>
+    weakEnd = math.max(lsMinScore - 4, 1)
+    formingStart = weakEnd + 1
+    formingEnd = math.max(lsMinScore - 1, formingStart)
+    strongStart = math.max(lsStrongScore, lsMinScore)
+    referenceStart = lsMinScore
+    referenceEnd = math.max(strongStart - 1, referenceStart)
+    referenceText = referenceStart == referenceEnd ? str.tostring(referenceStart) + "점 기준" : str.tostring(referenceStart) + "~" + str.tostring(referenceEnd) + "점 기준"
+    "1~" + str.tostring(weakEnd) + "점 약 / " + str.tostring(formingStart) + "~" + str.tostring(formingEnd) + "점 형성 / " + referenceText + " / " + str.tostring(strongStart) + "점+ 강화"
 
 effectiveKeepHistoricalBoxes = keepHistoricalBoxes and not useLightweightRendering
 effectiveReferenceMaxObjects = useLightweightRendering ? math.min(referenceMaxObjects, lightweightMaxObjects) : referenceMaxObjects
@@ -286,44 +344,6 @@ reportEndTimeText(startTime, endTime, isTrackingActive) =>
     else
         na(endTime) ? "OFF" : reportTimeText(endTime)
 
-reportSignedPctText(value) =>
-    roundedValue = math.round(value * 10.0) / 10.0
-    absRoundedValue = math.abs(roundedValue)
-    roundedText = str.tostring(absRoundedValue, "0.0")
-    roundedValue > 0 ? "+" + roundedText + "%" : roundedValue < 0 ? "-" + roundedText + "%" : "0.0%"
-
-reportFavorablePct(startClose, trackedHigh, trackedLow, isBullish) =>
-    if na(startClose) or na(trackedHigh) or na(trackedLow) or startClose == 0
-        na
-    else
-        isBullish ? math.max((trackedHigh - startClose) / startClose * 100.0, 0.0) : math.max((startClose - trackedLow) / startClose * 100.0, 0.0)
-
-reportAdversePct(startClose, trackedHigh, trackedLow, isBullish) =>
-    if na(startClose) or na(trackedHigh) or na(trackedLow) or startClose == 0
-        na
-    else
-        isBullish ? math.min((trackedLow - startClose) / startClose * 100.0, 0.0) : math.min((startClose - trackedHigh) / startClose * 100.0, 0.0)
-
-reportCloseChangeText(startClose, endClose) =>
-    if na(startClose) or na(endClose) or startClose == 0
-        "OFF"
-    else
-        reportSignedPctText((endClose - startClose) / startClose * 100.0)
-
-reportFavorableChangeText(startClose, trackedHigh, trackedLow, isBullish) =>
-    if na(startClose) or na(trackedHigh) or na(trackedLow) or startClose == 0
-        "OFF"
-    else
-        favorablePct = reportFavorablePct(startClose, trackedHigh, trackedLow, isBullish)
-        reportSignedPctText(favorablePct)
-
-reportAdverseChangeText(startClose, trackedHigh, trackedLow, isBullish) =>
-    if na(startClose) or na(trackedHigh) or na(trackedLow) or startClose == 0
-        "OFF"
-    else
-        adversePct = reportAdversePct(startClose, trackedHigh, trackedLow, isBullish)
-        reportSignedPctText(adversePct)
-
 var int bullReportStartCount = 0
 var int bearReportStartCount = 0
 var int bullReportHoldCount = 0
@@ -340,20 +360,32 @@ var int bullReportConfirmCount = 0
 var int bearReportConfirmCount = 0
 var int bullConsumedPullbackBar = na
 var int bearConsumedPullbackBar = na
-var float bullReportFirstSignalClose = na
-var float bearReportFirstSignalClose = na
 var int bullReportFirstSignalTime = na
 var int bearReportFirstSignalTime = na
 var int bullReportEndTime = na
 var int bearReportEndTime = na
-var float bullReportLastTrackedClose = na
-var float bearReportLastTrackedClose = na
-var float bullReportHighestTrackedHigh = na
-var float bearReportHighestTrackedHigh = na
-var float bullReportLowestTrackedLow = na
-var float bearReportLowestTrackedLow = na
 var float bullReportDisplayScore = na
 var float bearReportDisplayScore = na
+var float bullReportLastCandidateScore = na
+var float bearReportLastCandidateScore = na
+var float bullReportLastSweepScore = na
+var float bearReportLastSweepScore = na
+var float bullReportCandidateBoxTop = na
+var float bullReportCandidateBoxBottom = na
+var int bullReportCandidateBoxRight = na
+var float bearReportCandidateBoxTop = na
+var float bearReportCandidateBoxBottom = na
+var int bearReportCandidateBoxRight = na
+var float bullReportSweepBoxTop = na
+var float bullReportSweepBoxBottom = na
+var int bullReportSweepBoxRight = na
+var float bearReportSweepBoxTop = na
+var float bearReportSweepBoxBottom = na
+var int bearReportSweepBoxRight = na
+var int bullReportState = reportStateOff
+var int bearReportState = reportStateOff
+var string bullReportStateReason = "OFF"
+var string bearReportStateReason = "OFF"
 var bool bullReportTrackingActive = false
 var bool bearReportTrackingActive = false
 
@@ -963,9 +995,6 @@ if shortSignal
     if bearPullbackBonusAvailable
         bearConsumedPullbackBar := bearLatestPullbackBar
 
-effectiveStrongScore = math.max(lsStrongScore, lsMinScore)
-bullPositionEntryReady = bullEntryCandidate and bullUnifiedScore >= effectiveStrongScore
-bearPositionEntryReady = bearEntryCandidate and bearUnifiedScore >= effectiveStrongScore
 displayLongSignal = longSignal
 displayShortSignal = shortSignal
 
@@ -974,8 +1003,8 @@ strongShortSignalColor = strongShortSignalColorInput
 bullSweepSignalColor = bullSweepSignalColorInput
 bearSweepSignalColor = bearSweepSignalColorInput
 
-plotshape(showStrongLSSignals and displayLongSignal, title="3단계 롱 진입 후보 (첫 진입 신호) - 종합 기준 통과", style=shape.circle, location=location.belowbar, color=strongLongSignalColor, size=size.tiny)
-plotshape(showStrongLSSignals and displayShortSignal, title="3단계 숏 진입 후보 (첫 진입 신호) - 종합 기준 통과", style=shape.circle, location=location.abovebar, color=strongShortSignalColor, size=size.tiny)
+plotshape(showStrongLSSignals and displayLongSignal, title="3단계 롱 기준 봉 (첫 후보 신호) - 종합 기준 통과", style=shape.circle, location=location.belowbar, color=strongLongSignalColor, size=size.tiny)
+plotshape(showStrongLSSignals and displayShortSignal, title="3단계 숏 기준 봉 (첫 후보 신호) - 종합 기준 통과", style=shape.circle, location=location.abovebar, color=strongShortSignalColor, size=size.tiny)
 
 confirmedLongSignal = barstate.isconfirmed and displayLongSignal
 confirmedShortSignal = barstate.isconfirmed and displayShortSignal
@@ -1085,8 +1114,8 @@ alertcondition(bearBgAlert, title="2단계 숏 감시 (매도 배경 진입) - A
 
 alertcondition(bullBgStrongAlert, title="2단계 롱 감시 강화 (매수 배경 강화) - ATR 확장", message="2단계 롱 감시 강화 (매수 배경 강화) - ATR 확장")
 alertcondition(bearBgStrongAlert, title="2단계 숏 감시 강화 (매도 배경 강화) - ATR 확장", message="2단계 숏 감시 강화 (매도 배경 강화) - ATR 확장")
-alertcondition(longSignal, title="3단계 롱 진입 후보 (첫 진입 신호) - 종합 기준 통과", message="3단계 롱 진입 후보 (첫 진입 신호) - 종합 기준 통과")
-alertcondition(shortSignal, title="3단계 숏 진입 후보 (첫 진입 신호) - 종합 기준 통과", message="3단계 숏 진입 후보 (첫 진입 신호) - 종합 기준 통과")
+alertcondition(longSignal, title="3단계 롱 기준 봉 (첫 후보 신호) - 종합 기준 통과", message="3단계 롱 기준 봉 (첫 후보 신호) - 종합 기준 통과")
+alertcondition(shortSignal, title="3단계 숏 기준 봉 (첫 후보 신호) - 종합 기준 통과", message="3단계 숏 기준 봉 (첫 후보 신호) - 종합 기준 통과")
 alertcondition(confirmedBullSweepFollowThrough, title="4단계 롱 확인 (하단 유동성 스윕) - 확인 봉", message="4단계 롱 확인 (하단 유동성 스윕) - 확인 봉")
 alertcondition(confirmedBearSweepFollowThrough, title="4단계 숏 확인 (상단 유동성 스윕) - 확인 봉", message="4단계 숏 확인 (상단 유동성 스윕) - 확인 봉")
 
@@ -1116,104 +1145,182 @@ bearReportEndEvent = barstate.isconfirmed and bullReportWatchStrongEvent
 if barstate.isconfirmed
     if bullReportEndEvent and bullReportTrackingActive
         bullReportEndTime := time_close
-        bullReportLastTrackedClose := close
-        bullReportHighestTrackedHigh := math.max(nz(bullReportHighestTrackedHigh, high), high)
-        bullReportLowestTrackedLow := math.min(nz(bullReportLowestTrackedLow, low), low)
+        bullReportLastCandidateScore := na
+        bullReportLastSweepScore := na
+        bullReportCandidateBoxTop := na
+        bullReportCandidateBoxBottom := na
+        bullReportCandidateBoxRight := na
+        bullReportSweepBoxTop := na
+        bullReportSweepBoxBottom := na
+        bullReportSweepBoxRight := na
+        bullReportState := reportStateOff
+        bullReportStateReason := "반대 ATR 강화"
         bullReportTrackingActive := false
-    else if bullReportAnyEvent and not bullReportTrackingActive
-        bullReportStartCount := 0
-        bullReportHoldCount := 0
-        bullReportHintCount := 0
-        bullReportWatchCount := 0
-        bullReportWatchStrongCount := 0
-        bullReportCandidateCount := 0
-        bullReportConfirmCount := 0
-        bullReportFirstSignalClose := na
-        bullReportFirstSignalTime := na
-        bullReportEndTime := na
-        bullReportLastTrackedClose := na
-        bullReportHighestTrackedHigh := na
-        bullReportLowestTrackedLow := na
-        bullReportFirstSignalClose := close
-        bullReportFirstSignalTime := time_close
-        bullReportLastTrackedClose := close
-        bullReportHighestTrackedHigh := high
-        bullReportLowestTrackedLow := low
-        bullReportDisplayScore := bullUnifiedScore
-        bullReportStartCount += bullReportStartEvent ? 1 : 0
-        bullReportHoldCount += bullReportHoldEvent ? 1 : 0
-        bullReportHintCount += bullReportHintEvent ? 1 : 0
-        bullReportWatchCount += bullReportWatchEvent ? 1 : 0
-        bullReportWatchStrongCount += bullReportWatchStrongEvent ? 1 : 0
-        bullReportCandidateCount += bullReportCandidateEvent ? 1 : 0
-        bullReportConfirmCount += bullReportConfirmEvent ? 1 : 0
-        bullReportTrackingActive := true
-    else if bullReportTrackingActive
-        bullReportStartCount += bullReportStartEvent ? 1 : 0
-        bullReportHoldCount += bullReportHoldEvent ? 1 : 0
-        bullReportHintCount += bullReportHintEvent ? 1 : 0
-        bullReportWatchCount += bullReportWatchEvent ? 1 : 0
-        bullReportWatchStrongCount += bullReportWatchStrongEvent ? 1 : 0
-        bullReportCandidateCount += bullReportCandidateEvent ? 1 : 0
-        bullReportConfirmCount += bullReportConfirmEvent ? 1 : 0
-        bullReportLastTrackedClose := close
-        bullReportHighestTrackedHigh := math.max(nz(bullReportHighestTrackedHigh, high), high)
-        bullReportLowestTrackedLow := math.min(nz(bullReportLowestTrackedLow, low), low)
-        bullReportDisplayScore := bullUnifiedScore
+    else
+        if bullReportAnyEvent and not bullReportTrackingActive
+            bullReportStartCount := 0
+            bullReportHoldCount := 0
+            bullReportHintCount := 0
+            bullReportWatchCount := 0
+            bullReportWatchStrongCount := 0
+            bullReportCandidateCount := 0
+            bullReportConfirmCount := 0
+            bullReportFirstSignalTime := na
+            bullReportEndTime := na
+            bullReportFirstSignalTime := time_close
+            bullReportDisplayScore := bullUnifiedScore
+            bullReportLastCandidateScore := na
+            bullReportLastSweepScore := na
+            bullReportCandidateBoxTop := na
+            bullReportCandidateBoxBottom := na
+            bullReportCandidateBoxRight := na
+            bullReportSweepBoxTop := na
+            bullReportSweepBoxBottom := na
+            bullReportSweepBoxRight := na
+            bullReportState := reportStateWatch
+            bullReportStateReason := "관찰"
+            bullReportTrackingActive := true
+
+        if bullReportTrackingActive
+            bullCandidateExitReason = ""
+            bullSweepExitReason = ""
+            bullFallbackReason = reportWatchReason(bullReportStartEvent, bullReportHoldEvent, bullReportHintEvent, bullReportWatchEvent, bullReportWatchStrongEvent, bullReportState == reportStateWatch ? bullReportStateReason : "관찰")
+            bullReportStartCount += bullReportStartEvent ? 1 : 0
+            bullReportHoldCount += bullReportHoldEvent ? 1 : 0
+            bullReportHintCount += bullReportHintEvent ? 1 : 0
+            bullReportWatchCount += bullReportWatchEvent ? 1 : 0
+            bullReportWatchStrongCount += bullReportWatchStrongEvent ? 1 : 0
+            bullReportCandidateCount += bullReportCandidateEvent ? 1 : 0
+            bullReportConfirmCount += bullReportConfirmEvent ? 1 : 0
+            bullReportDisplayScore := bullUnifiedScore
+            if bullReportCandidateEvent
+                bullReportLastCandidateScore := bullUnifiedScore
+                bullReportCandidateBoxTop := bullSignalBoxTop(0)
+                bullReportCandidateBoxBottom := bullSignalBoxBottom(0)
+                bullReportCandidateBoxRight := bar_index + effectiveReferenceExtendBars
+            else if not na(bullReportCandidateBoxRight)
+                bullCandidateExitReason := boxExitReason("기준 박스", bullReportCandidateBoxTop, bullReportCandidateBoxBottom, bullReportCandidateBoxRight)
+                if bullCandidateExitReason != ""
+                    bullReportCandidateBoxTop := na
+                    bullReportCandidateBoxBottom := na
+                    bullReportCandidateBoxRight := na
+
+            if bullReportConfirmEvent
+                bullReportLastSweepScore := bullUnifiedScore
+                bullReportSweepBoxTop := bullSignalBoxTop(0)
+                bullReportSweepBoxBottom := bullSignalBoxBottom(0)
+                bullReportSweepBoxRight := bar_index + effectiveReferenceExtendBars
+                bullReportCandidateBoxTop := na
+                bullReportCandidateBoxBottom := na
+                bullReportCandidateBoxRight := na
+            else if not na(bullReportSweepBoxRight)
+                bullSweepExitReason := boxExitReason("스윕 박스", bullReportSweepBoxTop, bullReportSweepBoxBottom, bullReportSweepBoxRight)
+                if bullSweepExitReason != ""
+                    bullReportSweepBoxTop := na
+                    bullReportSweepBoxBottom := na
+                    bullReportSweepBoxRight := na
+
+            bullReportReferenceReady = bullReportCandidateEvent
+            bullReportCandidateReady = not bullReportCandidateEvent and boxContainsBar(bullReportCandidateBoxTop, bullReportCandidateBoxBottom, bullReportCandidateBoxRight)
+            bullReportSweepBoxReady = not bullReportConfirmEvent and boxContainsBar(bullReportSweepBoxTop, bullReportSweepBoxBottom, bullReportSweepBoxRight)
+            bullReportSweepReady = bullReportConfirmEvent or bullReportSweepBoxReady
+            bullReportState := reportPositionCode(bullReportTrackingActive, bullReportReferenceReady, bullReportCandidateReady, bullReportSweepReady)
+            bullTriggerReason = bullReportConfirmEvent ? "스윕 확인" : bullReportSweepBoxReady ? "스윕 박스" : bullSweepExitReason != "" ? bullSweepExitReason : bullReportCandidateEvent ? "기준 봉" : bullReportCandidateReady ? "기준 박스" : bullCandidateExitReason != "" ? bullCandidateExitReason : bullFallbackReason
+            bullReportStateReason := reportStateReason(bullReportState, bullTriggerReason, bullFallbackReason)
 
     if bearReportEndEvent and bearReportTrackingActive
         bearReportEndTime := time_close
-        bearReportLastTrackedClose := close
-        bearReportHighestTrackedHigh := math.max(nz(bearReportHighestTrackedHigh, high), high)
-        bearReportLowestTrackedLow := math.min(nz(bearReportLowestTrackedLow, low), low)
+        bearReportLastCandidateScore := na
+        bearReportLastSweepScore := na
+        bearReportCandidateBoxTop := na
+        bearReportCandidateBoxBottom := na
+        bearReportCandidateBoxRight := na
+        bearReportSweepBoxTop := na
+        bearReportSweepBoxBottom := na
+        bearReportSweepBoxRight := na
+        bearReportState := reportStateOff
+        bearReportStateReason := "반대 ATR 강화"
         bearReportTrackingActive := false
-    else if bearReportAnyEvent and not bearReportTrackingActive
-        bearReportStartCount := 0
-        bearReportHoldCount := 0
-        bearReportHintCount := 0
-        bearReportWatchCount := 0
-        bearReportWatchStrongCount := 0
-        bearReportCandidateCount := 0
-        bearReportConfirmCount := 0
-        bearReportFirstSignalClose := na
-        bearReportFirstSignalTime := na
-        bearReportEndTime := na
-        bearReportLastTrackedClose := na
-        bearReportHighestTrackedHigh := na
-        bearReportLowestTrackedLow := na
-        bearReportFirstSignalClose := close
-        bearReportFirstSignalTime := time_close
-        bearReportLastTrackedClose := close
-        bearReportHighestTrackedHigh := high
-        bearReportLowestTrackedLow := low
-        bearReportDisplayScore := bearUnifiedScore
-        bearReportStartCount += bearReportStartEvent ? 1 : 0
-        bearReportHoldCount += bearReportHoldEvent ? 1 : 0
-        bearReportHintCount += bearReportHintEvent ? 1 : 0
-        bearReportWatchCount += bearReportWatchEvent ? 1 : 0
-        bearReportWatchStrongCount += bearReportWatchStrongEvent ? 1 : 0
-        bearReportCandidateCount += bearReportCandidateEvent ? 1 : 0
-        bearReportConfirmCount += bearReportConfirmEvent ? 1 : 0
-        bearReportTrackingActive := true
-    else if bearReportTrackingActive
-        bearReportStartCount += bearReportStartEvent ? 1 : 0
-        bearReportHoldCount += bearReportHoldEvent ? 1 : 0
-        bearReportHintCount += bearReportHintEvent ? 1 : 0
-        bearReportWatchCount += bearReportWatchEvent ? 1 : 0
-        bearReportWatchStrongCount += bearReportWatchStrongEvent ? 1 : 0
-        bearReportCandidateCount += bearReportCandidateEvent ? 1 : 0
-        bearReportConfirmCount += bearReportConfirmEvent ? 1 : 0
-        bearReportLastTrackedClose := close
-        bearReportHighestTrackedHigh := math.max(nz(bearReportHighestTrackedHigh, high), high)
-        bearReportLowestTrackedLow := math.min(nz(bearReportLowestTrackedLow, low), low)
-        bearReportDisplayScore := bearUnifiedScore
+    else
+        if bearReportAnyEvent and not bearReportTrackingActive
+            bearReportStartCount := 0
+            bearReportHoldCount := 0
+            bearReportHintCount := 0
+            bearReportWatchCount := 0
+            bearReportWatchStrongCount := 0
+            bearReportCandidateCount := 0
+            bearReportConfirmCount := 0
+            bearReportFirstSignalTime := na
+            bearReportEndTime := na
+            bearReportFirstSignalTime := time_close
+            bearReportDisplayScore := bearUnifiedScore
+            bearReportLastCandidateScore := na
+            bearReportLastSweepScore := na
+            bearReportCandidateBoxTop := na
+            bearReportCandidateBoxBottom := na
+            bearReportCandidateBoxRight := na
+            bearReportSweepBoxTop := na
+            bearReportSweepBoxBottom := na
+            bearReportSweepBoxRight := na
+            bearReportState := reportStateWatch
+            bearReportStateReason := "관찰"
+            bearReportTrackingActive := true
 
-bullReportPositionCode = reportPositionCode(bullReportFirstSignalClose, bullReportTrackingActive, bullEntryCandidate, bullPositionEntryReady, bullReportConfirmCount)
-bearReportPositionCode = reportPositionCode(bearReportFirstSignalClose, bearReportTrackingActive, bearEntryCandidate, bearPositionEntryReady, bearReportConfirmCount)
+        if bearReportTrackingActive
+            bearCandidateExitReason = ""
+            bearSweepExitReason = ""
+            bearFallbackReason = reportWatchReason(bearReportStartEvent, bearReportHoldEvent, bearReportHintEvent, bearReportWatchEvent, bearReportWatchStrongEvent, bearReportState == reportStateWatch ? bearReportStateReason : "관찰")
+            bearReportStartCount += bearReportStartEvent ? 1 : 0
+            bearReportHoldCount += bearReportHoldEvent ? 1 : 0
+            bearReportHintCount += bearReportHintEvent ? 1 : 0
+            bearReportWatchCount += bearReportWatchEvent ? 1 : 0
+            bearReportWatchStrongCount += bearReportWatchStrongEvent ? 1 : 0
+            bearReportCandidateCount += bearReportCandidateEvent ? 1 : 0
+            bearReportConfirmCount += bearReportConfirmEvent ? 1 : 0
+            bearReportDisplayScore := bearUnifiedScore
+            if bearReportCandidateEvent
+                bearReportLastCandidateScore := bearUnifiedScore
+                bearReportCandidateBoxTop := bearSignalBoxTop(0)
+                bearReportCandidateBoxBottom := bearSignalBoxBottom(0)
+                bearReportCandidateBoxRight := bar_index + effectiveReferenceExtendBars
+            else if not na(bearReportCandidateBoxRight)
+                bearCandidateExitReason := boxExitReason("기준 박스", bearReportCandidateBoxTop, bearReportCandidateBoxBottom, bearReportCandidateBoxRight)
+                if bearCandidateExitReason != ""
+                    bearReportCandidateBoxTop := na
+                    bearReportCandidateBoxBottom := na
+                    bearReportCandidateBoxRight := na
 
-reportBorderColor = color.new(reportNeutralColor, math.max(reportBackgroundTransparency - 50, 0))
-reportFrameColor = color.new(reportNeutralColor, math.max(reportBackgroundTransparency - 65, 0))
-var table tradeReportTable = table.new(tablePosition(reportPositionInput), 3, 16, border_width=1, border_color=reportBorderColor, frame_width=1, frame_color=reportFrameColor)
+            if bearReportConfirmEvent
+                bearReportLastSweepScore := bearUnifiedScore
+                bearReportSweepBoxTop := bearSignalBoxTop(0)
+                bearReportSweepBoxBottom := bearSignalBoxBottom(0)
+                bearReportSweepBoxRight := bar_index + effectiveReferenceExtendBars
+                bearReportCandidateBoxTop := na
+                bearReportCandidateBoxBottom := na
+                bearReportCandidateBoxRight := na
+            else if not na(bearReportSweepBoxRight)
+                bearSweepExitReason := boxExitReason("스윕 박스", bearReportSweepBoxTop, bearReportSweepBoxBottom, bearReportSweepBoxRight)
+                if bearSweepExitReason != ""
+                    bearReportSweepBoxTop := na
+                    bearReportSweepBoxBottom := na
+                    bearReportSweepBoxRight := na
+
+            bearReportReferenceReady = bearReportCandidateEvent
+            bearReportCandidateReady = not bearReportCandidateEvent and boxContainsBar(bearReportCandidateBoxTop, bearReportCandidateBoxBottom, bearReportCandidateBoxRight)
+            bearReportSweepBoxReady = not bearReportConfirmEvent and boxContainsBar(bearReportSweepBoxTop, bearReportSweepBoxBottom, bearReportSweepBoxRight)
+            bearReportSweepReady = bearReportConfirmEvent or bearReportSweepBoxReady
+            bearReportState := reportPositionCode(bearReportTrackingActive, bearReportReferenceReady, bearReportCandidateReady, bearReportSweepReady)
+            bearTriggerReason = bearReportConfirmEvent ? "스윕 확인" : bearReportSweepBoxReady ? "스윕 박스" : bearSweepExitReason != "" ? bearSweepExitReason : bearReportCandidateEvent ? "기준 봉" : bearReportCandidateReady ? "기준 박스" : bearCandidateExitReason != "" ? bearCandidateExitReason : bearFallbackReason
+            bearReportStateReason := reportStateReason(bearReportState, bearTriggerReason, bearFallbackReason)
+
+bullReportPositionCode = bullReportState
+bearReportPositionCode = bearReportState
+bullReportPositionScore = reportPositionDisplayScore(bullReportPositionCode, bullReportDisplayScore, bullReportLastCandidateScore, bullReportLastSweepScore)
+bearReportPositionScore = reportPositionDisplayScore(bearReportPositionCode, bearReportDisplayScore, bearReportLastCandidateScore, bearReportLastSweepScore)
+
+reportBorderColor = color.new(reportNeutralColor, math.max(reportBackgroundTransparency - 70, 0))
+reportFrameColor = color.new(reportNeutralColor, math.max(reportBackgroundTransparency - 78, 0))
+var table tradeReportTable = table.new(tablePosition(reportPositionInput), 3, 14, border_width=0, border_color=reportBorderColor, frame_width=0, frame_color=reportFrameColor)
 reportHeaderBgColor = color.new(reportHeaderColor, reportBackgroundTransparency)
 reportLabelBgColorValue = color.new(reportLabelBgColor, math.max(reportBackgroundTransparency - 28, 0))
 reportFieldBgColorValue = color.new(reportFieldBgColor, reportBackgroundTransparency)
@@ -1235,29 +1342,21 @@ if showTradeReport
             table.cell(tradeReportTable, 0, 3, "다이버전스", text_color=color.white, text_halign=text.align_center, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
             table.cell(tradeReportTable, 0, 4, "ATR 배경", text_color=color.white, text_halign=text.align_center, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
             table.cell(tradeReportTable, 0, 5, "ATR 강화", text_color=color.white, text_halign=text.align_center, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
-            table.cell(tradeReportTable, 0, 6, "진입 후보", text_color=color.white, text_halign=text.align_center, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
+            table.cell(tradeReportTable, 0, 6, "기준 발생", text_color=color.white, text_halign=text.align_center, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
             table.cell(tradeReportTable, 0, 7, "스윕 확인", text_color=color.white, text_halign=text.align_center, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
             table.cell(tradeReportTable, 0, 8, "시작 시간", text_color=color.white, text_halign=text.align_center, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
             table.cell(tradeReportTable, 0, 9, "종료 시간", text_color=color.white, text_halign=text.align_center, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
-            table.cell(tradeReportTable, 0, 10, "종가 변화", text_color=color.white, text_halign=text.align_center, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
-            table.cell(tradeReportTable, 0, 11, "최대 유리", text_color=color.white, text_halign=text.align_center, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
-            table.cell(tradeReportTable, 0, 12, "최대 불리", text_color=color.white, text_halign=text.align_center, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
-            table.cell(tradeReportTable, 0, 13, "포지션", text_color=color.white, text_halign=text.align_center, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
-            table.merge_cells(tradeReportTable, 0, 14, 2, 14)
-            table.cell(tradeReportTable, 0, 14, "포지션 종류는 OFF / 경계 / 관찰 / 후보 / 진입 / 스윕 입니다.", text_color=color.silver, text_halign=text.align_left, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-            table.merge_cells(tradeReportTable, 0, 15, 2, 15)
+            table.cell(tradeReportTable, 0, 10, "포지션", text_color=color.white, text_halign=text.align_center, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
+            table.cell(tradeReportTable, 0, 11, "포지션 이유", text_color=color.white, text_halign=text.align_center, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
+            table.merge_cells(tradeReportTable, 0, 12, 2, 12)
+            table.cell(tradeReportTable, 0, 12, "포지션 종류는 OFF / 관찰 / 기준 / 후보 / 스윕 입니다.", text_color=color.silver, text_halign=text.align_left, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+            table.merge_cells(tradeReportTable, 0, 13, 2, 13)
             reportTableStaticInitialized := true
-        bullReportPositionValue = reportPositionText(bullReportFirstSignalClose, bullReportPositionCode, bullReportDisplayScore)
-        bearReportPositionValue = reportPositionText(bearReportFirstSignalClose, bearReportPositionCode, bearReportDisplayScore)
+        bullReportPositionValue = reportPositionText(bullReportPositionCode, bullReportPositionScore)
+        bearReportPositionValue = reportPositionText(bearReportPositionCode, bearReportPositionScore)
         bullReportPositionColor = reportPositionColor(bullReportPositionCode, reportBullColor, reportNeutralColor)
         bearReportPositionColor = reportPositionColor(bearReportPositionCode, reportBearColor, reportNeutralColor)
-        reportPositionScoreGuideValue = reportPositionScoreGuideText(lsMinScore, effectiveStrongScore)
-        bullReportCloseChangeValue = reportCloseChangeText(bullReportFirstSignalClose, bullReportLastTrackedClose)
-        bearReportCloseChangeValue = reportCloseChangeText(bearReportFirstSignalClose, bearReportLastTrackedClose)
-        bullReportFavorableChangeValue = reportFavorableChangeText(bullReportFirstSignalClose, bullReportHighestTrackedHigh, bullReportLowestTrackedLow, true)
-        bearReportFavorableChangeValue = reportFavorableChangeText(bearReportFirstSignalClose, bearReportHighestTrackedHigh, bearReportLowestTrackedLow, false)
-        bullReportAdverseChangeValue = reportAdverseChangeText(bullReportFirstSignalClose, bullReportHighestTrackedHigh, bullReportLowestTrackedLow, true)
-        bearReportAdverseChangeValue = reportAdverseChangeText(bearReportFirstSignalClose, bearReportHighestTrackedHigh, bearReportLowestTrackedLow, false)
+        reportPositionScoreGuideValue = reportPositionScoreGuideText()
         table.cell(tradeReportTable, 1, 1, reportStatusText(bullReportStartCount), text_color=reportStatusColor(bullReportStartCount, reportBullColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
         table.cell(tradeReportTable, 2, 1, reportStatusText(bearReportStartCount), text_color=reportStatusColor(bearReportStartCount, reportBearColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
         table.cell(tradeReportTable, 1, 2, reportStatusText(bullReportHoldCount), text_color=reportStatusColor(bullReportHoldCount, reportBullColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
@@ -1276,17 +1375,13 @@ if showTradeReport
         table.cell(tradeReportTable, 2, 8, reportTimeText(bearReportFirstSignalTime), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
         table.cell(tradeReportTable, 1, 9, reportEndTimeText(bullReportFirstSignalTime, bullReportEndTime, bullReportTrackingActive), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
         table.cell(tradeReportTable, 2, 9, reportEndTimeText(bearReportFirstSignalTime, bearReportEndTime, bearReportTrackingActive), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 1, 10, bullReportCloseChangeValue, text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 2, 10, bearReportCloseChangeValue, text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 1, 11, bullReportFavorableChangeValue, text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 2, 11, bearReportFavorableChangeValue, text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 1, 12, bullReportAdverseChangeValue, text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 2, 12, bearReportAdverseChangeValue, text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 1, 13, bullReportPositionValue, text_color=bullReportPositionColor, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 2, 13, bearReportPositionValue, text_color=bearReportPositionColor, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 0, 15, reportPositionScoreGuideValue, text_color=color.silver, text_halign=text.align_left, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+        table.cell(tradeReportTable, 1, 10, bullReportPositionValue, text_color=bullReportPositionColor, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+        table.cell(tradeReportTable, 2, 10, bearReportPositionValue, text_color=bearReportPositionColor, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+        table.cell(tradeReportTable, 1, 11, bullReportStateReason, text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+        table.cell(tradeReportTable, 2, 11, bearReportStateReason, text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+        table.cell(tradeReportTable, 0, 13, reportPositionScoreGuideValue, text_color=color.silver, text_halign=text.align_left, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
 else if barstate.islast and reportTableStaticInitialized
-    table.clear(tradeReportTable, 0, 0, 2, 15)
+    table.clear(tradeReportTable, 0, 0, 2, 13)
     reportTableStaticInitialized := false
 
 // =========================

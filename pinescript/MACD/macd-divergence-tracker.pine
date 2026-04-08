@@ -74,11 +74,18 @@ cross_UP_A = (signal[1] >= macd[1] and signal < macd) and macd > 0
 cross_DN_B = (signal[1] <= macd[1] and signal > macd) and macd < 0
 ma_threshold = price_atr * divergence_atr_filter
 has_ma_history = not na(price_ma[divergence_confirm_bars])
+has_hist_history = not na(hist[divergence_confirm_bars])
 price_ma_move = has_ma_history ? price_ma - price_ma[divergence_confirm_bars] : 0.0
 price_ma_up = has_ma_history and is_rising_confirmed(price_ma, divergence_confirm_bars) and price_ma_move > ma_threshold
 price_ma_down = has_ma_history and is_falling_confirmed(price_ma, divergence_confirm_bars) and price_ma_move < -ma_threshold
-bullish_divergence = trend_up and price_ma_down
-bearish_divergence = trend_dn and price_ma_up
+hist_rising = hist > hist[1]
+hist_falling = hist < hist[1]
+hist_above_zero = hist >= 0
+hist_below_zero = hist < 0
+hist_rising_confirmed = has_hist_history and is_rising_confirmed(hist, divergence_confirm_bars) and hist_rising
+hist_falling_confirmed = has_hist_history and is_falling_confirmed(hist, divergence_confirm_bars) and hist_falling
+bullish_divergence = price_ma_down and hist_rising_confirmed
+bearish_divergence = price_ma_up and hist_falling_confirmed
 // Condition that changes Color of MACD Line if Show Trend is turned on..
 trend_col = show_trend  and trend_up ? col_trnd_Up : trend_up ? col_macd : show_trend  and trend_dn ? col_trnd_Dn: trend_dn ? col_macd : na
 
@@ -93,8 +100,8 @@ histB_IsDown := hist == hist[1] ? histB_IsDown[1] : hist < hist[1] and hist <= 0
 histB_IsUp   := hist == hist[1] ? histB_IsUp[1] : hist > hist[1] and hist <= 0
 
 default_hist_col = histA_IsUp ? col_grow_above : histA_IsDown ? col_fall_above : histB_IsDown ? col_grow_below : histB_IsUp ? col_fall_below : color.silver
-bullish_div_hist_col = histA_IsUp ? #00C853 : histA_IsDown ? #2E7D32 : default_hist_col
-bearish_div_hist_col = histB_IsDown ? #FF1744 : histB_IsUp ? #C62828 : default_hist_col
+bullish_div_hist_col = hist_rising ? #00C853 : #2E7D32
+bearish_div_hist_col = hist_falling ? #FF1744 : #C62828
 hist_col = bullish_divergence ? bullish_div_hist_col : bearish_divergence ? bearish_div_hist_col : default_hist_col
 display_hist = hist * hist_scale
 

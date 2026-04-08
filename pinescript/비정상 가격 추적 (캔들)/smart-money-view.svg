@@ -88,7 +88,7 @@
 
   <rect x="724" y="694" width="384" height="76" rx="16" fill="#fff6ed" stroke="#efd7c0"/>
   <text x="748" y="726" class="small">리포트는 첫 이벤트에서 시작하고, 반대 방향 `ATR 강화`가 나오면 종료됩니다.</text>
-  <text x="748" y="750" class="small">시간, 종가 변화, 최대 유리, 최대 불리, 포지션을 함께 보여줍니다.</text>
+  <text x="748" y="750" class="small">이벤트 누적, 시작/종료 시간, 포지션을 함께 보여줍니다.</text>
 
   <rect x="724" y="788" width="384" height="54" rx="14" fill="#f1f6fb" stroke="#d8e3ed"/>
   <text x="748" y="822" class="small">포지션: `OFF -> 관찰 -> 후보 -> 진입 -> 스윕`</text>
@@ -102,5 +102,5 @@
   <text x="724" y="960" class="cardTitle">후보 남발 방지 장치</text>
   <text x="724" y="994" class="small">`동일 방향 신호 쿨다운`, `반대 배경 전환 후 방향 전환`, `총 거래량 MA 미만 신호 차단`</text>
   <text x="724" y="1018" class="small">`비정상 주문량 발생 필수`, `강한 추세 연장 추가 진입 차단`, 눌림 보너스 1회 소진</text>
-  <text x="724" y="1042" class="tiny">표 하단 첫 줄에는 `경계` 문구가 보일 수 있지만, 현재 코드가 계산하는 포지션 값은 `OFF / 관찰 / 후보 / 진입 / 스윕`입니다.</text>
+  <text x="724" y="1042" class="tiny">표 하단 안내도 현재 코드 기준인 `OFF / 관찰 / 후보 / 진입 / 스윕` 순서에 맞춰 읽으면 됩니다.</text>
 </svg>

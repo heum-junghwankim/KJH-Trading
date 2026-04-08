@@ -17,23 +17,21 @@ mfiLength = input.int(14, minval=1, title="MFI Length")
 // ==========================
 // LINE OPTIONS
 // ==========================
-crsiColor = input.color(color.yellow, title="cRSI Color")
-mfiColor = input.color(color.blue, title="MFI Color")
+showCrsiLine = input.bool(false, title="Show cRSI Line")
+crsiColor = input.color(color.aqua, title="cRSI Color")
+mfiColor = input.color(color.yellow, title="MFI Color")
 crsiWidth = input.int(1, minval=1, maxval=5, title="cRSI Line Width")
 mfiWidth = input.int(1, minval=1, maxval=5, title="MFI Line Width")
-
-// ==========================
-// GAP BACKGROUND OPTIONS
-// ==========================
-showGapBg = input.bool(true, title="Show Gap Background")
-gapThreshold = input.float(18.0, minval=1.0, title="Gap Background Threshold")
-gapCrsiColor = input.color(color.yellow, title="Gap Color (cRSI > MFI)")
-gapMfiColor = input.color(color.blue, title="Gap Color (MFI > cRSI)")
-gapTransparency = input.int(85, minval=0, maxval=100, title="Gap Background Transparency")
+crsiBandColor = input.color(color.aqua, title="cRSI Band Color")
+crsiBandWidth = input.int(1, minval=1, maxval=5, title="cRSI Band Width")
+crsiBandFillColor = input.color(color.blue, title="cRSI Band Fill Color")
+crsiBandFillTransparency = input.int(88, minval=0, maxval=100, title="cRSI Band Fill Transparency")
+mfiExtremeFillTransparency = input.int(90, minval=0, maxval=100, title="MFI Extreme Fill Transparency")
 
 // ==========================
 // REVERSAL RISK FILTER OPTIONS
 // ==========================
+gapThreshold = input.float(18.0, minval=1.0, title="Gap Threshold")
 weakGapThreshold = input.float(10.0, minval=0.0, title="Weak Gap Threshold")
 strongGapThreshold = input.float(14.0, minval=0.0, title="Strong Gap Threshold")
 bullZone = input.float(55.0, minval=0.0, maxval=100.0, title="Bearish Risk cRSI Zone")
@@ -53,8 +51,9 @@ cyclicmemory = domcycle * 2
 torque = 2.0 / (vibration + 1)
 phasingLag = int((vibration - 1) / 2.0)
 
-up = ta.rma(math.max(ta.change(src), 0), cyclelen)
-down = ta.rma(-math.min(ta.change(src), 0), cyclelen)
+sourceChange = ta.change(src)
+up = ta.rma(math.max(sourceChange, 0), cyclelen)
+down = ta.rma(-math.min(sourceChange, 0), cyclelen)
 rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - 100 / (1 + up / down)
 
 var float crsi = na
@@ -63,53 +62,13 @@ crsi := torque * (2 * rsi - nz(rsi[phasingLag])) + (1 - torque) * nz(crsi[1])
 // ==========================
 // DYNAMIC BANDS
 // ==========================
-float lmax = -999999.0
-float lmin = 999999.0
-int validCount = 0
-
-for i = 0 to cyclicmemory - 1
-    val = crsi[i]
-    if not na(val)
-        validCount += 1
-        if val > lmax
-            lmax := val
-        if val < lmin
-            lmin := val
-
-mstep = validCount > 0 ? (lmax - lmin) / 100.0 : na
-aperc = leveling / 100.0
-
 float db = na
-if validCount > 0 and not na(mstep)
-    if mstep == 0
-        db := lmin
-    else
-        for steps = 0 to 100
-            testvalue = lmin + mstep * steps
-            below = 0
-            for m = 0 to cyclicmemory - 1
-                sample = crsi[m]
-                below += not na(sample) and sample < testvalue ? 1 : 0
-            ratio = below / validCount
-            if ratio >= aperc
-                db := testvalue
-                break
-
 float ub = na
-if validCount > 0 and not na(mstep)
-    if mstep == 0
-        ub := lmax
-    else
-        for steps = 0 to 100
-            testvalue = lmax - mstep * steps
-            above = 0
-            for m = 0 to cyclicmemory - 1
-                sample = crsi[m]
-                above += not na(sample) and sample >= testvalue ? 1 : 0
-            ratio = above / validCount
-            if ratio >= aperc
-                ub := testvalue
-                break
+bandPercent = math.max(0.0, math.min(100.0, leveling))
+inverseBandPercent = 100.0 - bandPercent
+
+db := ta.percentile_nearest_rank(crsi, cyclicmemory, bandPercent)
+ub := ta.percentile_nearest_rank(crsi, cyclicmemory, inverseBandPercent)
 
 // ==========================
 // MFI
@@ -118,19 +77,16 @@ overboughtLevel = 80.0
 oversoldLevel = 20.0
 
 mfi = ta.mfi(hlc3, mfiLength)
+isMfiOverbought = mfi >= overboughtLevel
+isMfiOversold = mfi <= oversoldLevel
 
 // ==========================
-// GAP BACKGROUND
+// PRICE / VOLUME / REVERSAL STATE
 // ==========================
 gap = math.abs(crsi - mfi)
 bearishGapBg = crsi > mfi and gap >= gapThreshold
 bullishGapBg = mfi > crsi and gap >= gapThreshold
 
-bgcolor(showGapBg ? bearishGapBg ? color.new(gapCrsiColor, gapTransparency) : bullishGapBg ? color.new(gapMfiColor, gapTransparency) : na : na)
-
-// ==========================
-// PRICE / VOLUME / REVERSAL STATE
-// ==========================
 volAvg = ta.sma(volume, volumeAvgLength)
 volumeOkay = volume > volAvg * volumeMultiplier
 isBullCandle = close > open
@@ -201,19 +157,22 @@ alertcondition(finalBullishRiskConfirmed, title="Bullish Reversal Risk", message
 // ==========================
 // REFERENCE LINES
 // ==========================
-isMfiOverbought = mfi >= overboughtLevel
-isMfiOversold = mfi <= oversoldLevel
-
-plot(overboughtLevel, "Overbought Base", color=color.gray, linewidth=2, style=plot.style_circles, display=display.pane)
-plot(oversoldLevel, "Oversold Base", color=color.gray, linewidth=2, style=plot.style_circles, display=display.pane)
-plot(isMfiOverbought ? overboughtLevel : na, "Overbought Active", color=color.red, linewidth=4, style=plot.style_circles, display=display.pane)
-plot(isMfiOversold ? oversoldLevel : na, "Oversold Active", color=color.lime, linewidth=4, style=plot.style_circles, display=display.pane)
+hline(overboughtLevel, "Overbought", color=color.gray, linestyle=hline.style_dashed, linewidth=1)
+hline(oversoldLevel, "Oversold", color=color.gray, linestyle=hline.style_dashed, linewidth=1)
 
 // ==========================
 // PLOTS
 // ==========================
-lowBandPlot = plot(db, "cRSI Low Band", color=color.gray, display=display.pane)
-highBandPlot = plot(ub, "cRSI High Band", color=color.gray, display=display.pane)
-plot(crsi, "cRSI", color=crsiColor, linewidth=crsiWidth)
-plot(mfi, "MFI", color=mfiColor, linewidth=mfiWidth)
-fill(lowBandPlot, highBandPlot, color=color.new(color.gray, 75))
+lowBandPlot = plot(db, "cRSI Low Band", color=crsiBandColor, linewidth=crsiBandWidth, display=display.pane)
+highBandPlot = plot(ub, "cRSI High Band", color=crsiBandColor, linewidth=crsiBandWidth, display=display.pane)
+mfiPlot = plot(mfi, "MFI", color=mfiColor, linewidth=mfiWidth)
+mfiOverboughtPlot = plot(isMfiOverbought ? mfi : na, "MFI Overbought", color=color.new(mfiColor, 100), display=display.none)
+mfiOversoldPlot = plot(isMfiOversold ? mfi : na, "MFI Oversold", color=color.new(mfiColor, 100), display=display.none)
+overboughtFillBase = plot(isMfiOverbought ? overboughtLevel : na, "Overbought Fill Base", color=color.new(color.red, 100), display=display.none)
+oversoldFillBase = plot(isMfiOversold ? oversoldLevel : na, "Oversold Fill Base", color=color.new(color.lime, 100), display=display.none)
+plot(isMfiOverbought ? overboughtLevel : na, "Overbought Active", color=color.new(color.red, 35), linewidth=4, style=plot.style_circles, display=display.pane)
+plot(isMfiOversold ? oversoldLevel : na, "Oversold Active", color=color.new(color.lime, 35), linewidth=4, style=plot.style_circles, display=display.pane)
+plot(showCrsiLine ? crsi : na, "cRSI", color=crsiColor, linewidth=crsiWidth)
+fill(lowBandPlot, highBandPlot, color=color.new(crsiBandFillColor, crsiBandFillTransparency))
+fill(overboughtFillBase, mfiOverboughtPlot, color=color.new(color.red, mfiExtremeFillTransparency), fillgaps=false)
+fill(oversoldFillBase, mfiOversoldPlot, color=color.new(color.lime, mfiExtremeFillTransparency), fillgaps=false)
