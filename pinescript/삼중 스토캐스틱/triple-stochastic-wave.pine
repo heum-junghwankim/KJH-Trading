@@ -10,6 +10,55 @@ stoch_pair(length, smooth_k, smooth_d) =>
     d = ta.sma(k, smooth_d)
     [k, d]
 
+tablePosition(positionInput) =>
+    switch positionInput
+        "좌측 상단" => position.top_left
+        "우측 상단" => position.top_right
+        "좌측 하단" => position.bottom_left
+        => position.bottom_right
+
+tableTextSize(sizeInput) =>
+    switch sizeInput
+        "아주 작게" => size.tiny
+        "보통" => size.normal
+        => size.small
+
+waveStateLabel(directionBias, bullishLabel, bearishLabel, neutralLabel) =>
+    directionBias > 0 ? bullishLabel : directionBias < 0 ? bearishLabel : neutralLabel
+
+wavePreferenceColor(preferenceScore, preferredStrongColor, preferredColor, neutralColor, warningColor, riskColor) =>
+    preferenceScore >= 2 ? preferredStrongColor : preferenceScore >= 1 ? preferredColor : preferenceScore <= -2 ? riskColor : preferenceScore <= -1 ? warningColor : neutralColor
+
+waveEnergyMetrics(directionBias, k, d) =>
+    spread = math.abs(k - d)
+    prev_spread = nz(math.abs(k[1] - d[1]), spread)
+    spread_delta = spread - prev_spread
+    k_rising = k > nz(k[1], k)
+    k_falling = k < nz(k[1], k)
+    string energy_label = "관망"
+    int preference_score = 0
+    if directionBias > 0
+        if spread_delta > 0 and k_rising
+            energy_label := "확산"
+            preference_score := 2
+        else if spread_delta < 0
+            energy_label := "수축"
+        else
+            energy_label := "유지"
+            preference_score := 1
+    else if directionBias < 0
+        if spread_delta > 0 and k_falling
+            energy_label := "확산"
+            preference_score := -2
+        else if spread_delta < 0
+            energy_label := "수축"
+        else
+            energy_label := "유지"
+            preference_score := -1
+    else if spread_delta > 0
+        energy_label := "전환"
+    [energy_label, preference_score]
+
 fast_length = input.int(5, "Fast Length", minval=1, group="Fast Stochastic (5/3/3)", inline="fast1")
 fast_smooth_k = input.int(3, "Smooth K", minval=1, group="Fast Stochastic (5/3/3)", inline="fast1")
 fast_smooth_d = input.int(3, "Smooth D", minval=1, group="Fast Stochastic (5/3/3)", inline="fast1")
@@ -27,6 +76,20 @@ overbought = input.int(80, "Overbought", minval=50, maxval=100, group="Wave Rule
 trend_midline = input.int(50, "Trend Midline", minval=0, maxval=100, group="Wave Rules", inline="rule1")
 slow_context_lookback = input.int(8, "Slow Context Lookback", minval=2, group="Wave Rules", inline="rule2")
 mid_pullback_lookback = input.int(6, "Mid Pullback Lookback", minval=2, group="Wave Rules", inline="rule2")
+
+reportGroup = "에너지 테이블"
+show_position_table = input.bool(true, "에너지 테이블 표시", group=reportGroup)
+position_table_position_input = input.string("우측 상단", "에너지 테이블 위치", options=["좌측 상단", "우측 상단", "좌측 하단", "우측 하단"], group=reportGroup)
+position_table_text_size_input = input.string("작게", "에너지 테이블 글자 크기", options=["아주 작게", "작게", "보통"], group=reportGroup)
+position_table_header_color = input.color(color.rgb(41, 54, 82), "에너지 테이블 헤더 배경색", group=reportGroup)
+position_table_label_bg_color = input.color(color.rgb(34, 46, 68), "에너지 테이블 항목 배경색", group=reportGroup)
+position_table_field_bg_color = input.color(color.black, "에너지 테이블 일반 배경색", group=reportGroup)
+position_table_background_transparency = input.int(78, minval=0, maxval=100, title="에너지 테이블 배경 투명도", group=reportGroup)
+position_table_preferred_strong_color = input.color(color.rgb(0, 170, 90), "에너지 테이블 녹색 선호 색상", group=reportGroup)
+position_table_preferred_color = input.color(color.rgb(102, 204, 255), "에너지 테이블 하늘색 선호 색상", group=reportGroup)
+position_table_neutral_color = input.color(color.silver, "에너지 테이블 회색 중립 색상", group=reportGroup)
+position_table_warning_color = input.color(color.rgb(255, 159, 67), "에너지 테이블 주황 경계 색상", group=reportGroup)
+position_table_risk_color = input.color(color.rgb(210, 70, 70), "에너지 테이블 빨간 비선호 색상", group=reportGroup)
 
 [fast_k, fast_d] = stoch_pair(fast_length, fast_smooth_k, fast_smooth_d)
 [mid_k, mid_d] = stoch_pair(mid_length, mid_smooth_k, mid_smooth_d)
@@ -48,6 +111,18 @@ all_bear_aligned = slow_k < slow_d and mid_k < mid_d and fast_k < fast_d
 bull_wave_background = slow_bull_trend and mid_bull_reset
 bear_wave_background = slow_bear_trend and mid_bear_reset
 
+slow_wave_bias = slow_bull_trend ? 1 : slow_bear_trend ? -1 : 0
+mid_wave_bias = mid_bull_reset ? 1 : mid_bear_reset ? -1 : 0
+fast_wave_bias = fast_k > fast_d ? 1 : fast_k < fast_d ? -1 : 0
+
+slow_wave_label = waveStateLabel(slow_wave_bias, "상승", "하락", "중립")
+mid_wave_label = waveStateLabel(mid_wave_bias, "재상승", "재하락", "조정")
+fast_wave_label = waveStateLabel(fast_wave_bias, "상방", "하방", "관망")
+
+[slow_energy_label, slow_preference_score] = waveEnergyMetrics(slow_wave_bias, slow_k, slow_d)
+[mid_energy_label, mid_preference_score] = waveEnergyMetrics(mid_wave_bias, mid_k, mid_d)
+[fast_energy_label, fast_preference_score] = waveEnergyMetrics(fast_wave_bias, fast_k, fast_d)
+
 bgcolor(bull_wave_background ? color.new(#2E7D32, 80) : na, title="Bull Wave Background", editable=true)
 bgcolor(bear_wave_background ? color.new(#C62828, 80) : na, title="Bear Wave Background", editable=true)
 
@@ -64,6 +139,39 @@ plot(fast_d, title="Fast %D (5/3/3)", color=color.new(#FB8C00, 75), linewidth=1,
 
 plot(fast_bull_trigger ? fast_k : na, title="Fast Bull Cross", style=plot.style_circles, color=color.new(#7CB342, 0), linewidth=4, display=display.pane)
 plot(fast_bear_trigger ? fast_k : na, title="Fast Bear Cross", style=plot.style_circles, color=color.new(#D81B60, 0), linewidth=4, display=display.pane)
+
+position_table_border_color = color.new(position_table_neutral_color, math.max(position_table_background_transparency - 50, 0))
+position_table_frame_color = color.new(position_table_neutral_color, math.max(position_table_background_transparency - 65, 0))
+position_table_header_bg = color.new(position_table_header_color, position_table_background_transparency)
+position_table_label_bg = color.new(position_table_label_bg_color, math.max(position_table_background_transparency - 28, 0))
+position_table_field_bg = color.new(position_table_field_bg_color, position_table_background_transparency)
+position_table_text_size = tableTextSize(position_table_text_size_input)
+var table wavePositionTable = table.new(tablePosition(position_table_position_input), 3, 4, border_width=1, border_color=position_table_border_color, frame_width=1, frame_color=position_table_frame_color)
+var bool wavePositionTableInitialized = false
+wave_table_refresh = show_position_table and barstate.islast and (barstate.isnew or barstate.isconfirmed or not wavePositionTableInitialized)
+
+if show_position_table
+    if wave_table_refresh
+        if not wavePositionTableInitialized
+            table.cell(wavePositionTable, 0, 0, "축", text_color=color.white, bgcolor=position_table_header_bg, text_size=position_table_text_size)
+            table.cell(wavePositionTable, 1, 0, "상태", text_color=color.white, bgcolor=position_table_header_bg, text_size=position_table_text_size)
+            table.cell(wavePositionTable, 2, 0, "에너지", text_color=color.white, bgcolor=position_table_header_bg, text_size=position_table_text_size)
+            wavePositionTableInitialized := true
+        fast_preference_color = wavePreferenceColor(fast_preference_score, position_table_preferred_strong_color, position_table_preferred_color, position_table_neutral_color, position_table_warning_color, position_table_risk_color)
+        mid_preference_color = wavePreferenceColor(mid_preference_score, position_table_preferred_strong_color, position_table_preferred_color, position_table_neutral_color, position_table_warning_color, position_table_risk_color)
+        slow_preference_color = wavePreferenceColor(slow_preference_score, position_table_preferred_strong_color, position_table_preferred_color, position_table_neutral_color, position_table_warning_color, position_table_risk_color)
+        table.cell(wavePositionTable, 0, 1, "Fast", text_color=color.white, bgcolor=position_table_label_bg, text_size=position_table_text_size)
+        table.cell(wavePositionTable, 0, 2, "Mid", text_color=color.white, bgcolor=position_table_label_bg, text_size=position_table_text_size)
+        table.cell(wavePositionTable, 0, 3, "Slow", text_color=color.white, bgcolor=position_table_label_bg, text_size=position_table_text_size)
+        table.cell(wavePositionTable, 1, 1, fast_wave_label, text_color=fast_preference_color, bgcolor=position_table_field_bg, text_size=position_table_text_size)
+        table.cell(wavePositionTable, 1, 2, mid_wave_label, text_color=mid_preference_color, bgcolor=position_table_field_bg, text_size=position_table_text_size)
+        table.cell(wavePositionTable, 1, 3, slow_wave_label, text_color=slow_preference_color, bgcolor=position_table_field_bg, text_size=position_table_text_size)
+        table.cell(wavePositionTable, 2, 1, fast_energy_label, text_color=fast_preference_color, bgcolor=position_table_field_bg, text_size=position_table_text_size)
+        table.cell(wavePositionTable, 2, 2, mid_energy_label, text_color=mid_preference_color, bgcolor=position_table_field_bg, text_size=position_table_text_size)
+        table.cell(wavePositionTable, 2, 3, slow_energy_label, text_color=slow_preference_color, bgcolor=position_table_field_bg, text_size=position_table_text_size)
+else if barstate.islast and wavePositionTableInitialized
+    table.clear(wavePositionTable, 0, 0, 2, 3)
+    wavePositionTableInitialized := false
 
 alertcondition(all_bull_aligned, title="Triple Stochastic Bull Alignment", message="Triple Stochastic bullish alignment: fast, mid, slow are all above their signal lines")
 alertcondition(all_bear_aligned, title="Triple Stochastic Bear Alignment", message="Triple Stochastic bearish alignment: fast, mid, slow are all below their signal lines")
