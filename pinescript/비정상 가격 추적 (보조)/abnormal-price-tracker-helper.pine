@@ -1,5 +1,5 @@
 //@version=6
-indicator("Abnormal-Price-Tracker-Helper", shorttitle="Abnormal-Price-Tracker-Helper", overlay=false, max_labels_count=500)
+indicator("Abnormal-Price-Tracker-Helper", shorttitle="Abnormal-Price-Tracker-Helper", overlay=false)
 
 // ==========================
 // INPUT
@@ -32,9 +32,8 @@ gapMfiColor = input.color(color.blue, title="Gap Color (MFI > cRSI)")
 gapTransparency = input.int(85, minval=0, maxval=100, title="Gap Background Transparency")
 
 // ==========================
-// REVERSAL RISK OPTIONS
+// REVERSAL RISK FILTER OPTIONS
 // ==========================
-showRiskLabels = input.bool(true, title="Show Reversal Risk Labels")
 weakGapThreshold = input.float(10.0, minval=0.0, title="Weak Gap Threshold")
 strongGapThreshold = input.float(14.0, minval=0.0, title="Strong Gap Threshold")
 bullZone = input.float(55.0, minval=0.0, maxval=100.0, title="Bearish Risk cRSI Zone")
@@ -45,17 +44,6 @@ trendLength = input.int(5, minval=2, title="Trend Length")
 priceStretchThreshold = input.float(1.5, minval=0.1, step=0.1, title="Price Stretch (%)")
 useGapFade = input.bool(true, title="Use Gap Fade Condition")
 gapFadeLookback = input.int(1, minval=1, maxval=5, title="Gap Fade Lookback")
-riskLabelTransparency = input.int(0, minval=0, maxval=100, title="Risk Label Transparency")
-bearishLabelOffset = input.float(6.0, minval=0.0, maxval=30.0, title="Bearish Label Offset")
-bullishLabelOffset = input.float(6.0, minval=0.0, maxval=30.0, title="Bullish Label Offset")
-
-// ==========================
-// COLORS
-// ==========================
-bearishRiskColor = color.new(color.red, riskLabelTransparency)
-bullishRiskColor = color.new(color.green, riskLabelTransparency)
-bearishRiskLowColor = color.new(color.orange, riskLabelTransparency)
-bullishRiskHighColor = color.new(color.blue, riskLabelTransparency)
 
 // ==========================
 // cRSI CALCULATION
@@ -192,17 +180,8 @@ bullishRiskScore += bullishZonePass ? 1 : 0
 bullishRiskScore += ((useGapFade and bullishGapFade) or (not useGapFade and crsiTurningUp)) ? 1 : 0
 bullishRiskScore += (crsiTurningUp or mfiTurningUp) ? 1 : 0
 
-// ==========================
-// STRENGTH
-// 3 = strongest
-// 2 = medium
-// 1 = weakest
-// ==========================
-bearishRiskStrength = bearishRiskScore >= 7 ? 3 : bearishRiskScore >= 5 ? 2 : bearishRiskScore >= 4 ? 1 : 0
-bullishRiskStrength = bullishRiskScore >= 7 ? 3 : bullishRiskScore >= 5 ? 2 : bullishRiskScore >= 4 ? 1 : 0
-
-bearishRiskRaw = bearishGapBg and isBullCandle and bearishRiskStrength > 0 and bullishRiskStrength == 0
-bullishRiskRaw = bullishGapBg and isBearCandle and bullishRiskStrength > 0 and bearishRiskStrength == 0
+bearishRiskRaw = bearishGapBg and isBullCandle and bearishRiskScore >= 4 and bullishRiskScore < 4
+bullishRiskRaw = bullishGapBg and isBearCandle and bullishRiskScore >= 4 and bearishRiskScore < 4
 
 bearishMfiFilterPass = mfi > oversoldLevel
 bullishMfiFilterPass = mfi < overboughtLevel
@@ -214,39 +193,10 @@ finalBearishRiskConfirmed = barstate.isconfirmed and bearishRiskRaw and bearishM
 finalBullishRiskConfirmed = barstate.isconfirmed and bullishRiskRaw and bullishMfiFilterPass
 
 // ==========================
-// LABEL TEXT
-// ==========================
-bearishLabelText = bearishRiskStrength >= 2 ? "H" : "L"
-bullishLabelText = bullishRiskStrength >= 2 ? "H" : "L"
-bearishLabelColor = bearishRiskStrength >= 2 ? bearishRiskColor : bearishRiskLowColor
-bullishLabelColor = bullishRiskStrength >= 2 ? bullishRiskHighColor : bullishRiskColor
-
-// ==========================
-// LABEL POSITION
-// ==========================
-bearishLabelPos = math.min(100.0, crsi + bearishLabelOffset)
-bullishLabelPos = math.max(0.0, crsi - bullishLabelOffset)
-
-// ==========================
-// LABELS
-// ==========================
-if showRiskLabels and finalBearishRiskConfirmed
-    label.new(bar_index, bearishLabelPos, bearishLabelText, style=label.style_label_down, color=bearishLabelColor, textcolor=color.white, size=size.small)
-
-if showRiskLabels and finalBullishRiskConfirmed
-    label.new(bar_index, bullishLabelPos, bullishLabelText, style=label.style_label_up, color=bullishLabelColor, textcolor=color.white, size=size.small)
-
-// ==========================
 // ALERTS
 // ==========================
 alertcondition(finalBearishRiskConfirmed, title="Bearish Reversal Risk", message="Bearish reversal risk detected")
 alertcondition(finalBullishRiskConfirmed, title="Bullish Reversal Risk", message="Bullish reversal risk detected")
-
-alertcondition(finalBearishRiskConfirmed and bearishRiskStrength >= 2, title="Bearish Reversal Risk (H)", message="Bearish reversal risk (H) detected")
-alertcondition(finalBearishRiskConfirmed and bearishRiskStrength == 1, title="Bearish Reversal Risk (L)", message="Bearish reversal risk (L) detected")
-
-alertcondition(finalBullishRiskConfirmed and bullishRiskStrength >= 2, title="Bullish Reversal Risk (H)", message="Bullish reversal risk (H) detected")
-alertcondition(finalBullishRiskConfirmed and bullishRiskStrength == 1, title="Bullish Reversal Risk (L)", message="Bullish reversal risk (L) detected")
 
 // ==========================
 // REFERENCE LINES

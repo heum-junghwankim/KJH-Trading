@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1700" height="900" viewBox="0 0 1700 900" role="img" aria-labelledby="title desc">
+  <title id="title">삼중 스토캐스틱 파동 추적 실전 운용 흐름</title>
+  <desc id="desc">상승 파동과 하락 파동에서 배경과 원형 트리거를 어떻게 함께 읽는지 보여 주는 이미지</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f7fbff"/>
+      <stop offset="100%" stop-color="#fff9f1"/>
+    </linearGradient>
+    <style>
+      .title { font: 700 32px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #122033; }
+      .subtitle { font: 500 16px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #556474; }
+      .panelTitle { font: 700 22px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #17283b; }
+      .label { font: 700 14px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #2e4b69; letter-spacing: 0.06em; }
+      .body { font: 500 15px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #26384a; }
+      .small { font: 500 13px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #56687a; }
+      .axis { font: 500 12px 'Menlo','Consolas',monospace; fill: #67788a; }
+      .note { font: 700 14px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #5b4520; }
+    </style>
+  </defs>
+
+  <rect width="1700" height="900" fill="#edf2f7"/>
+  <rect x="24" y="24" width="1652" height="852" rx="28" fill="url(#bg)" stroke="#d7e0ea"/>
+  <text x="60" y="82" class="title">삼중 스토캐스틱 · 실전 운용 흐름</text>
+  <text x="60" y="114" class="subtitle">롱은 초록 배경 뒤 초록 원을, 숏은 빨강 배경 뒤 분홍 원을 기다리는 식으로 읽으면 규칙이 단순해집니다</text>
+
+  <rect x="60" y="150" width="736" height="636" rx="26" fill="#ecfff3" stroke="#bfe7cf"/>
+  <text x="96" y="190" class="label">LONG FLOW</text>
+  <text x="96" y="226" class="panelTitle">상승 파동 안의 눌림 타점 찾기</text>
+  <rect x="96" y="252" width="664" height="286" rx="20" fill="#ffffff" stroke="#d8e4ee"/>
+  <rect x="126" y="276" width="190" height="230" rx="18" fill="#eef6ff" stroke="#d2e1f0"/>
+  <text x="148" y="308" class="body">1. 20/9/9 상승</text>
+  <text x="148" y="336" class="small">큰 방향이 위쪽인지 먼저 확인</text>
+  <polyline points="146,438 172,430 198,420 224,402 250,384 276,372 302,360" fill="none" stroke="#1565c0" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="146,450 172,444 198,438 224,430 250,418 276,406 302,396" fill="none" stroke="#6ba3de" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="148" y="476" class="axis">slow_k &gt; slow_d</text>
+
+  <rect x="334" y="276" width="190" height="230" rx="18" fill="#eefdf9" stroke="#d7eee5"/>
+  <text x="356" y="308" class="body">2. 10/6/6 재상승</text>
+  <text x="356" y="336" class="small">중간 조정이 끝났는지 확인</text>
+  <polyline points="354,446 380,456 406,448 432,426 458,398 484,386 510,374" fill="none" stroke="#00897b" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="354,456 380,460 406,456 432,444 458,420 484,406 510,396" fill="none" stroke="#62b9ab" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="356" y="476" class="axis">mid_k rising</text>
+
+  <rect x="542" y="276" width="190" height="230" rx="18" fill="#fff8eb" stroke="#f0e1bf"/>
+  <text x="564" y="308" class="body">3. 5/3/3 원 대기</text>
+  <text x="564" y="336" class="small">과매도권 골든크로스가 붙는지 확인</text>
+  <polyline points="562,460 588,466 614,454 640,426 666,404 692,384 718,374" fill="none" stroke="#fb8c00" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="562,470 588,466 614,462 640,450 666,430 692,408 718,394" fill="none" stroke="#f2b56a" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="666" cy="404" r="13" fill="#7cb342"/>
+  <text x="564" y="476" class="axis">fast crossover</text>
+
+  <text x="96" y="580" class="body">롱 해석</text>
+  <text x="96" y="608" class="small">1. 초록 배경이 먼저 켜지면 구조는 상승 쪽으로 정리된 상태입니다.</text>
+  <text x="96" y="630" class="small">2. 그 상태에서 초록 원이 붙으면 눌림 매수 후보로 읽습니다.</text>
+  <text x="96" y="652" class="small">3. 배경만 있고 원이 없으면 아직 타점 대기 구간으로 봅니다.</text>
+  <text x="96" y="674" class="small">4. 원만 뜨고 배경이 없으면 단기 반등일 가능성이 있어 보수적으로 봅니다.</text>
+
+  <rect x="430" y="710" width="294" height="42" rx="21" fill="#ecfff3" stroke="#bfe7cf"/>
+  <text x="452" y="737" class="small">정리: 초록 배경 뒤 초록 원이 가장 단순한 상승 시나리오</text>
+
+  <rect x="832" y="150" width="808" height="636" rx="26" fill="#fff0f2" stroke="#efc3c9"/>
+  <text x="868" y="190" class="label">SHORT FLOW</text>
+  <text x="868" y="226" class="panelTitle">하락 파동 안의 반등 종료 찾기</text>
+  <rect x="868" y="252" width="736" height="286" rx="20" fill="#ffffff" stroke="#d8e4ee"/>
+  <rect x="898" y="276" width="210" height="230" rx="18" fill="#eef6ff" stroke="#d2e1f0"/>
+  <text x="920" y="308" class="body">1. 20/9/9 하락</text>
+  <text x="920" y="336" class="small">큰 방향이 아래쪽인지 먼저 확인</text>
+  <polyline points="918,360 946,370 974,382 1002,398 1030,418 1058,432 1086,444" fill="none" stroke="#1565c0" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="918,372 946,380 974,390 1002,404 1030,420 1058,434 1086,452" fill="none" stroke="#6ba3de" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="920" y="476" class="axis">slow_k &lt; slow_d</text>
+
+  <rect x="1128" y="276" width="210" height="230" rx="18" fill="#eefdf9" stroke="#d7eee5"/>
+  <text x="1150" y="308" class="body">2. 10/6/6 재하락</text>
+  <text x="1150" y="336" class="small">중간 반등이 끝났는지 확인</text>
+  <polyline points="1148,364 1176,374 1204,366 1232,382 1260,404 1288,420 1316,438" fill="none" stroke="#00897b" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="1148,376 1176,382 1204,380 1232,390 1260,410 1288,428 1316,446" fill="none" stroke="#62b9ab" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="1150" y="476" class="axis">mid_k falling</text>
+
+  <rect x="1358" y="276" width="210" height="230" rx="18" fill="#fff8eb" stroke="#f0e1bf"/>
+  <text x="1380" y="308" class="body">3. 5/3/3 원 대기</text>
+  <text x="1380" y="336" class="small">과매수권 데드크로스가 붙는지 확인</text>
+  <polyline points="1378,356 1406,366 1434,378 1462,396 1490,422 1518,438 1546,450" fill="none" stroke="#fb8c00" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="1378,368 1406,374 1434,382 1462,398 1490,418 1518,430 1546,438" fill="none" stroke="#f2b56a" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="1490" cy="422" r="13" fill="#d81b60"/>
+  <text x="1380" y="476" class="axis">fast crossunder</text>
+
+  <text x="868" y="580" class="body">숏 해석</text>
+  <text x="868" y="608" class="small">1. 빨강 배경이 먼저 켜지면 구조는 하락 쪽으로 정리된 상태입니다.</text>
+  <text x="868" y="630" class="small">2. 그 상태에서 분홍 원이 붙으면 반등 매도 후보로 읽습니다.</text>
+  <text x="868" y="652" class="small">3. 배경만 있고 원이 없으면 아직 반등 소화 중일 수 있습니다.</text>
+  <text x="868" y="674" class="small">4. 원만 뜨고 배경이 없으면 단기 흔들림일 가능성을 함께 봅니다.</text>
+
+  <rect x="1250" y="710" width="326" height="42" rx="21" fill="#fff0f2" stroke="#efc3c9"/>
+  <text x="1272" y="737" class="small">정리: 빨강 배경 뒤 분홍 원이 가장 단순한 하락 시나리오</text>
+
+  <text x="60" y="838" class="note">핵심: 배경이 먼저 구조를 정리하고, 원이 실제 타이밍을 붙여 줍니다. 둘이 같은 방향일 때 해석 난도가 가장 낮습니다.</text>
+</svg>

@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">삼중 스토캐스틱 파동 추적 핵심 구조 요약</title>
+  <desc id="desc">20 9 9 큰 방향, 10 6 6 중간 조정, 5 3 3 단기 타점을 삼중 스토캐스틱 기준으로 요약한 이미지</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f7fbff"/>
+      <stop offset="100%" stop-color="#fffaf2"/>
+    </linearGradient>
+    <linearGradient id="slowFill" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#eef6ff"/>
+      <stop offset="100%" stop-color="#e3f1ff"/>
+    </linearGradient>
+    <linearGradient id="midFill" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#eefdf9"/>
+      <stop offset="100%" stop-color="#dff8ef"/>
+    </linearGradient>
+    <linearGradient id="fastFill" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fff8eb"/>
+      <stop offset="100%" stop-color="#fff1dc"/>
+    </linearGradient>
+    <linearGradient id="flowFill" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f7f8ff"/>
+      <stop offset="100%" stop-color="#fff6f7"/>
+    </linearGradient>
+    <style>
+      .title { font: 700 32px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #122033; }
+      .subtitle { font: 500 16px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #536272; }
+      .label { font: 700 15px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #23415d; letter-spacing: 0.08em; }
+      .cardTitle { font: 700 22px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #16263a; }
+      .body { font: 500 15px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #26384a; }
+      .small { font: 500 13px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #536576; }
+      .monoBlue { font: 700 15px 'Menlo','Consolas',monospace; fill: #0f4c81; }
+      .monoGreen { font: 700 15px 'Menlo','Consolas',monospace; fill: #166a52; }
+      .monoOrange { font: 700 15px 'Menlo','Consolas',monospace; fill: #9a5600; }
+      .note { font: 700 14px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #5b4520; }
+      .step { font: 700 16px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #16324a; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="900" fill="#edf2f7"/>
+  <rect x="24" y="24" width="1552" height="852" rx="28" fill="url(#bg)" stroke="#d7e0ea"/>
+
+  <text x="60" y="82" class="title">삼중 스토캐스틱 파동 추적 · 핵심 구조</text>
+  <text x="60" y="114" class="subtitle">20/9/9로 큰 방향을 먼저 정하고, 10/6/6으로 조정 종료를 확인한 뒤, 5/3/3 원형 트리거로 단기 타점을 확인하는 흐름입니다</text>
+
+  <rect x="60" y="150" width="468" height="314" rx="24" fill="url(#slowFill)" stroke="#c6d9f0"/>
+  <text x="92" y="190" class="label">SLOW CONTEXT</text>
+  <text x="92" y="224" class="cardTitle">20 / 9 / 9 큰 방향</text>
+  <rect x="92" y="246" width="186" height="178" rx="18" fill="#ffffff" opacity="0.85" stroke="#d5e4f2"/>
+  <line x1="112" y1="336" x2="258" y2="336" stroke="#dce8f4"/>
+  <line x1="112" y1="296" x2="258" y2="296" stroke="#dce8f4"/>
+  <polyline points="112,354 136,346 160,338 184,324 208,308 232,294 256,286" fill="none" stroke="#1565c0" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="112,364 136,358 160,352 184,346 208,334 232,320 256,314" fill="none" stroke="#6ba3de" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="116" y="282" class="small">50 위 유지 또는</text>
+  <text x="116" y="302" class="small">최근 oversold 복귀</text>
+  <text x="316" y="276" class="body">코드 조건</text>
+  <text x="316" y="304" class="monoBlue">slow_k &gt; slow_d</text>
+  <text x="316" y="330" class="small">그리고 `50` 위에 있거나</text>
+  <text x="316" y="352" class="small">최근 lookback 안에서</text>
+  <text x="316" y="374" class="small">`20` 이하 눌림이 있었는지 확인</text>
+  <text x="316" y="408" class="body">해석</text>
+  <text x="316" y="436" class="small">지금 큰 물결이 위인지 아래인지</text>
+  <text x="316" y="458" class="small">먼저 정하는 컨텍스트 역할</text>
+
+  <rect x="566" y="150" width="468" height="314" rx="24" fill="url(#midFill)" stroke="#c2e7da"/>
+  <text x="598" y="190" class="label">MID RESET</text>
+  <text x="598" y="224" class="cardTitle">10 / 6 / 6 중간 조정</text>
+  <rect x="598" y="246" width="186" height="178" rx="18" fill="#ffffff" opacity="0.85" stroke="#d7eee5"/>
+  <line x1="618" y1="336" x2="764" y2="336" stroke="#dcefe8"/>
+  <line x1="618" y1="296" x2="764" y2="296" stroke="#dcefe8"/>
+  <polyline points="618,350 642,360 666,352 690,332 714,312 738,300 762,292" fill="none" stroke="#00897b" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="618,360 642,362 666,358 690,346 714,330 738,318 762,312" fill="none" stroke="#62b9ab" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="714" cy="312" r="8" fill="#00897b"/>
+  <text x="622" y="282" class="small">50 아래 눌림 후</text>
+  <text x="622" y="302" class="small">2봉 연속 상승 예시</text>
+  <text x="822" y="276" class="body">코드 조건</text>
+  <text x="822" y="304" class="monoGreen">mid_k &gt; mid_d</text>
+  <text x="822" y="330" class="small">최근 2봉 상승 흐름과</text>
+  <text x="822" y="352" class="small">`50` 아래 눌림 이력까지 확인</text>
+  <text x="822" y="408" class="body">해석</text>
+  <text x="822" y="436" class="small">큰 방향 안에서</text>
+  <text x="822" y="458" class="small">중간 조정이 끝났는지 보는 필터</text>
+
+  <rect x="1072" y="150" width="468" height="314" rx="24" fill="url(#fastFill)" stroke="#efd9aa"/>
+  <text x="1104" y="190" class="label">FAST TRIGGER</text>
+  <text x="1104" y="224" class="cardTitle">5 / 3 / 3 단기 타점</text>
+  <rect x="1104" y="246" width="186" height="178" rx="18" fill="#ffffff" opacity="0.85" stroke="#f0e2c4"/>
+  <line x1="1124" y1="336" x2="1270" y2="336" stroke="#f0e8da"/>
+  <line x1="1124" y1="376" x2="1270" y2="376" stroke="#f0e8da"/>
+  <polyline points="1124,388 1148,394 1172,382 1196,360 1220,338 1244,322 1268,314" fill="none" stroke="#fb8c00" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="1124,396 1148,392 1172,388 1196,376 1220,352 1244,334 1268,326" fill="none" stroke="#f2b56a" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="1220" cy="338" r="12" fill="#7cb342"/>
+  <text x="1128" y="282" class="small">과매도권 골든크로스</text>
+  <text x="1128" y="302" class="small">과매수권 데드크로스만 표시</text>
+  <text x="1328" y="276" class="body">코드 조건</text>
+  <text x="1328" y="304" class="monoOrange">crossover + oversold</text>
+  <text x="1328" y="330" class="monoOrange">crossunder + overbought</text>
+  <text x="1328" y="408" class="body">해석</text>
+  <text x="1328" y="436" class="small">방향 확정이 아니라</text>
+  <text x="1328" y="458" class="small">실제 눌림/반등 타이밍 후보</text>
+
+  <rect x="60" y="506" width="1480" height="292" rx="26" fill="url(#flowFill)" stroke="#d8dde9"/>
+  <text x="94" y="546" class="label">READING ORDER</text>
+  <text x="94" y="582" class="cardTitle">차트는 아래 순서로 읽으면 가장 단순합니다</text>
+
+  <rect x="94" y="614" width="286" height="118" rx="20" fill="#ffffff" stroke="#d7e3ed"/>
+  <text x="118" y="648" class="step">1. Slow 확인</text>
+  <text x="118" y="676" class="small">20/9/9가 어느 방향인지 먼저 정합니다.</text>
+  <text x="118" y="698" class="small">큰 파동이 애매하면 뒤 신호도 보수적으로 봅니다.</text>
+
+  <rect x="420" y="614" width="286" height="118" rx="20" fill="#ffffff" stroke="#d7e3ed"/>
+  <text x="444" y="648" class="step">2. Mid 확인</text>
+  <text x="444" y="676" class="small">10/6/6이 눌림 뒤 다시 같은 방향으로</text>
+  <text x="444" y="698" class="small">붙는지 확인합니다.</text>
+
+  <rect x="746" y="614" width="286" height="118" rx="20" fill="#ffffff" stroke="#d7e3ed"/>
+  <text x="770" y="648" class="step">3. 배경 확인</text>
+  <text x="770" y="676" class="small">Slow와 Mid가 같이 맞으면</text>
+  <text x="770" y="698" class="small">Wave Background가 켜집니다.</text>
+
+  <rect x="1072" y="614" width="286" height="118" rx="20" fill="#ffffff" stroke="#d7e3ed"/>
+  <text x="1096" y="648" class="step">4. Fast 원 확인</text>
+  <text x="1096" y="676" class="small">5/3/3 원형 트리거가 붙을 때</text>
+  <text x="1096" y="698" class="small">실제 단기 타점을 검토합니다.</text>
+
+  <text x="94" y="772" class="note">핵심: 배경은 구조, 원은 타이밍입니다. 배경이 먼저 맞고 원이 나올 때 해석이 가장 단순해집니다.</text>
+</svg>
