@@ -188,9 +188,8 @@ alphaFromAPT(apt) =>
     decay = math.exp(-math.log(2.0) / math.max(1.0, apt))
     1.0 - decay
 
-recentSignal(cond, lookbackBars) =>
-    bars = ta.barssince(cond)
-    bars >= 0 and bars <= lookbackBars
+withinLookback(lastBarIndex, lookbackBars) =>
+    not na(lastBarIndex) and bar_index - lastBarIndex <= lookbackBars
 
 bullDivBoxTop(offset) =>
     open[offset]
@@ -238,6 +237,9 @@ reportStateSweep = 4
 reportBoxTolerancePrice() =>
     reportBoxToleranceTicks * syminfo.mintick
 
+boxExpired(boxRight) =>
+    not na(boxRight) and bar_index > boxRight
+
 boxContainsBar(boxTop, boxBottom, boxRight) =>
     tolerancePrice = reportBoxTolerancePrice()
     upperBound = boxTop + tolerancePrice
@@ -245,24 +247,6 @@ boxContainsBar(boxTop, boxBottom, boxRight) =>
     bodyTop = math.max(open, close)
     bodyBottom = math.min(open, close)
     not na(boxTop) and not na(boxBottom) and not na(boxRight) and bar_index <= boxRight and (reportBoxContainmentModeInput == "몸통만" ? bodyTop <= upperBound and bodyBottom >= lowerBound : reportBoxContainmentModeInput == "종가만" ? close <= upperBound and close >= lowerBound : high <= upperBound and low >= lowerBound)
-
-boxExitReason(boxLabel, boxTop, boxBottom, boxRight) =>
-    if na(boxTop) or na(boxBottom) or na(boxRight)
-        ""
-    else if bar_index > boxRight
-        boxLabel + " 만료"
-    else
-        tolerancePrice = reportBoxTolerancePrice()
-        upperBound = boxTop + tolerancePrice
-        lowerBound = boxBottom - tolerancePrice
-        bodyTop = math.max(open, close)
-        bodyBottom = math.min(open, close)
-        if reportBoxContainmentModeInput == "몸통만"
-            bodyTop > upperBound or bodyBottom < lowerBound ? boxLabel + " 이탈" : ""
-        else if reportBoxContainmentModeInput == "종가만"
-            close > upperBound or close < lowerBound ? boxLabel + " 이탈" : ""
-        else
-            high > upperBound or low < lowerBound ? boxLabel + " 이탈" : ""
 
 reportWatchReason(startEvent, holdEvent, hintEvent, watchEvent, watchStrongEvent, fallbackReason) =>
     watchStrongEvent ? "ATR 강화" : watchEvent ? "ATR 배경" : hintEvent ? "다이버전스" : holdEvent ? "비정상 유지" : startEvent ? "비정상 시작" : fallbackReason
@@ -382,6 +366,10 @@ var int bullReportSweepBoxRight = na
 var float bearReportSweepBoxTop = na
 var float bearReportSweepBoxBottom = na
 var int bearReportSweepBoxRight = na
+var bool bullReportCandidateBoxWasInside = false
+var bool bearReportCandidateBoxWasInside = false
+var bool bullReportSweepBoxWasInside = false
+var bool bearReportSweepBoxWasInside = false
 var int bullReportState = reportStateOff
 var int bearReportState = reportStateOff
 var string bullReportStateReason = "OFF"
@@ -473,38 +461,34 @@ if useFastCRSIBands
     db := ta.percentile_nearest_rank(crsi, cyclicMemory, bandPercent)
     ub := ta.percentile_nearest_rank(crsi, cyclicMemory, inverseBandPercent)
 else
-    float lmax = -999999.0
-    float lmin = 999999.0
-
-    for i = 0 to cyclicMemory - 1
-        val = nz(crsi[i])
-        if val > lmax
-            lmax := val
-        if val < lmin
-            lmin := val
-
+    lmax = ta.highest(crsi, cyclicMemory)
+    lmin = ta.lowest(crsi, cyclicMemory)
     mstep = (lmax - lmin) / 100.0
     aperc = leveling / 100.0
 
-    for steps = 0 to 100
-        testValue = lmin + mstep * steps
-        below = 0.0
-        for m = 0 to cyclicMemory - 1
-            below += crsi[m] < testValue ? 1 : 0
-        ratio = below / cyclicMemory
-        if ratio >= aperc
-            db := testValue
-            break
+    if mstep == 0
+        db := lmin
+        ub := lmax
+    else
+        for steps = 0 to 100
+            testValue = lmin + mstep * steps
+            below = 0.0
+            for m = 0 to cyclicMemory - 1
+                below += crsi[m] < testValue ? 1 : 0
+            ratio = below / cyclicMemory
+            if ratio >= aperc
+                db := testValue
+                break
 
-    for steps = 0 to 100
-        testValue = lmax - mstep * steps
-        above = 0.0
-        for m = 0 to cyclicMemory - 1
-            above += crsi[m] >= testValue ? 1 : 0
-        ratio = above / cyclicMemory
-        if ratio >= aperc
-            ub := testValue
-            break
+        for steps = 0 to 100
+            testValue = lmax - mstep * steps
+            above = 0.0
+            for m = 0 to cyclicMemory - 1
+                above += crsi[m] >= testValue ? 1 : 0
+            ratio = above / cyclicMemory
+            if ratio >= aperc
+                ub := testValue
+                break
 
 // =========================
 // Confirmed OB / OS
@@ -641,12 +625,13 @@ signalVolatilityRatio = signalAtrAvg > 0 ? signalAtr / signalAtrAvg : 1.0
 // Volume Pressure Tracker Composite Logic
 // =========================
 vpBar = bar_index
+vpPriceVolume = hlc3 * volume
 
 var float vpPh = na
 var float vpPl = na
 var int vpPhBar = 0
 var int vpPlBar = 0
-var float vpP = hlc3 * volume
+var float vpP = vpPriceVolume
 var float vpVol = volume
 var float vpVap = na
 
@@ -671,19 +656,28 @@ if vpDir != vpDir[1]
     vpVol := volume[vpBarsback]
     vpVap := vpVol > 0 ? vpP / vpVol : na
 
-    for i = vpBarsback to 0 by 1
-        alpha = alphaFromAPT(vpAptSeries[i])
-        pxv = hlc3[i] * volume[i]
-        vpP := (1.0 - alpha) * vpP + alpha * pxv
-        vpVol := (1.0 - alpha) * vpVol + alpha * volume[i]
-        vappe = vpVol > 0 ? vpP / vpVol : na
-        if i == 0
-            vpVap := vappe
+    if vpUseAdapt
+        for i = vpBarsback to 0 by 1
+            alpha = alphaFromAPT(vpAptSeries[i])
+            vpP := (1.0 - alpha) * vpP + alpha * vpPriceVolume[i]
+            vpVol := (1.0 - alpha) * vpVol + alpha * volume[i]
+            vappe = vpVol > 0 ? vpP / vpVol : na
+            if i == 0
+                vpVap := vappe
+    else
+        alpha = alphaFromAPT(vpAptSeries)
+        alphaComplement = 1.0 - alpha
+        for i = vpBarsback to 0 by 1
+            vpP := alphaComplement * vpP + alpha * vpPriceVolume[i]
+            vpVol := alphaComplement * vpVol + alpha * volume[i]
+            vappe = vpVol > 0 ? vpP / vpVol : na
+            if i == 0
+                vpVap := vappe
 else
     alpha = alphaFromAPT(vpAptSeries)
-    pxv = hlc3 * volume
-    vpP := (1.0 - alpha) * vpP + alpha * pxv
-    vpVol := (1.0 - alpha) * vpVol + alpha * volume
+    alphaComplement = 1.0 - alpha
+    vpP := alphaComplement * vpP + alpha * vpPriceVolume
+    vpVol := alphaComplement * vpVol + alpha * volume
     vpVap := vpVol > 0 ? vpP / vpVol : na
 
 vpBaseLine = donchian(vpBasePeriods)
@@ -762,22 +756,55 @@ bearDivTrigger = regularBearDiv
 bullCandleTrigger = isBullishAbnormalCandle
 bearCandleTrigger = isBearishAbnormalCandle
 
+var int bullDivTriggerBar = na
+var int bearDivTriggerBar = na
+var float bullDivRefClose = na
+var float bullDivRefRsi = na
+var float bullDivRefAtr = na
+var float bearDivRefClose = na
+var float bearDivRefRsi = na
+var float bearDivRefAtr = na
+var int bullCandleTriggerBar = na
+var int bearCandleTriggerBar = na
+var float bullCandleRefClose = na
+var float bullCandleRefRsi = na
+var float bullCandleRefAtr = na
+var float bearCandleRefClose = na
+var float bearCandleRefRsi = na
+var float bearCandleRefAtr = na
+
+if bullDivTrigger
+    bullDivTriggerBar := bar_index
+    bullDivRefClose := low[lbR]
+    bullDivRefRsi := osc[lbR]
+    bullDivRefAtr := atr[lbR]
+
+if bearDivTrigger
+    bearDivTriggerBar := bar_index
+    bearDivRefClose := high[lbR]
+    bearDivRefRsi := osc[lbR]
+    bearDivRefAtr := atr[lbR]
+
+if bullCandleTrigger
+    bullCandleTriggerBar := bar_index
+    bullCandleRefClose := candleBodyLow
+    bullCandleRefRsi := osc
+    bullCandleRefAtr := atr
+
+if bearCandleTrigger
+    bearCandleTriggerBar := bar_index
+    bearCandleRefClose := candleBodyHigh
+    bearCandleRefRsi := osc
+    bearCandleRefAtr := atr
+
 // =========================
 // Divergence-based Background Logic
 // =========================
-bullDivBars = ta.barssince(bullDivTrigger)
-bearDivBars = ta.barssince(bearDivTrigger)
+bullDivBars = not na(bullDivTriggerBar) ? bar_index - bullDivTriggerBar : na
+bearDivBars = not na(bearDivTriggerBar) ? bar_index - bearDivTriggerBar : na
 
 hasBullDiv = bullDivBars >= 0 and bullDivBars <= setupLookbackBars
 hasBearDiv = bearDivBars >= 0 and bearDivBars <= setupLookbackBars
-
-bullDivRefClose = ta.valuewhen(bullDivTrigger, low[lbR], 0)
-bullDivRefRsi = ta.valuewhen(bullDivTrigger, osc[lbR], 0)
-bullDivRefAtr = ta.valuewhen(bullDivTrigger, atr[lbR], 0)
-
-bearDivRefClose = ta.valuewhen(bearDivTrigger, high[lbR], 0)
-bearDivRefRsi = ta.valuewhen(bearDivTrigger, osc[lbR], 0)
-bearDivRefAtr = ta.valuewhen(bearDivTrigger, atr[lbR], 0)
 
 bullDivPriceMove = hasBullDiv and not na(bullDivRefClose) ? bullDivRefClose - low : na
 bullDivRsiMove = hasBullDiv and not na(bullDivRefRsi) ? bullDivRefRsi - osc : na
@@ -793,19 +820,11 @@ bearBgFromDiv = hasBearDiv and bearDivBars > 0 and not na(bearDivPriceMove) and 
 // =========================
 // Candle-based Background Logic
 // =========================
-bullCandleBars = ta.barssince(bullCandleTrigger)
-bearCandleBars = ta.barssince(bearCandleTrigger)
+bullCandleBars = not na(bullCandleTriggerBar) ? bar_index - bullCandleTriggerBar : na
+bearCandleBars = not na(bearCandleTriggerBar) ? bar_index - bearCandleTriggerBar : na
 
 hasBullCandle = bullCandleBars >= 0 and bullCandleBars <= candleSetupLookbackBars
 hasBearCandle = bearCandleBars >= 0 and bearCandleBars <= candleSetupLookbackBars
-
-bullCandleRefClose = ta.valuewhen(bullCandleTrigger, candleBodyLow, 0)
-bullCandleRefRsi = ta.valuewhen(bullCandleTrigger, osc, 0)
-bullCandleRefAtr = ta.valuewhen(bullCandleTrigger, atr, 0)
-
-bearCandleRefClose = ta.valuewhen(bearCandleTrigger, candleBodyHigh, 0)
-bearCandleRefRsi = ta.valuewhen(bearCandleTrigger, osc, 0)
-bearCandleRefAtr = ta.valuewhen(bearCandleTrigger, atr, 0)
 
 bullCandlePriceMove = hasBullCandle and not na(bullCandleRefClose) ? bullCandleRefClose - low : na
 bullCandleRsiMove = hasBullCandle and not na(bullCandleRefRsi) ? bullCandleRefRsi - osc : na
@@ -821,8 +840,8 @@ bearBgFromCandle = hasBearCandle and bearCandleBars > 0 and not na(bearCandlePri
 // =========================
 // Background Filters
 // =========================
-recentBullishAbnormalCandle = recentSignal(isBullishAbnormalCandle, candleSetupLookbackBars)
-recentBearishAbnormalCandle = recentSignal(isBearishAbnormalCandle, candleSetupLookbackBars)
+recentBullishAbnormalCandle = withinLookback(bullCandleTriggerBar, candleSetupLookbackBars)
+recentBearishAbnormalCandle = withinLookback(bearCandleTriggerBar, candleSetupLookbackBars)
 volumeSma20 = ta.sma(volume, 20)
 
 bullBgCRSIFilter = not useCRSIFilterForBg or recentBullishAbnormalCandle or isOversold or (not na(db) and crsi <= db)
@@ -875,16 +894,52 @@ bgcolor(finalBgColor, title="강세/약세 배경 구간")
 // =========================
 // L/S Composite Signals
 // =========================
-recentBullDivSignal = recentSignal(regularBullDiv, lsSetupLookback)
-recentBearDivSignal = recentSignal(regularBearDiv, lsSetupLookback)
-recentHelperBullishSignal = recentSignal(helperBullishSignal, lsSetupLookback)
-recentHelperBearishSignal = recentSignal(helperBearishSignal, lsSetupLookback)
-recentBullStrongBgSignal = recentSignal(bullBgStrongSignal, lsStrongBgBonusLookback)
-recentBearStrongBgSignal = recentSignal(bearBgStrongSignal, lsStrongBgBonusLookback)
-bullLatestPullbackBar = ta.valuewhen(bullStrongBgPullbackSignal, bar_index, 0)
-bearLatestPullbackBar = ta.valuewhen(bearStrongBgPullbackSignal, bar_index, 0)
-bullLatestPullbackBonus = ta.valuewhen(bullStrongBgPullbackSignal, bullStrongBgPullbackBonusRaw, 0)
-bearLatestPullbackBonus = ta.valuewhen(bearStrongBgPullbackSignal, bearStrongBgPullbackBonusRaw, 0)
+var int helperBullishSignalBar = na
+var int helperBearishSignalBar = na
+var int bullBgOnSignalBar = na
+var int bearBgOnSignalBar = na
+var int bullBgStrongSignalBar = na
+var int bearBgStrongSignalBar = na
+var int bullLatestPullbackBar = na
+var int bearLatestPullbackBar = na
+var float bullLatestPullbackBonus = na
+var float bearLatestPullbackBonus = na
+var int bullAbnormalOrderVolumeBar = na
+var int bearAbnormalOrderVolumeBar = na
+
+if helperBullishSignal
+    helperBullishSignalBar := bar_index
+
+if helperBearishSignal
+    helperBearishSignalBar := bar_index
+
+if bullBgOnSignal
+    bullBgOnSignalBar := bar_index
+
+if bearBgOnSignal
+    bearBgOnSignalBar := bar_index
+
+if bullBgStrongSignal
+    bullBgStrongSignalBar := bar_index
+
+if bearBgStrongSignal
+    bearBgStrongSignalBar := bar_index
+
+recentBullDivSignal = withinLookback(bullDivTriggerBar, lsSetupLookback)
+recentBearDivSignal = withinLookback(bearDivTriggerBar, lsSetupLookback)
+recentHelperBullishSignal = withinLookback(helperBullishSignalBar, lsSetupLookback)
+recentHelperBearishSignal = withinLookback(helperBearishSignalBar, lsSetupLookback)
+recentBullStrongBgSignal = withinLookback(bullBgStrongSignalBar, lsStrongBgBonusLookback)
+recentBearStrongBgSignal = withinLookback(bearBgStrongSignalBar, lsStrongBgBonusLookback)
+
+if bullStrongBgPullbackSignal
+    bullLatestPullbackBar := bar_index
+    bullLatestPullbackBonus := bullStrongBgPullbackBonusRaw
+
+if bearStrongBgPullbackSignal
+    bearLatestPullbackBar := bar_index
+    bearLatestPullbackBonus := bearStrongBgPullbackBonusRaw
+
 bullLatestPullbackBarsAgo = not na(bullLatestPullbackBar) ? bar_index - bullLatestPullbackBar : na
 bearLatestPullbackBarsAgo = not na(bearLatestPullbackBar) ? bar_index - bearLatestPullbackBar : na
 bullPullbackBonusAvailable = not na(bullLatestPullbackBarsAgo) and bullLatestPullbackBarsAgo <= lsStrongBgPullbackLookback and (na(bullConsumedPullbackBar) or bullLatestPullbackBar > bullConsumedPullbackBar)
@@ -897,10 +952,17 @@ lsFilterAvgBuyVolume = ta.sma(buyVolume, lsFilterOrderVolumeLength)
 lsFilterAvgSellVolume = ta.sma(sellVolume, lsFilterOrderVolumeLength)
 lsFilterAbnormalBuyOrderVolume = buyVolume > lsFilterAvgBuyVolume * (1 + lsFilterOrderVolumeMultiplier)
 lsFilterAbnormalSellOrderVolume = sellVolume > lsFilterAvgSellVolume * (1 + lsFilterOrderVolumeMultiplier)
-recentBullBgSignal = recentSignal(bullBgOnSignal or bullBgStrongSignal, lsBgAbnormalVolumeLookback)
-recentBearBgSignal = recentSignal(bearBgOnSignal or bearBgStrongSignal, lsBgAbnormalVolumeLookback)
-recentBullAbnormalOrderVolume = recentSignal(lsFilterAbnormalBuyOrderVolume and buyVolume > sellVolume, lsBgAbnormalVolumeLookback)
-recentBearAbnormalOrderVolume = recentSignal(lsFilterAbnormalSellOrderVolume and sellVolume > buyVolume, lsBgAbnormalVolumeLookback)
+
+if lsFilterAbnormalBuyOrderVolume and buyVolume > sellVolume
+    bullAbnormalOrderVolumeBar := bar_index
+
+if lsFilterAbnormalSellOrderVolume and sellVolume > buyVolume
+    bearAbnormalOrderVolumeBar := bar_index
+
+recentBullBgSignal = withinLookback(bullBgOnSignalBar, lsBgAbnormalVolumeLookback)
+recentBearBgSignal = withinLookback(bearBgOnSignalBar, lsBgAbnormalVolumeLookback)
+recentBullAbnormalOrderVolume = withinLookback(bullAbnormalOrderVolumeBar, lsBgAbnormalVolumeLookback)
+recentBearAbnormalOrderVolume = withinLookback(bearAbnormalOrderVolumeBar, lsBgAbnormalVolumeLookback)
 bullAbnormalOrderVolumeReady = recentBullAbnormalOrderVolume
 bearAbnormalOrderVolumeReady = recentBearAbnormalOrderVolume
 bullBgAbnormalVolumeBonusReady = recentBullBgSignal and recentBullAbnormalOrderVolume
@@ -1153,6 +1215,8 @@ if barstate.isconfirmed
         bullReportSweepBoxTop := na
         bullReportSweepBoxBottom := na
         bullReportSweepBoxRight := na
+        bullReportCandidateBoxWasInside := false
+        bullReportSweepBoxWasInside := false
         bullReportState := reportStateOff
         bullReportStateReason := "반대 ATR 강화"
         bullReportTrackingActive := false
@@ -1177,13 +1241,23 @@ if barstate.isconfirmed
             bullReportSweepBoxTop := na
             bullReportSweepBoxBottom := na
             bullReportSweepBoxRight := na
+            bullReportCandidateBoxWasInside := false
+            bullReportSweepBoxWasInside := false
             bullReportState := reportStateWatch
             bullReportStateReason := "관찰"
             bullReportTrackingActive := true
 
         if bullReportTrackingActive
-            bullCandidateExitReason = ""
-            bullSweepExitReason = ""
+            bullCandidateExpiredReason = ""
+            bullCandidateWaitReason = ""
+            bullSweepExpiredReason = ""
+            bullSweepWaitReason = ""
+            bullCandidateReentryEvent = false
+            bullSweepReentryEvent = false
+            bullCandidateBoxInside = false
+            bullSweepBoxInside = false
+            bullCandidateBoxExpired = false
+            bullSweepBoxExpired = false
             bullFallbackReason = reportWatchReason(bullReportStartEvent, bullReportHoldEvent, bullReportHintEvent, bullReportWatchEvent, bullReportWatchStrongEvent, bullReportState == reportStateWatch ? bullReportStateReason : "관찰")
             bullReportStartCount += bullReportStartEvent ? 1 : 0
             bullReportHoldCount += bullReportHoldEvent ? 1 : 0
@@ -1198,12 +1272,22 @@ if barstate.isconfirmed
                 bullReportCandidateBoxTop := bullSignalBoxTop(0)
                 bullReportCandidateBoxBottom := bullSignalBoxBottom(0)
                 bullReportCandidateBoxRight := bar_index + effectiveReferenceExtendBars
+                bullReportCandidateBoxWasInside := true
             else if not na(bullReportCandidateBoxRight)
-                bullCandidateExitReason := boxExitReason("기준 박스", bullReportCandidateBoxTop, bullReportCandidateBoxBottom, bullReportCandidateBoxRight)
-                if bullCandidateExitReason != ""
+                bullCandidateBoxExpired := boxExpired(bullReportCandidateBoxRight)
+                bullCandidateBoxInside := not bullCandidateBoxExpired and boxContainsBar(bullReportCandidateBoxTop, bullReportCandidateBoxBottom, bullReportCandidateBoxRight)
+                if bullCandidateBoxExpired
+                    bullCandidateExpiredReason := "기준 박스 만료"
                     bullReportCandidateBoxTop := na
                     bullReportCandidateBoxBottom := na
                     bullReportCandidateBoxRight := na
+                    bullReportCandidateBoxWasInside := false
+                else
+                    bullCandidateReentryEvent := bullCandidateBoxInside and not bullReportCandidateBoxWasInside
+                    bullCandidateWaitReason := bullCandidateBoxInside ? "" : "기준 박스 이탈"
+                    bullReportCandidateBoxWasInside := bullCandidateBoxInside
+            else
+                bullReportCandidateBoxWasInside := false
 
             if bullReportConfirmEvent
                 bullReportLastSweepScore := bullUnifiedScore
@@ -1213,19 +1297,30 @@ if barstate.isconfirmed
                 bullReportCandidateBoxTop := na
                 bullReportCandidateBoxBottom := na
                 bullReportCandidateBoxRight := na
+                bullReportCandidateBoxWasInside := false
+                bullReportSweepBoxWasInside := true
             else if not na(bullReportSweepBoxRight)
-                bullSweepExitReason := boxExitReason("스윕 박스", bullReportSweepBoxTop, bullReportSweepBoxBottom, bullReportSweepBoxRight)
-                if bullSweepExitReason != ""
+                bullSweepBoxExpired := boxExpired(bullReportSweepBoxRight)
+                bullSweepBoxInside := not bullSweepBoxExpired and boxContainsBar(bullReportSweepBoxTop, bullReportSweepBoxBottom, bullReportSweepBoxRight)
+                if bullSweepBoxExpired
+                    bullSweepExpiredReason := "스윕 박스 만료"
                     bullReportSweepBoxTop := na
                     bullReportSweepBoxBottom := na
                     bullReportSweepBoxRight := na
+                    bullReportSweepBoxWasInside := false
+                else
+                    bullSweepReentryEvent := bullSweepBoxInside and not bullReportSweepBoxWasInside
+                    bullSweepWaitReason := bullSweepBoxInside ? "" : "스윕 박스 이탈"
+                    bullReportSweepBoxWasInside := bullSweepBoxInside
+            else
+                bullReportSweepBoxWasInside := false
 
             bullReportReferenceReady = bullReportCandidateEvent
-            bullReportCandidateReady = not bullReportCandidateEvent and boxContainsBar(bullReportCandidateBoxTop, bullReportCandidateBoxBottom, bullReportCandidateBoxRight)
-            bullReportSweepBoxReady = not bullReportConfirmEvent and boxContainsBar(bullReportSweepBoxTop, bullReportSweepBoxBottom, bullReportSweepBoxRight)
+            bullReportCandidateReady = not bullReportCandidateEvent and bullCandidateBoxInside
+            bullReportSweepBoxReady = not bullReportConfirmEvent and bullSweepBoxInside
             bullReportSweepReady = bullReportConfirmEvent or bullReportSweepBoxReady
             bullReportState := reportPositionCode(bullReportTrackingActive, bullReportReferenceReady, bullReportCandidateReady, bullReportSweepReady)
-            bullTriggerReason = bullReportConfirmEvent ? "스윕 확인" : bullReportSweepBoxReady ? "스윕 박스" : bullSweepExitReason != "" ? bullSweepExitReason : bullReportCandidateEvent ? "기준 봉" : bullReportCandidateReady ? "기준 박스" : bullCandidateExitReason != "" ? bullCandidateExitReason : bullFallbackReason
+            bullTriggerReason = bullReportConfirmEvent ? "스윕 확인" : bullSweepReentryEvent ? "스윕 박스 재진입" : bullReportSweepBoxReady ? "스윕 박스" : bullSweepWaitReason != "" ? bullSweepWaitReason : bullSweepExpiredReason != "" ? bullSweepExpiredReason : bullReportCandidateEvent ? "기준 봉" : bullCandidateReentryEvent ? "기준 박스 재진입" : bullReportCandidateReady ? "기준 박스" : bullCandidateWaitReason != "" ? bullCandidateWaitReason : bullCandidateExpiredReason != "" ? bullCandidateExpiredReason : bullFallbackReason
             bullReportStateReason := reportStateReason(bullReportState, bullTriggerReason, bullFallbackReason)
 
     if bearReportEndEvent and bearReportTrackingActive
@@ -1238,6 +1333,8 @@ if barstate.isconfirmed
         bearReportSweepBoxTop := na
         bearReportSweepBoxBottom := na
         bearReportSweepBoxRight := na
+        bearReportCandidateBoxWasInside := false
+        bearReportSweepBoxWasInside := false
         bearReportState := reportStateOff
         bearReportStateReason := "반대 ATR 강화"
         bearReportTrackingActive := false
@@ -1262,13 +1359,23 @@ if barstate.isconfirmed
             bearReportSweepBoxTop := na
             bearReportSweepBoxBottom := na
             bearReportSweepBoxRight := na
+            bearReportCandidateBoxWasInside := false
+            bearReportSweepBoxWasInside := false
             bearReportState := reportStateWatch
             bearReportStateReason := "관찰"
             bearReportTrackingActive := true
 
         if bearReportTrackingActive
-            bearCandidateExitReason = ""
-            bearSweepExitReason = ""
+            bearCandidateExpiredReason = ""
+            bearCandidateWaitReason = ""
+            bearSweepExpiredReason = ""
+            bearSweepWaitReason = ""
+            bearCandidateReentryEvent = false
+            bearSweepReentryEvent = false
+            bearCandidateBoxInside = false
+            bearSweepBoxInside = false
+            bearCandidateBoxExpired = false
+            bearSweepBoxExpired = false
             bearFallbackReason = reportWatchReason(bearReportStartEvent, bearReportHoldEvent, bearReportHintEvent, bearReportWatchEvent, bearReportWatchStrongEvent, bearReportState == reportStateWatch ? bearReportStateReason : "관찰")
             bearReportStartCount += bearReportStartEvent ? 1 : 0
             bearReportHoldCount += bearReportHoldEvent ? 1 : 0
@@ -1283,12 +1390,22 @@ if barstate.isconfirmed
                 bearReportCandidateBoxTop := bearSignalBoxTop(0)
                 bearReportCandidateBoxBottom := bearSignalBoxBottom(0)
                 bearReportCandidateBoxRight := bar_index + effectiveReferenceExtendBars
+                bearReportCandidateBoxWasInside := true
             else if not na(bearReportCandidateBoxRight)
-                bearCandidateExitReason := boxExitReason("기준 박스", bearReportCandidateBoxTop, bearReportCandidateBoxBottom, bearReportCandidateBoxRight)
-                if bearCandidateExitReason != ""
+                bearCandidateBoxExpired := boxExpired(bearReportCandidateBoxRight)
+                bearCandidateBoxInside := not bearCandidateBoxExpired and boxContainsBar(bearReportCandidateBoxTop, bearReportCandidateBoxBottom, bearReportCandidateBoxRight)
+                if bearCandidateBoxExpired
+                    bearCandidateExpiredReason := "기준 박스 만료"
                     bearReportCandidateBoxTop := na
                     bearReportCandidateBoxBottom := na
                     bearReportCandidateBoxRight := na
+                    bearReportCandidateBoxWasInside := false
+                else
+                    bearCandidateReentryEvent := bearCandidateBoxInside and not bearReportCandidateBoxWasInside
+                    bearCandidateWaitReason := bearCandidateBoxInside ? "" : "기준 박스 이탈"
+                    bearReportCandidateBoxWasInside := bearCandidateBoxInside
+            else
+                bearReportCandidateBoxWasInside := false
 
             if bearReportConfirmEvent
                 bearReportLastSweepScore := bearUnifiedScore
@@ -1298,19 +1415,30 @@ if barstate.isconfirmed
                 bearReportCandidateBoxTop := na
                 bearReportCandidateBoxBottom := na
                 bearReportCandidateBoxRight := na
+                bearReportCandidateBoxWasInside := false
+                bearReportSweepBoxWasInside := true
             else if not na(bearReportSweepBoxRight)
-                bearSweepExitReason := boxExitReason("스윕 박스", bearReportSweepBoxTop, bearReportSweepBoxBottom, bearReportSweepBoxRight)
-                if bearSweepExitReason != ""
+                bearSweepBoxExpired := boxExpired(bearReportSweepBoxRight)
+                bearSweepBoxInside := not bearSweepBoxExpired and boxContainsBar(bearReportSweepBoxTop, bearReportSweepBoxBottom, bearReportSweepBoxRight)
+                if bearSweepBoxExpired
+                    bearSweepExpiredReason := "스윕 박스 만료"
                     bearReportSweepBoxTop := na
                     bearReportSweepBoxBottom := na
                     bearReportSweepBoxRight := na
+                    bearReportSweepBoxWasInside := false
+                else
+                    bearSweepReentryEvent := bearSweepBoxInside and not bearReportSweepBoxWasInside
+                    bearSweepWaitReason := bearSweepBoxInside ? "" : "스윕 박스 이탈"
+                    bearReportSweepBoxWasInside := bearSweepBoxInside
+            else
+                bearReportSweepBoxWasInside := false
 
             bearReportReferenceReady = bearReportCandidateEvent
-            bearReportCandidateReady = not bearReportCandidateEvent and boxContainsBar(bearReportCandidateBoxTop, bearReportCandidateBoxBottom, bearReportCandidateBoxRight)
-            bearReportSweepBoxReady = not bearReportConfirmEvent and boxContainsBar(bearReportSweepBoxTop, bearReportSweepBoxBottom, bearReportSweepBoxRight)
+            bearReportCandidateReady = not bearReportCandidateEvent and bearCandidateBoxInside
+            bearReportSweepBoxReady = not bearReportConfirmEvent and bearSweepBoxInside
             bearReportSweepReady = bearReportConfirmEvent or bearReportSweepBoxReady
             bearReportState := reportPositionCode(bearReportTrackingActive, bearReportReferenceReady, bearReportCandidateReady, bearReportSweepReady)
-            bearTriggerReason = bearReportConfirmEvent ? "스윕 확인" : bearReportSweepBoxReady ? "스윕 박스" : bearSweepExitReason != "" ? bearSweepExitReason : bearReportCandidateEvent ? "기준 봉" : bearReportCandidateReady ? "기준 박스" : bearCandidateExitReason != "" ? bearCandidateExitReason : bearFallbackReason
+            bearTriggerReason = bearReportConfirmEvent ? "스윕 확인" : bearSweepReentryEvent ? "스윕 박스 재진입" : bearReportSweepBoxReady ? "스윕 박스" : bearSweepWaitReason != "" ? bearSweepWaitReason : bearSweepExpiredReason != "" ? bearSweepExpiredReason : bearReportCandidateEvent ? "기준 봉" : bearCandidateReentryEvent ? "기준 박스 재진입" : bearReportCandidateReady ? "기준 박스" : bearCandidateWaitReason != "" ? bearCandidateWaitReason : bearCandidateExpiredReason != "" ? bearCandidateExpiredReason : bearFallbackReason
             bearReportStateReason := reportStateReason(bearReportState, bearTriggerReason, bearFallbackReason)
 
 bullReportPositionCode = bullReportState
