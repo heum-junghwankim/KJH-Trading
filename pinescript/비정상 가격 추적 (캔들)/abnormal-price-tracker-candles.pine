@@ -1065,8 +1065,8 @@ strongShortSignalColor = strongShortSignalColorInput
 bullSweepSignalColor = bullSweepSignalColorInput
 bearSweepSignalColor = bearSweepSignalColorInput
 
-plotshape(showStrongLSSignals and displayLongSignal, title="3단계 롱 기준 봉 (첫 후보 신호) - 종합 기준 통과", style=shape.circle, location=location.belowbar, color=strongLongSignalColor, size=size.tiny)
-plotshape(showStrongLSSignals and displayShortSignal, title="3단계 숏 기준 봉 (첫 후보 신호) - 종합 기준 통과", style=shape.circle, location=location.abovebar, color=strongShortSignalColor, size=size.tiny)
+plotshape(showStrongLSSignals and displayLongSignal, title="3단계 롱 기준 봉 (첫 기준 신호) - 종합 기준 통과", style=shape.circle, location=location.belowbar, color=strongLongSignalColor, size=size.tiny)
+plotshape(showStrongLSSignals and displayShortSignal, title="3단계 숏 기준 봉 (첫 기준 신호) - 종합 기준 통과", style=shape.circle, location=location.abovebar, color=strongShortSignalColor, size=size.tiny)
 
 confirmedLongSignal = barstate.isconfirmed and displayLongSignal
 confirmedShortSignal = barstate.isconfirmed and displayShortSignal
@@ -1176,8 +1176,8 @@ alertcondition(bearBgAlert, title="2단계 숏 감시 (매도 배경 진입) - A
 
 alertcondition(bullBgStrongAlert, title="2단계 롱 감시 강화 (매수 배경 강화) - ATR 확장", message="2단계 롱 감시 강화 (매수 배경 강화) - ATR 확장")
 alertcondition(bearBgStrongAlert, title="2단계 숏 감시 강화 (매도 배경 강화) - ATR 확장", message="2단계 숏 감시 강화 (매도 배경 강화) - ATR 확장")
-alertcondition(longSignal, title="3단계 롱 기준 봉 (첫 후보 신호) - 종합 기준 통과", message="3단계 롱 기준 봉 (첫 후보 신호) - 종합 기준 통과")
-alertcondition(shortSignal, title="3단계 숏 기준 봉 (첫 후보 신호) - 종합 기준 통과", message="3단계 숏 기준 봉 (첫 후보 신호) - 종합 기준 통과")
+alertcondition(longSignal, title="3단계 롱 기준 봉 (첫 기준 신호) - 종합 기준 통과", message="3단계 롱 기준 봉 (첫 기준 신호) - 종합 기준 통과")
+alertcondition(shortSignal, title="3단계 숏 기준 봉 (첫 기준 신호) - 종합 기준 통과", message="3단계 숏 기준 봉 (첫 기준 신호) - 종합 기준 통과")
 alertcondition(confirmedBullSweepFollowThrough, title="4단계 롱 확인 (하단 유동성 스윕) - 확인 봉", message="4단계 롱 확인 (하단 유동성 스윕) - 확인 봉")
 alertcondition(confirmedBearSweepFollowThrough, title="4단계 숏 확인 (상단 유동성 스윕) - 확인 봉", message="4단계 숏 확인 (상단 유동성 스윕) - 확인 봉")
 

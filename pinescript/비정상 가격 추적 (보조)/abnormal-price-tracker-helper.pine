@@ -26,7 +26,6 @@ crsiBandColor = input.color(color.aqua, title="cRSI Band Color")
 crsiBandWidth = input.int(1, minval=1, maxval=5, title="cRSI Band Width")
 crsiBandFillColor = input.color(color.blue, title="cRSI Band Fill Color")
 crsiBandFillTransparency = input.int(88, minval=0, maxval=100, title="cRSI Band Fill Transparency")
-mfiExtremeFillTransparency = input.int(90, minval=0, maxval=100, title="MFI Extreme Fill Transparency")
 
 // ==========================
 // REVERSAL RISK FILTER OPTIONS
@@ -79,6 +78,8 @@ oversoldLevel = 20.0
 mfi = ta.mfi(hlc3, mfiLength)
 isMfiOverbought = mfi >= overboughtLevel
 isMfiOversold = mfi <= oversoldLevel
+mfiOverboughtFillColor = color.rgb(255, 90, 90)
+mfiOversoldFillColor = color.rgb(90, 255, 120)
 
 // ==========================
 // PRICE / VOLUME / REVERSAL STATE
@@ -166,13 +167,9 @@ hline(oversoldLevel, "Oversold", color=color.gray, linestyle=hline.style_dashed,
 lowBandPlot = plot(db, "cRSI Low Band", color=crsiBandColor, linewidth=crsiBandWidth, display=display.pane)
 highBandPlot = plot(ub, "cRSI High Band", color=crsiBandColor, linewidth=crsiBandWidth, display=display.pane)
 mfiPlot = plot(mfi, "MFI", color=mfiColor, linewidth=mfiWidth)
-mfiOverboughtPlot = plot(isMfiOverbought ? mfi : na, "MFI Overbought", color=color.new(mfiColor, 100), display=display.none)
-mfiOversoldPlot = plot(isMfiOversold ? mfi : na, "MFI Oversold", color=color.new(mfiColor, 100), display=display.none)
-overboughtFillBase = plot(isMfiOverbought ? overboughtLevel : na, "Overbought Fill Base", color=color.new(color.red, 100), display=display.none)
-oversoldFillBase = plot(isMfiOversold ? oversoldLevel : na, "Oversold Fill Base", color=color.new(color.lime, 100), display=display.none)
-plot(isMfiOverbought ? overboughtLevel : na, "Overbought Active", color=color.new(color.red, 35), linewidth=4, style=plot.style_circles, display=display.pane)
-plot(isMfiOversold ? oversoldLevel : na, "Oversold Active", color=color.new(color.lime, 35), linewidth=4, style=plot.style_circles, display=display.pane)
+overboughtFillBase = plot(isMfiOverbought ? overboughtLevel : na, "Overbought Fill Base", color=color.new(mfiOverboughtFillColor, 100), linewidth=1, style=plot.style_linebr, display=display.pane)
+oversoldFillBase = plot(isMfiOversold ? oversoldLevel : na, "Oversold Fill Base", color=color.new(mfiOversoldFillColor, 100), linewidth=1, style=plot.style_linebr, display=display.pane)
 plot(showCrsiLine ? crsi : na, "cRSI", color=crsiColor, linewidth=crsiWidth)
 fill(lowBandPlot, highBandPlot, color=color.new(crsiBandFillColor, crsiBandFillTransparency))
-fill(overboughtFillBase, mfiOverboughtPlot, color=color.new(color.red, mfiExtremeFillTransparency), fillgaps=false)
-fill(oversoldFillBase, mfiOversoldPlot, color=color.new(color.lime, mfiExtremeFillTransparency), fillgaps=false)
+fill(overboughtFillBase, mfiPlot, color=mfiOverboughtFillColor, fillgaps=false)
+fill(oversoldFillBase, mfiPlot, color=mfiOversoldFillColor, fillgaps=false)

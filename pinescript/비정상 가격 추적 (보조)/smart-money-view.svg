@@ -86,7 +86,7 @@
     <rect x="794" y="636" width="312" height="118" rx="18" fill="#f8fbff" stroke="#dce6f1"/>
     <text x="818" y="670" class="body">3. 메인 지표와 합치기</text>
     <text x="818" y="698" class="small">캔들, 거래량, MACD와 함께</text>
-    <text x="818" y="720" class="small">진입 후보만 남기는 필터로 씁니다</text>
+    <text x="818" y="720" class="small">기준 봉/후보만 남기는 필터로 씁니다</text>
   </g>
 
   <text x="60" y="850" class="note">핵심: 배경은 먼저 의심할 자리이고, 실제 진입은 메인 지표와 확인 신호로 좁혀갑니다</text>

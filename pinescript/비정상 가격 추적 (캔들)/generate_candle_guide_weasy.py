@@ -175,7 +175,7 @@ h3 {{ font-size: 11pt; font-weight: 700; margin-bottom: 3px; }}
     </div>
   </div>
 
-  <div class="tip">비정상 캔들 = 감시 시작 신호 (진입 신호 아님!)</div>
+  <div class="tip">비정상 캔들 = 감시 시작 신호 (기준 봉 신호 아님!)</div>
 
   <h3 class="center">실제 차트에서 이렇게 보입니다</h3>
   {"<img class='full-img' src='data:image/png;base64," + chart_b64 + "'/>" if chart_b64 else ""}
@@ -213,7 +213,7 @@ h3 {{ font-size: 11pt; font-weight: 700; margin-bottom: 3px; }}
     <div class="signal-icon">
       <svg width="36" height="22"><circle cx="10" cy="11" r="7" fill="#005f00"/><circle cx="26" cy="11" r="7" fill="#960000"/></svg>
     </div>
-    <div class="signal-text"><span class="title">4. 진입 후보</span><br><span class="desc">첫 진입 신호 -- 어두운 녹/빨 동그라미+박스</span></div>
+    <div class="signal-text"><span class="title">4. 기준 봉</span><br><span class="desc">첫 기준 신호 -- 어두운 녹/빨 동그라미+박스</span></div>
     <div class="signal-num" style="background:#007800;">3</div>
   </div>
 
@@ -221,7 +221,7 @@ h3 {{ font-size: 11pt; font-weight: 700; margin-bottom: 3px; }}
     <div class="signal-icon">
       <svg width="36" height="22"><rect x="2" y="4" width="8" height="14" rx="1" fill="#00ff00"/><polygon points="22,2 28,11 22,20 16,11" fill="#00dc00"/><rect x="32" y="4" width="0" height="14" rx="1" fill="#ff0000"/></svg>
     </div>
-    <div class="signal-text"><span class="title">5. 스윕 확인</span><br><span class="desc">최종 확인 -- 밝은 봉 + 다이아몬드</span></div>
+    <div class="signal-text"><span class="title">5. 스윕 확인</span><br><span class="desc">최종 확인 -- 밝은 봉 + 다음 봉 다이아몬드</span></div>
     <div class="signal-num" style="background:#c83232;">4</div>
   </div>
 
@@ -241,7 +241,7 @@ h3 {{ font-size: 11pt; font-weight: 700; margin-bottom: 3px; }}
     </div>
     <div class="stage-box" style="border-color:#008200;background:#c8f0c8;height:100px;align-self:flex-end;">
       <div class="num" style="background:#008200;">3</div><br>
-      <div class="lbl" style="color:#fff;">진입<br>후보</div>
+      <div class="lbl" style="color:#fff;">기준<br>봉</div>
     </div>
     <div class="stage-box" style="border-color:#c83232;background:#f8d0d0;height:110px;align-self:flex-end;">
       <div class="num" style="background:#c83232;">4</div><br>
@@ -250,7 +250,7 @@ h3 {{ font-size: 11pt; font-weight: 700; margin-bottom: 3px; }}
   </div>
   <div class="zone-bar">
     <div class="zone-watch">감시만 하세요</div>
-    <div class="zone-enter">진입 검토 가능</div>
+    <div class="zone-enter">기준/후보 검토 가능</div>
   </div>
 </div>
 

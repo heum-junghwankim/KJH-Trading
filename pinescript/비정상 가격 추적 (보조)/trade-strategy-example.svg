@@ -58,7 +58,7 @@
 
   <text x="96" y="676" class="body">롱 전략</text>
   <text x="96" y="704" class="small">1. 가격 저점 스윕 뒤 파란 배경 유지 확인</text>
-  <text x="96" y="726" class="small">2. 메인 지표 진입 후보와 거래량/MACD 확인이 붙을 때 롱 검토</text>
+  <text x="96" y="726" class="small">2. 메인 지표 기준 봉/후보와 거래량/MACD 확인이 붙을 때 롱 검토</text>
   <text x="96" y="748" class="small">3. 위에서 노란 배경이 커지면 익절 또는 추격 금지</text>
   <text x="96" y="770" class="small">4. 신호 봉 저가 이탈이면 무효화</text>
 
@@ -100,7 +100,7 @@
 
     <text x="716" y="676" class="body">숏 전략</text>
     <text x="716" y="704" class="small">1. 가격 고점 스윕 뒤 노란 배경 유지 확인</text>
-    <text x="716" y="726" class="small">2. 메인 지표 진입 후보와 거래량/MACD 약화가 붙을 때 숏 검토</text>
+    <text x="716" y="726" class="small">2. 메인 지표 기준 봉/후보와 거래량/MACD 약화가 붙을 때 숏 검토</text>
     <text x="716" y="748" class="small">3. 아래에서 파란 배경이 커지면 익절 또는 추격 금지</text>
     <text x="716" y="770" class="small">4. 신호 봉 고가 회복이면 무효화</text>
   </g>
