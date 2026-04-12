@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1700" height="900" viewBox="0 0 1700 900" role="img" aria-labelledby="title desc">
+  <title id="title">비정상 가격 추적 하이칸아시 실전 감시 흐름 예시</title>
+  <desc id="desc">하이칸아시 버전에서 롱과 숏 감시를 어떻게 읽는지, 프리뷰와 확정 다이버전스 이후 ATR 배경으로 연결하는 흐름을 양쪽 패널로 설명한 SVG</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f8fbff"/>
+      <stop offset="100%" stop-color="#fff8f1"/>
+    </linearGradient>
+    <style>
+      .title { font: 700 32px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #15263a; }
+      .subtitle { font: 500 16px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #58697b; }
+      .panelTitle { font: 700 22px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #17283b; }
+      .label { font: 700 14px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #2e4b69; letter-spacing: 0.06em; }
+      .body { font: 500 15px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #273a4d; }
+      .small { font: 500 13px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #56687a; }
+      .tiny { font: 600 12px 'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif; fill: #607182; }
+    </style>
+  </defs>
+  <rect width="1700" height="900" fill="#edf2f7"/>
+  <rect x="24" y="24" width="1652" height="852" rx="28" fill="url(#bg)" stroke="#d6e0ea"/>
+
+  <text x="60" y="82" class="title">비정상 가격 추적 (하이칸아시) · 실전 감시 흐름 예시</text>
+  <text x="60" y="114" class="subtitle">이 버전은 진입 확정보다 감시 흐름에 집중합니다. 프리뷰 원형은 먼저 보고, 확정 삼각형과 ATR 배경이 붙는지 차분히 확인합니다.</text>
+
+  <rect x="60" y="150" width="700" height="660" rx="26" fill="#ecfff3" stroke="#bfe7cf"/>
+  <text x="96" y="190" class="label">LONG WATCH</text>
+  <text x="96" y="226" class="panelTitle">과매도 자리 뒤 프리뷰에서 확정으로 넘어가는 롱 감시</text>
+  <rect x="96" y="250" width="628" height="230" rx="20" fill="#ffffff" stroke="#d7e3ed"/>
+
+  <polyline points="122,398 170,420 218,404 266,382 314,354 362,338 410,324 458,306 506,286 554,270 602,258 650,248" fill="none" stroke="#f2c94c" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="234" cy="394" r="14" fill="#3b82f6" fill-opacity="0.28" stroke="#3b82f6"/>
+  <polygon points="350,350 366,318 382,350" fill="#2563eb"/>
+  <rect x="430" y="280" width="150" height="62" rx="14" fill="#ddf7e7" stroke="#9fd0b1"/>
+  <text x="450" y="308" class="small">ATR 배경 시작</text>
+  <text x="450" y="330" class="tiny">관찰 유지 구간</text>
+  <text x="122" y="446" class="tiny">연한 원형 = 프리뷰</text>
+  <text x="322" y="446" class="tiny">진한 삼각형 = 확정</text>
+
+  <rect x="96" y="504" width="628" height="250" rx="18" fill="#f5fffa" stroke="#cbe8d6"/>
+  <text x="124" y="540" class="body">롱 쪽 읽는 순서</text>
+  <text x="124" y="570" class="small">1. 비정상 과매도 캔들이 먼저 자리 후보를 만듭니다.</text>
+  <text x="124" y="596" class="small">2. 연한 파랑 원형 프리뷰가 나오면 현재 봉 기준 잠재 다이버전스로 봅니다.</text>
+  <text x="124" y="622" class="small">3. 진한 파랑 삼각형이 붙으면 피벗 확정 힌트로 채택합니다.</text>
+  <text x="124" y="648" class="small">4. ATR 배경이 켜지면 실행보다 관찰 강도가 올라간 상태로 봅니다.</text>
+  <text x="124" y="674" class="small">5. 반대쪽 숏 이벤트가 먼저 나오면 리포트는 바로 종료됩니다.</text>
+  <rect x="472" y="566" width="214" height="102" rx="16" fill="#eef7ff" stroke="#d2e4f3"/>
+  <text x="492" y="598" class="body">핵심 포인트</text>
+  <text x="492" y="626" class="small">프리뷰는 빠르게</text>
+  <text x="492" y="648" class="small">확정은 보수적으로</text>
+
+  <g transform="translate(0 0)">
+    <rect x="940" y="150" width="700" height="660" rx="26" fill="#fff1f3" stroke="#efc8d2"/>
+    <text x="976" y="190" class="label">SHORT WATCH</text>
+    <text x="976" y="226" class="panelTitle">과매수 자리 뒤 프리뷰에서 확정으로 넘어가는 숏 감시</text>
+    <rect x="976" y="250" width="628" height="230" rx="20" fill="#ffffff" stroke="#d7e3ed"/>
+
+    <polyline points="1002,252 1050,266 1098,282 1146,300 1194,320 1242,342 1290,364 1338,382 1386,404 1434,420 1482,438 1530,454" fill="none" stroke="#f2c94c" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="1182" cy="332" r="14" fill="#ef4444" fill-opacity="0.28" stroke="#ef4444"/>
+    <polygon points="1324,374 1340,406 1356,374" fill="#dc2626"/>
+    <rect x="1400" y="398" width="150" height="62" rx="14" fill="#ffe1e6" stroke="#efb0bc"/>
+    <text x="1420" y="426" class="small">ATR 배경 시작</text>
+    <text x="1420" y="448" class="tiny">숏 감시 유지 구간</text>
+    <text x="1002" y="446" class="tiny">연한 원형 = 프리뷰</text>
+    <text x="1298" y="446" class="tiny">진한 삼각형 = 확정</text>
+
+    <rect x="976" y="504" width="628" height="250" rx="18" fill="#fff7f8" stroke="#f0d6dc"/>
+    <text x="1004" y="540" class="body">숏 쪽 읽는 순서</text>
+    <text x="1004" y="570" class="small">1. 비정상 과매수가 먼저 자리 후보를 만듭니다.</text>
+    <text x="1004" y="596" class="small">2. 연한 빨강 원형 프리뷰가 나오면 현재 봉 기준 잠재 약세 다이버전스로 봅니다.</text>
+    <text x="1004" y="622" class="small">3. 진한 빨강 삼각형이 붙으면 피벗 확정 힌트로 채택합니다.</text>
+    <text x="1004" y="648" class="small">4. ATR 배경이 이어지면 숏 감시 우위가 붙었다고 읽습니다.</text>
+    <text x="1004" y="674" class="small">5. 반대쪽 롱 이벤트가 먼저 나오면 현재 감시는 바로 종료됩니다.</text>
+    <rect x="1360" y="566" width="216" height="102" rx="16" fill="#fff1f3" stroke="#efc8d2"/>
+    <text x="1380" y="598" class="body">핵심 포인트</text>
+    <text x="1380" y="626" class="small">프리뷰는 경고</text>
+    <text x="1380" y="648" class="small">확정은 채택</text>
+  </g>
+</svg>

@@ -1,5 +1,5 @@
 //@version=6
-indicator(title="Auto VWAP", shorttitle="Auto VWAP", overlay=true, timeframe="", timeframe_gaps=true)
+indicator(title="Auto VWAP", shorttitle="Auto VWAP", overlay=true)
 
 hideonDWM = input(false, title="Hide VWAP on 1D or Above", group="VWAP Settings", display=display.none)
 anchorMode = input.string(defval="Session", title="Anchor Mode", options=["Session", "Recent Trading Days"], group="VWAP Settings")
@@ -15,7 +15,32 @@ bandMult_1 = input.float(1.0, title="Bands Multiplier #1", group=BANDS_GROUP, in
 showBand_2 = input(true, title="", group=BANDS_GROUP, inline="band_2", display=display.none)
 bandMult_2 = input.float(2.0, title="Bands Multiplier #2", group=BANDS_GROUP, inline="band_2", step=0.5, minval=0, display=display.none, active=showBand_2)
 
-DEFAULT_LINE_COLOR = #00FF00
+DEFAULT_LINE_COLOR = #FFFFFF
+LOWER_BREAK_LINE_COLOR = #00FF00
+UPPER_BREAK_LINE_COLOR = #FF0000
+
+formatPercentGap(float bandValue, float baseValue) =>
+    if na(bandValue) or na(baseValue) or baseValue == 0
+        ""
+    else
+        percentGap = (bandValue / baseValue - 1.0) * 100.0
+        (percentGap > 0 ? "+" : "") + str.tostring(percentGap, "0.00") + "%"
+
+updateLineEndLabel(label existingLineEndLabel, int xPos, float yPrice, string labelText, color lineColor, bool shouldShow) =>
+    label updatedLabel = existingLineEndLabel
+    if shouldShow
+        if na(updatedLabel)
+            updatedLabel := label.new(x=xPos, y=yPrice, text=labelText, xloc=xloc.bar_index, style=label.style_label_left, color=color.new(lineColor, 100), textcolor=lineColor, size=size.small)
+        else
+            label.set_xy(updatedLabel, xPos, yPrice)
+            label.set_text(updatedLabel, labelText)
+            label.set_textcolor(updatedLabel, lineColor)
+            label.set_color(updatedLabel, color.new(lineColor, 100))
+            label.set_style(updatedLabel, label.style_label_left)
+    else if not na(updatedLabel)
+        label.delete(updatedLabel)
+        updatedLabel := na
+    updatedLabel
 
 cumVolume = ta.cum(volume)
 if barstate.islast and cumVolume == 0
@@ -33,6 +58,11 @@ var array<float> sessionStartP2V = array.new_float()
 var float cumulativePV = 0.0
 var float cumulativeVolume = 0.0
 var float cumulativeP2V = 0.0
+var label vwapLineEndLabel = na
+var label upperBand1LineEndLabel = na
+var label lowerBand1LineEndLabel = na
+var label upperBand2LineEndLabel = na
+var label lowerBand2LineEndLabel = na
 
 if isNewSession
     array.push(sessionStartPV, cumulativePV)
@@ -73,14 +103,35 @@ if shouldPlot
     upperBandValue2 := vwapValue + bandBasis * bandMult_2
     lowerBandValue2 := vwapValue - bandBasis * bandMult_2
 
-plot(vwapValue, title="브이왑", color=DEFAULT_LINE_COLOR, offset=offset, editable=true, linestyle=plot.linestyle_solid)
+isLowerBand2Break = shouldPlot and showBand_2 and not na(lowerBandValue2) and low < lowerBandValue2
+isUpperBand2Break = shouldPlot and showBand_2 and not na(upperBandValue2) and high > upperBandValue2
+// Rare wide-range candles can sweep both sides; bias the highlight toward the close vs VWAP.
+color activeLineColor = DEFAULT_LINE_COLOR
+if isLowerBand2Break and not isUpperBand2Break
+    activeLineColor := LOWER_BREAK_LINE_COLOR
+else if isUpperBand2Break and not isLowerBand2Break
+    activeLineColor := UPPER_BREAK_LINE_COLOR
+else if isLowerBand2Break and isUpperBand2Break
+    activeLineColor := close <= vwapValue ? LOWER_BREAK_LINE_COLOR : UPPER_BREAK_LINE_COLOR
+
+color activeFillColor = color.new(activeLineColor, 92)
+
+plot(vwapValue, title="브이왑", color=activeLineColor, offset=offset, editable=true, linestyle=plot.linestyle_solid)
 
 displayBand1 = showBand_1 ? display.all : display.none
-upperBand_1 = plot(upperBandValue1, title="Upper Band #1", color=DEFAULT_LINE_COLOR, offset=offset, display=displayBand1, editable=true, linestyle=plot.linestyle_dotted)
-lowerBand_1 = plot(lowerBandValue1, title="Lower Band #1", color=DEFAULT_LINE_COLOR, offset=offset, display=displayBand1, editable=true, linestyle=plot.linestyle_dotted)
-fill(upperBand_1, lowerBand_1, title="Bands Fill #1", color=color.new(DEFAULT_LINE_COLOR, 92), display=display.none, editable=true)
+upperBand_1 = plot(upperBandValue1, title="Upper Band #1", color=activeLineColor, offset=offset, display=displayBand1, editable=true, linestyle=plot.linestyle_dotted)
+lowerBand_1 = plot(lowerBandValue1, title="Lower Band #1", color=activeLineColor, offset=offset, display=displayBand1, editable=true, linestyle=plot.linestyle_dotted)
+fill(upperBand_1, lowerBand_1, title="Bands Fill #1", color=activeFillColor, display=display.none, editable=true)
 
 displayBand2 = showBand_2 ? display.all : display.none
-upperBand_2 = plot(upperBandValue2, title="Upper Band #2", color=DEFAULT_LINE_COLOR, offset=offset, display=displayBand2, editable=true, linestyle=plot.linestyle_dashed)
-lowerBand_2 = plot(lowerBandValue2, title="Lower Band #2", color=DEFAULT_LINE_COLOR, offset=offset, display=displayBand2, editable=true, linestyle=plot.linestyle_dashed)
-fill(upperBand_2, lowerBand_2, title="Bands Fill #2", color=color.new(DEFAULT_LINE_COLOR, 92), display=display.none, editable=true)
+upperBand_2 = plot(upperBandValue2, title="Upper Band #2", color=activeLineColor, offset=offset, display=displayBand2, editable=true, linestyle=plot.linestyle_dashed)
+lowerBand_2 = plot(lowerBandValue2, title="Lower Band #2", color=activeLineColor, offset=offset, display=displayBand2, editable=true, linestyle=plot.linestyle_dashed)
+fill(upperBand_2, lowerBand_2, title="Bands Fill #2", color=activeFillColor, display=display.none, editable=true)
+
+if barstate.islast
+    lineEndX = bar_index + offset
+    vwapLineEndLabel := updateLineEndLabel(vwapLineEndLabel, lineEndX, vwapValue, "0", activeLineColor, shouldPlot and not na(vwapValue))
+    upperBand1LineEndLabel := updateLineEndLabel(upperBand1LineEndLabel, lineEndX, upperBandValue1, formatPercentGap(upperBandValue1, vwapValue), activeLineColor, shouldPlot and showBand_1 and not na(upperBandValue1))
+    lowerBand1LineEndLabel := updateLineEndLabel(lowerBand1LineEndLabel, lineEndX, lowerBandValue1, formatPercentGap(lowerBandValue1, vwapValue), activeLineColor, shouldPlot and showBand_1 and not na(lowerBandValue1))
+    upperBand2LineEndLabel := updateLineEndLabel(upperBand2LineEndLabel, lineEndX, upperBandValue2, formatPercentGap(upperBandValue2, vwapValue), activeLineColor, shouldPlot and showBand_2 and not na(upperBandValue2))
+    lowerBand2LineEndLabel := updateLineEndLabel(lowerBand2LineEndLabel, lineEndX, lowerBandValue2, formatPercentGap(lowerBandValue2, vwapValue), activeLineColor, shouldPlot and showBand_2 and not na(lowerBandValue2))
