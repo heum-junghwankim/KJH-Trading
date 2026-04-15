@@ -157,8 +157,8 @@ reportStateReason(state, triggerReason, fallbackReason) =>
 reportStatusText(signalCount) =>
     signalCount > 0 ? "ON(" + str.tostring(signalCount) + ")" : "OFF"
 
-reportStatusColor(signalCount, activeColor, inactiveColor) =>
-    signalCount > 0 ? activeColor : inactiveColor
+reportStatusColor(signalCount, isTrackingActive, activeColor, inactiveColor) =>
+    not isTrackingActive ? color.white : signalCount > 0 ? activeColor : inactiveColor
 
 reportPositionCode(trackingActive) =>
     trackingActive ? reportStateWatch : reportStateOff
@@ -784,16 +784,16 @@ if showTradeReport
             table.cell(tradeReportTable, 0, 6, "시작 시간", text_color=color.white, text_halign=text.align_center, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
             table.cell(tradeReportTable, 0, 7, "종료 시간", text_color=color.white, text_halign=text.align_center, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
             reportTableStaticInitialized := true
-        table.cell(tradeReportTable, 1, 1, reportStatusText(bullReportStartCount), text_color=reportStatusColor(bullReportStartCount, reportBullColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 2, 1, reportStatusText(bearReportStartCount), text_color=reportStatusColor(bearReportStartCount, reportBearColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 1, 2, reportStatusText(bullReportHoldCount), text_color=reportStatusColor(bullReportHoldCount, reportBullColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 2, 2, reportStatusText(bearReportHoldCount), text_color=reportStatusColor(bearReportHoldCount, reportBearColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 1, 3, reportStatusText(bullReportHintCount), text_color=reportStatusColor(bullReportHintCount, reportBullColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 2, 3, reportStatusText(bearReportHintCount), text_color=reportStatusColor(bearReportHintCount, reportBearColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 1, 4, reportStatusText(bullReportWatchCount), text_color=reportStatusColor(bullReportWatchCount, reportBullColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 2, 4, reportStatusText(bearReportWatchCount), text_color=reportStatusColor(bearReportWatchCount, reportBearColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 1, 5, reportStatusText(bullReportWatchStrongCount), text_color=reportStatusColor(bullReportWatchStrongCount, reportBullColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 2, 5, reportStatusText(bearReportWatchStrongCount), text_color=reportStatusColor(bearReportWatchStrongCount, reportBearColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+        table.cell(tradeReportTable, 1, 1, reportStatusText(bullReportStartCount), text_color=reportStatusColor(bullReportStartCount, bullReportTrackingActive, reportBullColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+        table.cell(tradeReportTable, 2, 1, reportStatusText(bearReportStartCount), text_color=reportStatusColor(bearReportStartCount, bearReportTrackingActive, reportBearColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+        table.cell(tradeReportTable, 1, 2, reportStatusText(bullReportHoldCount), text_color=reportStatusColor(bullReportHoldCount, bullReportTrackingActive, reportBullColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+        table.cell(tradeReportTable, 2, 2, reportStatusText(bearReportHoldCount), text_color=reportStatusColor(bearReportHoldCount, bearReportTrackingActive, reportBearColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+        table.cell(tradeReportTable, 1, 3, reportStatusText(bullReportHintCount), text_color=reportStatusColor(bullReportHintCount, bullReportTrackingActive, reportBullColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+        table.cell(tradeReportTable, 2, 3, reportStatusText(bearReportHintCount), text_color=reportStatusColor(bearReportHintCount, bearReportTrackingActive, reportBearColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+        table.cell(tradeReportTable, 1, 4, reportStatusText(bullReportWatchCount), text_color=reportStatusColor(bullReportWatchCount, bullReportTrackingActive, reportBullColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+        table.cell(tradeReportTable, 2, 4, reportStatusText(bearReportWatchCount), text_color=reportStatusColor(bearReportWatchCount, bearReportTrackingActive, reportBearColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+        table.cell(tradeReportTable, 1, 5, reportStatusText(bullReportWatchStrongCount), text_color=reportStatusColor(bullReportWatchStrongCount, bullReportTrackingActive, reportBullColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
+        table.cell(tradeReportTable, 2, 5, reportStatusText(bearReportWatchStrongCount), text_color=reportStatusColor(bearReportWatchStrongCount, bearReportTrackingActive, reportBearColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
         table.cell(tradeReportTable, 1, 6, reportTimeText(bullReportFirstSignalTime), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
         table.cell(tradeReportTable, 2, 6, reportTimeText(bearReportFirstSignalTime), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
         table.cell(tradeReportTable, 1, 7, reportEndTimeText(bullReportFirstSignalTime, bullReportEndTime, bullReportTrackingActive), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
