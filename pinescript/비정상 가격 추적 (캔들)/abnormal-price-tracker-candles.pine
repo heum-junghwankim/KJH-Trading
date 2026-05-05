@@ -493,10 +493,11 @@ bearBgStrong = (bearBgFromDiv and bearBgFromCandle) or bearBgStrongByDiv or bear
 bullBgOn = bullBgFromDiv or bullBgFromCandle
 bearBgOn = bearBgFromDiv or bearBgFromCandle
 
-bullBgStrongSignal = barstate.isconfirmed and bullBgStrong
-bearBgStrongSignal = barstate.isconfirmed and bearBgStrong
-bullBgOnSignal = barstate.isconfirmed and bullBgOn
-bearBgOnSignal = barstate.isconfirmed and bearBgOn
+// ATR 배경은 기준 신호가 이미 잡힌 뒤 후속 이동이 붙는 순간, 현재 진행 중인 봉에서도 바로 보이게 합니다.
+bullBgStrongSignal = bullBgStrong
+bearBgStrongSignal = bearBgStrong
+bullBgOnSignal = bullBgOn
+bearBgOnSignal = bearBgOn
 
 bullBgColor = bullBgStrongSignal ? color.new(bullBgStrongColor, bgTransparency) : bullBgOnSignal ? color.new(bullBgBaseColor, bgTransparency) : na
 bearBgColor = bearBgStrongSignal ? color.new(bearBgStrongColor, bgTransparency) : bearBgOnSignal ? color.new(bearBgBaseColor, bgTransparency) : na
