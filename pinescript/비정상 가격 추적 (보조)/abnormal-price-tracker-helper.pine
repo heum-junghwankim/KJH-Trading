@@ -12,20 +12,26 @@ vibration = input.int(10, minval=1, title="cRSI Vibration")
 leveling = input.float(10.0, minval=1.0, maxval=50.0, title="cRSI Leveling %")
 
 // MFI
-mfiLength = input.int(14, minval=1, title="MFI Length")
+mfiLength = input.int(10, minval=1, title="MFI Length")
 
 // ==========================
 // LINE OPTIONS
 // ==========================
-showCrsiLine = input.bool(false, title="Show cRSI Line")
-crsiColor = input.color(color.aqua, title="cRSI Color")
-mfiColor = input.color(color.yellow, title="MFI Color")
-crsiWidth = input.int(1, minval=1, maxval=5, title="cRSI Line Width")
-mfiWidth = input.int(1, minval=1, maxval=5, title="MFI Line Width")
-crsiBandColor = input.color(color.aqua, title="cRSI Band Color")
+showCrsiLine = input.bool(true, title="Show cRSI Line")
+crsiColor = input.color(color.rgb(233, 30, 99), title="cRSI Color")
+mfiColor = input.color(color.rgb(33, 182, 203), title="MFI Color")
+crsiWidth = input.int(2, minval=1, maxval=5, title="cRSI Line Width")
+mfiWidth = input.int(2, minval=1, maxval=5, title="MFI Line Width")
+crsiBandColor = input.color(color.new(color.silver, 35), title="cRSI Band Color")
 crsiBandWidth = input.int(1, minval=1, maxval=5, title="cRSI Band Width")
-crsiBandFillColor = input.color(color.blue, title="cRSI Band Fill Color")
+crsiBandFillColor = input.color(color.new(color.silver, 35), title="cRSI Band Fill Color")
 crsiBandFillTransparency = input.int(88, minval=0, maxval=100, title="cRSI Band Fill Transparency")
+narrowBandStateColor = input.color(color.orange, title="cRSI Narrow Band Color")
+narrowBandStateTransparency = input.int(88, minval=0, maxval=100, title="cRSI Narrow Band Fill Transparency")
+narrowBandWidthThreshold = input.float(20.0, minval=0.0, step=0.1, title="cRSI Narrow Band Width Threshold")
+wideBandStateColor = input.color(color.rgb(168, 85, 247), title="cRSI Wide Band Color")
+wideBandStateTransparency = input.int(88, minval=0, maxval=100, title="cRSI Wide Band Fill Transparency")
+wideBandWidthThreshold = input.float(40.0, minval=0.0, step=0.1, title="cRSI Wide Band Width Threshold")
 
 // ==========================
 // REVERSAL RISK FILTER OPTIONS
@@ -41,6 +47,9 @@ trendLength = input.int(5, minval=2, title="Trend Length")
 priceStretchThreshold = input.float(1.5, minval=0.1, step=0.1, title="Price Stretch (%)")
 useGapFade = input.bool(true, title="Use Gap Fade Condition")
 gapFadeLookback = input.int(1, minval=1, maxval=5, title="Gap Fade Lookback")
+
+formatPanelNumber(value) =>
+    na(value) ? "N/A" : str.tostring(value, "#.##")
 
 // ==========================
 // cRSI CALCULATION
@@ -68,6 +77,12 @@ inverseBandPercent = 100.0 - bandPercent
 
 db := ta.percentile_nearest_rank(crsi, cyclicmemory, bandPercent)
 ub := ta.percentile_nearest_rank(crsi, cyclicmemory, inverseBandPercent)
+
+crsiBandRange = not na(ub) and not na(db) ? ub - db : na
+isCrsiBandNarrow = not na(crsiBandRange) and crsiBandRange <= narrowBandWidthThreshold
+isCrsiBandWide = not na(crsiBandRange) and crsiBandRange >= wideBandWidthThreshold
+activeCrsiBandLineColor = isCrsiBandNarrow ? narrowBandStateColor : isCrsiBandWide ? wideBandStateColor : crsiBandColor
+activeCrsiBandFillColor = isCrsiBandNarrow ? color.new(narrowBandStateColor, narrowBandStateTransparency) : isCrsiBandWide ? color.new(wideBandStateColor, wideBandStateTransparency) : color.new(crsiBandFillColor, crsiBandFillTransparency)
 
 // ==========================
 // MFI
@@ -164,12 +179,25 @@ hline(oversoldLevel, "Oversold", color=color.gray, linestyle=hline.style_dashed,
 // ==========================
 // PLOTS
 // ==========================
-lowBandPlot = plot(db, "cRSI Low Band", color=crsiBandColor, linewidth=crsiBandWidth, display=display.pane)
-highBandPlot = plot(ub, "cRSI High Band", color=crsiBandColor, linewidth=crsiBandWidth, display=display.pane)
+lowBandPlot = plot(db, "cRSI Low Band", color=activeCrsiBandLineColor, linewidth=crsiBandWidth, display=display.pane)
+highBandPlot = plot(ub, "cRSI High Band", color=activeCrsiBandLineColor, linewidth=crsiBandWidth, display=display.pane)
 mfiPlot = plot(mfi, "MFI", color=mfiColor, linewidth=mfiWidth)
 overboughtFillBase = plot(isMfiOverbought ? overboughtLevel : na, "Overbought Fill Base", color=color.new(mfiOverboughtFillColor, 100), linewidth=1, style=plot.style_linebr, display=display.pane)
 oversoldFillBase = plot(isMfiOversold ? oversoldLevel : na, "Oversold Fill Base", color=color.new(mfiOversoldFillColor, 100), linewidth=1, style=plot.style_linebr, display=display.pane)
 plot(showCrsiLine ? crsi : na, "cRSI", color=crsiColor, linewidth=crsiWidth)
-fill(lowBandPlot, highBandPlot, color=color.new(crsiBandFillColor, crsiBandFillTransparency))
+fill(lowBandPlot, highBandPlot, color=activeCrsiBandFillColor)
 fill(overboughtFillBase, mfiPlot, color=mfiOverboughtFillColor, fillgaps=false)
 fill(oversoldFillBase, mfiPlot, color=mfiOversoldFillColor, fillgaps=false)
+
+// ==========================
+// TOP RIGHT INFO PANEL
+// ==========================
+panelBg = color.new(color.rgb(16, 22, 34), 12)
+panelFrameColor = color.new(color.white, 92)
+panelBandGapText = formatPanelNumber(crsiBandRange)
+panelBandGapTextColor = isCrsiBandNarrow ? narrowBandStateColor : isCrsiBandWide ? wideBandStateColor : color.white
+var table infoTable = table.new(position.top_right, 1, 2, border_width=1, border_color=panelFrameColor, frame_width=1, frame_color=panelFrameColor)
+
+if barstate.islast
+    table.cell(infoTable, 0, 0, "RSI 밴드", text_color=color.white, bgcolor=panelBg, text_size=size.tiny, text_halign=text.align_center)
+    table.cell(infoTable, 0, 1, panelBandGapText, text_color=panelBandGapTextColor, bgcolor=panelBg, text_size=size.tiny, text_halign=text.align_center)

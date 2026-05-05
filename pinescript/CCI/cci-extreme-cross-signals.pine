@@ -1,0 +1,69 @@
+//@version=6
+indicator(title="CCI Extreme Cross Signals", shorttitle="CCI Extreme Cross", format=format.price, precision=2, timeframe="", timeframe_gaps=true)
+
+length = input.int(20, minval=1, title="CCI Length")
+src = input(hlc3, title="Source")
+cciBasis = ta.sma(src, length)
+cci = (src - cciBasis) / (0.015 * ta.dev(src, length))
+
+plot(cci, "CCI Oscillator", color=#2962FF)
+band1 = hline(175, "Upper Band", color=#8E2A2F, linestyle=hline.style_dashed)
+hline(0, "Middle Band", color=color.white, linestyle=hline.style_dashed)
+band0 = hline(-175, "Lower Band", color=#0E766E, linestyle=hline.style_dashed)
+fill(band1, band0, color=color.new(#1F2937, 88), title="Background", display=display.none)
+
+GRP = "Smoothing"
+SIG = "Signals"
+TT_BB = "Only applies when 'SMA + Bollinger Bands' is selected. Determines the distance between the SMA and the bands."
+
+maTypeInput = input.string("SMA", "Type", options=["None", "SMA", "SMA + Bollinger Bands", "EMA", "SMMA (RMA)", "WMA", "VWMA"], group=GRP, display=display.none)
+isBB = maTypeInput == "SMA + Bollinger Bands"
+maLengthInput = input.int(14, "Length", group=GRP, display=display.none, active=maTypeInput != "None")
+bbMultInput = input.float(2.0, "BB StdDev", minval=0.001, maxval=50, step=0.5, tooltip=TT_BB, group=GRP, display=display.none, active=isBB)
+enableMA = maTypeInput != "None"
+
+signalOffsetBarsInput = input.int(0, "Signal Offset", minval=0, maxval=1, group=SIG, tooltip="0 = confirmed bar, 1 = visually draw one bar earlier")
+bullExtremeInput = input.float(-175.0, "Bullish Extreme", step=1.0, group=SIG)
+bearExtremeInput = input.float(175.0, "Bearish Extreme", step=1.0, group=SIG)
+
+maFunc(source, length, maType) =>
+    switch maType
+        "SMA"                   => ta.sma(source, length)
+        "SMA + Bollinger Bands" => ta.sma(source, length)
+        "EMA"                   => ta.ema(source, length)
+        "SMMA (RMA)"            => ta.rma(source, length)
+        "WMA"                   => ta.wma(source, length)
+        "VWMA"                  => ta.vwma(source, length)
+        => na
+
+smoothingMA = enableMA ? maFunc(cci, maLengthInput, maTypeInput) : na
+smoothingStDev = isBB ? ta.stdev(cci, maLengthInput) * bbMultInput : na
+signalPlotOffset = signalOffsetBarsInput == 1 ? -1 : 0
+
+plot(smoothingMA, "CCI-based MA", color=#FDD835, display=enableMA ? display.all : display.none, editable=enableMA)
+bbUpperBand = plot(smoothingMA + smoothingStDev, title="Upper CCI Bollinger Band", color=color.green, display=isBB ? display.all : display.none, editable=isBB)
+bbLowerBand = plot(smoothingMA - smoothingStDev, title="Lower CCI Bollinger Band", color=color.green, display=isBB ? display.all : display.none, editable=isBB)
+fill(bbUpperBand, bbLowerBand, color=isBB ? color.new(color.green, 90) : na, title="CCI Bollinger Background", display=isBB ? display.all : display.none, editable=isBB)
+
+goldenCross = enableMA and ta.crossover(cci, smoothingMA)
+deadCross = enableMA and ta.crossunder(cci, smoothingMA)
+
+bullExtremeEvent = enableMA and ta.crossunder(cci, bullExtremeInput)
+bearExtremeEvent = enableMA and ta.crossover(cci, bearExtremeInput)
+
+var bool bullArmed = false
+var bool bearArmed = false
+
+prevBullArmed = bullArmed
+prevBearArmed = bearArmed
+
+goldenCrossFiltered = goldenCross and prevBullArmed
+deadCrossFiltered = deadCross and prevBearArmed
+
+bullArmed := enableMA ? ((prevBullArmed or bullExtremeEvent) and not goldenCrossFiltered) : false
+bearArmed := enableMA ? ((prevBearArmed or bearExtremeEvent) and not deadCrossFiltered) : false
+
+signalLevel = enableMA ? (signalOffsetBarsInput == 1 ? smoothingMA[1] : smoothingMA) : na
+
+plotshape(goldenCrossFiltered ? signalLevel : na, title="Golden Cross", style=shape.circle, location=location.absolute, color=#0BDF72, size=size.tiny, offset=signalPlotOffset)
+plotshape(deadCrossFiltered ? signalLevel : na, title="Dead Cross", style=shape.circle, location=location.absolute, color=#FF3347, size=size.tiny, offset=signalPlotOffset)
