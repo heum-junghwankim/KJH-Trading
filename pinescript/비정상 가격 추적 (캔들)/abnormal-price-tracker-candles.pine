@@ -10,9 +10,8 @@ leveling = input.float(10.0, minval=1.0, maxval=50.0, title="cRSI Leveling (%)")
 absoluteOB = input.float(70.0, title="절대 과매수 값")
 absoluteOS = input.float(30.0, title="절대 과매도 값")
 paintBars = input.bool(true, title="비정상 과매수/과매도 캔들 시 색상 변경")
-overboughtColor = input.color(color.rgb(255, 140, 60), title="과매수+상단 밴드 초과 캔들 색상")
+overboughtColor = input.color(color.red, title="과매수+상단 밴드 초과 캔들 색상")
 oversoldColor = input.color(color.aqua, title="과매도+하단 밴드 초과 캔들 색상")
-showCRSIPlots = input.bool(false, title="cRSI / 밴드 플롯 표시")
 enableRepeatingOBOSAlert = input.bool(true, title="비정상 과매수/과매도 반복 알림 사용")
 
 // =========================
@@ -22,35 +21,6 @@ bbLength = input.int(20, minval=1, title="비정상 캔들 볼린저 기간")
 bbMultiplier = input.float(2.0, minval=0.1, step=0.1, title="비정상 캔들 볼린저 배수")
 bbBodyBreakRatio = input.float(0.3, minval=0.0, step=0.05, title="비정상 캔들 몸통 밴드 초과 비율")
 bbVisualBreakRatio = input.float(0.15, minval=0.0, step=0.05, title="비정상 캔들 시각 표시 밴드 초과 비율")
-showBBPlots = input.bool(false, title="비정상 캔들 볼린저 밴드 표시")
-
-// =========================
-// Volume Inputs
-// =========================
-enableSmartVolume = input.bool(true, title="스마트 비정상 거래량 사용")
-abnormalVolLookback = input.int(5, minval=1, title="매수/매도 거래량 평균 기준 봉 수")
-abnormalVolMultiplier = input.float(0.4, minval=0.0, title="비정상 거래량 배수 기준")
-useCRSIFilterForVolume = input.bool(false, title="거래량 시그널에 cRSI 필터 적용")
-showVolumeMA = input.bool(false, title="매수/매도 거래량 평균선 표시")
-buyVolumeMAColor = input.color(color.teal, title="매수 거래량 평균선 색상")
-sellVolumeMAColor = input.color(color.red, title="매도 거래량 평균선 색상")
-
-// =========================
-// Volume Footprint Inputs
-// =========================
-footprintGroup = "볼륨 풋프린트"
-showVolumeFootprint = input.bool(false, title="볼륨 풋프린트 표시", group=footprintGroup)
-footprintUseLowerTimeframe = input.bool(true, title="하위 타임프레임으로 추정", group=footprintGroup)
-footprintLowerTimeframe = input.timeframe("1", title="풋프린트 하위 타임프레임", group=footprintGroup)
-footprintDisplayTarget = input.string("최근 확정봉", title="표시 대상", options=["최근 확정봉", "비정상 캔들", "ATR 배경"], group=footprintGroup)
-footprintBarsToShow = input.int(20, minval=1, maxval=120, title="표시할 최근 라벨 수", group=footprintGroup)
-footprintMaxIntrabars = input.int(200, minval=1, maxval=1000, title="봉당 최대 하위봉 수", group=footprintGroup)
-footprintMinVolumeMultiplier = input.float(0.0, minval=0.0, step=0.1, title="최소 거래량 배수 (0=전체)", group=footprintGroup)
-footprintTextSizeInput = input.string("아주 작게", title="풋프린트 글자 크기", options=["아주 작게", "작게", "보통"], group=footprintGroup)
-footprintBuyColor = input.color(color.rgb(33, 186, 116), title="매수 우세 라벨 색상", group=footprintGroup)
-footprintSellColor = input.color(color.rgb(235, 86, 86), title="매도 우세 라벨 색상", group=footprintGroup)
-footprintNeutralColor = input.color(color.rgb(120, 128, 145), title="중립 라벨 색상", group=footprintGroup)
-footprintBackgroundTransparency = input.int(18, minval=0, maxval=100, title="풋프린트 배경 투명도", group=footprintGroup)
 
 // =========================
 // RSI Divergence Inputs
@@ -79,7 +49,6 @@ strongBgAtrMultiplier = input.float(1.4, minval=1.0, step=0.1, title="강한 배
 candleStrongBgAtrMultiplier = input.float(1.8, minval=1.0, step=0.1, title="비정상 캔들 기준 강한 배경 ATR 배수")
 rsiMoveLimit = input.float(15.0, minval=0.1, step=0.1, title="RSI 추가 이동 제한값")
 useCRSIFilterForBg = input.bool(true, title="배경 구간에 cRSI 필터 적용")
-useVolumeFilterForBg = input.bool(false, title="배경 구간에 거래량 필터 적용")
 
 bullBgBaseColor = input.color(color.green, title="강세 배경 색상")
 bullBgStrongColor = input.color(color.blue, title="강한 강세 배경 색상")
@@ -96,8 +65,6 @@ vpLength = input.int(20, title="거래량 비교 봉 수", minval=1, group=volum
 vpMultiplier = input.float(1.0, title="거래량 비정상 배수", minval=0, group=volumeCompositeGroup)
 vpSwingPeriod = input.int(20, title="거래량 정렬 Swing Period", minval=2, group=volumeCompositeGroup)
 vpBaseAPT = input.float(20.0, title="거래량 정렬 Adaptive Price Tracking", minval=1, step=1, group=volumeCompositeGroup)
-vpUseAdapt = input.bool(false, title="거래량 정렬 APT 적응 사용", group=volumeCompositeGroup)
-vpVolBias = input.float(10.0, title="거래량 정렬 Volatility Bias", minval=0.1, step=0.1, group=volumeCompositeGroup)
 vpBasePeriods = input.int(20, minval=1, title="거래량 정렬 Base Line Length", group=volumeCompositeGroup)
 vpMaLength = input.int(5, title="거래량 정렬 MA Length", minval=1, group=volumeCompositeGroup)
 
@@ -123,19 +90,6 @@ visualGroup = "시각화"
 divergenceBullMarkerColor = input.color(color.blue, title="강세 다이버전스 삼각형 색상", group=visualGroup)
 divergenceBearMarkerColor = input.color(color.red, title="약세 다이버전스 삼각형 색상", group=visualGroup)
 
-reportGroup = "리포트"
-showTradeReport = input.bool(false, title="리포트 표시", group=reportGroup)
-reportPositionInput = input.string("우측 상단", title="리포트 표시 위치", options=["좌측 상단", "우측 상단", "좌측 하단", "우측 하단"], group=reportGroup)
-reportTextSizeInput = input.string("작게", title="리포트 글자 크기", options=["아주 작게", "작게", "보통"], group=reportGroup)
-reportHeaderColor = input.color(color.rgb(41, 54, 82), title="리포트 헤더 배경색", group=reportGroup)
-reportLabelBgColor = input.color(color.rgb(34, 46, 68), title="리포트 항목 배경색", group=reportGroup)
-reportFieldBgColor = input.color(color.rgb(18, 24, 38), title="리포트 일반 배경색", group=reportGroup)
-reportBackgroundTransparency = input.int(78, minval=0, maxval=100, title="리포트 배경 투명도", group=reportGroup)
-reportBullColor = input.color(color.rgb(120, 238, 178), title="리포트 롱 강조 색상", group=reportGroup)
-reportBearColor = input.color(color.rgb(255, 150, 150), title="리포트 숏 강조 색상", group=reportGroup)
-reportNeutralColor = input.color(color.rgb(223, 227, 235), title="리포트 중립 색상", group=reportGroup)
-reportTimeZoneInput = input.string("Asia/Seoul", title="리포트 시간 표시 시간대", tooltip="차트 시간대는 Pine에서 직접 읽을 수 없습니다. 기본값은 KST(Asia/Seoul)입니다. 차트와 같은 현지시간으로 보려면 IANA 시간대(예: Asia/Seoul) 또는 UTC 표기(예: UTC+9)를 입력하세요.", group=reportGroup)
-
 performanceGroup = "성능 / 반응 속도"
 useFastCRSIBands = input.bool(true, title="빠른 cRSI 밴드 계산 사용", group=performanceGroup)
 
@@ -148,106 +102,6 @@ alphaFromAPT(apt) =>
 
 withinLookback(lastBarIndex, lookbackBars) =>
     not na(lastBarIndex) and bar_index - lastBarIndex <= lookbackBars
-
-tablePosition(positionInput) =>
-    switch positionInput
-        "좌측 상단" => position.top_left
-        "우측 상단" => position.top_right
-        "좌측 하단" => position.bottom_left
-        => position.bottom_right
-
-tableTextSize(sizeInput) =>
-    switch sizeInput
-        "아주 작게" => size.tiny
-        "보통" => size.normal
-        => size.small
-
-clampFloat(value, minValue, maxValue) =>
-    math.max(minValue, math.min(maxValue, value))
-
-formatFootprintVolume(value) =>
-    absValue = math.abs(value)
-    signText = value < 0 ? "-" : ""
-    formattedValue = absValue >= 1000000000.0 ? str.tostring(absValue / 1000000000.0, "#.##") + "B" : absValue >= 1000000.0 ? str.tostring(absValue / 1000000.0, "#.##") + "M" : absValue >= 1000.0 ? str.tostring(absValue / 1000.0, "#.##") + "K" : str.tostring(absValue, "#")
-    signText + formattedValue
-
-footprintBuyFromBar(barOpen, barHigh, barLow, barClose, barVolume) =>
-    cleanVolume = nz(barVolume, 0.0)
-    barRange = barHigh - barLow
-    if cleanVolume <= 0
-        0.0
-    else if barRange <= 0
-        barClose >= barOpen ? cleanVolume : 0.0
-    else
-        clampFloat(cleanVolume * (barClose - barLow) / barRange, 0.0, cleanVolume)
-
-footprintFromIntrabars(array<float> openArray, array<float> highArray, array<float> lowArray, array<float> closeArray, array<float> volumeArray, maxIntrabars) =>
-    float buyTotal = 0.0
-    float sellTotal = 0.0
-    int count = math.min(math.min(array.size(openArray), array.size(highArray)), math.min(array.size(lowArray), math.min(array.size(closeArray), array.size(volumeArray))))
-    int startIndex = math.max(count - maxIntrabars, 0)
-    int usedCount = count - startIndex
-    if count > 0
-        for i = startIndex to count - 1
-            childOpen = array.get(openArray, i)
-            childHigh = array.get(highArray, i)
-            childLow = array.get(lowArray, i)
-            childClose = array.get(closeArray, i)
-            childVolume = nz(array.get(volumeArray, i), 0.0)
-            childBuyVolume = footprintBuyFromBar(childOpen, childHigh, childLow, childClose, childVolume)
-            buyTotal += childBuyVolume
-            sellTotal += math.max(childVolume - childBuyVolume, 0.0)
-    [buyTotal, sellTotal, usedCount]
-
-reportStateOff = 0
-reportStateWatch = 1
-
-reportWatchReason(startEvent, holdEvent, hintEvent, watchEvent, watchStrongEvent, fallbackReason) =>
-    watchStrongEvent ? "ATR 강화" : watchEvent ? "ATR 배경" : hintEvent ? "다이버전스" : holdEvent ? "비정상 유지" : startEvent ? "비정상 시작" : fallbackReason
-
-reportStateReason(state, triggerReason, fallbackReason) =>
-    state == reportStateWatch ? (triggerReason == "" ? fallbackReason : triggerReason) : (triggerReason == "" ? "OFF" : triggerReason)
-
-reportStatusText(signalCount) =>
-    signalCount > 0 ? "ON(" + str.tostring(signalCount) + ")" : "OFF"
-
-reportStatusColor(signalCount, activeColor, inactiveColor) =>
-    signalCount > 0 ? activeColor : inactiveColor
-
-reportPositionCode(trackingActive) =>
-    trackingActive ? reportStateWatch : reportStateOff
-
-reportTimeText(signalTime) =>
-    na(signalTime) ? "OFF" : str.format_time(signalTime, "yy-MM-dd HH:mm", reportTimeZoneInput == "" ? "Asia/Seoul" : reportTimeZoneInput)
-
-reportEndTimeText(startTime, endTime, isTrackingActive) =>
-    if na(startTime)
-        "OFF"
-    else if isTrackingActive
-        "-"
-    else
-        na(endTime) ? "OFF" : reportTimeText(endTime)
-
-var int bullReportStartCount = 0
-var int bearReportStartCount = 0
-var int bullReportHoldCount = 0
-var int bearReportHoldCount = 0
-var int bullReportHintCount = 0
-var int bearReportHintCount = 0
-var int bullReportWatchCount = 0
-var int bearReportWatchCount = 0
-var int bullReportWatchStrongCount = 0
-var int bearReportWatchStrongCount = 0
-var int bullReportFirstSignalTime = na
-var int bearReportFirstSignalTime = na
-var int bullReportEndTime = na
-var int bearReportEndTime = na
-var int bullReportState = reportStateOff
-var int bearReportState = reportStateOff
-var string bullReportStateReason = "OFF"
-var string bearReportStateReason = "OFF"
-var bool bullReportTrackingActive = false
-var bool bearReportTrackingActive = false
 
 // =========================
 // cRSI Calculation
@@ -355,52 +209,6 @@ rangeValue = high - low
 buyVolume = rangeValue == 0 ? 0.0 : volume * (close - low) / rangeValue
 sellVolume = rangeValue == 0 ? 0.0 : volume * (high - close) / rangeValue
 
-avgBuyVolume = ta.sma(buyVolume, abnormalVolLookback)
-avgSellVolume = ta.sma(sellVolume, abnormalVolLookback)
-
-abnormalBuyVolume = buyVolume > avgBuyVolume * (1 + abnormalVolMultiplier)
-abnormalSellVolume = sellVolume > avgSellVolume * (1 + abnormalVolMultiplier)
-
-footprintCurrentBuyVolume = footprintBuyFromBar(open, high, low, close, volume)
-footprintCurrentSellVolume = math.max(nz(volume, 0.0) - footprintCurrentBuyVolume, 0.0)
-
-array<float> footprintLowerOpen = array.new_float()
-array<float> footprintLowerHigh = array.new_float()
-array<float> footprintLowerLow = array.new_float()
-array<float> footprintLowerClose = array.new_float()
-array<float> footprintLowerVolume = array.new_float()
-
-if showVolumeFootprint and footprintUseLowerTimeframe
-    footprintLowerOpen := request.security_lower_tf(syminfo.tickerid, footprintLowerTimeframe, open, ignore_invalid_timeframe=true)
-    footprintLowerHigh := request.security_lower_tf(syminfo.tickerid, footprintLowerTimeframe, high, ignore_invalid_timeframe=true)
-    footprintLowerLow := request.security_lower_tf(syminfo.tickerid, footprintLowerTimeframe, low, ignore_invalid_timeframe=true)
-    footprintLowerClose := request.security_lower_tf(syminfo.tickerid, footprintLowerTimeframe, close, ignore_invalid_timeframe=true)
-    footprintLowerVolume := request.security_lower_tf(syminfo.tickerid, footprintLowerTimeframe, volume, ignore_invalid_timeframe=true)
-
-[footprintLowerBuyVolume, footprintLowerSellVolume, footprintIntrabarCount] = footprintFromIntrabars(footprintLowerOpen, footprintLowerHigh, footprintLowerLow, footprintLowerClose, footprintLowerVolume, footprintMaxIntrabars)
-footprintHasLowerData = showVolumeFootprint and footprintUseLowerTimeframe and footprintIntrabarCount > 0
-footprintEstimatedBuyVolume = footprintHasLowerData ? footprintLowerBuyVolume : footprintCurrentBuyVolume
-footprintEstimatedSellVolume = footprintHasLowerData ? footprintLowerSellVolume : footprintCurrentSellVolume
-footprintEstimatedTotalVolume = footprintEstimatedBuyVolume + footprintEstimatedSellVolume
-footprintEstimatedDelta = footprintEstimatedBuyVolume - footprintEstimatedSellVolume
-footprintEstimatedDeltaPct = footprintEstimatedTotalVolume > 0 ? footprintEstimatedDelta / footprintEstimatedTotalVolume * 100.0 : 0.0
-
-// =========================
-// Smart Volume Conditions
-// =========================
-upperWick = high - math.max(open, close)
-lowerWick = math.min(open, close) - low
-bodySize = math.abs(close - open)
-
-isBullPressureBar = close > open or lowerWick > bodySize
-isBearPressureBar = close < open or upperWick > bodySize
-
-crsiBullFilter = not useCRSIFilterForVolume or isOversold
-crsiBearFilter = not useCRSIFilterForVolume or isOverbought
-
-bullSmartVolumeSignal = enableSmartVolume and abnormalBuyVolume and isBullPressureBar and crsiBullFilter
-bearSmartVolumeSignal = enableSmartVolume and abnormalSellVolume and isBearPressureBar and crsiBearFilter
-
 // =========================
 // RSI Divergence Calculation
 // =========================
@@ -415,12 +223,6 @@ _inRange(cond) =>
 
 inRangePl = _inRange(plFound[1])
 inRangePh = _inRange(phFound[1])
-
-oscHL = osc[lbR] > ta.valuewhen(plFound, osc[lbR], 1) and inRangePl
-oscLH = osc[lbR] < ta.valuewhen(phFound, osc[lbR], 1) and inRangePh
-
-priceLL = low[lbR] < ta.valuewhen(plFound, low[lbR], 1)
-priceHH = high[lbR] > ta.valuewhen(phFound, high[lbR], 1)
 
 previewBullPivotCandidate = ta.lowestbars(osc, lbL + 1) == 0
 previewBearPivotCandidate = ta.highestbars(osc, lbL + 1) == 0
@@ -437,31 +239,26 @@ previewBearOscLH = not na(previewBearPrevOsc) and osc < previewBearPrevOsc
 previewBullPriceLL = not na(previewBullPrevPrice) and low < previewBullPrevPrice
 previewBearPriceHH = not na(previewBearPrevPrice) and high > previewBearPrevPrice
 
-bullDivRaw = showRSIDivergence and showRegularBullDiv and plFound and priceLL and oscHL
-bearDivRaw = showRSIDivergence and showRegularBearDiv and phFound and priceHH and oscLH
 previewBullDivRaw = showRSIDivergence and showRegularBullDiv and not plFound and previewBullPivotCandidate and previewBullInRange and previewBullPriceLL and previewBullOscHL
 previewBearDivRaw = showRSIDivergence and showRegularBearDiv and not phFound and previewBearPivotCandidate and previewBearInRange and previewBearPriceHH and previewBearOscLH
 
-regularBullDiv = barstate.isconfirmed and bullDivRaw
-regularBearDiv = barstate.isconfirmed and bearDivRaw
-previewBullDiv = previewBullDivRaw and not previewBullDivRaw[1]
-previewBearDiv = previewBearDivRaw and not previewBearDivRaw[1]
+regularBullDiv = barstate.isconfirmed and previewBullDivRaw and not previewBullDivRaw[1]
+regularBearDiv = barstate.isconfirmed and previewBearDivRaw and not previewBearDivRaw[1]
+previewBullDiv = barstate.isrealtime and not barstate.isconfirmed and previewBullDivRaw
+previewBearDiv = barstate.isrealtime and not barstate.isconfirmed and previewBearDivRaw
 
 // =========================
 // Divergence Markers
 // =========================
 plotshape(previewBullDiv, title="강세 다이버전스 프리뷰", style=shape.circle, location=location.belowbar, color=color.new(divergenceBullMarkerColor, 70), size=size.tiny)
 plotshape(previewBearDiv, title="약세 다이버전스 프리뷰", style=shape.circle, location=location.abovebar, color=color.new(divergenceBearMarkerColor, 70), size=size.tiny)
-plotshape(regularBullDiv, offset=-lbR, title="일반 강세 다이버전스", style=shape.triangleup, location=location.belowbar, color=divergenceBullMarkerColor, size=size.tiny)
-plotshape(regularBearDiv, offset=-lbR, title="일반 약세 다이버전스", style=shape.triangledown, location=location.abovebar, color=divergenceBearMarkerColor, size=size.tiny)
+plotshape(regularBullDiv, title="일반 강세 다이버전스", style=shape.triangleup, location=location.belowbar, color=divergenceBullMarkerColor, size=size.tiny)
+plotshape(regularBearDiv, title="일반 약세 다이버전스", style=shape.triangledown, location=location.abovebar, color=divergenceBearMarkerColor, size=size.tiny)
 
 // =========================
 // ATR
 // =========================
 atr = ta.atr(atrLength)
-signalAtr = ta.atr(50)
-signalAtrAvg = ta.rma(signalAtr, 50)
-signalVolatilityRatio = signalAtrAvg > 0 ? signalAtr / signalAtrAvg : 1.0
 
 // =========================
 // Volume Pressure Tracker Composite Logic
@@ -486,9 +283,7 @@ vpPhBar := vpHighestBars == 0 ? vpBar : vpPhBar
 vpPlBar := vpLowestBars == 0 ? vpBar : vpPlBar
 vpDir = vpPhBar > vpPlBar ? 1 : -1
 
-vpAptRaw = vpUseAdapt ? vpBaseAPT / math.pow(signalVolatilityRatio, vpVolBias) : vpBaseAPT
-vpAptClamped = math.max(5.0, math.min(300.0, vpAptRaw))
-vpAptSeries = math.round(vpAptClamped)
+vpAptSeries = math.round(math.max(5.0, math.min(300.0, vpBaseAPT)))
 
 if vpDir != vpDir[1]
     vpAnchorBar = vpDir > 0 ? vpPlBar : vpPhBar
@@ -498,23 +293,14 @@ if vpDir != vpDir[1]
     vpVol := volume[vpBarsback]
     vpVap := vpVol > 0 ? vpP / vpVol : na
 
-    if vpUseAdapt
-        for i = vpBarsback to 0 by 1
-            alpha = alphaFromAPT(vpAptSeries[i])
-            vpP := (1.0 - alpha) * vpP + alpha * vpPriceVolume[i]
-            vpVol := (1.0 - alpha) * vpVol + alpha * volume[i]
-            vappe = vpVol > 0 ? vpP / vpVol : na
-            if i == 0
-                vpVap := vappe
-    else
-        alpha = alphaFromAPT(vpAptSeries)
-        alphaComplement = 1.0 - alpha
-        for i = vpBarsback to 0 by 1
-            vpP := alphaComplement * vpP + alpha * vpPriceVolume[i]
-            vpVol := alphaComplement * vpVol + alpha * volume[i]
-            vappe = vpVol > 0 ? vpP / vpVol : na
-            if i == 0
-                vpVap := vappe
+    alpha = alphaFromAPT(vpAptSeries)
+    alphaComplement = 1.0 - alpha
+    for i = vpBarsback to 0 by 1
+        vpP := alphaComplement * vpP + alpha * vpPriceVolume[i]
+        vpVol := alphaComplement * vpVol + alpha * volume[i]
+        vappe = vpVol > 0 ? vpP / vpVol : na
+        if i == 0
+            vpVap := vappe
 else
     alpha = alphaFromAPT(vpAptSeries)
     alphaComplement = 1.0 - alpha
@@ -617,15 +403,15 @@ var float bearCandleRefAtr = na
 
 if bullDivTrigger
     bullDivTriggerBar := bar_index
-    bullDivRefClose := low[lbR]
-    bullDivRefRsi := osc[lbR]
-    bullDivRefAtr := atr[lbR]
+    bullDivRefClose := low
+    bullDivRefRsi := osc
+    bullDivRefAtr := atr
 
 if bearDivTrigger
     bearDivTriggerBar := bar_index
-    bearDivRefClose := high[lbR]
-    bearDivRefRsi := osc[lbR]
-    bearDivRefAtr := atr[lbR]
+    bearDivRefClose := high
+    bearDivRefRsi := osc
+    bearDivRefAtr := atr
 
 if bullCandleTrigger
     bullCandleTriggerBar := bar_index
@@ -684,18 +470,14 @@ bearBgFromCandle = hasBearCandle and bearCandleBars > 0 and not na(bearCandlePri
 // =========================
 recentBullishAbnormalCandle = withinLookback(bullCandleTriggerBar, candleSetupLookbackBars)
 recentBearishAbnormalCandle = withinLookback(bearCandleTriggerBar, candleSetupLookbackBars)
-volumeSma20 = ta.sma(volume, 20)
 
 bullBgCRSIFilter = not useCRSIFilterForBg or recentBullishAbnormalCandle or isOversold or (not na(db) and crsi <= db)
 bearBgCRSIFilter = not useCRSIFilterForBg or recentBearishAbnormalCandle or isOverbought or (not na(ub) and crsi >= ub)
 
-bullBgVolumeFilter = not useVolumeFilterForBg or abnormalBuyVolume or bullSmartVolumeSignal or volume > volumeSma20 * 1.05
-bearBgVolumeFilter = not useVolumeFilterForBg or abnormalSellVolume or bearSmartVolumeSignal or volume > volumeSma20 * 1.05
-
-bullBgFromDiv := bullBgFromDiv and bullBgCRSIFilter and bullBgVolumeFilter and useDivForBg and showBgZone
-bearBgFromDiv := bearBgFromDiv and bearBgCRSIFilter and bearBgVolumeFilter and useDivForBg and showBgZone
-bullBgFromCandle := bullBgFromCandle and bullBgCRSIFilter and bullBgVolumeFilter and useCandleForBg and showBgZone
-bearBgFromCandle := bearBgFromCandle and bearBgCRSIFilter and bearBgVolumeFilter and useCandleForBg and showBgZone
+bullBgFromDiv := bullBgFromDiv and bullBgCRSIFilter and useDivForBg and showBgZone
+bearBgFromDiv := bearBgFromDiv and bearBgCRSIFilter and useDivForBg and showBgZone
+bullBgFromCandle := bullBgFromCandle and bullBgCRSIFilter and useCandleForBg and showBgZone
+bearBgFromCandle := bearBgFromCandle and bearBgCRSIFilter and useCandleForBg and showBgZone
 
 // =========================
 // Background Strength
@@ -724,38 +506,6 @@ bgcolor(finalBgColor, title="강세/약세 배경 구간")
 
 finalBarColor = paintBars ? barCol : na
 barcolor(finalBarColor)
-
-// =========================
-// Volume Footprint Labels
-// =========================
-var label[] volumeFootprintLabels = array.new_label()
-
-footprintTargetPass = switch footprintDisplayTarget
-    "비정상 캔들" => isBullishAbnormalCandle or isBearishAbnormalCandle
-    "ATR 배경" => bullBgOnSignal or bearBgOnSignal
-    => true
-
-footprintVolumePass = footprintMinVolumeMultiplier <= 0.0 or (not na(volumeSma20) and volume >= volumeSma20 * footprintMinVolumeMultiplier)
-footprintDominantColor = math.abs(footprintEstimatedDeltaPct) < 5.0 ? footprintNeutralColor : footprintEstimatedDelta > 0 ? footprintBuyColor : footprintSellColor
-footprintLabelBgColor = color.new(footprintDominantColor, footprintBackgroundTransparency)
-footprintLabelStyle = footprintEstimatedDelta >= 0 ? label.style_label_up : label.style_label_down
-footprintLabelY = footprintEstimatedDelta >= 0 ? low : high
-footprintDeltaSign = footprintEstimatedDelta > 0 ? "+" : ""
-footprintDeltaPctSign = footprintEstimatedDeltaPct > 0 ? "+" : ""
-footprintSourceText = footprintHasLowerData ? "LTF " + str.tostring(footprintIntrabarCount) : "현재봉"
-footprintLabelText = "B " + formatFootprintVolume(footprintEstimatedBuyVolume) + "\nS " + formatFootprintVolume(footprintEstimatedSellVolume) + "\nΔ " + footprintDeltaSign + formatFootprintVolume(footprintEstimatedDelta) + " (" + footprintDeltaPctSign + str.tostring(footprintEstimatedDeltaPct, "#") + "%)" + "\n" + footprintSourceText
-footprintShouldCreate = showVolumeFootprint and barstate.isconfirmed and footprintTargetPass and footprintVolumePass and footprintEstimatedTotalVolume > 0
-
-if footprintShouldCreate
-    newFootprintLabel = label.new(x=bar_index, y=footprintLabelY, text=footprintLabelText, xloc=xloc.bar_index, yloc=yloc.price, style=footprintLabelStyle, color=footprintLabelBgColor, textcolor=color.white, size=tableTextSize(footprintTextSizeInput))
-    array.push(volumeFootprintLabels, newFootprintLabel)
-    while array.size(volumeFootprintLabels) > footprintBarsToShow
-        oldFootprintLabel = array.shift(volumeFootprintLabels)
-        label.delete(oldFootprintLabel)
-else if not showVolumeFootprint and barstate.islast and array.size(volumeFootprintLabels) > 0
-    for i = 0 to array.size(volumeFootprintLabels) - 1
-        label.delete(array.get(volumeFootprintLabels, i))
-    array.clear(volumeFootprintLabels)
 
 // =========================
 // Entry Alerts
@@ -788,138 +538,3 @@ alertcondition(bearBgAlert, title="2단계 숏 감시 (매도 배경 진입) - A
 
 alertcondition(bullBgStrongAlert, title="2단계 롱 감시 강화 (매수 배경 강화) - ATR 확장", message="2단계 롱 감시 강화 (매수 배경 강화) - ATR 확장")
 alertcondition(bearBgStrongAlert, title="2단계 숏 감시 강화 (매도 배경 강화) - ATR 확장", message="2단계 숏 감시 강화 (매도 배경 강화) - ATR 확장")
-
-// =========================
-// Report Table
-// =========================
-bullReportStartEvent = barstate.isconfirmed and oversoldEnter
-bearReportStartEvent = barstate.isconfirmed and overboughtEnter
-bullReportHoldEvent = barstate.isconfirmed and isBullishAbnormalCandle
-bearReportHoldEvent = barstate.isconfirmed and isBearishAbnormalCandle
-bullReportHintEvent = barstate.isconfirmed and regularBullDiv
-bearReportHintEvent = barstate.isconfirmed and regularBearDiv
-bullReportWatchEvent = barstate.isconfirmed and bullBgOn
-bearReportWatchEvent = barstate.isconfirmed and bearBgOn
-bullReportWatchStrongEvent = barstate.isconfirmed and bullBgStrong
-bearReportWatchStrongEvent = barstate.isconfirmed and bearBgStrong
-
-bullReportAnyEvent = bullReportStartEvent or bullReportHoldEvent or bullReportHintEvent or bullReportWatchEvent or bullReportWatchStrongEvent
-bearReportAnyEvent = bearReportStartEvent or bearReportHoldEvent or bearReportHintEvent or bearReportWatchEvent or bearReportWatchStrongEvent
-bullReportEndEvent = barstate.isconfirmed and bearReportAnyEvent
-bearReportEndEvent = barstate.isconfirmed and bullReportAnyEvent
-
-if barstate.isconfirmed
-    if bullReportEndEvent and bullReportTrackingActive
-        bullReportEndTime := time_close
-        bullReportState := reportStateOff
-        bullReportStateReason := "반대 숏 반등 감시"
-        bullReportTrackingActive := false
-    else
-        if bullReportAnyEvent and not bullReportTrackingActive
-            bullReportStartCount := 0
-            bullReportHoldCount := 0
-            bullReportHintCount := 0
-            bullReportWatchCount := 0
-            bullReportWatchStrongCount := 0
-            bullReportFirstSignalTime := na
-            bullReportEndTime := na
-            bullReportFirstSignalTime := time_close
-            bullReportState := reportStateWatch
-            bullReportStateReason := "관찰"
-            bullReportTrackingActive := true
-
-        if bullReportTrackingActive
-            bullFallbackReason = reportWatchReason(bullReportStartEvent, bullReportHoldEvent, bullReportHintEvent, bullReportWatchEvent, bullReportWatchStrongEvent, bullReportState == reportStateWatch ? bullReportStateReason : "관찰")
-            bullReportStartCount += bullReportStartEvent ? 1 : 0
-            bullReportHoldCount += bullReportHoldEvent ? 1 : 0
-            bullReportHintCount += bullReportHintEvent ? 1 : 0
-            bullReportWatchCount += bullReportWatchEvent ? 1 : 0
-            bullReportWatchStrongCount += bullReportWatchStrongEvent ? 1 : 0
-            bullReportState := reportPositionCode(bullReportTrackingActive)
-            bullReportStateReason := reportStateReason(bullReportState, "", bullFallbackReason)
-
-    if bearReportEndEvent and bearReportTrackingActive
-        bearReportEndTime := time_close
-        bearReportState := reportStateOff
-        bearReportStateReason := "반대 롱 반등 감시"
-        bearReportTrackingActive := false
-    else
-        if bearReportAnyEvent and not bearReportTrackingActive
-            bearReportStartCount := 0
-            bearReportHoldCount := 0
-            bearReportHintCount := 0
-            bearReportWatchCount := 0
-            bearReportWatchStrongCount := 0
-            bearReportFirstSignalTime := na
-            bearReportEndTime := na
-            bearReportFirstSignalTime := time_close
-            bearReportState := reportStateWatch
-            bearReportStateReason := "관찰"
-            bearReportTrackingActive := true
-
-        if bearReportTrackingActive
-            bearFallbackReason = reportWatchReason(bearReportStartEvent, bearReportHoldEvent, bearReportHintEvent, bearReportWatchEvent, bearReportWatchStrongEvent, bearReportState == reportStateWatch ? bearReportStateReason : "관찰")
-            bearReportStartCount += bearReportStartEvent ? 1 : 0
-            bearReportHoldCount += bearReportHoldEvent ? 1 : 0
-            bearReportHintCount += bearReportHintEvent ? 1 : 0
-            bearReportWatchCount += bearReportWatchEvent ? 1 : 0
-            bearReportWatchStrongCount += bearReportWatchStrongEvent ? 1 : 0
-            bearReportState := reportPositionCode(bearReportTrackingActive)
-            bearReportStateReason := reportStateReason(bearReportState, "", bearFallbackReason)
-
-reportBorderColor = color.new(reportNeutralColor, math.max(reportBackgroundTransparency - 70, 0))
-reportFrameColor = color.new(reportNeutralColor, math.max(reportBackgroundTransparency - 78, 0))
-var table tradeReportTable = table.new(tablePosition(reportPositionInput), 3, 8, border_width=0, border_color=reportBorderColor, frame_width=0, frame_color=reportFrameColor)
-reportHeaderBgColor = color.new(reportHeaderColor, reportBackgroundTransparency)
-reportLabelBgColorValue = color.new(reportLabelBgColor, math.max(reportBackgroundTransparency - 28, 0))
-reportFieldBgColorValue = color.new(reportFieldBgColor, reportBackgroundTransparency)
-reportBullHeaderBgColor = color.new(reportBullColor, math.max(reportBackgroundTransparency - 20, 0))
-reportBearHeaderBgColor = color.new(reportBearColor, math.max(reportBackgroundTransparency - 20, 0))
-reportTextSize = tableTextSize(reportTextSizeInput)
-reportHeaderText = "시그널"
-var bool reportTableStaticInitialized = false
-reportTableRefresh = showTradeReport and barstate.islast and (barstate.isnew or barstate.isconfirmed or not reportTableStaticInitialized)
-
-if showTradeReport
-    if reportTableRefresh
-        if not reportTableStaticInitialized
-            table.cell(tradeReportTable, 0, 0, reportHeaderText, text_color=color.white, bgcolor=reportHeaderBgColor, text_size=reportTextSize)
-            table.cell(tradeReportTable, 1, 0, "롱 반등 감시", text_color=color.white, bgcolor=reportBullHeaderBgColor, text_size=reportTextSize)
-            table.cell(tradeReportTable, 2, 0, "숏 반등 감시", text_color=color.white, bgcolor=reportBearHeaderBgColor, text_size=reportTextSize)
-            table.cell(tradeReportTable, 0, 1, "비정상 시작", text_color=color.white, text_halign=text.align_center, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
-            table.cell(tradeReportTable, 0, 2, "비정상 유지", text_color=color.white, text_halign=text.align_center, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
-            table.cell(tradeReportTable, 0, 3, "다이버전스", text_color=color.white, text_halign=text.align_center, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
-            table.cell(tradeReportTable, 0, 4, "ATR 배경", text_color=color.white, text_halign=text.align_center, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
-            table.cell(tradeReportTable, 0, 5, "ATR 강화", text_color=color.white, text_halign=text.align_center, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
-            table.cell(tradeReportTable, 0, 6, "시작 시간", text_color=color.white, text_halign=text.align_center, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
-            table.cell(tradeReportTable, 0, 7, "종료 시간", text_color=color.white, text_halign=text.align_center, bgcolor=reportLabelBgColorValue, text_size=reportTextSize)
-            reportTableStaticInitialized := true
-        table.cell(tradeReportTable, 1, 1, reportStatusText(bullReportStartCount), text_color=reportStatusColor(bullReportStartCount, reportBullColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 2, 1, reportStatusText(bearReportStartCount), text_color=reportStatusColor(bearReportStartCount, reportBearColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 1, 2, reportStatusText(bullReportHoldCount), text_color=reportStatusColor(bullReportHoldCount, reportBullColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 2, 2, reportStatusText(bearReportHoldCount), text_color=reportStatusColor(bearReportHoldCount, reportBearColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 1, 3, reportStatusText(bullReportHintCount), text_color=reportStatusColor(bullReportHintCount, reportBullColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 2, 3, reportStatusText(bearReportHintCount), text_color=reportStatusColor(bearReportHintCount, reportBearColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 1, 4, reportStatusText(bullReportWatchCount), text_color=reportStatusColor(bullReportWatchCount, reportBullColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 2, 4, reportStatusText(bearReportWatchCount), text_color=reportStatusColor(bearReportWatchCount, reportBearColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 1, 5, reportStatusText(bullReportWatchStrongCount), text_color=reportStatusColor(bullReportWatchStrongCount, reportBullColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 2, 5, reportStatusText(bearReportWatchStrongCount), text_color=reportStatusColor(bearReportWatchStrongCount, reportBearColor, reportNeutralColor), bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 1, 6, reportTimeText(bullReportFirstSignalTime), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 2, 6, reportTimeText(bearReportFirstSignalTime), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 1, 7, reportEndTimeText(bullReportFirstSignalTime, bullReportEndTime, bullReportTrackingActive), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-        table.cell(tradeReportTable, 2, 7, reportEndTimeText(bearReportFirstSignalTime, bearReportEndTime, bearReportTrackingActive), text_color=color.white, bgcolor=reportFieldBgColorValue, text_size=reportTextSize)
-else if barstate.islast and reportTableStaticInitialized
-    table.clear(tradeReportTable, 0, 0, 2, 7)
-    reportTableStaticInitialized := false
-
-// =========================
-// Optional Plots
-// =========================
-plot(showCRSIPlots ? crsi : na, title="cRSI", color=color.fuchsia)
-plot(showCRSIPlots ? ub : na, title="cRSI 상단 밴드", color=color.new(color.red, 0))
-plot(showCRSIPlots ? db : na, title="cRSI 하단 밴드", color=color.new(color.aqua, 0))
-plot(showBBPlots ? bbBasis : na, title="비정상 캔들 볼린저 기준선", color=color.new(color.gray, 40))
-plot(showBBPlots ? bbUpper : na, title="비정상 캔들 볼린저 상단", color=color.new(overboughtColor, 35))
-plot(showBBPlots ? bbLower : na, title="비정상 캔들 볼린저 하단", color=color.new(oversoldColor, 35))
-plot(showVolumeMA ? avgBuyVolume : na, title="매수 거래량 평균선", color=buyVolumeMAColor)
-plot(showVolumeMA ? avgSellVolume : na, title="매도 거래량 평균선", color=sellVolumeMAColor)
