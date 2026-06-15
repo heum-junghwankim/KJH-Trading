@@ -1,0 +1,97 @@
+//@version=5
+
+// This indicator draws a ribbon of moving averages and labels key ribbon events.
+// GitHub: https://github.com/chingc/TradingView
+// X: https://x.com/NeonNoodle22
+
+indicator(title='Moving Average Ribbon', shorttitle='Ribbon', overlay=true)
+
+// user settings
+src = input.source(defval=close, title='Source')
+exp = input.bool(defval=true, title='Exponential')
+show100 = input.bool(defval=true, title='MA 100')
+show200 = input.bool(defval=true, title='MA 200')
+
+signalGroup = 'Ribbon Labels'
+showBullTurn = input.bool(defval=true, title='리본 상승 전환 라벨', group=signalGroup)
+showBearTurn = input.bool(defval=true, title='리본 하락 전환 라벨', group=signalGroup)
+showSupport = input.bool(defval=true, title='리본 지지 라벨', group=signalGroup)
+showResistance = input.bool(defval=true, title='리본 저항 라벨', group=signalGroup)
+requireSlope = input.bool(defval=true, title='전환 시 모든 이평선 기울기 확인', group=signalGroup)
+requireDirectionalClose = input.bool(defval=true, title='지지/저항 시 캔들 방향 확인', group=signalGroup)
+confirmLabelsOnClose = input.bool(defval=true, title='봉마감 후 라벨 확정', group=signalGroup)
+maxRibbonPenetration = input.float(defval=0.35, minval=0.0, maxval=1.0, step=0.05, title='지지/저항 리본 관통 허용 비율', group=signalGroup)
+
+// return a moving average of the given length
+ma(length) =>
+    exp ? ta.ema(src, length) : ta.sma(src, length)
+
+ma20 = ma(20)
+ma25 = ma(25)
+ma30 = ma(30)
+ma35 = ma(35)
+ma40 = ma(40)
+ma45 = ma(45)
+ma50 = ma(50)
+
+// draw moving averages
+plot(series=ma20, title='MA 20', color=#FFFF0080)
+plot(series=ma25, title='MA 25', color=#FFDF0080)
+plot(series=ma30, title='MA 30', color=#FFBF0080)
+plot(series=ma35, title='MA 35', color=#FF9F0080)
+plot(series=ma40, title='MA 40', color=#FF7F0080)
+plot(series=ma45, title='MA 45', color=#FF5F0080)
+plot(series=ma50, title='MA 50', color=#FF3F0080)
+
+ma100 = show100 ? ma(100) : na
+ma200 = show200 ? ma(200) : na
+p100 = plot(series=ma100, title='MA 100', color=#FF0000FF)
+p200 = plot(series=ma200, title='MA 200', color=#800000FF)
+
+// fill the area between ma100 and ma200
+fill(plot1=p100, plot2=p200, color=ma100 > ma200 ? #4CAF5033 : #FF525233, title='MA Fill')
+
+ribbonTop = math.max(ma20, math.max(ma25, math.max(ma30, math.max(ma35, math.max(ma40, math.max(ma45, ma50))))))
+ribbonBottom = math.min(ma20, math.min(ma25, math.min(ma30, math.min(ma35, math.min(ma40, math.min(ma45, ma50))))))
+ribbonHeight = math.max(ribbonTop - ribbonBottom, syminfo.mintick)
+
+bullAligned = ma20 > ma25 and ma25 > ma30 and ma30 > ma35 and ma35 > ma40 and ma40 > ma45 and ma45 > ma50
+bearAligned = ma20 < ma25 and ma25 < ma30 and ma30 < ma35 and ma35 < ma40 and ma40 < ma45 and ma45 < ma50
+
+bullSlope = ma20 > ma20[1] and ma25 > ma25[1] and ma30 > ma30[1] and ma35 > ma35[1] and ma40 > ma40[1] and ma45 > ma45[1] and ma50 > ma50[1]
+bearSlope = ma20 < ma20[1] and ma25 < ma25[1] and ma30 < ma30[1] and ma35 < ma35[1] and ma40 < ma40[1] and ma45 < ma45[1] and ma50 < ma50[1]
+
+bullTrend = bullAligned and (not requireSlope or bullSlope)
+bearTrend = bearAligned and (not requireSlope or bearSlope)
+labelConfirmed = not confirmLabelsOnClose or barstate.isconfirmed
+
+ribbonBullTurn = showBullTurn and labelConfirmed and bullTrend and not bullTrend[1]
+ribbonBearTurn = showBearTurn and labelConfirmed and bearTrend and not bearTrend[1]
+
+supportPenetration = math.max(ribbonTop - low, 0.0)
+resistancePenetration = math.max(high - ribbonBottom, 0.0)
+supportPenetrationOk = supportPenetration <= ribbonHeight * maxRibbonPenetration + syminfo.mintick
+resistancePenetrationOk = resistancePenetration <= ribbonHeight * maxRibbonPenetration + syminfo.mintick
+
+directionalBullCandle = not requireDirectionalClose or close >= open
+directionalBearCandle = not requireDirectionalClose or close <= open
+
+// In an up ribbon, price should approach from above, test the ribbon, then close back above the top edge.
+supportTouch = low <= ribbonTop
+supportRecover = close > ribbonTop
+ribbonSupport = showSupport and labelConfirmed and bullTrend and not ribbonBullTurn and close[1] > ribbonTop[1] and supportTouch and supportRecover and supportPenetrationOk and directionalBullCandle
+
+// In a down ribbon, price should approach from below, test the ribbon, then close back below the bottom edge.
+resistanceTouch = high >= ribbonBottom
+resistanceReject = close < ribbonBottom
+ribbonResistance = showResistance and labelConfirmed and bearTrend and not ribbonBearTurn and close[1] < ribbonBottom[1] and resistanceTouch and resistanceReject and resistancePenetrationOk and directionalBearCandle
+
+plotshape(series=ribbonBullTurn, title='리본 상승 전환', style=shape.labeldown, location=location.abovebar, color=color.new(color.lime, 0), textcolor=color.white, text='리본 상승 전환', size=size.tiny)
+plotshape(series=ribbonBearTurn, title='리본 하락 전환', style=shape.labeldown, location=location.abovebar, color=color.new(color.red, 0), textcolor=color.white, text='리본 하락 전환', size=size.tiny)
+plotshape(series=ribbonSupport, title='리본 지지', style=shape.labeldown, location=location.abovebar, color=color.new(color.teal, 0), textcolor=color.white, text='리본 지지', size=size.tiny)
+plotshape(series=ribbonResistance, title='리본 저항', style=shape.labeldown, location=location.abovebar, color=color.new(color.orange, 0), textcolor=color.white, text='리본 저항', size=size.tiny)
+
+alertcondition(ribbonBullTurn, title='리본 상승 전환', message='Moving Average Ribbon bullish turn detected.')
+alertcondition(ribbonBearTurn, title='리본 하락 전환', message='Moving Average Ribbon bearish turn detected.')
+alertcondition(ribbonSupport, title='리본 지지', message='Moving Average Ribbon support detected.')
+alertcondition(ribbonResistance, title='리본 저항', message='Moving Average Ribbon resistance detected.')

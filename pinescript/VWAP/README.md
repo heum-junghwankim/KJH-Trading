@@ -16,7 +16,7 @@
 | Band #2 | VWAP 대비 2차 확장 구간으로, 과확장 감시에 더 가까운 선입니다. |
 | Session 모드 | 현재 세션만 표시하고 이전 세션 선은 남기지 않습니다. |
 | Recent Trading Days 모드 | 최근 `N`거래일 누적 구간을 하나로 묶어 계산합니다. |
-| 선 색상 변화 | 기본은 흰색이고, `Lower Band #2` 아래는 녹색, `Upper Band #2` 위는 빨간색으로 읽습니다. |
+| 선 색상 변화 | 기본은 흰색이고, `Enable Dynamic Line Color`를 켜면 `Lower Band #2` 아래는 녹색, `Upper Band #2` 위는 빨간색으로 읽습니다. |
 | 끝 라벨 | `VWAP = 0`, 각 밴드는 VWAP 대비 `+/- %` 차이를 표시합니다. |
 
 참고:
@@ -111,6 +111,7 @@ Band #2 접근이나 이탈은 `강한 확장`, `과열 / 과매도`, `과확장
 | `Source` | 기준 가격을 `hlc3`, `close` 등으로 바꾸고 싶을 때 |
 | `Bands Calculation Mode` | 표준편차형 밴드와 퍼센트형 밴드를 바꾸고 싶을 때 |
 | `Bands Multiplier #1`, `#2` | 확장 폭을 더 넓게 또는 좁게 보고 싶을 때 |
+| `Enable Dynamic Line Color` | Band #2 이탈 시 선 색상 자동 변경을 켜거나 끄고 싶을 때 |
 | `Hide VWAP on 1D or Above` | 일봉 이상에서 선을 숨기고 싶을 때 |
 
 ## 주의사항

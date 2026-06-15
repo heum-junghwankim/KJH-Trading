@@ -1,0 +1,66 @@
+//@version=5
+indicator(title="OBV ADX Extreme Background", shorttitle="OBV ADX Extreme", format=format.price, precision=4)
+
+adxGroup = "ADX / DI"
+displayGroup = "Display"
+extremeGroup = "Extreme Background"
+
+len = input.int(22, minval=1, title="DI Length", group=adxGroup)
+lensig = input.int(22, minval=1, maxval=50, title="ADX Smoothing", group=adxGroup)
+showAdxLines = input.bool(false, title="ADX Line or Histogram", group=displayGroup)
+showBackground = input.bool(true, title="Background Highlighting", group=displayGroup)
+backgroundTransparency = input.int(72, minval=0, maxval=100, title="Background Transparency", group=displayGroup)
+
+extremeLookback = input.int(55, minval=5, title="Extreme Lookback", group=extremeGroup)
+oversoldZThreshold = input.float(1.2, minval=0.1, step=0.1, title="Oversold Z-Score", group=extremeGroup)
+overboughtZThreshold = input.float(1.2, minval=0.1, step=0.1, title="Overbought Z-Score", group=extremeGroup)
+extremeAdxMin = input.float(18.0, minval=0.0, step=0.5, title="ADX Minimum", group=extremeGroup)
+requireDirectionalDi = input.bool(true, title="Require DI Direction Match", group=extremeGroup)
+showExtremeMarkers = input.bool(true, title="Show Extreme Markers", group=extremeGroup)
+
+// =========================
+// ADX / DI
+// =========================
+obvValue = ta.cum(math.sign(ta.change(close)) * volume)
+up = ta.change(obvValue)
+down = -ta.change(obvValue)
+plusDM = na(up) ? na : up > down and up > 0 ? up : 0
+minusDM = na(down) ? na : down > up and down > 0 ? down : 0
+trur = ta.rma(ta.stdev(obvValue, len), len)
+plus = fixnan(trur == 0 ? 0 : 100 * ta.ema(plusDM, len) / trur)
+minus = fixnan(trur == 0 ? 0 : 100 * ta.ema(minusDM, len) / trur)
+sum = plus + minus
+adx = 100 * ta.ema(math.abs(plus - minus) / (sum == 0 ? 1 : sum), lensig)
+diDiff = plus - minus
+
+// =========================
+// EXTREME BACKGROUND
+// =========================
+diDiffBasis = ta.sma(diDiff, extremeLookback)
+diDiffStdev = ta.stdev(diDiff, extremeLookback)
+diDiffZScore = not na(diDiffStdev) and diDiffStdev > 0 ? (diDiff - diDiffBasis) / diDiffStdev : 0.0
+
+directionalBullPass = not requireDirectionalDi or minus > plus
+directionalBearPass = not requireDirectionalDi or plus > minus
+oversoldExtreme = diDiffZScore <= -oversoldZThreshold and adx >= extremeAdxMin and directionalBullPass
+overboughtExtreme = diDiffZScore >= overboughtZThreshold and adx >= extremeAdxMin and directionalBearPass
+
+// =========================
+// PLOTS
+// =========================
+plot(showAdxLines ? plus : na, color=color.new(color.blue, 0), title="+DI")
+plot(showAdxLines ? minus : na, color=color.new(color.orange, 0), title="-DI")
+plot(showAdxLines ? adx : na, color=color.new(color.red, 0), title="ADX")
+
+bgcolor(showBackground and oversoldExtreme ? color.new(#00796b, backgroundTransparency) : na, title="Oversold Background")
+bgcolor(showBackground and overboughtExtreme ? color.new(#880e4f, backgroundTransparency) : na, title="Overbought Background")
+
+plotshape(ta.crossover(plus, minus) and showAdxLines ? (plus + minus) * 0.5 : na, location=location.absolute, style=shape.circle, color=color.new(color.green, 30), size=size.tiny, offset=0, title="Bullish DI Cross")
+plotshape(ta.crossover(minus, plus) and showAdxLines ? (plus + minus) * 0.5 : na, location=location.absolute, style=shape.circle, color=color.new(color.red, 30), size=size.tiny, offset=0, title="Bearish DI Cross")
+
+diColor = diDiff > 0 ? diDiff > diDiff[1] ? #45f248 : #C6FBC7 : diDiff < diDiff[1] ? #ff7878 : #FCCFCF
+histLevel = diDiff + 50
+plot(showAdxLines ? na : histLevel, style=plot.style_columns, color=color.new(diColor, 47), histbase=50, title="DI Difference")
+
+plotshape(showExtremeMarkers and not showAdxLines and oversoldExtreme ? histLevel : na, location=location.absolute, style=shape.triangleup, color=color.new(color.green, 0), size=size.tiny, offset=0, title="Oversold Marker")
+plotshape(showExtremeMarkers and not showAdxLines and overboughtExtreme ? histLevel : na, location=location.absolute, style=shape.triangledown, color=color.new(color.red, 0), size=size.tiny, offset=0, title="Overbought Marker")

@@ -20,6 +20,7 @@
 참고:
 - 이 지표에서 말하는 다이버전스는 `클래식 피벗 다이버전스`가 아니라 `가격 이평 기울기`와 `히스토그램 방향`의 어긋남입니다.
 - `Histogram Scale`은 시각 크기만 바꾸고 계산 로직은 바꾸지 않습니다.
+- `Source`와 `Indicator TimeFrame`은 MACD 선뿐 아니라 가격 MA/ATR 다이버전스 필터와 알림 표기에도 같이 적용됩니다.
 
 ## 트레이딩 의미 핵심 4가지
 
@@ -67,6 +68,8 @@
 
 즉 MACD와 Signal은 원형 구조를 유지하고, 히스토그램만 더 부드럽게 만든 형태입니다.
 
+- 선택한 `Source`와 `Indicator TimeFrame`은 MACD 선뿐 아니라 가격 MA 기울기와 ATR 필터 계산에도 함께 적용됩니다.
+
 ### 2. 히스토그램 다이버전스 후보 조건
 
 현재 코드는 `가격 이동평균 기울기`와 `히스토그램 방향`이 어긋날 때만 다이버전스 후보 색을 켭니다.
@@ -100,13 +103,14 @@
 | 설정 | 언제 조정하나 |
 | --- | --- |
 | `Fast Length`, `Slow Length`, `Signal Smoothing` | MACD 자체 반응 속도를 바꾸고 싶을 때 |
+| `Source` | MACD와 가격 기울기 기준을 close 대신 다른 기준가로 같이 보고 싶을 때 |
 | `Price MA Length` | 가격 기울기 기준을 더 짧게 또는 길게 보고 싶을 때 |
 | `Histogram TRIX Smoothing` | 히스토그램을 더 부드럽게 또는 더 민감하게 만들 때 |
 | `Divergence Confirm Bars` | 다이버전스 색이 너무 자주 튈 때 |
 | `Divergence ATR Filter` | 미세한 기울기 흔들림을 더 강하게 걸러내고 싶을 때 |
 | `Histogram Scale` | 히스토그램을 더 크게 또는 작게 보고 싶을 때 |
 | `Show Circle on Cross` | 원형 타이밍 표시를 켜거나 끌 때 |
-| `Indicator TimeFrame` | 다른 타임프레임 기준 MACD를 보고 싶을 때 |
+| `Indicator TimeFrame` | 다른 타임프레임 기준 MACD와 다이버전스 필터를 함께 보고 싶을 때 |
 
 ## 주의사항
 

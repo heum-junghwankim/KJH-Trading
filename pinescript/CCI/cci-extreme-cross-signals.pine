@@ -6,11 +6,6 @@ src = input(hlc3, title="Source")
 cciBasis = ta.sma(src, length)
 cci = (src - cciBasis) / (0.015 * ta.dev(src, length))
 
-plot(cci, "CCI Oscillator", color=#2962FF)
-band1 = hline(175, "Upper Band", color=#8E2A2F, linestyle=hline.style_dashed)
-hline(0, "Middle Band", color=color.white, linestyle=hline.style_dashed)
-band0 = hline(-175, "Lower Band", color=#0E766E, linestyle=hline.style_dashed)
-fill(band1, band0, color=color.new(#1F2937, 88), title="Background", display=display.none)
 
 GRP = "Smoothing"
 SIG = "Signals"
@@ -25,6 +20,12 @@ enableMA = maTypeInput != "None"
 signalOffsetBarsInput = input.int(0, "Signal Offset", minval=0, maxval=1, group=SIG, tooltip="0 = confirmed bar, 1 = visually draw one bar earlier")
 bullExtremeInput = input.float(-175.0, "Bullish Extreme", step=1.0, group=SIG)
 bearExtremeInput = input.float(175.0, "Bearish Extreme", step=1.0, group=SIG)
+
+plot(cci, "CCI Oscillator", color=#2962FF)
+upperBandLine = hline(bearExtremeInput, "Upper Band", color=#8E2A2F, linestyle=hline.style_dashed)
+hline(0.0, "Middle Band", color=color.white, linestyle=hline.style_dashed)
+lowerBandLine = hline(bullExtremeInput, "Lower Band", color=#0E766E, linestyle=hline.style_dashed)
+fill(upperBandLine, lowerBandLine, color=color.new(#1F2937, 88), title="Background", display=display.none)
 
 maFunc(source, length, maType) =>
     switch maType

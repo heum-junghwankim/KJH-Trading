@@ -6,6 +6,7 @@ anchorMode = input.string(defval="Session", title="Anchor Mode", options=["Sessi
 recentTradingDays = input.int(defval=5, title="Recent Trading Days", minval=1, group="VWAP Settings", display=display.none, active=anchorMode == "Recent Trading Days")
 src = input(title="Source", defval=hlc3, group="VWAP Settings", display=display.none)
 offset = input.int(0, title="Offset", group="VWAP Settings", display=display.none)
+enableDynamicLineColor = input.bool(true, title="Enable Dynamic Line Color", group="VWAP Settings", display=display.none)
 
 BANDS_GROUP = "Bands Settings"
 CALC_MODE_TOOLTIP = "Determines the units used to calculate the distance of the bands. When 'Percentage' is selected, a multiplier of 1 means 1%."
@@ -106,14 +107,15 @@ if shouldPlot
 isLowerBand2Break = shouldPlot and showBand_2 and not na(lowerBandValue2) and low < lowerBandValue2
 isUpperBand2Break = shouldPlot and showBand_2 and not na(upperBandValue2) and high > upperBandValue2
 // Rare wide-range candles can sweep both sides; bias the highlight toward the close vs VWAP.
-color activeLineColor = DEFAULT_LINE_COLOR
+color breakHighlightLineColor = DEFAULT_LINE_COLOR
 if isLowerBand2Break and not isUpperBand2Break
-    activeLineColor := LOWER_BREAK_LINE_COLOR
+    breakHighlightLineColor := LOWER_BREAK_LINE_COLOR
 else if isUpperBand2Break and not isLowerBand2Break
-    activeLineColor := UPPER_BREAK_LINE_COLOR
+    breakHighlightLineColor := UPPER_BREAK_LINE_COLOR
 else if isLowerBand2Break and isUpperBand2Break
-    activeLineColor := close <= vwapValue ? LOWER_BREAK_LINE_COLOR : UPPER_BREAK_LINE_COLOR
+    breakHighlightLineColor := close <= vwapValue ? LOWER_BREAK_LINE_COLOR : UPPER_BREAK_LINE_COLOR
 
+color activeLineColor = enableDynamicLineColor ? breakHighlightLineColor : DEFAULT_LINE_COLOR
 color activeFillColor = color.new(activeLineColor, 92)
 
 plot(vwapValue, title="브이왑", color=activeLineColor, offset=offset, editable=true, linestyle=plot.linestyle_solid)

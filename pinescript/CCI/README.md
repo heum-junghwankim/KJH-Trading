@@ -14,13 +14,14 @@
 | CCI Oscillator | 현재 가격이 평균에서 얼마나 벗어났는지 보는 진동선입니다. |
 | CCI-based MA | 기본값 `SMA`, 길이 `14`인 CCI 기준 신호선입니다. |
 | Bullish / Bearish Extreme | 기본값 `-175 / 175`로 먼저 극단 구간 진입 여부를 확인합니다. |
-| Upper / Lower Band | 현재 기본값도 `175 / -175`로, 극단 구간 시각 기준선 역할을 합니다. |
+| Upper / Lower Band | 기본값은 극단값과 같은 `175 / -175`이며, Extreme 값을 바꾸면 기준선도 함께 맞춰집니다. |
 | Re-entry Signal | 극단값 진입 뒤 CCI가 신호선을 다시 넘을 때만 점 형태로 표시됩니다. |
 | Signal Offset | 기본값 `0`, 신호 확정 시점을 바꾸지 않고 차트 표시 위치만 이동합니다. |
 
 참고:
 - 현재 기본값은 `CCI Length = 20`, `CCI-based MA Type = SMA`, `CCI-based MA Length = 14`입니다.
 - `Bullish Extreme = -175`, `Bearish Extreme = 175`가 먼저 찍혀야 재진입 점 시그널이 활성화됩니다.
+- 상하단 기준선은 `Bullish / Bearish Extreme` 값을 그대로 따라갑니다.
 
 ## 트레이딩 의미 핵심 4가지
 
@@ -80,8 +81,7 @@ CCI와 신호선이 교차해도 점이 없으면 `극단값 필터를 통과하
 | --- | --- |
 | `CCI Length` | CCI 민감도를 더 빠르게 또는 느리게 보고 싶을 때 |
 | `CCI-based MA Type`, `CCI-based MA Length` | CCI 위에 얹는 신호선 성격을 바꾸고 싶을 때 |
-| `Bullish Extreme`, `Bearish Extreme` | 극단값 기준을 더 엄격하게 또는 느슨하게 바꿀 때 |
-| `Upper Band`, `Lower Band` | 화면 기준선을 극단값 기준과 다르게 보고 싶을 때 |
+| `Bullish Extreme`, `Bearish Extreme` | 극단값 기준과 상하단 시각 기준선을 함께 더 엄격하게 또는 느슨하게 바꿀 때 |
 | `Signal Offset` | 확정봉 그대로 볼지, 시각적으로 한 봉 이동해 볼지 정리할 때 |
 
 ## 주의사항
