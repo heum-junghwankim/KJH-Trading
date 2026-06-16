@@ -24,6 +24,7 @@
 참고:
 - 패널 이름은 `RSI 밴드`로 보이지만, 내부 계산은 일반 RSI가 아니라 `cRSI 밴드 폭(ub - db)`입니다.
 - 밴드 상태 색상은 설정에서 바꿀 수 있습니다. 아래 해석에서는 사용자가 보기 쉽게 `좁은 밴드 색 = 녹색`, `넓은 밴드 색 = 보라색`이라고 부르겠습니다.
+- `OBV-ADX 20`, `MACD 9 / 20 / 7 + divergence 20`, `CCI 20 / MA 14 / Extreme -175 / 175`와 함께 볼 때를 기준으로 `MFI Length = 20`, `Gap Threshold = 14`, `Strong Gap Threshold = 18`, `Volume Average Length = 20`, `Volume Multiplier = 1.1`, `Trend Length = 20`, `Price Stretch = 2.0`, `Gap Fade Lookback = 2`, `보조 최소 강도 = 2`로 기본값을 맞췄습니다.
 
 ## 트레이딩 의미 핵심 4가지
 
@@ -118,7 +119,8 @@
 | `Bearish Risk cRSI Zone`, `Bullish Risk cRSI Zone` | cRSI 극단 구간 판정 기준 |
 | `Volume Average Length`, `Volume Multiplier` | 거래량 필터 강도 조절 |
 | `Trend Length`, `Price Stretch (%)` | 가격 연장 판정 기준 |
-| `Use Gap Fade Condition`, `Gap Fade Lookback` | 이격 둔화 조건 조절 |
+| `Use Gap Fade Condition`, `Gap Fade Lookback` | 이격 둔화 확인을 더 빠르게 또는 더 보수적으로 조절 |
+| `보조 최소 강도` | 약한 단독 괴리보다 다른 인디케이터와 겹치는 자리만 더 보수적으로 보려 할 때 |
 
 ## 주의사항
 

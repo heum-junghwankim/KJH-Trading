@@ -20,6 +20,7 @@
 
 참고:
 - 현재 기본값은 `CCI Length = 20`, `CCI-based MA Type = SMA`, `CCI-based MA Length = 14`입니다.
+- `CCI Length = 20`, `Bullish / Bearish Extreme = -175 / 175` 기준에서는 신호선 길이 `14`로 두어 재진입 확인이 너무 늦어지지 않게 맞췄습니다.
 - `Bullish Extreme = -175`, `Bearish Extreme = 175`가 먼저 찍혀야 재진입 점 시그널이 활성화됩니다.
 - 상하단 기준선은 `Bullish / Bearish Extreme` 값을 그대로 따라갑니다.
 

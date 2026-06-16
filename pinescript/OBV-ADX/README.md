@@ -5,7 +5,7 @@
 대상 스크립트:
 - [`obv-adx-extreme-background.pine`](./obv-adx-extreme-background.pine)
 
-이 지표는 `OBV` 기반 `+DI / -DI / ADX` 구조를 유지하면서, 기존 고정 임계값 배경 대신 `DI Difference`의 상대적 극단값을 이용해 `낙폭과대`와 `과매수`를 배경색으로 보여주는 버전입니다.
+이 지표는 `OBV` 기반 `+DI / -DI / ADX` 구조를 유지하면서, 기존 고정 임계값 배경 대신 `DI Difference`의 상대적 극단값을 이용해 `낙폭과대`와 `초과매수`를 배경색으로 보여주는 버전입니다.
 
 ## 현재 소스 기준으로 보이는 것
 
@@ -14,12 +14,12 @@
 | `+DI / -DI / ADX` 선 | 옵션을 켜면 OBV 기반 방향성과 강도를 선으로 표시합니다. |
 | `DI Difference` 히스토그램 | 옵션이 꺼져 있으면 `plus - minus` 차이를 `50` 기준 막대로 보여줍니다. |
 | 녹색 배경 | `DI Difference`가 최근 분포 대비 과도하게 눌린 `낙폭과대` 구간일 때 켜집니다. |
-| 빨간 배경 | `DI Difference`가 최근 분포 대비 과도하게 치우친 `과매수` 구간일 때 켜집니다. |
-| 극단 마커 | 히스토그램 모드에서 낙폭과대는 초록 삼각형, 과매수는 빨강 삼각형으로 찍습니다. |
+| 빨간 배경 | `DI Difference`가 최근 분포 대비 과도하게 치우친 `초과매수` 구간일 때 켜집니다. |
+| 극단 마커 | 히스토그램 모드에서 낙폭과대는 초록 삼각형, 초과매수는 빨강 삼각형으로 찍습니다. |
 
 참고:
-- 기본값은 `DI Length = 22`, `ADX Smoothing = 22`입니다.
-- 극단값은 고정 `22 / 18 / 22`가 아니라, `Extreme Lookback` 구간의 `DI Difference z-score`로 측정합니다.
+- 기본값은 `DI Length = 20`, `ADX Smoothing = 20`입니다.
+- 극단값은 고정 `20 / 18 / 20`이 아니라, `Extreme Lookback` 구간의 `DI Difference z-score`로 측정합니다.
 
 ## 내부 로직
 
@@ -31,7 +31,7 @@
 - `trur`는 `OBV` 표준편차를 `rma`로 부드럽게 만든 값입니다.
 - `plus`, `minus`, `adx`는 그 위에서 방향성과 강도를 계산합니다.
 
-### 2. 낙폭과대 / 과매수 배경
+### 2. 낙폭과대 / 초과매수 배경
 
 배경은 `DI Difference = plus - minus`를 최근 구간 기준으로 표준화해서 판단합니다.
 
@@ -42,9 +42,9 @@
 기본 조건은 아래와 같습니다.
 
 - `낙폭과대`: `diDiffZScore <= -Oversold Z-Score`
-- `과매수`: `diDiffZScore >= Overbought Z-Score`
+- `초과매수`: `diDiffZScore >= Overbought Z-Score`
 - 둘 다 `ADX >= ADX Minimum`을 만족해야 합니다.
-- 옵션이 켜져 있으면 방향도 함께 확인해서, 낙폭과대는 `-DI > +DI`, 과매수는 `+DI > -DI`일 때만 켭니다.
+- 옵션이 켜져 있으면 방향도 함께 확인해서, 낙폭과대는 `-DI > +DI`, 초과매수는 `+DI > -DI`일 때만 켭니다.
 
 즉 이 지표는 절대 수치보다 `최근 분포 대비 얼마나 과도하게 한쪽으로 벌어졌는가`를 배경으로 읽는 도구에 가깝습니다.
 
@@ -54,7 +54,7 @@
 | --- | --- |
 | `DI Length`, `ADX Smoothing` | ADX / DI 반응 속도를 바꾸고 싶을 때 |
 | `Extreme Lookback` | 극단값 분포 기준을 더 짧게 또는 길게 보고 싶을 때 |
-| `Oversold Z-Score`, `Overbought Z-Score` | 낙폭과대 / 과매수 판정을 더 엄격하게 또는 느슨하게 만들 때 |
+| `Oversold Z-Score`, `Overbought Z-Score` | 낙폭과대 / 초과매수 판정을 더 엄격하게 또는 느슨하게 만들 때 |
 | `ADX Minimum` | 힘이 약한 구간을 더 많이 걸러내고 싶을 때 |
 | `Require DI Direction Match` | 극단값일 뿐 아니라 실제 방향 우위도 같이 확인하고 싶을 때 |
 | `ADX Line or Histogram` | 선 모드와 히스토그램 모드를 바꿔 보고 싶을 때 |

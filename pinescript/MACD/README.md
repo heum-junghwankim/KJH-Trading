@@ -11,8 +11,8 @@
 
 | 요소 | 현재 표시 방식 |
 | --- | --- |
-| MACD 선 | `Fast Length`와 `Slow Length` 차이로 현재 방향을 보는 기준선입니다. |
-| Signal 선 | MACD 위에 얹는 기준선으로, 실제 교차 타이밍 판단에 씁니다. |
+| MACD 선 | `Fast Length = 9`, `Slow Length = 20` 기준으로 현재 방향 변화를 보는 기준선입니다. |
+| Signal 선 | 기본값 `7` smoothing으로 MACD 위에 얹는 기준선이며, 실제 교차 타이밍 판단에 씁니다. |
 | Histogram | `MACD - Signal`을 triple EMA로 한 번 더 부드럽게 만든 막대입니다. |
 | 다이버전스 강조색 | `가격 MA 기울기`와 `히스토그램 방향`이 어긋날 때만 초록/빨강 계열로 색을 바꿉니다. |
 | 크로스 원 | 옵션을 켜면 MACD와 Signal의 실제 교차 시점을 원으로 표시합니다. |
@@ -21,6 +21,7 @@
 - 이 지표에서 말하는 다이버전스는 `클래식 피벗 다이버전스`가 아니라 `가격 이평 기울기`와 `히스토그램 방향`의 어긋남입니다.
 - `Histogram Scale`은 시각 크기만 바꾸고 계산 로직은 바꾸지 않습니다.
 - `Source`와 `Indicator TimeFrame`은 MACD 선뿐 아니라 가격 MA/ATR 다이버전스 필터와 알림 표기에도 같이 적용됩니다.
+- 기본 MACD는 `Fast Length = 9`, `Slow Length = 20`, `Signal Smoothing = 7`로 두고, 다이버전스 기준은 `Price MA Length = 20`, `Divergence ATR Length = 20`으로 맞췄습니다.
 
 ## 트레이딩 의미 핵심 4가지
 
@@ -102,12 +103,12 @@
 
 | 설정 | 언제 조정하나 |
 | --- | --- |
-| `Fast Length`, `Slow Length`, `Signal Smoothing` | MACD 자체 반응 속도를 바꾸고 싶을 때 |
+| `Fast Length`, `Slow Length`, `Signal Smoothing` | 20봉 기준 대비 MACD 반응 속도를 더 빠르게 또는 느리게 바꾸고 싶을 때 |
 | `Source` | MACD와 가격 기울기 기준을 close 대신 다른 기준가로 같이 보고 싶을 때 |
-| `Price MA Length` | 가격 기울기 기준을 더 짧게 또는 길게 보고 싶을 때 |
+| `Price MA Length` | 가격 기울기 기준을 20봉보다 더 짧게 또는 길게 보고 싶을 때 |
 | `Histogram TRIX Smoothing` | 히스토그램을 더 부드럽게 또는 더 민감하게 만들 때 |
 | `Divergence Confirm Bars` | 다이버전스 색이 너무 자주 튈 때 |
-| `Divergence ATR Filter` | 미세한 기울기 흔들림을 더 강하게 걸러내고 싶을 때 |
+| `Divergence ATR Filter` | 20봉 변동성 기준 대비 미세한 기울기 흔들림을 더 강하게 걸러내고 싶을 때 |
 | `Histogram Scale` | 히스토그램을 더 크게 또는 작게 보고 싶을 때 |
 | `Show Circle on Cross` | 원형 타이밍 표시를 켜거나 끌 때 |
 | `Indicator TimeFrame` | 다른 타임프레임 기준 MACD와 다이버전스 필터를 함께 보고 싶을 때 |

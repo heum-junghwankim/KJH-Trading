@@ -5,8 +5,8 @@ adxGroup = "ADX / DI"
 displayGroup = "Display"
 extremeGroup = "Extreme Background"
 
-len = input.int(22, minval=1, title="DI Length", group=adxGroup)
-lensig = input.int(22, minval=1, maxval=50, title="ADX Smoothing", group=adxGroup)
+len = input.int(20, minval=1, title="DI Length", group=adxGroup)
+lensig = input.int(20, minval=1, maxval=50, title="ADX Smoothing", group=adxGroup)
 showAdxLines = input.bool(false, title="ADX Line or Histogram", group=displayGroup)
 showBackground = input.bool(true, title="Background Highlighting", group=displayGroup)
 backgroundTransparency = input.int(72, minval=0, maxval=100, title="Background Transparency", group=displayGroup)

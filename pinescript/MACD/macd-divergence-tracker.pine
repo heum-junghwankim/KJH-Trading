@@ -15,10 +15,10 @@ is_falling_confirmed(src, bars) =>
 
 //Plot Inputs
 res           = input.timeframe("",  "Indicator TimeFrame")
-fast_length   = input.int(title="Fast Length", defval=12)
-slow_length   = input.int(title="Slow Length", defval=26)
+fast_length   = input.int(title="Fast Length", defval=9)
+slow_length   = input.int(title="Slow Length", defval=20)
 src           = input.source(title="Source", defval=close)
-signal_length = input.int(title="Signal Smoothing", minval = 1, maxval = 999, defval = 9)
+signal_length = input.int(title="Signal Smoothing", minval = 1, maxval = 999, defval = 7)
 sma_source    = input.string(title="Oscillator MA Type", defval="EMA", options=["SMA", "EMA"])
 sma_signal    = input.string(title="Signal Line MA Type", defval="EMA", options=["SMA", "EMA"])
 // Show Plots T/F
@@ -45,10 +45,10 @@ col_grow_above = input.color(color.white, "Above   Grow",  group="Histogra
 col_fall_above = input.color(#B8B8B8, "Fall",  group="Histogram Colors", inline="Hist10")
 col_grow_below = input.color(color.white, "Below Grow",  group="Histogram Colors", inline="Hist20")
 col_fall_below = input.color(#B8B8B8, "Fall",  group="Histogram Colors", inline="Hist20")
-price_ma_length = input.int(title="Price MA Length", defval=9, minval=1, group="Divergence")
+price_ma_length = input.int(title="Price MA Length", defval=20, minval=1, group="Divergence")
 hist_smoothing_length = input.int(title="Histogram TRIX Smoothing", defval=3, minval=1, group="Divergence")
 divergence_confirm_bars = input.int(title="Divergence Confirm Bars", defval=2, minval=1, group="Divergence")
-divergence_atr_length = input.int(title="Divergence ATR Length", defval=14, minval=1, group="Divergence")
+divergence_atr_length = input.int(title="Divergence ATR Length", defval=20, minval=1, group="Divergence")
 divergence_atr_filter = input.float(title="Divergence ATR Filter", defval=0.02, minval=0.0, step=0.01, group="Divergence")
 // Alerts T/F Inputs
 alert_Long    = input.bool(true, title = "MACD Cross Up", group = "Alerts", inline="Alert10")

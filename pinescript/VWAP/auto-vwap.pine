@@ -2,8 +2,9 @@
 indicator(title="Auto VWAP", shorttitle="Auto VWAP", overlay=true)
 
 hideonDWM = input(false, title="Hide VWAP on 1D or Above", group="VWAP Settings", display=display.none)
-anchorMode = input.string(defval="Session", title="Anchor Mode", options=["Session", "Recent Trading Days"], group="VWAP Settings")
+anchorMode = input.string(defval="Session", title="Anchor Mode", options=["Session", "Recent Trading Days", "Recent Bars"], group="VWAP Settings")
 recentTradingDays = input.int(defval=5, title="Recent Trading Days", minval=1, group="VWAP Settings", display=display.none, active=anchorMode == "Recent Trading Days")
+recentBars = input.int(defval=20, title="Recent Bars", minval=1, group="VWAP Settings", display=display.none, active=anchorMode == "Recent Bars")
 src = input(title="Source", defval=hlc3, group="VWAP Settings", display=display.none)
 offset = input.int(0, title="Offset", group="VWAP Settings", display=display.none)
 enableDynamicLineColor = input.bool(true, title="Enable Dynamic Line Color", group="VWAP Settings", display=display.none)
@@ -78,9 +79,9 @@ cumulativeP2V += barP2V
 
 sessionCount = array.size(sessionStartPV)
 anchorSessionIndex = anchorMode == "Session" ? sessionCount - 1 : math.max(sessionCount - recentTradingDays, 0)
-anchorPV = array.get(sessionStartPV, anchorSessionIndex)
-anchorVolume = array.get(sessionStartVolume, anchorSessionIndex)
-anchorP2V = array.get(sessionStartP2V, anchorSessionIndex)
+anchorPV = anchorMode == "Recent Bars" ? nz(cumulativePV[recentBars], 0.0) : array.get(sessionStartPV, anchorSessionIndex)
+anchorVolume = anchorMode == "Recent Bars" ? nz(cumulativeVolume[recentBars], 0.0) : array.get(sessionStartVolume, anchorSessionIndex)
+anchorP2V = anchorMode == "Recent Bars" ? nz(cumulativeP2V[recentBars], 0.0) : array.get(sessionStartP2V, anchorSessionIndex)
 
 windowPV = cumulativePV - anchorPV
 windowVolume = cumulativeVolume - anchorVolume
