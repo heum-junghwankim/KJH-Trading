@@ -1,0 +1,147 @@
+//@version=6
+strategy(
+     title="Advanced Ichimoku Strategy",
+     shorttitle="Adv Ichimoku Strat",
+     overlay=true,
+     initial_capital=10000,
+     pyramiding=0,
+     default_qty_type=strategy.percent_of_equity,
+     default_qty_value=100,
+     process_orders_on_close=true,
+     use_bar_magnifier=true,
+     margin_long=100,
+     margin_short=100
+ )
+
+donchian(len) =>
+    math.avg(ta.lowest(len), ta.highest(len))
+
+conversionPeriods = input.int(8, minval=1, title="컨버전 라인 길이", group="기본 설정")
+basePeriods = input.int(22, minval=1, title="베이스 라인 길이", group="기본 설정")
+leadingSpanBPeriods = input.int(44, minval=1, title="리딩 스팬 B 길이", group="기본 설정")
+displacement = input.int(22, minval=1, title="레깅 스팬 길이", group="기본 설정")
+
+tradeDirection = input.string("롱", title="포지션 방향", options=["롱", "숏"], group="전략")
+shortMarginGuardPercent = input.float(95.0, minval=0.0, maxval=99.9, step=0.1, title="숏 하드 안전청산 기준 (% of 마진콜 가격)", group="전략")
+
+showConversionLine = input.bool(true, title="컨버전 라인 표시", group="표시")
+showBaseLine = input.bool(true, title="베이스 라인 표시", group="표시")
+showLaggingSpan = input.bool(true, title="레깅 스팬 표시", group="표시")
+showLeadingSpanA = input.bool(false, title="리딩 스팬 A 표시", group="표시")
+showLeadingSpanB = input.bool(false, title="리딩 스팬 B 표시", group="표시")
+showKumoUpper = input.bool(false, title="Kumo Cloud Upper Line 표시", group="표시")
+showKumoLower = input.bool(false, title="Kumo Cloud Lower Line 표시", group="표시")
+showCloudFill = input.bool(true, title="Cloud Fill 표시", group="표시")
+
+showLongEntry = input.bool(true, title="롱 진입 표시", group="포지션 표시")
+showLongExit = input.bool(true, title="롱 청산 표시", group="포지션 표시")
+showShortEntry = input.bool(true, title="숏 진입 표시", group="포지션 표시")
+showShortExit = input.bool(true, title="숏 청산 표시", group="포지션 표시")
+showBuyCandidate = input.bool(true, title="매수 후보 표시", group="후보 신호")
+showSellCandidate = input.bool(true, title="매도 후보 표시", group="후보 신호")
+
+lineWidth = 2
+signalSize = size.small
+conversionLineColor = #E91E63
+baseLineColor = #00FF00
+laggingSpanColor = #FFEB3B
+leadingSpanAColor = #7B9077
+leadingSpanBColor = #9A7272
+kumoBoundaryColor = #3F5AA9
+bullishCloudColor = color.new(#0B5D4F, 45)
+bearishCloudColor = color.new(#6B1E28, 45)
+longEntryColor = #4FC3F7
+longExitColor = #FF9800
+shortEntryColor = #FF5FA2
+shortExitColor = #4CAF50
+buyCandidateColor = color.new(longEntryColor, 0)
+sellCandidateColor = color.new(shortEntryColor, 0)
+
+conversionLine = donchian(conversionPeriods)
+baseLine = donchian(basePeriods)
+leadingSpanA = math.avg(conversionLine, baseLine)
+leadingSpanB = donchian(leadingSpanBPeriods)
+kumoUpper = math.max(leadingSpanA, leadingSpanB)
+kumoLower = math.min(leadingSpanA, leadingSpanB)
+
+laggingOffset = displacement - 1
+laggingReferenceClose = close[laggingOffset]
+hasLaggingReference = not na(laggingReferenceClose)
+laggingBullishCross = hasLaggingReference and ta.crossover(close, laggingReferenceClose)
+laggingBearishCross = hasLaggingReference and ta.crossunder(close, laggingReferenceClose)
+laggingBullishState = hasLaggingReference and close > laggingReferenceClose
+laggingBearishState = hasLaggingReference and close < laggingReferenceClose
+
+conversionBullishCross = ta.crossover(conversionLine, baseLine)
+conversionBearishCross = ta.crossunder(conversionLine, baseLine)
+conversionBullishState = conversionLine > baseLine
+conversionBearishState = conversionLine < baseLine
+
+rawBuySignal = (laggingBullishCross or laggingBullishState) and (conversionBullishCross or conversionBullishState)
+rawSellSignal = (laggingBearishCross or laggingBearishState) and (conversionBearishCross or conversionBearishState)
+
+var int lastSignalDirection = 0
+buySignal = rawBuySignal and lastSignalDirection != 1
+sellSignal = rawSellSignal and lastSignalDirection != -1
+
+if buySignal
+    lastSignalDirection := 1
+else if sellSignal
+    lastSignalDirection := -1
+
+isLongMode = tradeDirection == "롱"
+isShortMode = tradeDirection == "숏"
+shortMarginGuardRatio = shortMarginGuardPercent / 100.0
+shortMarginLiquidationPrice = strategy.position_size < 0 ? strategy.margin_liquidation_price : na
+shortMarginGuardPrice = strategy.position_size < 0 and not na(shortMarginLiquidationPrice) ? shortMarginLiquidationPrice * shortMarginGuardRatio : na
+longEntrySignal = isLongMode and buySignal and strategy.position_size <= 0
+longExitSignal = isLongMode and sellSignal and strategy.position_size > 0
+shortEntrySignal = isShortMode and sellSignal and strategy.position_size >= 0
+shortExitSignal = isShortMode and strategy.position_size < 0 and buySignal
+
+nextLaggingReferenceClose = laggingOffset > 0 ? close[laggingOffset - 1] : close
+hasNextLaggingReference = laggingOffset > 0 ? not na(nextLaggingReferenceClose) : true
+nextLaggingBullishCross = hasNextLaggingReference and close > nextLaggingReferenceClose and (not hasLaggingReference or close <= laggingReferenceClose)
+nextLaggingBearishCross = hasNextLaggingReference and close < nextLaggingReferenceClose and (not hasLaggingReference or close >= laggingReferenceClose)
+nextLaggingBullishState = hasNextLaggingReference and close > nextLaggingReferenceClose
+nextLaggingBearishState = hasNextLaggingReference and close < nextLaggingReferenceClose
+nextBarRawBuyCandidate = (nextLaggingBullishCross or nextLaggingBullishState) and (conversionBullishCross or conversionBullishState)
+nextBarRawSellCandidate = (nextLaggingBearishCross or nextLaggingBearishState) and (conversionBearishCross or conversionBearishState)
+buyCandidateSignal = nextBarRawBuyCandidate and lastSignalDirection != 1 and not buySignal and not sellSignal
+sellCandidateSignal = nextBarRawSellCandidate and lastSignalDirection != -1 and not buySignal and not sellSignal
+
+if strategy.position_size < 0 and not na(shortMarginGuardPrice)
+    strategy.exit("Short Margin Guard", from_entry="Short", stop=shortMarginGuardPrice, comment="숏 마진콜 방지 청산")
+
+if buySignal
+    strategy.close("Short", comment="숏 청산")
+    if isLongMode
+        strategy.entry("Long", strategy.long, comment="롱 진입")
+
+if sellSignal
+    strategy.close("Long", comment="롱 청산")
+    if isShortMode
+        strategy.entry("Short", strategy.short, comment="숏 진입")
+
+cloudOffset = displacement - 1
+fillSourceA = plot(leadingSpanA, offset=cloudOffset, title="Cloud Fill Source A", color=color.new(leadingSpanAColor, 100), display=display.none)
+fillSourceB = plot(leadingSpanB, offset=cloudOffset, title="Cloud Fill Source B", color=color.new(leadingSpanBColor, 100), display=display.none)
+
+plot(showConversionLine ? conversionLine : na, title="Conversion Line", color=conversionLineColor, linewidth=lineWidth, display=display.all - display.price_scale)
+plot(showBaseLine ? baseLine : na, title="Base Line", color=baseLineColor, linewidth=lineWidth, display=display.all)
+plot(showLaggingSpan ? close : na, offset=-cloudOffset, title="Lagging Span", color=laggingSpanColor, linewidth=lineWidth, display=display.all - display.price_scale)
+plot(showLeadingSpanA ? leadingSpanA : na, offset=cloudOffset, title="Leading Span A", color=leadingSpanAColor, linewidth=lineWidth, display=display.all - display.price_scale)
+plot(showLeadingSpanB ? leadingSpanB : na, offset=cloudOffset, title="Leading Span B", color=leadingSpanBColor, linewidth=lineWidth, display=display.all - display.price_scale)
+plot(showKumoUpper ? kumoUpper : na, offset=cloudOffset, title="Kumo Cloud Upper Line", color=kumoBoundaryColor, linewidth=lineWidth, display=display.all - display.price_scale)
+plot(showKumoLower ? kumoLower : na, offset=cloudOffset, title="Kumo Cloud Lower Line", color=kumoBoundaryColor, linewidth=lineWidth, display=display.all - display.price_scale)
+fill(fillSourceA, fillSourceB, title="Cloud Fill", color=showCloudFill ? (leadingSpanA > leadingSpanB ? bullishCloudColor : bearishCloudColor) : na)
+
+plotshape(showBuyCandidate and buyCandidateSignal, title="매수 후보", style=shape.circle, location=location.belowbar, color=buyCandidateColor, size=size.tiny)
+plotshape(showSellCandidate and sellCandidateSignal, title="매도 후보", style=shape.circle, location=location.abovebar, color=sellCandidateColor, size=size.tiny)
+plotshape(showLongEntry and longEntrySignal, title="롱 진입", style=shape.triangleup, location=location.belowbar, color=longEntryColor, size=signalSize)
+plotshape(showLongExit and longExitSignal, title="롱 청산", style=shape.triangledown, location=location.abovebar, color=longExitColor, size=signalSize)
+plotshape(showShortEntry and shortEntrySignal, title="숏 진입", style=shape.triangledown, location=location.abovebar, color=shortEntryColor, size=signalSize)
+plotshape(showShortExit and shortExitSignal, title="숏 청산", style=shape.triangleup, location=location.belowbar, color=shortExitColor, size=signalSize)
+
+alertcondition(buySignal, title="Advanced Ichimoku Strategy Buy Signal", message="Advanced Ichimoku strategy buy signal")
+alertcondition(sellSignal, title="Advanced Ichimoku Strategy Sell Signal", message="Advanced Ichimoku strategy sell signal")
