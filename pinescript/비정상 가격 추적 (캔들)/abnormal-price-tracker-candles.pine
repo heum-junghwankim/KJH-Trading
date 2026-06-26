@@ -252,8 +252,6 @@ previewBearDiv = barstate.isrealtime and not barstate.isconfirmed and previewBea
 // =========================
 plotshape(previewBullDiv, title="강세 다이버전스 프리뷰", style=shape.circle, location=location.belowbar, color=color.new(divergenceBullMarkerColor, 70), size=size.tiny)
 plotshape(previewBearDiv, title="약세 다이버전스 프리뷰", style=shape.circle, location=location.abovebar, color=color.new(divergenceBearMarkerColor, 70), size=size.tiny)
-plotshape(regularBullDiv, title="일반 강세 다이버전스", style=shape.triangleup, location=location.belowbar, color=divergenceBullMarkerColor, size=size.tiny)
-plotshape(regularBearDiv, title="일반 약세 다이버전스", style=shape.triangledown, location=location.abovebar, color=divergenceBearMarkerColor, size=size.tiny)
 
 // =========================
 // ATR

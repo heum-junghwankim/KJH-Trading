@@ -16,6 +16,7 @@
 | Bullish / Bearish Extreme | 기본값 `-175 / 175`로 먼저 극단 구간 진입 여부를 확인합니다. |
 | Upper / Lower Band | 기본값은 극단값과 같은 `175 / -175`이며, Extreme 값을 바꾸면 기준선도 함께 맞춰집니다. |
 | Re-entry Signal | 극단값 진입 뒤 CCI가 신호선을 다시 넘을 때만 점 형태로 표시됩니다. |
+| Extreme Background | `Bullish Extreme` 이하는 연한 녹색, `Bearish Extreme` 이상은 연한 빨강 배경으로 강조됩니다. |
 | Signal Offset | 기본값 `0`, 신호 확정 시점을 바꾸지 않고 차트 표시 위치만 이동합니다. |
 
 참고:
@@ -23,6 +24,7 @@
 - `CCI Length = 20`, `Bullish / Bearish Extreme = -175 / 175` 기준에서는 신호선 길이 `14`로 두어 재진입 확인이 너무 늦어지지 않게 맞췄습니다.
 - `Bullish Extreme = -175`, `Bearish Extreme = 175`가 먼저 찍혀야 재진입 점 시그널이 활성화됩니다.
 - 상하단 기준선은 `Bullish / Bearish Extreme` 값을 그대로 따라갑니다.
+- `CCI`가 `Bullish Extreme` 이하이면 녹색 배경, `Bearish Extreme` 이상이면 빨간 배경이 표시됩니다.
 
 ## 트레이딩 의미 핵심 4가지
 

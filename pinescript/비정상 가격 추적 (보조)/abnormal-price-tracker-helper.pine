@@ -4,107 +4,82 @@ indicator("Abnormal-Price-Tracker-Helper", shorttitle="Abnormal-Price-Tracker-He
 // ==========================
 // INPUT
 // ==========================
-src = input.source(close, "Source")
+baseGroup = "기본"
+displayGroup = "표시"
+bandGroup = "RSI 밴드"
+riskGroup = "반전 위험"
 
-// cRSI
-// Shared defaults are intentionally kept in sync with
-// abnormal-price-tracker-candles.pine helper signal defaults.
-domcycle = input.int(20, minval=10, title="cRSI Dominant Cycle")
-vibration = input.int(10, minval=1, title="cRSI Vibration")
-leveling = input.float(10.0, minval=1.0, maxval=50.0, title="cRSI Leveling %")
+src = input.source(close, "Source", group=baseGroup)
+rsiLength = input.int(14, minval=1, title="RSI Length", group=baseGroup)
+mfiLength = input.int(14, minval=1, title="MFI Length", group=baseGroup)
 
-// MFI
-mfiLength = input.int(20, minval=1, title="MFI Length")
+showRsiLine = input.bool(true, title="RSI 선 표시", group=displayGroup)
+showMfiLine = input.bool(true, title="MFI 선 표시", group=displayGroup)
+rsiColor = input.color(color.rgb(233, 30, 99), title="RSI Color", group=displayGroup)
+mfiColor = input.color(color.rgb(33, 182, 203), title="MFI Color", group=displayGroup)
 
-// ==========================
-// LINE OPTIONS
-// ==========================
-showCrsiLine = input.bool(true, title="Show cRSI Line")
-crsiColor = input.color(color.rgb(233, 30, 99), title="cRSI Color")
-mfiColor = input.color(color.rgb(33, 182, 203), title="MFI Color")
-crsiWidth = input.int(2, minval=1, maxval=5, title="cRSI Line Width")
-mfiWidth = input.int(2, minval=1, maxval=5, title="MFI Line Width")
-crsiBandColor = input.color(color.new(color.silver, 35), title="cRSI Band Color")
-crsiBandWidth = input.int(1, minval=1, maxval=5, title="cRSI Band Width")
-crsiBandFillColor = input.color(color.new(color.silver, 35), title="cRSI Band Fill Color")
-crsiBandFillTransparency = input.int(88, minval=0, maxval=100, title="cRSI Band Fill Transparency")
-narrowBandStateColor = input.color(color.green, title="cRSI Narrow Band Color")
-narrowBandStateTransparency = input.int(88, minval=0, maxval=100, title="cRSI Narrow Band Fill Transparency")
-narrowBandWidthThreshold = input.float(20.0, minval=0.0, step=0.1, title="cRSI Narrow Band Width Threshold")
-wideBandStateColor = input.color(color.rgb(168, 85, 247), title="cRSI Wide Band Color")
-wideBandStateTransparency = input.int(88, minval=0, maxval=100, title="cRSI Wide Band Fill Transparency")
-wideBandWidthThreshold = input.float(40.0, minval=0.0, step=0.1, title="cRSI Wide Band Width Threshold")
+rsiBandColor = input.color(color.new(color.silver, 35), title="기본 밴드 색상", group=bandGroup)
+narrowBandStateColor = input.color(color.rgb(255, 152, 0), title="좁은 밴드 색상", group=bandGroup)
+narrowBandWidthThreshold = input.float(20.0, minval=0.0, step=0.1, title="좁은 밴드 폭 기준", group=bandGroup)
+wideBandStateColor = input.color(color.rgb(168, 85, 247), title="넓은 밴드 색상", group=bandGroup)
+wideBandWidthThreshold = input.float(40.0, minval=0.0, step=0.1, title="넓은 밴드 폭 기준", group=bandGroup)
 
-// ==========================
-// REVERSAL RISK FILTER OPTIONS
-// ==========================
-gapThreshold = input.float(14.0, minval=1.0, title="Gap Background Threshold")
-weakGapThreshold = input.float(10.0, minval=0.0, title="Weak Gap Threshold")
-strongGapThreshold = input.float(18.0, minval=0.0, title="Strong Gap Threshold")
-bullZone = input.float(55.0, minval=0.0, maxval=100.0, title="Bearish Risk cRSI Zone")
-bearZone = input.float(45.0, minval=0.0, maxval=100.0, title="Bullish Risk cRSI Zone")
-volumeAvgLength = input.int(20, minval=1, title="Volume Average Length")
-volumeMultiplier = input.float(1.1, minval=0.1, step=0.1, title="Volume Multiplier")
-trendLength = input.int(20, minval=2, title="Trend Length")
-priceStretchThreshold = input.float(2.0, minval=0.1, step=0.1, title="Price Stretch (%)")
-useGapFade = input.bool(true, title="Use Gap Fade Condition")
-gapFadeLookback = input.int(2, minval=1, maxval=5, title="Gap Fade Lookback")
-minRiskStrength = input.int(2, minval=1, maxval=3, title="보조 최소 강도")
+gapThreshold = input.float(14.0, minval=1.0, title="Gap Background Threshold", group=riskGroup)
+weakGapThreshold = input.float(10.0, minval=0.0, title="Weak Gap Threshold", group=riskGroup)
+strongGapThreshold = input.float(18.0, minval=0.0, title="Strong Gap Threshold", group=riskGroup)
+bullZone = input.float(55.0, minval=0.0, maxval=100.0, title="Bearish Risk RSI Zone", group=riskGroup)
+bearZone = input.float(45.0, minval=0.0, maxval=100.0, title="Bullish Risk RSI Zone", group=riskGroup)
+volumeAvgLength = input.int(20, minval=1, title="Volume Average Length", group=riskGroup)
+volumeMultiplier = input.float(1.1, minval=0.1, step=0.1, title="Volume Multiplier", group=riskGroup)
+trendLength = input.int(20, minval=2, title="Trend Length", group=riskGroup)
+priceStretchThreshold = input.float(2.0, minval=0.1, step=0.1, title="Price Stretch (%)", group=riskGroup)
+useGapFade = input.bool(true, title="Use Gap Fade Condition", group=riskGroup)
+gapFadeLookback = input.int(2, minval=1, maxval=5, title="Gap Fade Lookback", group=riskGroup)
+minRiskStrength = input.int(2, minval=1, maxval=3, title="보조 최소 강도", group=riskGroup)
+
+defaultLineWidth = 2
+defaultBandWidth = 1
+defaultBandFillTransparency = 88
+defaultStateFillTransparency = 88
+fixedBandPercent = 10.0
 
 formatPanelNumber(value) =>
     na(value) ? "N/A" : str.tostring(value, "#.##")
 
 // ==========================
-// cRSI CALCULATION
+// RSI / MFI CALCULATION
 // ==========================
-cyclelen = math.max(1, int(domcycle / 2))
-cyclicmemory = domcycle * 2
-torque = 2.0 / (vibration + 1)
-phasingLag = int((vibration - 1) / 2.0)
+rsiValue = ta.rsi(src, rsiLength)
+mfi = ta.mfi(hlc3, mfiLength)
 
-sourceChange = ta.change(src)
-up = ta.rma(math.max(sourceChange, 0), cyclelen)
-down = ta.rma(-math.min(sourceChange, 0), cyclelen)
-rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - 100 / (1 + up / down)
-
-var float crsi = na
-crsi := torque * (2 * rsi - nz(rsi[phasingLag])) + (1 - torque) * nz(crsi[1])
-
-// ==========================
-// DYNAMIC BANDS
-// ==========================
-float db = na
-float ub = na
-bandPercent = math.max(0.0, math.min(100.0, leveling))
-inverseBandPercent = 100.0 - bandPercent
-
-db := ta.percentile_nearest_rank(crsi, cyclicmemory, bandPercent)
-ub := ta.percentile_nearest_rank(crsi, cyclicmemory, inverseBandPercent)
-
-crsiBandRange = not na(ub) and not na(db) ? ub - db : na
-isCrsiBandNarrow = not na(crsiBandRange) and crsiBandRange <= narrowBandWidthThreshold
-isCrsiBandWide = not na(crsiBandRange) and crsiBandRange >= wideBandWidthThreshold
-activeCrsiBandLineColor = isCrsiBandNarrow ? narrowBandStateColor : isCrsiBandWide ? wideBandStateColor : crsiBandColor
-activeCrsiBandFillColor = isCrsiBandNarrow ? color.new(narrowBandStateColor, narrowBandStateTransparency) : isCrsiBandWide ? color.new(wideBandStateColor, wideBandStateTransparency) : color.new(crsiBandFillColor, crsiBandFillTransparency)
-
-// ==========================
-// MFI
-// ==========================
 overboughtLevel = 80.0
 oversoldLevel = 20.0
-
-mfi = ta.mfi(hlc3, mfiLength)
 isMfiOverbought = mfi >= overboughtLevel
 isMfiOversold = mfi <= oversoldLevel
 mfiOverboughtFillColor = color.rgb(255, 90, 90)
 mfiOversoldFillColor = color.rgb(90, 255, 120)
 
 // ==========================
+// DYNAMIC RSI BANDS
+// ==========================
+rsiBandLookback = int(math.max(40, rsiLength * 2))
+inverseBandPercent = 100.0 - fixedBandPercent
+
+db = ta.percentile_nearest_rank(rsiValue, rsiBandLookback, fixedBandPercent)
+ub = ta.percentile_nearest_rank(rsiValue, rsiBandLookback, inverseBandPercent)
+
+rsiBandRange = not na(ub) and not na(db) ? ub - db : na
+isRsiBandNarrow = not na(rsiBandRange) and rsiBandRange <= narrowBandWidthThreshold
+isRsiBandWide = not na(rsiBandRange) and rsiBandRange >= wideBandWidthThreshold
+activeRsiBandLineColor = isRsiBandNarrow ? narrowBandStateColor : isRsiBandWide ? wideBandStateColor : rsiBandColor
+activeRsiBandFillColor = isRsiBandNarrow ? color.new(narrowBandStateColor, defaultStateFillTransparency) : isRsiBandWide ? color.new(wideBandStateColor, defaultStateFillTransparency) : color.new(rsiBandColor, defaultBandFillTransparency)
+
+// ==========================
 // PRICE / VOLUME / REVERSAL STATE
 // ==========================
-gap = math.abs(crsi - mfi)
-bearishGapBg = crsi > mfi and gap >= gapThreshold
-bullishGapBg = mfi > crsi and gap >= gapThreshold
+gap = math.abs(rsiValue - mfi)
+bearishGapBg = rsiValue > mfi and gap >= gapThreshold
+bullishGapBg = mfi > rsiValue and gap >= gapThreshold
 
 volAvg = ta.sma(volume, volumeAvgLength)
 volumeOkay = volume > volAvg * volumeMultiplier
@@ -116,20 +91,20 @@ priceStretchPct = priceEma != 0 ? (close - priceEma) / priceEma * 100.0 : 0.0
 priceExtendedUp = close > close[trendLength] and priceStretchPct >= priceStretchThreshold
 priceExtendedDown = close < close[trendLength] and priceStretchPct <= -priceStretchThreshold
 
-bearishGap = crsi - mfi
-bullishGap = mfi - crsi
+bearishGap = rsiValue - mfi
+bullishGap = mfi - rsiValue
 
 bearishGapScore = bearishGap > strongGapThreshold ? 2 : bearishGap > weakGapThreshold ? 1 : 0
 bullishGapScore = bullishGap > strongGapThreshold ? 2 : bullishGap > weakGapThreshold ? 1 : 0
 
-bearishZonePass = crsi >= bullZone or (not na(ub) and crsi >= ub)
-bullishZonePass = crsi <= bearZone or (not na(db) and crsi <= db)
+bearishZonePass = rsiValue >= bullZone or (not na(ub) and rsiValue >= ub)
+bullishZonePass = rsiValue <= bearZone or (not na(db) and rsiValue <= db)
 
 bearishGapFade = bearishGap < bearishGap[gapFadeLookback]
 bullishGapFade = bullishGap < bullishGap[gapFadeLookback]
 
-crsiTurningDown = crsi < crsi[1]
-crsiTurningUp = crsi > crsi[1]
+rsiTurningDown = rsiValue < rsiValue[1]
+rsiTurningUp = rsiValue > rsiValue[1]
 mfiTurningDown = mfi < mfi[1]
 mfiTurningUp = mfi > mfi[1]
 
@@ -143,8 +118,8 @@ bearishRiskScore += bearishGapScore
 bearishRiskScore += priceExtendedUp ? 1 : 0
 bearishRiskScore += volumeOkay ? 1 : 0
 bearishRiskScore += bearishZonePass ? 1 : 0
-bearishRiskScore += ((useGapFade and bearishGapFade) or (not useGapFade and crsiTurningDown)) ? 1 : 0
-bearishRiskScore += (crsiTurningDown or mfiTurningDown) ? 1 : 0
+bearishRiskScore += ((useGapFade and bearishGapFade) or (not useGapFade and rsiTurningDown)) ? 1 : 0
+bearishRiskScore += (rsiTurningDown or mfiTurningDown) ? 1 : 0
 
 bullishRiskScore = 0
 bullishRiskScore += bullishGapBg ? 1 : 0
@@ -152,8 +127,8 @@ bullishRiskScore += bullishGapScore
 bullishRiskScore += priceExtendedDown ? 1 : 0
 bullishRiskScore += volumeOkay ? 1 : 0
 bullishRiskScore += bullishZonePass ? 1 : 0
-bullishRiskScore += ((useGapFade and bullishGapFade) or (not useGapFade and crsiTurningUp)) ? 1 : 0
-bullishRiskScore += (crsiTurningUp or mfiTurningUp) ? 1 : 0
+bullishRiskScore += ((useGapFade and bullishGapFade) or (not useGapFade and rsiTurningUp)) ? 1 : 0
+bullishRiskScore += (rsiTurningUp or mfiTurningUp) ? 1 : 0
 
 bearishRiskStrength = bearishRiskScore >= 7 ? 3 : bearishRiskScore >= 5 ? 2 : bearishRiskScore >= 4 ? 1 : 0
 bullishRiskStrength = bullishRiskScore >= 7 ? 3 : bullishRiskScore >= 5 ? 2 : bullishRiskScore >= 4 ? 1 : 0
@@ -185,23 +160,23 @@ hline(oversoldLevel, "Oversold", color=color.gray, linestyle=hline.style_dashed,
 // ==========================
 // PLOTS
 // ==========================
-lowBandPlot = plot(db, "cRSI Low Band", color=activeCrsiBandLineColor, linewidth=crsiBandWidth, display=display.pane)
-highBandPlot = plot(ub, "cRSI High Band", color=activeCrsiBandLineColor, linewidth=crsiBandWidth, display=display.pane)
-mfiPlot = plot(mfi, "MFI", color=mfiColor, linewidth=mfiWidth)
-overboughtFillBase = plot(isMfiOverbought ? overboughtLevel : na, "Overbought Fill Base", color=color.new(mfiOverboughtFillColor, 100), linewidth=1, style=plot.style_linebr, display=display.pane)
-oversoldFillBase = plot(isMfiOversold ? oversoldLevel : na, "Oversold Fill Base", color=color.new(mfiOversoldFillColor, 100), linewidth=1, style=plot.style_linebr, display=display.pane)
-plot(showCrsiLine ? crsi : na, "cRSI", color=crsiColor, linewidth=crsiWidth)
-fill(lowBandPlot, highBandPlot, color=activeCrsiBandFillColor)
-fill(overboughtFillBase, mfiPlot, color=mfiOverboughtFillColor, fillgaps=false)
-fill(oversoldFillBase, mfiPlot, color=mfiOversoldFillColor, fillgaps=false)
+lowBandPlot = plot(db, "RSI Low Band", color=activeRsiBandLineColor, linewidth=defaultBandWidth, display=display.pane)
+highBandPlot = plot(ub, "RSI High Band", color=activeRsiBandLineColor, linewidth=defaultBandWidth, display=display.pane)
+rsiPlot = plot(showRsiLine ? rsiValue : na, "RSI", color=rsiColor, linewidth=defaultLineWidth, display=display.pane)
+mfiPlot = plot(showMfiLine ? mfi : na, "MFI", color=mfiColor, linewidth=defaultLineWidth, display=display.pane)
+overboughtFillBase = plot((showMfiLine and isMfiOverbought) ? overboughtLevel : na, "Overbought Fill Base", color=color.new(mfiOverboughtFillColor, 100), linewidth=1, style=plot.style_linebr, display=display.pane)
+oversoldFillBase = plot((showMfiLine and isMfiOversold) ? oversoldLevel : na, "Oversold Fill Base", color=color.new(mfiOversoldFillColor, 100), linewidth=1, style=plot.style_linebr, display=display.pane)
+fill(lowBandPlot, highBandPlot, color=activeRsiBandFillColor)
+fill(overboughtFillBase, mfiPlot, color=showMfiLine ? mfiOverboughtFillColor : na, fillgaps=false)
+fill(oversoldFillBase, mfiPlot, color=showMfiLine ? mfiOversoldFillColor : na, fillgaps=false)
 
 // ==========================
 // TOP RIGHT INFO PANEL
 // ==========================
 panelBg = color.new(color.rgb(16, 22, 34), 12)
 panelFrameColor = color.new(color.white, 92)
-panelBandGapText = formatPanelNumber(crsiBandRange)
-panelBandGapTextColor = isCrsiBandNarrow ? narrowBandStateColor : isCrsiBandWide ? wideBandStateColor : color.white
+panelBandGapText = formatPanelNumber(rsiBandRange)
+panelBandGapTextColor = isRsiBandNarrow ? narrowBandStateColor : isRsiBandWide ? wideBandStateColor : color.white
 var table infoTable = table.new(position.top_right, 1, 2, border_width=1, border_color=panelFrameColor, frame_width=1, frame_color=panelFrameColor)
 
 if barstate.islast

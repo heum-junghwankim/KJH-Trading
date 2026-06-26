@@ -8,7 +8,7 @@ indicator(title='Moving Average Ribbon', shorttitle='Ribbon', overlay=true)
 
 // user settings
 src = input.source(defval=close, title='Source')
-exp = input.bool(defval=true, title='Exponential')
+maType = input.string(defval='EMA', title='이동평균 종류', options=['SMA', 'EMA', 'WMA', 'VWMA'])
 show100 = input.bool(defval=true, title='MA 100')
 show200 = input.bool(defval=true, title='MA 200')
 
@@ -22,9 +22,13 @@ requireDirectionalClose = input.bool(defval=true, title='지지/저항 시 캔�
 confirmLabelsOnClose = input.bool(defval=true, title='봉마감 후 라벨 확정', group=signalGroup)
 maxRibbonPenetration = input.float(defval=0.35, minval=0.0, maxval=1.0, step=0.05, title='지지/저항 리본 관통 허용 비율', group=signalGroup)
 
-// return a moving average of the given length
+// return a moving average of the given length using the selected type
 ma(length) =>
-    exp ? ta.ema(src, length) : ta.sma(src, length)
+    switch maType
+        'SMA' => ta.sma(src, length)
+        'EMA' => ta.ema(src, length)
+        'WMA' => ta.wma(src, length)
+        'VWMA' => ta.vwma(src, length)
 
 ma20 = ma(20)
 ma25 = ma(25)
