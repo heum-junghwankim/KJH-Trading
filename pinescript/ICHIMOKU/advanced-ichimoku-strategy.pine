@@ -22,7 +22,7 @@ leadingSpanBPeriods = input.int(44, minval=1, title="리딩 스팬 B 길이", gr
 displacement = input.int(22, minval=1, title="레깅 스팬 길이", group="기본 설정")
 
 tradeDirection = input.string("롱", title="포지션 방향", options=["롱", "숏"], group="전략")
-shortMarginGuardPercent = input.float(95.0, minval=0.0, maxval=99.9, step=0.1, title="숏 하드 안전청산 기준 (% of 마진콜 가격)", group="전략")
+// 진입은 매번 전체 자본(equity 100%)으로 잡습니다. 원금은 initial_capital(기본 10000)입니다.
 
 showConversionLine = input.bool(true, title="컨버전 라인 표시", group="표시")
 showBaseLine = input.bool(true, title="베이스 라인 표시", group="표시")
@@ -91,9 +91,6 @@ else if sellSignal
 
 isLongMode = tradeDirection == "롱"
 isShortMode = tradeDirection == "숏"
-shortMarginGuardRatio = shortMarginGuardPercent / 100.0
-shortMarginLiquidationPrice = strategy.position_size < 0 ? strategy.margin_liquidation_price : na
-shortMarginGuardPrice = strategy.position_size < 0 and not na(shortMarginLiquidationPrice) ? shortMarginLiquidationPrice * shortMarginGuardRatio : na
 longEntrySignal = isLongMode and buySignal and strategy.position_size <= 0
 longExitSignal = isLongMode and sellSignal and strategy.position_size > 0
 shortEntrySignal = isShortMode and sellSignal and strategy.position_size >= 0
@@ -109,9 +106,6 @@ nextBarRawBuyCandidate = (nextLaggingBullishCross or nextLaggingBullishState) an
 nextBarRawSellCandidate = (nextLaggingBearishCross or nextLaggingBearishState) and (conversionBearishCross or conversionBearishState)
 buyCandidateSignal = nextBarRawBuyCandidate and lastSignalDirection != 1 and not buySignal and not sellSignal
 sellCandidateSignal = nextBarRawSellCandidate and lastSignalDirection != -1 and not buySignal and not sellSignal
-
-if strategy.position_size < 0 and not na(shortMarginGuardPrice)
-    strategy.exit("Short Margin Guard", from_entry="Short", stop=shortMarginGuardPrice, comment="숏 마진콜 방지 청산")
 
 if buySignal
     strategy.close("Short", comment="숏 청산")
