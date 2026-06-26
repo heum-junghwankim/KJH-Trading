@@ -4,10 +4,10 @@ indicator(title="Advanced Ichimoku", shorttitle="Adv Ichimoku", overlay=true)
 donchian(len) =>
     math.avg(ta.lowest(len), ta.highest(len))
 
-conversionPeriods = input.int(9, minval=1, title="컨버전 라인 길이", group="기본 설정")
-basePeriods = input.int(26, minval=1, title="베이스 라인 길이", group="기본 설정")
-leadingSpanBPeriods = input.int(52, minval=1, title="리딩 스팬 B 길이", group="기본 설정")
-displacement = input.int(26, minval=1, title="레깅 스팬 길이", group="기본 설정")
+conversionPeriods = input.int(8, minval=1, title="컨버전 라인 길이", group="기본 설정")
+basePeriods = input.int(22, minval=1, title="베이스 라인 길이", group="기본 설정")
+leadingSpanBPeriods = input.int(44, minval=1, title="리딩 스팬 B 길이", group="기본 설정")
+displacement = input.int(22, minval=1, title="레깅 스팬 길이", group="기본 설정")
 
 showConversionLine = input.bool(true, title="컨버전 라인 표시", group="표시")
 showBaseLine = input.bool(true, title="베이스 라인 표시", group="표시")
@@ -20,6 +20,8 @@ showCloudFill = input.bool(true, title="Cloud Fill 표시", group="표시")
 
 showBuySignal = input.bool(true, title="매수 신호 표시", group="매수 신호")
 showSellSignal = input.bool(true, title="매도 신호 표시", group="매도 신호")
+showBuyCandidate = input.bool(true, title="매수 후보 표시", group="후보 신호")
+showSellCandidate = input.bool(true, title="매도 후보 표시", group="후보 신호")
 
 lineWidth = 2
 signalSize = size.small
@@ -33,6 +35,8 @@ bullishCloudColor = color.new(#0B5D4F, 45)
 bearishCloudColor = color.new(#6B1E28, 45)
 defaultBuyColor = #4FC3F7
 defaultSellColor = #FF5FA2
+buyCandidateColor = color.new(defaultBuyColor, 0)
+sellCandidateColor = color.new(defaultSellColor, 0)
 
 conversionLine = donchian(conversionPeriods)
 baseLine = donchian(basePeriods)
@@ -66,19 +70,32 @@ if buySignal
 else if sellSignal
     lastSignalDirection := -1
 
+nextLaggingReferenceClose = laggingOffset > 0 ? close[laggingOffset - 1] : close
+hasNextLaggingReference = laggingOffset > 0 ? not na(nextLaggingReferenceClose) : true
+nextLaggingBullishCross = hasNextLaggingReference and close > nextLaggingReferenceClose and (not hasLaggingReference or close <= laggingReferenceClose)
+nextLaggingBearishCross = hasNextLaggingReference and close < nextLaggingReferenceClose and (not hasLaggingReference or close >= laggingReferenceClose)
+nextLaggingBullishState = hasNextLaggingReference and close > nextLaggingReferenceClose
+nextLaggingBearishState = hasNextLaggingReference and close < nextLaggingReferenceClose
+nextBarRawBuyCandidate = (nextLaggingBullishCross or nextLaggingBullishState) and (conversionBullishCross or conversionBullishState)
+nextBarRawSellCandidate = (nextLaggingBearishCross or nextLaggingBearishState) and (conversionBearishCross or conversionBearishState)
+buyCandidateSignal = nextBarRawBuyCandidate and lastSignalDirection != 1 and not buySignal and not sellSignal
+sellCandidateSignal = nextBarRawSellCandidate and lastSignalDirection != -1 and not buySignal and not sellSignal
+
 cloudOffset = displacement - 1
 fillSourceA = plot(leadingSpanA, offset=cloudOffset, title="Cloud Fill Source A", color=color.new(leadingSpanAColor, 100), display=display.none)
 fillSourceB = plot(leadingSpanB, offset=cloudOffset, title="Cloud Fill Source B", color=color.new(leadingSpanBColor, 100), display=display.none)
 
-plot(showConversionLine ? conversionLine : na, title="Conversion Line", color=conversionLineColor, linewidth=lineWidth)
-plot(showBaseLine ? baseLine : na, title="Base Line", color=baseLineColor, linewidth=lineWidth)
-plot(showLaggingSpan ? close : na, offset=-cloudOffset, title="Lagging Span", color=laggingSpanColor, linewidth=lineWidth)
-plot(showLeadingSpanA ? leadingSpanA : na, offset=cloudOffset, title="Leading Span A", color=leadingSpanAColor, linewidth=lineWidth)
-plot(showLeadingSpanB ? leadingSpanB : na, offset=cloudOffset, title="Leading Span B", color=leadingSpanBColor, linewidth=lineWidth)
-plot(showKumoUpper ? kumoUpper : na, offset=cloudOffset, title="Kumo Cloud Upper Line", color=kumoBoundaryColor, linewidth=lineWidth)
-plot(showKumoLower ? kumoLower : na, offset=cloudOffset, title="Kumo Cloud Lower Line", color=kumoBoundaryColor, linewidth=lineWidth)
+plot(showConversionLine ? conversionLine : na, title="Conversion Line", color=conversionLineColor, linewidth=lineWidth, display=display.all - display.price_scale)
+plot(showBaseLine ? baseLine : na, title="Base Line", color=baseLineColor, linewidth=lineWidth, display=display.all)
+plot(showLaggingSpan ? close : na, offset=-cloudOffset, title="Lagging Span", color=laggingSpanColor, linewidth=lineWidth, display=display.all - display.price_scale)
+plot(showLeadingSpanA ? leadingSpanA : na, offset=cloudOffset, title="Leading Span A", color=leadingSpanAColor, linewidth=lineWidth, display=display.all - display.price_scale)
+plot(showLeadingSpanB ? leadingSpanB : na, offset=cloudOffset, title="Leading Span B", color=leadingSpanBColor, linewidth=lineWidth, display=display.all - display.price_scale)
+plot(showKumoUpper ? kumoUpper : na, offset=cloudOffset, title="Kumo Cloud Upper Line", color=kumoBoundaryColor, linewidth=lineWidth, display=display.all - display.price_scale)
+plot(showKumoLower ? kumoLower : na, offset=cloudOffset, title="Kumo Cloud Lower Line", color=kumoBoundaryColor, linewidth=lineWidth, display=display.all - display.price_scale)
 fill(fillSourceA, fillSourceB, title="Cloud Fill", color=showCloudFill ? (leadingSpanA > leadingSpanB ? bullishCloudColor : bearishCloudColor) : na)
 
+plotshape(showBuyCandidate and buyCandidateSignal, title="매수 후보", style=shape.circle, location=location.belowbar, color=buyCandidateColor, size=size.tiny)
+plotshape(showSellCandidate and sellCandidateSignal, title="매도 후보", style=shape.circle, location=location.abovebar, color=sellCandidateColor, size=size.tiny)
 plotshape(showBuySignal and buySignal, title="매수 신호", style=shape.triangleup, location=location.belowbar, color=defaultBuyColor, size=signalSize)
 plotshape(showSellSignal and sellSignal, title="매도 신호", style=shape.triangledown, location=location.abovebar, color=defaultSellColor, size=signalSize)
 
