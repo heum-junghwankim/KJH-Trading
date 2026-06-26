@@ -1,0 +1,195 @@
+//@version=4
+//
+// Copyright (C) 2017 CC BY, whentotrade / Lars von Thienen
+// Source:
+// Book: Decoding The Hidden Market Rhythm - Part 1: Dynamic Cycles (2017)
+// Chapter 4: "Fine-tuning technical indicators for more details on the cRSI Indicator
+//
+// Usage:
+// You need to derive the dominant cycle as input parameter for the cycle length as described in chapter 4.
+//
+// License:
+// This work is licensed under a Creative Commons Attribution 4.0 International License.
+// You are free to share the material in any medium or format and remix, transform, and build upon the material for any purpose,
+// even commercially. You must give appropriate credit to the authors book and website, provide a link to the license, and indicate
+// if changes were made. You may do so in any reasonable manner, but not in any way that suggests the licensor endorses you or your use.
+//
+study(title="RSI cyclic smoothed", shorttitle="cRSI")
+
+src = close
+domcycle = input(20, minval=10, title="Dominant Cycle Length")
+crsi = 0.0
+cyclelen = int(domcycle / 2)
+vibration = 10
+leveling = 10.0
+cyclicmemory = domcycle * 2
+
+// 밴드폭 배경색 옵션
+showBandWidthBg = input(true, title="Show Band Width Background")
+narrowBandThreshold = input(20.0, minval=0.0, title="Narrow Band Width Threshold")
+wideBandThreshold = input(35.0, minval=0.0, title="Wide Band Width Threshold")
+bandBgTransp = input(88, minval=0, maxval=100, title="Band Width Background Transparency")
+
+h1 = hline(30, color=color.silver, linestyle=hline.style_dashed)
+h2 = hline(70, color=color.silver, linestyle=hline.style_dashed)
+
+torque = 2.0 / (vibration + 1)
+phasingLag = int((vibration - 1) / 2)
+
+up = rma(max(change(src), 0), cyclelen)
+down = rma(-min(change(src), 0), cyclelen)
+rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - 100 / (1 + up / down)
+crsi := torque * (2 * rsi - rsi[phasingLag]) + (1 - torque) * nz(crsi[1])
+
+lmax = -999999.0
+lmin = 999999.0
+for i = 0 to cyclicmemory - 1 by 1
+    if nz(crsi[i], -999999.0) > lmax
+        lmax := nz(crsi[i])
+        lmax
+    else
+        if nz(crsi[i], 999999.0) < lmin
+            lmin := nz(crsi[i])
+            lmin
+
+mstep = (lmax - lmin) / 100
+aperc = leveling / 100
+
+db = 0.0
+for steps = 0 to 100 by 1
+    testvalue = lmin + mstep * steps
+    below = 0
+    for m = 0 to cyclicmemory - 1 by 1
+        below := below + iff(crsi[m] < testvalue, 1, 0)
+        below
+
+    ratio = below / cyclicmemory
+    if ratio >= aperc
+        db := testvalue
+        break
+    else
+        continue
+
+ub = 0.0
+for steps = 0 to 100 by 1
+    testvalue = lmax - mstep * steps
+    above = 0
+    for m = 0 to cyclicmemory - 1 by 1
+        above := above + iff(crsi[m] >= testvalue, 1, 0)
+        above
+
+    ratio = above / cyclicmemory
+    if ratio >= aperc
+        ub := testvalue
+        break
+    else
+        continue
+
+// 밴드폭 계산
+bandWidth = ub - db
+narrowLimit = min(narrowBandThreshold, wideBandThreshold)
+wideLimit = max(narrowBandThreshold, wideBandThreshold)
+
+// 밴드폭이 좁으면 주황색, 넓으면 보라색 배경
+bandBgColor = not showBandWidthBg or bar_index < cyclicmemory ? na :
+     bandWidth <= narrowLimit ? color.orange :
+     bandWidth >= wideLimit ? color.purple : na
+
+bgcolor(bandBgColor, transp=bandBgTransp)
+
+lowband = plot(db, "LowBand", color.aqua)
+highband = plot(ub, "HighBand", color.aqua)
+fill(h1, h2, color=color.silver, transp=90)
+fill(lowband, highband, color=color.gray, transp=90)
+plot(crsi, "CRSI", color.fuchsia)
+
+// =========================
+// 우측 상단 상태판 (매수 신호 신뢰도)
+// =========================
+atLowCrsi  = crsi <= db
+atHighCrsi = crsi >= ub
+narrowBw   = bandWidth <= narrowLimit
+wideBw     = bandWidth >= wideLimit
+posText    = atLowCrsi ? "LowBand(과매도)" : atHighCrsi ? "HighBand(과열)" : "중립"
+bwText     = narrowBw ? "수축(주황)·전조" : wideBw ? "확장(보라)" : "중립"
+
+// 수축(주황) 상태에서의 밴드 돌파는 "추세 돌파"로 보고, 밴드 안으로 복귀할 때까지 방향 유지
+// (돌파 이후 밴드가 확장(보라)되어도 복귀 전까지는 같은 방향)
+narrowRecently = narrowBw or narrowBw[1] or narrowBw[2]
+brokeDown = atLowCrsi and not atLowCrsi[1]
+brokeUp   = atHighCrsi and not atHighCrsi[1]
+var int crsiBreak = 0
+// 복귀: 밴드 안으로 돌아오면 해제
+if crsiBreak == -1 and crsi > db
+    crsiBreak := 0
+if crsiBreak == 1 and crsi < ub
+    crsiBreak := 0
+// 수축 중 돌파 발생 시 방향 상태 진입
+if narrowRecently and brokeDown
+    crsiBreak := -1
+if narrowRecently and brokeUp
+    crsiBreak := 1
+
+// cRSI 다이버전스 (확장(보라) 구간에서만 신뢰): 상승=롱, 하락=숏
+divLbL = 5
+divLbR = 5
+divRangeMax = 60
+divRangeMin = 5
+plFound = not na(pivotlow(crsi, divLbL, divLbR))
+phFound = not na(pivothigh(crsi, divLbL, divLbR))
+inRangeBull = barssince(plFound[1]) >= divRangeMin and barssince(plFound[1]) <= divRangeMax
+inRangeBear = barssince(phFound[1]) >= divRangeMin and barssince(phFound[1]) <= divRangeMax
+oscHL   = crsi[divLbR] > valuewhen(plFound, crsi[divLbR], 1) and inRangeBull
+priceLL = low[divLbR] < valuewhen(plFound, low[divLbR], 1)
+bullDiv = plFound and priceLL and oscHL
+oscLH   = crsi[divLbR] < valuewhen(phFound, crsi[divLbR], 1) and inRangeBear
+priceHH = high[divLbR] > valuewhen(phFound, high[divLbR], 1)
+bearDiv = phFound and priceHH and oscLH
+
+// 확장(보라) 구간의 다이버전스를 상태로 래치
+// 종료: 의도한 방향으로 밴드를 돌파했다가 다시 밴드 안으로 복귀하면 다이버전스 끝
+//  (하락=하단 돌파 후 복귀 / 상승=상단 돌파 후 복귀), 수축 전환 시에도 해제
+var int crsiDiv = 0
+var bool divBrokeOut = false
+if bullDiv and wideBw
+    crsiDiv := 1
+    divBrokeOut := false
+if bearDiv and wideBw
+    crsiDiv := -1
+    divBrokeOut := false
+// 돌파 기록: 상승=상단(ub) 돌파 / 하락=하단(db) 돌파
+if crsiDiv == 1 and atHighCrsi
+    divBrokeOut := true
+if crsiDiv == -1 and atLowCrsi
+    divBrokeOut := true
+// 돌파 후 밴드 안으로 복귀하면 종료
+if crsiDiv == 1 and divBrokeOut and crsi < ub
+    crsiDiv := 0
+    divBrokeOut := false
+if crsiDiv == -1 and divBrokeOut and crsi > db
+    crsiDiv := 0
+    divBrokeOut := false
+// 수축으로 전환되면 해제(폴백)
+if narrowBw
+    crsiDiv := 0
+    divBrokeOut := false
+
+plotshape(bullDiv and wideBw ? crsi[divLbR] : na, title="cRSI 상승 다이버전스", style=shape.triangleup, location=location.absolute, color=color.green, size=size.tiny, offset=-divLbR)
+plotshape(bearDiv and wideBw ? crsi[divLbR] : na, title="cRSI 하락 다이버전스", style=shape.triangledown, location=location.absolute, color=color.red, size=size.tiny, offset=-divLbR)
+
+// 우선순위: 수축 돌파 지속 > 확장 다이버전스 > 일반 과매수·과매도 되돌림
+posVerdict = crsiBreak == -1 ? "숏 유리(하단돌파 지속)" : crsiBreak == 1 ? "롱 유리(상단돌파 지속)" : crsiDiv == 1 ? "롱 유리(상승 다이버전스)" : crsiDiv == -1 ? "숏 유리(하락 다이버전스)" : atHighCrsi ? "숏 유리(과매수)" : atLowCrsi ? "롱 유리(과매도)" : narrowBw ? "중립(수축·전조)" : "중립"
+posColor   = crsiBreak == -1 ? color.new(color.red, 0) : crsiBreak == 1 ? color.new(color.green, 0) : crsiDiv == 1 ? color.new(color.green, 0) : crsiDiv == -1 ? color.new(color.red, 0) : atHighCrsi ? color.new(color.red, 0) : atLowCrsi ? color.new(color.green, 0) : color.new(color.gray, 40)
+
+var table crsiStatus = table.new(position.top_right, 2, 5, border_width=1, border_color=color.new(color.gray, 50))
+if barstate.islast
+    table.cell(crsiStatus, 0, 0, "cRSI", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
+    table.cell(crsiStatus, 1, 0, "상태", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
+    table.cell(crsiStatus, 0, 1, "현재 cRSI", text_color=color.white, text_size=size.small)
+    table.cell(crsiStatus, 1, 1, tostring(crsi, "#.0"), text_color=color.white, bgcolor=color.new(color.gray, 50), text_size=size.small)
+    table.cell(crsiStatus, 0, 2, "자리", text_color=color.white, text_size=size.small)
+    table.cell(crsiStatus, 1, 2, posText, text_color=color.white, bgcolor=atLowCrsi ? color.new(color.green, 30) : atHighCrsi ? color.new(color.red, 30) : color.new(color.gray, 50), text_size=size.small)
+    table.cell(crsiStatus, 0, 3, "밴드폭", text_color=color.white, text_size=size.small)
+    table.cell(crsiStatus, 1, 3, tostring(bandWidth, "#.0") + " " + bwText, text_color=color.white, bgcolor=narrowBw ? color.new(color.orange, 0) : wideBw ? color.new(color.purple, 0) : color.new(color.gray, 50), text_size=size.small)
+    table.cell(crsiStatus, 0, 4, "포지션", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(crsiStatus, 1, 4, posVerdict, text_color=color.white, bgcolor=posColor, text_size=size.small)

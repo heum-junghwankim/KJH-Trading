@@ -47,3 +47,27 @@ sellColor = abnormal ? abnormalSellColor : normalSellColor
 plot(volume, style=plot.style_columns, color=sellColor, title="Sell Volume")
 plot(buyVolume, style=plot.style_columns, color=buyColor, title="Buy Volume")
 plot(showAverageLines ? avgTotalVolume : na, title="Total Volume SMA", color=totalAvgColor, linewidth=1)
+
+// =========================
+// 우측 상단 상태판 (매수 신호 신뢰도)
+// =========================
+buyDominant   = buyVolume > sellVolume
+aboveAvg      = volume > avgTotalVolume
+// 평균선 상회(추진력 있음)일 때 압력 방향대로 포지션, 평균선 하회면 중립
+longFavored  = aboveAvg and buyDominant
+shortFavored = aboveAvg and not buyDominant
+posText  = longFavored ? "롱 유리" : shortFavored ? "숏 유리" : "중립"
+posColor = longFavored ? color.new(color.green, 0) : shortFavored ? color.new(color.red, 0) : color.new(color.gray, 40)
+
+var table volStatus = table.new(position.top_right, 2, 5, border_width=1, border_color=color.new(color.gray, 50))
+if barstate.islast
+    table.cell(volStatus, 0, 0, "거래량 압력", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
+    table.cell(volStatus, 1, 0, "상태", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
+    table.cell(volStatus, 0, 1, "압력 방향", text_color=color.white, text_size=size.small)
+    table.cell(volStatus, 1, 1, buyDominant ? "매수 우세" : "매도 우세", text_color=color.white, bgcolor=buyDominant ? color.new(color.green, 30) : color.new(color.red, 30), text_size=size.small)
+    table.cell(volStatus, 0, 2, "비정상 거래량", text_color=color.white, text_size=size.small)
+    table.cell(volStatus, 1, 2, abnormal ? "강조 O" : "-", text_color=color.white, bgcolor=abnormal ? color.new(color.green, 30) : color.new(color.gray, 50), text_size=size.small)
+    table.cell(volStatus, 0, 3, "평균선(SMA)", text_color=color.white, text_size=size.small)
+    table.cell(volStatus, 1, 3, aboveAvg ? "상회" : "하회", text_color=color.white, bgcolor=aboveAvg ? color.new(color.green, 30) : color.new(color.gray, 50), text_size=size.small)
+    table.cell(volStatus, 0, 4, "포지션", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(volStatus, 1, 4, posText, text_color=color.white, bgcolor=posColor, text_size=size.small)

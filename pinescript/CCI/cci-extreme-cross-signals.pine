@@ -1,5 +1,5 @@
 //@version=6
-indicator(title="CCI Extreme Cross Signals", shorttitle="CCI Extreme Cross", format=format.price, precision=2, timeframe="", timeframe_gaps=true)
+indicator(title="CCI Extreme Cross Signals", shorttitle="CCI Extreme Cross", format=format.price, precision=2)
 
 length = input.int(20, minval=1, title="CCI Length")
 src = input(hlc3, title="Source")
@@ -72,3 +72,41 @@ signalLevel = enableMA ? (signalOffsetBarsInput == 1 ? smoothingMA[1] : smoothin
 
 plotshape(goldenCrossFiltered ? signalLevel : na, title="Golden Cross", style=shape.circle, location=location.absolute, color=#0BDF72, size=size.tiny, offset=signalPlotOffset)
 plotshape(deadCrossFiltered ? signalLevel : na, title="Dead Cross", style=shape.circle, location=location.absolute, color=#FF3347, size=size.tiny, offset=signalPlotOffset)
+
+// =========================
+// 우측 상단 상태판 (매수 신호 신뢰도 / 롱 분할 익절)
+// =========================
+isOversoldCci  = cci <= bullExtremeInput
+isOverboughtCci = cci >= bearExtremeInput
+extremeText = isOversoldCci ? "과매도" : isOverboughtCci ? "과매수" : "중립"
+reentryText = goldenCrossFiltered ? "매수 점 ✓" : deadCrossFiltered ? "매도 점 ✓" : bullArmed ? "과매도 무장" : bearArmed ? "과매수 무장" : "-"
+// 골든/데드 크로스로 포지션 진입 후, 가격·CCI 동반 움직임으로 추세를 확인하며 유지
+// 신호선(CCI-based MA)을 반대로 이탈하면 종료
+var int cciPos = 0
+if goldenCrossFiltered
+    cciPos := 1
+if deadCrossFiltered
+    cciPos := -1
+if cciPos == 1 and cci < smoothingMA
+    cciPos := 0
+if cciPos == -1 and cci > smoothingMA
+    cciPos := 0
+cciRising    = cci > cci[1]
+priceRising  = close > close[1]
+longConfirm  = cciPos == 1 and cciRising and priceRising      // 가격·CCI 동반 상승 = 추세 확인
+shortConfirm = cciPos == -1 and not cciRising and not priceRising  // 가격·CCI 동반 하락 = 추세 확인
+posVerdict = cciPos == 1 ? (longConfirm ? "롱 유리(추세 확인)" : "롱 유리(둔화)") : cciPos == -1 ? (shortConfirm ? "숏 유리(추세 확인)" : "숏 유리(둔화)") : bullArmed ? "롱 대기(과매도)" : bearArmed ? "숏 대기(과매수)" : "중립"
+posColor   = cciPos == 1 ? (longConfirm ? color.new(color.green, 0) : color.new(color.green, 45)) : cciPos == -1 ? (shortConfirm ? color.new(color.red, 0) : color.new(color.red, 45)) : color.new(color.gray, 40)
+
+var table cciStatus = table.new(position.top_right, 2, 5, border_width=1, border_color=color.new(color.gray, 50))
+if barstate.islast
+    table.cell(cciStatus, 0, 0, "CCI Extreme", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
+    table.cell(cciStatus, 1, 0, "상태", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
+    table.cell(cciStatus, 0, 1, "CCI 값", text_color=color.white, text_size=size.small)
+    table.cell(cciStatus, 1, 1, str.tostring(cci, "#.0"), text_color=color.white, bgcolor=color.new(color.gray, 50), text_size=size.small)
+    table.cell(cciStatus, 0, 2, "극단 상태", text_color=color.white, text_size=size.small)
+    table.cell(cciStatus, 1, 2, extremeText, text_color=color.white, bgcolor=isOversoldCci ? color.new(color.green, 30) : isOverboughtCci ? color.new(color.red, 30) : color.new(color.gray, 50), text_size=size.small)
+    table.cell(cciStatus, 0, 3, "재진입 점", text_color=color.white, text_size=size.small)
+    table.cell(cciStatus, 1, 3, reentryText, text_color=color.white, bgcolor=goldenCrossFiltered ? color.new(color.green, 0) : deadCrossFiltered ? color.new(color.red, 0) : color.new(color.gray, 50), text_size=size.small)
+    table.cell(cciStatus, 0, 4, "포지션", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(cciStatus, 1, 4, posVerdict, text_color=color.white, bgcolor=posColor, text_size=size.small)

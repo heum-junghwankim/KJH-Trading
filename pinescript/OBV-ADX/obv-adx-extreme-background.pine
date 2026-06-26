@@ -62,5 +62,26 @@ diColor = diDiff > 0 ? diDiff > diDiff[1] ? #45f248 : #C6FBC7 : diDiff < diDiff[
 histLevel = diDiff + 50
 plot(showAdxLines ? na : histLevel, style=plot.style_columns, color=color.new(diColor, 47), histbase=50, title="DI Difference")
 
-plotshape(showExtremeMarkers and not showAdxLines and oversoldExtreme ? histLevel : na, location=location.absolute, style=shape.triangleup, color=color.new(color.green, 0), size=size.tiny, offset=0, title="Oversold Marker")
-plotshape(showExtremeMarkers and not showAdxLines and overboughtExtreme ? histLevel : na, location=location.absolute, style=shape.triangledown, color=color.new(color.red, 0), size=size.tiny, offset=0, title="Overbought Marker")
+// =========================
+// 우측 상단 상태판 (매수 신호 신뢰도 / 휩쏘 필터)
+// =========================
+adxStrong = adx >= extremeAdxMin
+diBull    = plus > minus
+adxText   = str.tostring(adx, "#.0") + (adxStrong ? " 충분" : " 약함")
+dirText   = diBull ? "+DI 우위(상승)" : "-DI 우위(하락)"
+bgText    = oversoldExtreme ? "낙폭과대(녹)" : overboughtExtreme ? "초과매수(빨)" : "-"
+posVerdict = not adxStrong ? "중립(휩쏘)" : diBull ? "롱 유리" : "숏 유리"
+posColor   = not adxStrong ? color.new(color.gray, 40) : diBull ? color.new(color.green, 0) : color.new(color.red, 0)
+
+var table obvStatus = table.new(position.top_right, 2, 5, border_width=1, border_color=color.new(color.gray, 50))
+if barstate.islast
+    table.cell(obvStatus, 0, 0, "OBV ADX", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
+    table.cell(obvStatus, 1, 0, "상태", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
+    table.cell(obvStatus, 0, 1, "ADX", text_color=color.white, text_size=size.small)
+    table.cell(obvStatus, 1, 1, adxText, text_color=color.white, bgcolor=adxStrong ? color.new(color.green, 30) : color.new(color.gray, 50), text_size=size.small)
+    table.cell(obvStatus, 0, 2, "DI 방향", text_color=color.white, text_size=size.small)
+    table.cell(obvStatus, 1, 2, dirText, text_color=color.white, bgcolor=diBull ? color.new(color.green, 30) : color.new(color.red, 30), text_size=size.small)
+    table.cell(obvStatus, 0, 3, "극단 배경", text_color=color.white, text_size=size.small)
+    table.cell(obvStatus, 1, 3, bgText, text_color=color.white, bgcolor=oversoldExtreme ? color.new(color.green, 0) : overboughtExtreme ? color.new(color.red, 0) : color.new(color.gray, 50), text_size=size.small)
+    table.cell(obvStatus, 0, 4, "포지션", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(obvStatus, 1, 4, posVerdict, text_color=color.white, bgcolor=posColor, text_size=size.small)
