@@ -181,13 +181,11 @@ plotshape(bearDiv and wideBw ? crsi[divLbR] : na, title="cRSI 하락 다이버�
 posVerdict = crsiBreak == -1 ? "숏 유리(하단돌파 지속)" : crsiBreak == 1 ? "롱 유리(상단돌파 지속)" : crsiDiv == 1 ? "롱 유리(상승 다이버전스)" : crsiDiv == -1 ? "숏 유리(하락 다이버전스)" : atHighCrsi ? "숏 유리(과매수)" : atLowCrsi ? "롱 유리(과매도)" : narrowBw ? "중립(수축·전조)" : "중립"
 posColor   = crsiBreak == -1 ? color.new(color.red, 0) : crsiBreak == 1 ? color.new(color.green, 0) : crsiDiv == 1 ? color.new(color.green, 0) : crsiDiv == -1 ? color.new(color.red, 0) : atHighCrsi ? color.new(color.red, 0) : atLowCrsi ? color.new(color.green, 0) : color.new(color.gray, 40)
 
-var table crsiStatus = table.new(position.top_right, 2, 4, border_width=1, border_color=color.new(color.gray, 50))
+var table crsiStatus = table.new(position.top_right, 2, 3, border_width=1, border_color=color.new(color.gray, 50))
 if barstate.islast
     table.cell(crsiStatus, 0, 0, "cRSI", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
     table.cell(crsiStatus, 1, 0, posVerdict, text_color=color.white, bgcolor=posColor, text_size=size.small)
-    table.cell(crsiStatus, 0, 1, "현재 cRSI", text_color=color.white, text_size=size.small)
-    table.cell(crsiStatus, 1, 1, tostring(crsi, "#.0"), text_color=color.white, bgcolor=color.new(color.gray, 50), text_size=size.small)
-    table.cell(crsiStatus, 0, 2, "자리", text_color=color.white, text_size=size.small)
+    table.cell(crsiStatus, 0, 1, "cRSI 값", text_color=color.white, text_size=size.small)
+    table.cell(crsiStatus, 1, 1, tostring(crsi, "#.0") + " (" + tostring(bandWidth, "#.0") + " " + bwText + ")", text_color=color.white, bgcolor=color.new(color.gray, 50), text_size=size.small)
+    table.cell(crsiStatus, 0, 2, "밴드 위치", text_color=color.white, text_size=size.small)
     table.cell(crsiStatus, 1, 2, posText, text_color=color.white, bgcolor=atLowCrsi ? color.new(color.green, 30) : atHighCrsi ? color.new(color.red, 30) : color.new(color.gray, 50), text_size=size.small)
-    table.cell(crsiStatus, 0, 3, "밴드폭", text_color=color.white, text_size=size.small)
-    table.cell(crsiStatus, 1, 3, tostring(bandWidth, "#.0") + " " + bwText, text_color=color.white, bgcolor=narrowBw ? color.new(color.orange, 0) : wideBw ? color.new(color.purple, 0) : color.new(color.gray, 50), text_size=size.small)

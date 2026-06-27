@@ -1,6 +1,6 @@
 //@version=5
 
-// This indicator draws a ribbon of moving averages and flags sideways (chop) compression.
+// This indicator draws a ribbon of moving averages and flags sideways compression and the post-compression expansion (burst).
 // GitHub: https://github.com/chingc/TradingView
 // X: https://x.com/NeonNoodle22
 
@@ -13,7 +13,8 @@ show100 = input.bool(defval=true, title='MA 100')
 show200 = input.bool(defval=true, title='MA 200')
 
 signalGroup = 'Ribbon Labels'
-showChopWarn = input.bool(defval=true, title='횡보 압축 경고 라벨', group=signalGroup)
+showChopWarn = input.bool(defval=true, title='횡보 압축 라벨', group=signalGroup)
+showExpansion = input.bool(defval=true, title='분출(상승/하락) 라벨', group=signalGroup)
 confirmLabelsOnClose = input.bool(defval=true, title='봉마감 후 라벨 확정', group=signalGroup)
 atrLength = input.int(defval=14, minval=1, title='리본폭 ATR 기준', group=signalGroup)
 compressAtrMult = input.float(defval=0.8, minval=0.1, step=0.1, title='압축(휩쏘) 판정 ATR 배수', group=signalGroup)
@@ -59,8 +60,34 @@ ribbonHeight = math.max(ribbonTop - ribbonBottom, syminfo.mintick)
 ribbonAtr = ta.atr(atrLength)
 ribbonCompressed = ribbonHeight < ribbonAtr * compressAtrMult
 labelConfirmed = not confirmLabelsOnClose or barstate.isconfirmed
-ribbonChop = showChopWarn and labelConfirmed and ribbonCompressed and not ribbonCompressed[1]
 
-plotshape(series=ribbonChop, title='횡보 압축 경고', style=shape.circle, location=location.belowbar, color=color.new(#4A148C, 0), size=size.tiny)
+// 압축 진입 첫 봉 = 횡보 압축
+chopEnter = ribbonCompressed and not ribbonCompressed[1]
 
-alertcondition(ribbonChop, title='횡보 압축 경고', message='Moving Average Ribbon compressed — Ichimoku signals unreliable (chop).')
+// 분출 상태머신:
+//  - 압축이 발생하면 다음 분출을 '무장(armed)'시킨다.
+//  - 압축이 풀리는(폭이 다시 벌어지는) 첫 봉에 ma20 vs ma50 방향대로 상승/하락 분출이 1회 발생하고 무장 해제.
+//  - 분출이 나오면 다시 압축이 와야 다음 분출(상승/하락)이 허용된다. (압축 → 분출 → 압축 → 분출 …)
+var bool armed = false
+bool bullExpansion = false
+bool bearExpansion = false
+if labelConfirmed
+    if ribbonCompressed
+        armed := true
+    else if armed
+        bullExpansion := ma20 >= ma50
+        bearExpansion := ma20 < ma50
+        armed := false
+
+ribbonChop = showChopWarn and labelConfirmed and chopEnter
+bullBurst = showExpansion and bullExpansion
+bearBurst = showExpansion and bearExpansion
+
+// 횡보 압축 = 회색, 상승 분출 = 빨강, 하락 분출 = 파랑 (모두 캔들 아래 다이아몬드)
+plotshape(series=ribbonChop, title='횡보 압축', style=shape.diamond, location=location.belowbar, color=color.new(color.gray, 0), size=size.tiny)
+plotshape(series=bullBurst, title='상승 분출', style=shape.diamond, location=location.belowbar, color=color.new(color.red, 0), size=size.tiny)
+plotshape(series=bearBurst, title='하락 분출', style=shape.diamond, location=location.belowbar, color=color.new(color.blue, 0), size=size.tiny)
+
+alertcondition(ribbonChop, title='횡보 압축', message='Moving Average Ribbon compressed — chop (Ichimoku signals unreliable).')
+alertcondition(bullBurst, title='상승 분출', message='Moving Average Ribbon bullish expansion after compression.')
+alertcondition(bearBurst, title='하락 분출', message='Moving Average Ribbon bearish expansion after compression.')

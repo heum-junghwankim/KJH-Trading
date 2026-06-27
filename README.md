@@ -19,7 +19,7 @@
 | CCI | 극단 후 재진입 + 추세 추종 | [README](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/CCI/README.md) |
 | OBV-ADX | 추세 힘 / 휩쏘 1차 필터 | [README](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/OBV-ADX/README.md) |
 | Auto VWAP | 밴드워킹(추세) vs 지지·저항 | [README](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/VWAP/README.md) |
-| 이평선 리본 | 횡보(휩쏘) 구간 경고 — 오버레이 | [README](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/%EC%9D%B4%ED%8F%89%EC%84%A0%20%EB%A6%AC%EB%B3%B8/README.md) |
+| 이평선 리본 | 횡보 압축 → 상승/하락 분출 — 오버레이 | [README](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/%EC%9D%B4%ED%8F%89%EC%84%A0%20%EB%A6%AC%EB%B3%B8/README.md) |
 
 ---
 
@@ -33,6 +33,7 @@
 | **매도(숏)** | 위의 정확한 반대 (후행스팬 약세 + 전환선 데드크로스) |
 
 - 같은 방향 신호는 반대 신호가 한 번 나온 뒤에만 다시 찍힘(중복 방지), 확정 직전 **후보 동그라미** 표시.
+- 차트 **우측 하단 트리거 테이블**: 다음 봉 종가가 어느 가격을 돌파해야 `상승 후보/신호`·`하락 후보/신호`가 나오는지 미리 표시(중복 방지로 막힌 방향은 `-`).
 - ⚠️ 추세추종이라 **횡보장 휩쏘 / 후행성** 약점 → 그대로 믿지 말고 아래 상태판으로 검증.
 
 ---
@@ -61,7 +62,7 @@
 | 거래량·OBV-ADX 포함 3~4개 일치 | 보통 |
 | 엇갈림 / `중립`·`휩쏘`·`과확장` 섞임 | **관망** |
 
-> **이평선 리본(오버레이)** 의 `횡보 압축`(캔들 아래 보라색 원) 이후 리본이 다시 벌어지기 전까지의 구간은 이동평균들이 뭉쳐 방향이 사라진 휩쏘 구간이라, 위 정렬이 일치해도 신뢰를 한 단계 낮춰 보는 게 안전합니다. 진입 트리거가 아니라 신뢰도 필터로만 씁니다.
+> **이평선 리본(오버레이)** 의 `횡보 압축`(캔들 아래 회색 다이아몬드) 이후 리본이 다시 벌어지기 전까지의 구간은 이동평균들이 뭉쳐 방향이 사라진 휩쏘 구간이라, 위 정렬이 일치해도 신뢰를 한 단계 낮춰 보는 게 안전합니다. 압축이 풀리는 순간 방향대로 `상승 분출`(빨간 다이아몬드)/`하락 분출`(파란 다이아몬드)이 찍히는데, 이치모쿠 신호 방향과 같으면 신뢰가 큽니다. 진입 트리거가 아니라 신뢰도 필터로만 씁니다.
 
 ---
 
@@ -69,5 +70,5 @@
 
 1. `Pine Editor`에 [이치모쿠 인디케이터](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/ICHIMOKU/advanced-ichimoku.pine)를 올려 메인 신호를 띄웁니다.
 2. 보조지표 5종을 추가해 상태판 `포지션`이 신호 방향으로 정렬되는지 확인합니다.
-3. (선택) 이평선 리본을 함께 올려 `횡보 압축`(보라색 원) 뒤 휩쏘 구간인지 거릅니다.
+3. (선택) 이평선 리본을 함께 올려 `횡보 압축`(회색 다이아몬드) 뒤 휩쏘 구간인지, 풀릴 때 `상승/하락 분출`(빨강/파랑 다이아몬드)이 신호 방향과 맞는지 거릅니다.
 4. 수익률 검증은 [전략](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/ICHIMOKU/advanced-ichimoku-strategy.pine)을 `Strategy Tester`에서 돌립니다.

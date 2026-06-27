@@ -139,3 +139,38 @@ plotshape(showShortExit and shortExitSignal, title="숏 청산", style=shape.tri
 
 alertcondition(buySignal, title="Advanced Ichimoku Strategy Buy Signal", message="Advanced Ichimoku strategy buy signal")
 alertcondition(sellSignal, title="Advanced Ichimoku Strategy Sell Signal", message="Advanced Ichimoku strategy sell signal")
+
+// =========================
+// 우측 하단: 다음 봉 트리거 가격 리포트
+// =========================
+// 신호 = (후행스팬 조건) AND (전환선 vs 기준선 게이트).
+// 후행스팬 조건은 '다음 봉 종가'가 특정 과거 종가를 돌파하는지로 정해지므로,
+// 다음 봉이 돌파해야 할 그 기준 가격을 표시한다.
+// 같은 방향 신호가 직전에 이미 나온 상태(중복방지)에서는 그 방향 트리거가를 '-'로 표시한다.
+nextSignalRefIdx = math.max(laggingOffset - 1, 0)
+nextCandidateRefIdx = math.max(laggingOffset - 2, 0)
+nextSignalRef = close[nextSignalRefIdx]
+nextCandidateRef = close[nextCandidateRefIdx]
+
+f_price(p) => str.tostring(p, format.mintick)
+// 화살표는 현재 가격(close) 대비 트리거 가격 위치로 결정: 트리거가 현재가보다 높으면 ↑, 낮으면 ↓
+f_arrow(refPrice) => refPrice > close ? "↑ " : "↓ "
+buyBlocked = lastSignalDirection == 1
+sellBlocked = lastSignalDirection == -1
+
+var table triggerTable = table.new(position.bottom_right, 2, 5, border_width=1, border_color=color.new(color.gray, 50))
+if barstate.islast
+    table.cell(triggerTable, 0, 0, "다음 봉", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
+    table.cell(triggerTable, 1, 0, "트리거 가격", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
+
+    table.cell(triggerTable, 0, 1, "상승 후보 ●", text_color=color.white, bgcolor=color.new(color.green, 30), text_size=size.small)
+    table.cell(triggerTable, 1, 1, buyBlocked ? "-" : f_arrow(nextCandidateRef) + f_price(nextCandidateRef), text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
+
+    table.cell(triggerTable, 0, 2, "상승 신호 ▲", text_color=color.white, bgcolor=color.new(color.green, 30), text_size=size.small)
+    table.cell(triggerTable, 1, 2, buyBlocked ? "-" : f_arrow(nextSignalRef) + f_price(nextSignalRef), text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
+
+    table.cell(triggerTable, 0, 3, "하락 후보 ●", text_color=color.white, bgcolor=color.new(color.red, 30), text_size=size.small)
+    table.cell(triggerTable, 1, 3, sellBlocked ? "-" : f_arrow(nextCandidateRef) + f_price(nextCandidateRef), text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
+
+    table.cell(triggerTable, 0, 4, "하락 신호 ▼", text_color=color.white, bgcolor=color.new(color.red, 30), text_size=size.small)
+    table.cell(triggerTable, 1, 4, sellBlocked ? "-" : f_arrow(nextSignalRef) + f_price(nextSignalRef), text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
