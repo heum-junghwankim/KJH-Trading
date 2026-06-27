@@ -9,8 +9,8 @@ strategy(
      default_qty_value=100,
      process_orders_on_close=true,
      use_bar_magnifier=true,
-     margin_long=100,
-     margin_short=100
+     margin_long=0,
+     margin_short=0
  )
 
 donchian(len) =>
