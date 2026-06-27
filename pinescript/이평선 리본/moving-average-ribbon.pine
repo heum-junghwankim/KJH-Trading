@@ -1,6 +1,6 @@
 //@version=5
 
-// This indicator draws a ribbon of moving averages and flags sideways compression and the post-compression expansion (burst).
+// This indicator draws a ribbon of moving averages.
 // GitHub: https://github.com/chingc/TradingView
 // X: https://x.com/NeonNoodle22
 
@@ -11,13 +11,6 @@ src = input.source(defval=close, title='Source')
 maType = input.string(defval='EMA', title='이동평균 종류', options=['SMA', 'EMA', 'WMA', 'VWMA'])
 show100 = input.bool(defval=true, title='MA 100')
 show200 = input.bool(defval=true, title='MA 200')
-
-signalGroup = 'Ribbon Labels'
-showChopWarn = input.bool(defval=true, title='횡보 압축 라벨', group=signalGroup)
-showExpansion = input.bool(defval=true, title='분출(상승/하락) 라벨', group=signalGroup)
-confirmLabelsOnClose = input.bool(defval=true, title='봉마감 후 라벨 확정', group=signalGroup)
-atrLength = input.int(defval=14, minval=1, title='리본폭 ATR 기준', group=signalGroup)
-compressAtrMult = input.float(defval=0.8, minval=0.1, step=0.1, title='압축(휩쏘) 판정 ATR 배수', group=signalGroup)
 
 // return a moving average of the given length using the selected type
 ma(length) =>
@@ -51,43 +44,3 @@ p200 = plot(series=ma200, title='MA 200', color=#800000FF)
 
 // fill the area between ma100 and ma200
 fill(plot1=p100, plot2=p200, color=ma100 > ma200 ? #4CAF5033 : #FF525233, title='MA Fill')
-
-ribbonTop = math.max(ma20, math.max(ma25, math.max(ma30, math.max(ma35, math.max(ma40, math.max(ma45, ma50))))))
-ribbonBottom = math.min(ma20, math.min(ma25, math.min(ma30, math.min(ma35, math.min(ma40, math.min(ma45, ma50))))))
-ribbonHeight = math.max(ribbonTop - ribbonBottom, syminfo.mintick)
-
-// 리본 폭이 ATR 대비 좁아진 압축 = 횡보(휩쏘) 구간 → 이 구간 이치모쿠 신호는 신뢰 낮음
-ribbonAtr = ta.atr(atrLength)
-ribbonCompressed = ribbonHeight < ribbonAtr * compressAtrMult
-labelConfirmed = not confirmLabelsOnClose or barstate.isconfirmed
-
-// 압축 진입 첫 봉 = 횡보 압축
-chopEnter = ribbonCompressed and not ribbonCompressed[1]
-
-// 분출 상태머신:
-//  - 압축이 발생하면 다음 분출을 '무장(armed)'시킨다.
-//  - 압축이 풀리는(폭이 다시 벌어지는) 첫 봉에 ma20 vs ma50 방향대로 상승/하락 분출이 1회 발생하고 무장 해제.
-//  - 분출이 나오면 다시 압축이 와야 다음 분출(상승/하락)이 허용된다. (압축 → 분출 → 압축 → 분출 …)
-var bool armed = false
-bool bullExpansion = false
-bool bearExpansion = false
-if labelConfirmed
-    if ribbonCompressed
-        armed := true
-    else if armed
-        bullExpansion := ma20 >= ma50
-        bearExpansion := ma20 < ma50
-        armed := false
-
-ribbonChop = showChopWarn and labelConfirmed and chopEnter
-bullBurst = showExpansion and bullExpansion
-bearBurst = showExpansion and bearExpansion
-
-// 횡보 압축 = 회색, 상승 분출 = 빨강, 하락 분출 = 파랑 (모두 캔들 아래 다이아몬드)
-plotshape(series=ribbonChop, title='횡보 압축', style=shape.diamond, location=location.belowbar, color=color.new(color.gray, 0), size=size.tiny)
-plotshape(series=bullBurst, title='상승 분출', style=shape.diamond, location=location.belowbar, color=color.new(color.red, 0), size=size.tiny)
-plotshape(series=bearBurst, title='하락 분출', style=shape.diamond, location=location.belowbar, color=color.new(color.blue, 0), size=size.tiny)
-
-alertcondition(ribbonChop, title='횡보 압축', message='Moving Average Ribbon compressed — chop (Ichimoku signals unreliable).')
-alertcondition(bullBurst, title='상승 분출', message='Moving Average Ribbon bullish expansion after compression.')
-alertcondition(bearBurst, title='하락 분출', message='Moving Average Ribbon bearish expansion after compression.')
