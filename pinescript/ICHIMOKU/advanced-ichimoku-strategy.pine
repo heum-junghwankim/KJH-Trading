@@ -178,15 +178,19 @@ rChopEnter = rCompressed and not rCompressed[1]
 rExpanding = rHeight > rHeight[ribbonExpandBars]
 
 // 압축 진입 시 무장 → 폭이 다시 늘기 시작하는(분출) 첫 봉에 바로 표시(완전 해소를 기다리지 않아 더 빠름)
+// ribbonState: 마지막으로 발생한 이벤트(다이아몬드)를 기억해 테이블 표시를 차트와 동기화한다.
 var bool rArmed = false
+var string ribbonState = "대기"
 bool rBullExpansion = false
 bool rBearExpansion = false
 if rConfirmed
     if rChopEnter
         rArmed := true
+        ribbonState := "횡보 압축"
     else if rArmed and rExpanding
         rBullExpansion := rMa20 >= rMa50
         rBearExpansion := rMa20 < rMa50
+        ribbonState := rBullExpansion ? "상승 분출" : "하락 분출"
         rArmed := false
 
 ribbonChop = showChopWarn and rConfirmed and rChopEnter
@@ -205,11 +209,11 @@ cloudColorText = curSpanA >= curSpanB ? "양운" : "음운"
 cloudCellText = cloudPosText + "·" + cloudColorText + " (" + str.tostring(cloudThickAtr, "0.0") + ")"
 cloudCellColor = close > cloudTop ? color.new(color.green, 30) : close < cloudBottom ? color.new(color.red, 30) : color.new(color.gray, 40)
 
-// 현재 리본 상태(압축/분출 방향). 괄호 숫자 = 리본폭/ATR 배수(압축 배수보다 작으면 압축).
+// 리본 상태 = 마지막으로 발생한 다이아몬드(상태머신) 기준이라 차트 표시와 동기화된다.
+// 괄호 숫자 = 현재 리본폭/ATR 배수(압축 배수보다 작으면 압축 구간).
 ribbonWidthRatio = rHeight / rAtr
-ribbonStateText = rCompressed ? "횡보 압축" : rMa20 >= rMa50 ? "상승 분출" : "하락 분출"
-ribbonCellText = ribbonStateText + " (" + str.tostring(ribbonWidthRatio, "0.00") + ")"
-ribbonCellColor = rCompressed ? color.new(color.gray, 40) : rMa20 >= rMa50 ? color.new(color.blue, 30) : color.new(color.red, 30)
+ribbonCellText = ribbonState + " (" + str.tostring(ribbonWidthRatio, "0.00") + ")"
+ribbonCellColor = ribbonState == "상승 분출" ? color.new(color.blue, 30) : ribbonState == "하락 분출" ? color.new(color.red, 30) : color.new(color.gray, 40)
 
 // =========================
 // 우측 하단: 다음 봉 트리거 가격 + 구름대/리본 상태
@@ -248,7 +252,7 @@ if barstate.islast
     table.cell(triggerTable, 0, 5, "구름대", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
     table.cell(triggerTable, 1, 5, cloudCellText, text_color=color.white, bgcolor=cloudCellColor, text_size=size.small)
 
-    table.cell(triggerTable, 0, 6, "리본", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 0, 6, "이평 리본", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
     table.cell(triggerTable, 1, 6, ribbonCellText, text_color=color.white, bgcolor=ribbonCellColor, text_size=size.small)
 
 plotshape(series=ribbonChop, title="횡보 압축 (아래)", style=shape.diamond, location=location.belowbar, color=color.new(color.gray, 0), size=size.tiny)
