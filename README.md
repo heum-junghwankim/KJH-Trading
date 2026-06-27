@@ -2,8 +2,8 @@
 
 이치모쿠 **추세추종 매수/매도 신호**를 메인으로 두고, 보조지표 5종의 **`포지션` 상태판**으로 그 신호가 믿을 만한지 한눈에 검증하는 트레이딩뷰 Pine Script 모음입니다.
 
-![IonQ 적용 예시](./assets/ionq-example.png)
-*IonQ 차트에 이치모쿠(메인) + 보조지표 5종과 우측 상단 상태판을 함께 적용한 모습*
+![적용 예시](./assets/example.png)
+*차트에 이치모쿠(메인) + 보조지표 5종과 우측 상단 상태판을 함께 적용한 모습*
 
 > 저장소: [`github.com/heum-junghwankim/KJH-Trading`](https://github.com/heum-junghwankim/KJH-Trading) · 전체 인덱스: [PineScript 가이드](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/README.md)
 
@@ -19,6 +19,7 @@
 | CCI | 극단 후 재진입 + 추세 추종 | [README](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/CCI/README.md) |
 | OBV-ADX | 추세 힘 / 휩쏘 1차 필터 | [README](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/OBV-ADX/README.md) |
 | Auto VWAP | 밴드워킹(추세) vs 지지·저항 | [README](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/VWAP/README.md) |
+| 이평선 리본 | 횡보(휩쏘) 구간 경고 — 오버레이 | [README](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/%EC%9D%B4%ED%8F%89%EC%84%A0%20%EB%A6%AC%EB%B3%B8/README.md) |
 
 ---
 
@@ -60,10 +61,13 @@
 | 거래량·OBV-ADX 포함 3~4개 일치 | 보통 |
 | 엇갈림 / `중립`·`휩쏘`·`과확장` 섞임 | **관망** |
 
+> **이평선 리본(오버레이)** 의 `횡보 압축`(캔들 아래 보라색 원) 이후 리본이 다시 벌어지기 전까지의 구간은 이동평균들이 뭉쳐 방향이 사라진 휩쏘 구간이라, 위 정렬이 일치해도 신뢰를 한 단계 낮춰 보는 게 안전합니다. 진입 트리거가 아니라 신뢰도 필터로만 씁니다.
+
 ---
 
 ## 3. 사용 방법
 
 1. `Pine Editor`에 [이치모쿠 인디케이터](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/ICHIMOKU/advanced-ichimoku.pine)를 올려 메인 신호를 띄웁니다.
 2. 보조지표 5종을 추가해 상태판 `포지션`이 신호 방향으로 정렬되는지 확인합니다.
-3. 수익률 검증은 [전략](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/ICHIMOKU/advanced-ichimoku-strategy.pine)을 `Strategy Tester`에서 돌립니다.
+3. (선택) 이평선 리본을 함께 올려 `횡보 압축`(보라색 원) 뒤 휩쏘 구간인지 거릅니다.
+4. 수익률 검증은 [전략](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/ICHIMOKU/advanced-ichimoku-strategy.pine)을 `Strategy Tester`에서 돌립니다.

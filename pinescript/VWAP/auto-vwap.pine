@@ -196,10 +196,10 @@ bandColor  = lowerWalk or upperWalk ? color.new(color.orange, 0) : support or re
 posVerdict = lowerWalk ? "숏 유리(하단 밴드워킹)" : upperWalk ? "롱 유리(상단 밴드워킹)" : support ? "롱 유리(하단 지지)" : resistance ? "숏 유리(상단 저항)" : "중립"
 posColor   = lowerWalk ? color.new(color.red, 0) : upperWalk ? color.new(color.green, 0) : support ? color.new(color.green, 0) : resistance ? color.new(color.red, 0) : color.new(color.gray, 40)
 
-var table vwapStatus = table.new(position.top_right, 2, 6, border_width=1, border_color=color.new(color.gray, 50))
+var table vwapStatus = table.new(position.top_right, 2, 5, border_width=1, border_color=color.new(color.gray, 50))
 if barstate.islast
     table.cell(vwapStatus, 0, 0, "Auto VWAP", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
-    table.cell(vwapStatus, 1, 0, "상태", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
+    table.cell(vwapStatus, 1, 0, posVerdict, text_color=color.white, bgcolor=posColor, text_size=size.small)
     table.cell(vwapStatus, 0, 1, "위치", text_color=color.white, text_size=size.small)
     table.cell(vwapStatus, 1, 1, posText + (na(gapPct) ? "" : " " + (gapPct > 0 ? "+" : "") + str.tostring(gapPct, "0.0") + "%"), text_color=color.white, bgcolor=not hasVwap ? color.new(color.gray, 50) : aboveVwap ? color.new(color.green, 30) : color.new(color.red, 30), text_size=size.small)
     table.cell(vwapStatus, 0, 2, "VWAP 기울기", text_color=color.white, text_size=size.small)
@@ -208,5 +208,3 @@ if barstate.islast
     table.cell(vwapStatus, 1, 3, bwStateText, text_color=color.white, bgcolor=bwExpanding ? color.new(color.orange, 20) : color.new(color.gray, 50), text_size=size.small)
     table.cell(vwapStatus, 0, 4, "밴드 상태", text_color=color.white, text_size=size.small)
     table.cell(vwapStatus, 1, 4, bandState, text_color=color.white, bgcolor=bandColor, text_size=size.small)
-    table.cell(vwapStatus, 0, 5, "포지션", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(vwapStatus, 1, 5, posVerdict, text_color=color.white, bgcolor=posColor, text_size=size.small)
