@@ -111,7 +111,7 @@ atHighCrsi = crsi >= ub
 narrowBw   = bandWidth <= narrowLimit
 wideBw     = bandWidth >= wideLimit
 posText    = atLowCrsi ? "LowBand(과매도)" : atHighCrsi ? "HighBand(과열)" : "중립"
-bwText     = narrowBw ? "수축(주황)·전조" : wideBw ? "확장(보라)" : "중립"
+bwText     = narrowBw ? "수축·전조" : wideBw ? "확장" : "중립"
 
 // 수축(주황) 상태에서의 밴드 돌파는 "추세 돌파"로 보고, 밴드 안으로 복귀할 때까지 방향 유지
 // (돌파 이후 밴드가 확장(보라)되어도 복귀 전까지는 같은 방향)
@@ -186,6 +186,6 @@ if barstate.islast
     table.cell(crsiStatus, 0, 0, "cRSI", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
     table.cell(crsiStatus, 1, 0, posVerdict, text_color=color.white, bgcolor=posColor, text_size=size.small)
     table.cell(crsiStatus, 0, 1, "cRSI 값", text_color=color.white, text_size=size.small)
-    table.cell(crsiStatus, 1, 1, tostring(crsi, "#.0") + " (" + tostring(bandWidth, "#.0") + " " + bwText + ")", text_color=color.white, bgcolor=color.new(color.gray, 50), text_size=size.small)
+    table.cell(crsiStatus, 1, 1, tostring(crsi, "#.0") + " (" + tostring(bandWidth, "#.0") + " " + bwText + ")", text_color=color.white, bgcolor=narrowBw ? color.new(color.orange, 0) : wideBw ? color.new(color.purple, 0) : color.new(color.gray, 50), text_size=size.small)
     table.cell(crsiStatus, 0, 2, "밴드 위치", text_color=color.white, text_size=size.small)
     table.cell(crsiStatus, 1, 2, posText, text_color=color.white, bgcolor=atLowCrsi ? color.new(color.green, 30) : atHighCrsi ? color.new(color.red, 30) : color.new(color.gray, 50), text_size=size.small)
