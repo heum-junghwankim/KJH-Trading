@@ -78,7 +78,7 @@ if barstate.islast
     table.cell(obvStatus, 0, 0, "OBV ADX", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
     table.cell(obvStatus, 1, 0, posVerdict, text_color=color.white, bgcolor=posColor, text_size=size.small)
     table.cell(obvStatus, 0, 1, "ADX", text_color=color.white, text_size=size.small)
-    table.cell(obvStatus, 1, 1, adxText, text_color=color.white, bgcolor=adxStrong ? color.new(color.green, 30) : color.new(color.gray, 50), text_size=size.small)
+    table.cell(obvStatus, 1, 1, adxText, text_color=color.white, bgcolor=diBull ? color.new(color.green, adxStrong ? 30 : 65) : color.new(color.red, adxStrong ? 30 : 65), text_size=size.small)
     table.cell(obvStatus, 0, 2, "DI 방향", text_color=color.white, text_size=size.small)
     table.cell(obvStatus, 1, 2, dirText, text_color=color.white, bgcolor=diBull ? color.new(color.green, 30) : color.new(color.red, 30), text_size=size.small)
     table.cell(obvStatus, 0, 3, "극단 배경", text_color=color.white, text_size=size.small)
