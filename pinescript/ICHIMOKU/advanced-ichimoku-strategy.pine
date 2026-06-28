@@ -65,12 +65,13 @@ kumoUpper = math.max(leadingSpanA, leadingSpanB)
 kumoLower = math.min(leadingSpanA, leadingSpanB)
 
 laggingOffset = displacement - 1
-laggingReferenceClose = close[laggingOffset]
-hasLaggingReference = not na(laggingReferenceClose)
-laggingBullishCross = hasLaggingReference and ta.crossover(close, laggingReferenceClose)
-laggingBearishCross = hasLaggingReference and ta.crossunder(close, laggingReferenceClose)
-laggingBullishState = hasLaggingReference and close > laggingReferenceClose
-laggingBearishState = hasLaggingReference and close < laggingReferenceClose
+// 래깅 스팬(현재 종가)을 그 위치의 기준선(베이스)과 비교: close vs baseLine[laggingOffset]
+laggingBaseRef = baseLine[laggingOffset]
+hasLaggingReference = not na(laggingBaseRef)
+laggingBullishCross = hasLaggingReference and ta.crossover(close, laggingBaseRef)
+laggingBearishCross = hasLaggingReference and ta.crossunder(close, laggingBaseRef)
+laggingBullishState = hasLaggingReference and close > laggingBaseRef
+laggingBearishState = hasLaggingReference and close < laggingBaseRef
 
 conversionBullishCross = ta.crossover(conversionLine, baseLine)
 conversionBearishCross = ta.crossunder(conversionLine, baseLine)
@@ -96,16 +97,17 @@ longExitSignal = isLongMode and sellSignal and strategy.position_size > 0
 shortEntrySignal = isShortMode and sellSignal and strategy.position_size >= 0
 shortExitSignal = isShortMode and strategy.position_size < 0 and buySignal
 
-nextLaggingReferenceClose = laggingOffset > 0 ? close[laggingOffset - 1] : close
-hasNextLaggingReference = laggingOffset > 0 ? not na(nextLaggingReferenceClose) : true
-nextLaggingBullishCross = hasNextLaggingReference and close > nextLaggingReferenceClose and (not hasLaggingReference or close <= laggingReferenceClose)
-nextLaggingBearishCross = hasNextLaggingReference and close < nextLaggingReferenceClose and (not hasLaggingReference or close >= laggingReferenceClose)
-nextLaggingBullishState = hasNextLaggingReference and close > nextLaggingReferenceClose
-nextLaggingBearishState = hasNextLaggingReference and close < nextLaggingReferenceClose
-nextBarRawBuyCandidate = (nextLaggingBullishCross or nextLaggingBullishState) and (conversionBullishCross or conversionBullishState)
-nextBarRawSellCandidate = (nextLaggingBearishCross or nextLaggingBearishState) and (conversionBearishCross or conversionBearishState)
-buyCandidateSignal = nextBarRawBuyCandidate and lastSignalDirection != 1 and not buySignal and not sellSignal
-sellCandidateSignal = nextBarRawSellCandidate and lastSignalDirection != -1 and not buySignal and not sellSignal
+// 후보 = (래깅 스팬이 컨버전 라인을 같거나 돌파) AND (컨버전 라인이 기준선을 같거나 돌파)
+//  → 신호(래깅이 기준선 돌파)보다 빠른 조기 경고. ②(컨버전 vs 기준선)는 신호와 공통.
+laggingConvRef = conversionLine[laggingOffset]
+hasLaggingConvRef = not na(laggingConvRef)
+laggingConvBullish = hasLaggingConvRef and (ta.crossover(close, laggingConvRef) or close > laggingConvRef)
+laggingConvBearish = hasLaggingConvRef and (ta.crossunder(close, laggingConvRef) or close < laggingConvRef)
+rawBuyCandidate = laggingConvBullish and (conversionBullishCross or conversionBullishState)
+rawSellCandidate = laggingConvBearish and (conversionBearishCross or conversionBearishState)
+// 모멘텀 필터: 매수 후보는 종가가 이전 봉 이상(상승)일 때만, 매도 후보는 이전 봉 이하(하락)일 때만 표시
+buyCandidateSignal = rawBuyCandidate and close >= close[1] and lastSignalDirection != 1 and not buySignal and not sellSignal
+sellCandidateSignal = rawSellCandidate and close <= close[1] and lastSignalDirection != -1 and not buySignal and not sellSignal
 
 if buySignal
     strategy.close("Short", comment="숏 청산")
@@ -221,22 +223,33 @@ ribbonCellColor = ribbonState == "상승 분출" ? color.new(color.blue, 30) : r
 // 신호 = (후행스팬 조건) AND (전환선 vs 기준선 게이트). 후행스팬 조건은 '다음 봉 종가'가
 // 특정 과거 종가를 돌파하는지로 정해지므로, 다음 봉이 돌파해야 할 그 기준 가격을 표시한다.
 // 같은 방향 신호가 직전에 이미 나온 상태(중복방지)에서는 그 방향 트리거가를 '-'로 표시한다.
+// 조건1: 래깅 스팬(다음 봉 종가)이 그 위치의 기준선을 돌파 → 기준값 = baseLine[laggingOffset-1] (고정 과거값)
 nextSignalRefIdx = math.max(laggingOffset - 1, 0)
-nextSignalRef = close[nextSignalRefIdx]
+laggingBaseTrigger = baseLine[nextSignalRefIdx]
+// 후보 트리거 = 다음 봉 래깅 스팬이 닿는 컨버전 라인 (래깅이 컨버전을 돌파하는 다음 봉 종가)
+candidateConvTrigger = conversionLine[nextSignalRefIdx]
 
-// 전환선(컨버전) vs 기준선(베이스) 게이트를 가격으로 환산한다.
-// '현재 봉의 기준선'을 고정 기준으로 두고, 다음 봉이 신고/신저가를 만들어 전환선을
-// 기준선 수준까지 움직이는 종가를 구한다. (전환선 = (최근 신고가+신저가)/2)
+// 조건2: 전환선이 (다음 봉)기준선을 돌파. 다음 봉 가격이 들어오면 기준선·전환선이 둘 다 바뀐다.
+// 교차 구간(다음 봉 가격이 21봉 극단을 넘지 않는 영역)에서는 기준선 = 직전 21봉 (최고+최저)/2 로
+// 고정되고 전환선만 가격을 따라 움직이므로, 그 둘이 만나는 다음 봉 종가를 역산한다.
 convPrior = conversionPeriods - 1
+basePrior = basePeriods - 1
 recentLow = ta.lowest(convPrior)
 recentHigh = ta.highest(convPrior)
-convBuyPrice = 2 * baseLine - recentLow    // 신고가로 전환선을 기준선까지 끌어올리는 가격
-convSellPrice = 2 * baseLine - recentHigh  // 신저가로 전환선을 기준선까지 끌어내리는 가격
+baseMidNext = (ta.highest(basePrior) + ta.lowest(basePrior)) / 2   // 다음 봉 기준선(가격이 극단 아닐 때)
+convBuyPrice = 2 * baseMidNext - recentLow    // 신고가로 전환선을 다음 봉 기준선까지 끌어올리는 가격
+convSellPrice = 2 * baseMidNext - recentHigh  // 신저가로 전환선을 다음 봉 기준선까지 끌어내리는 가격
 
-// 신호 = 후행스팬 조건 AND 전환선↔기준선. 다음 봉 종가가 둘 다 만족해야 하므로
-// 매수는 둘 중 더 높은 가격, 매도는 둘 중 더 낮은 가격이 트리거. (전환선이 이미 그 방향이면 후행 기준만)
-buySignalTrigger = conversionBullishState ? nextSignalRef : math.max(nextSignalRef, convBuyPrice)
-sellSignalTrigger = conversionBearishState ? nextSignalRef : math.min(nextSignalRef, convSellPrice)
+// 신호 = 조건1(래깅 vs 기준선) AND 조건2(전환선 vs 기준선). 다음 봉 종가가 둘 다 만족해야 하므로
+// 매수는 둘 중 더 높은 가격, 매도는 둘 중 더 낮은 가격이 트리거. (전환선이 이미 그 방향이면 조건1만)
+buySignalTrigger = conversionBullishState ? laggingBaseTrigger : math.max(laggingBaseTrigger, convBuyPrice)
+sellSignalTrigger = conversionBearishState ? laggingBaseTrigger : math.min(laggingBaseTrigger, convSellPrice)
+
+// 후보 트리거 = (래깅이 컨버전 돌파) AND (컨버전이 기준선 돌파). 신호와 같은 결합 방식,
+// 단 ①조건 기준값이 기준선이 아니라 컨버전 라인(candidateConvTrigger).
+// 모멘텀 필터: 매수 후보는 다음 봉 종가가 현재 종가 이상, 매도 후보는 현재 종가 이하여야 하므로 close를 바닥/천장으로 결합
+buyCandidateTrigger = math.max(conversionBullishState ? candidateConvTrigger : math.max(candidateConvTrigger, convBuyPrice), close)
+sellCandidateTrigger = math.min(conversionBearishState ? candidateConvTrigger : math.min(candidateConvTrigger, convSellPrice), close)
 
 f_price(p) => str.tostring(p, format.mintick)
 // 화살표는 현재 가격(close) 대비 트리거 가격 위치로 결정: 트리거가 현재가보다 높으면 ↑, 낮으면 ↓
@@ -244,22 +257,28 @@ f_arrow(refPrice) => refPrice > close ? "↑ " : "↓ "
 buyBlocked = lastSignalDirection == 1
 sellBlocked = lastSignalDirection == -1
 
-var table triggerTable = table.new(position.bottom_right, 2, 5, border_width=1, border_color=color.new(color.gray, 50))
+var table triggerTable = table.new(position.bottom_right, 2, 7, border_width=1, border_color=color.new(color.gray, 50))
 if barstate.islast
     table.cell(triggerTable, 0, 0, "다음 봉", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
     table.cell(triggerTable, 1, 0, "트리거 가격", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
 
-    table.cell(triggerTable, 0, 1, "상승 신호 ▲", text_color=color.white, bgcolor=color.new(color.green, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 1, buyBlocked ? "-" : f_arrow(buySignalTrigger) + f_price(buySignalTrigger), text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
+    table.cell(triggerTable, 0, 1, "상승 후보 ●", text_color=color.white, bgcolor=color.new(color.green, 30), text_size=size.small)
+    table.cell(triggerTable, 1, 1, buyBlocked ? "-" : f_arrow(buyCandidateTrigger) + f_price(buyCandidateTrigger), text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
 
-    table.cell(triggerTable, 0, 2, "하락 신호 ▼", text_color=color.white, bgcolor=color.new(color.red, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 2, sellBlocked ? "-" : f_arrow(sellSignalTrigger) + f_price(sellSignalTrigger), text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
+    table.cell(triggerTable, 0, 2, "상승 신호 ▲", text_color=color.white, bgcolor=color.new(color.green, 30), text_size=size.small)
+    table.cell(triggerTable, 1, 2, buyBlocked ? "-" : f_arrow(buySignalTrigger) + f_price(buySignalTrigger), text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
 
-    table.cell(triggerTable, 0, 3, "구름대", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 3, cloudCellText, text_color=color.white, bgcolor=cloudCellColor, text_size=size.small)
+    table.cell(triggerTable, 0, 3, "하락 후보 ●", text_color=color.white, bgcolor=color.new(color.red, 30), text_size=size.small)
+    table.cell(triggerTable, 1, 3, sellBlocked ? "-" : f_arrow(sellCandidateTrigger) + f_price(sellCandidateTrigger), text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
 
-    table.cell(triggerTable, 0, 4, "이평 리본", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 4, ribbonCellText, text_color=color.white, bgcolor=ribbonCellColor, text_size=size.small)
+    table.cell(triggerTable, 0, 4, "하락 신호 ▼", text_color=color.white, bgcolor=color.new(color.red, 30), text_size=size.small)
+    table.cell(triggerTable, 1, 4, sellBlocked ? "-" : f_arrow(sellSignalTrigger) + f_price(sellSignalTrigger), text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
+
+    table.cell(triggerTable, 0, 5, "구름대", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 5, cloudCellText, text_color=color.white, bgcolor=cloudCellColor, text_size=size.small)
+
+    table.cell(triggerTable, 0, 6, "이평 리본", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 6, ribbonCellText, text_color=color.white, bgcolor=ribbonCellColor, text_size=size.small)
 
 plotshape(series=ribbonChop, title="횡보 압축 (아래)", style=shape.diamond, location=location.belowbar, color=color.new(color.gray, 0), size=size.tiny)
 plotshape(series=ribbonChop, title="횡보 압축 (위)", style=shape.diamond, location=location.abovebar, color=color.new(color.gray, 0), size=size.tiny)
