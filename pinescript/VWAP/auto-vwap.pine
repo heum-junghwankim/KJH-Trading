@@ -8,6 +8,7 @@ recentBars = input.int(defval=50, title="Recent Bars", minval=1, group="VWAP Set
 src = input(title="Source", defval=hlc3, group="VWAP Settings", display=display.none)
 offset = input.int(0, title="Offset", group="VWAP Settings", display=display.none)
 enableDynamicLineColor = input.bool(true, title="Enable Dynamic Line Color", group="VWAP Settings", display=display.none)
+showBandPctLabels = input.bool(false, title="VWAP·밴드 간격 % 라벨 표시", group="VWAP Settings")
 
 BANDS_GROUP = "Bands Settings"
 CALC_MODE_TOOLTIP = "Determines the units used to calculate the distance of the bands. When 'Percentage' is selected, a multiplier of 1 means 1%."
@@ -133,11 +134,11 @@ fill(upperBand_2, lowerBand_2, title="Bands Fill #2", color=activeFillColor, dis
 
 if barstate.islast
     lineEndX = bar_index + offset
-    vwapLineEndLabel := updateLineEndLabel(vwapLineEndLabel, lineEndX, vwapValue, "0", activeLineColor, shouldPlot and not na(vwapValue))
-    upperBand1LineEndLabel := updateLineEndLabel(upperBand1LineEndLabel, lineEndX, upperBandValue1, formatPercentGap(upperBandValue1, vwapValue), activeLineColor, shouldPlot and showBand_1 and not na(upperBandValue1))
-    lowerBand1LineEndLabel := updateLineEndLabel(lowerBand1LineEndLabel, lineEndX, lowerBandValue1, formatPercentGap(lowerBandValue1, vwapValue), activeLineColor, shouldPlot and showBand_1 and not na(lowerBandValue1))
-    upperBand2LineEndLabel := updateLineEndLabel(upperBand2LineEndLabel, lineEndX, upperBandValue2, formatPercentGap(upperBandValue2, vwapValue), activeLineColor, shouldPlot and showBand_2 and not na(upperBandValue2))
-    lowerBand2LineEndLabel := updateLineEndLabel(lowerBand2LineEndLabel, lineEndX, lowerBandValue2, formatPercentGap(lowerBandValue2, vwapValue), activeLineColor, shouldPlot and showBand_2 and not na(lowerBandValue2))
+    vwapLineEndLabel := updateLineEndLabel(vwapLineEndLabel, lineEndX, vwapValue, "0", activeLineColor, showBandPctLabels and shouldPlot and not na(vwapValue))
+    upperBand1LineEndLabel := updateLineEndLabel(upperBand1LineEndLabel, lineEndX, upperBandValue1, formatPercentGap(upperBandValue1, vwapValue), activeLineColor, showBandPctLabels and shouldPlot and showBand_1 and not na(upperBandValue1))
+    lowerBand1LineEndLabel := updateLineEndLabel(lowerBand1LineEndLabel, lineEndX, lowerBandValue1, formatPercentGap(lowerBandValue1, vwapValue), activeLineColor, showBandPctLabels and shouldPlot and showBand_1 and not na(lowerBandValue1))
+    upperBand2LineEndLabel := updateLineEndLabel(upperBand2LineEndLabel, lineEndX, upperBandValue2, formatPercentGap(upperBandValue2, vwapValue), activeLineColor, showBandPctLabels and shouldPlot and showBand_2 and not na(upperBandValue2))
+    lowerBand2LineEndLabel := updateLineEndLabel(lowerBand2LineEndLabel, lineEndX, lowerBandValue2, formatPercentGap(lowerBandValue2, vwapValue), activeLineColor, showBandPctLabels and shouldPlot and showBand_2 and not na(lowerBandValue2))
 
 // =========================
 // 우측 상단 상태판 (이치모쿠 신호 위치 / 과확장 확인)

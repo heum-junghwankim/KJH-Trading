@@ -137,6 +137,7 @@ Band #2 접근이나 이탈은 `강한 확장`, `과열 / 과매도`, `과확장
 | `Bands Calculation Mode` | 표준편차형 밴드와 퍼센트형 밴드를 바꾸고 싶을 때 |
 | `Bands Multiplier #1`, `#2` | 확장 폭을 더 넓게 또는 좁게 보고 싶을 때 |
 | `Enable Dynamic Line Color` | Band #2 이탈 시 선 색상 자동 변경을 켜거나 끄고 싶을 때 |
+| `VWAP·밴드 간격 % 라벨 표시` | VWAP/밴드 라인 끝에 붙는 **VWAP 대비 % 간격 라벨**(예 `+1.00%`)을 켜고 끌 때. **기본 꺼짐** |
 | `Hide VWAP on 1D or Above` | 일봉 이상에서 선을 숨기고 싶을 때 |
 
 ## 주의사항

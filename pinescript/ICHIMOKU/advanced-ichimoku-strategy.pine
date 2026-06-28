@@ -42,14 +42,17 @@ showSellCandidate = input.bool(true, title="매도 후보 표시", group="후보
 
 lineWidth = 1
 signalSize = size.small
-conversionLineColor = #E91E63
-baseLineColor = #00FF00
-laggingSpanColor = #FFEB3B
-leadingSpanAColor = #7B9077
-leadingSpanBColor = #9A7272
-kumoBoundaryColor = #3F5AA9
-bullishCloudColor = color.new(#0B5D4F, 45)
-bearishCloudColor = color.new(#6B1E28, 45)
+conversionLineColor = input.color(#E91E63, "컨버전 라인 색", group="색상")
+baseLineColor = input.color(#00FF00, "베이스 라인 색", group="색상")
+laggingSpanColor = input.color(#FFEB3B, "레깅 스팬 색", group="색상")
+leadingSpanAColor = input.color(#7B9077, "리딩 스팬 A 색", group="색상")
+leadingSpanBColor = input.color(#9A7272, "리딩 스팬 B 색", group="색상")
+kumoBoundaryColor = input.color(#3F5AA9, "Kumo 경계선 색", group="색상")
+bullCloudColor = input.color(#0B5D4F, "양운(상승 구름) 색", group="색상")
+bearCloudColor = input.color(#6B1E28, "음운(하락 구름) 색", group="색상")
+cloudTransp = input.int(45, "구름 투명도", minval=0, maxval=100, group="색상")
+bullishCloudColor = color.new(bullCloudColor, cloudTransp)
+bearishCloudColor = color.new(bearCloudColor, cloudTransp)
 longEntryColor = #4FC3F7
 longExitColor = #FF9800
 shortEntryColor = #FF5FA2
@@ -81,9 +84,21 @@ conversionBearishState = conversionLine < baseLine
 rawBuySignal = (laggingBullishCross or laggingBullishState) and (conversionBullishCross or conversionBullishState)
 rawSellSignal = (laggingBearishCross or laggingBearishState) and (conversionBearishCross or conversionBearishState)
 
+// 신호 모드: 확정(원래 로직) / 예측(다음 봉 가정으로 1봉 빨리 포착). 기본 = 확정.
+signalMode = input.string("확정 모드", title="신호 모드", options=["확정 모드", "예측 모드"], group="신호 모드")
+isPredict = signalMode == "예측 모드"
+// 예측 가정: 다음 봉 종가 = 매수 (현재 종가+고가)/2, 매도 (현재 종가+저가)/2 · 모멘텀(저가↑/고가↓)
+predBuyPrice = (close + high) / 2
+predSellPrice = (close + low) / 2
+predLagRef = baseLine[math.max(laggingOffset - 1, 0)]
+predRawBuy = predBuyPrice > predLagRef and (conversionBullishCross or conversionBullishState) and low > low[1]
+predRawSell = predSellPrice < predLagRef and (conversionBearishCross or conversionBearishState) and high < high[1]
+rawBuyEff = isPredict ? predRawBuy : rawBuySignal
+rawSellEff = isPredict ? predRawSell : rawSellSignal
+
 var int lastSignalDirection = 0
-buySignal = rawBuySignal and lastSignalDirection != 1
-sellSignal = rawSellSignal and lastSignalDirection != -1
+buySignal = rawBuyEff and lastSignalDirection != 1
+sellSignal = rawSellEff and lastSignalDirection != -1
 
 if buySignal
     lastSignalDirection := 1
@@ -120,9 +135,23 @@ vwLagBull = not na(vwLagBaseRef) and (ta.crossover(close, vwLagBaseRef) or close
 vwLagBear = not na(vwLagBaseRef) and (ta.crossunder(close, vwLagBaseRef) or close < vwLagBaseRef)
 vwConvBull = ta.crossover(vwConv, vwBase) or vwConv > vwBase
 vwConvBear = ta.crossunder(vwConv, vwBase) or vwConv < vwBase
+// 예측 모드 VWMA: 다음 봉 종가=예측가, 거래량=현재 거래량 가정으로 다음 봉 VWMA(전환·기준선) 재계산
+vwPvConv = math.sum(close * volume, conversionPeriods - 1)
+vwVSumConv = math.sum(volume, conversionPeriods - 1)
+vwPvBase = math.sum(close * volume, basePeriods - 1)
+vwVSumBase = math.sum(volume, basePeriods - 1)
+vwConvBuyN = (vwPvConv + predBuyPrice * volume) / (vwVSumConv + volume)
+vwBaseBuyN = (vwPvBase + predBuyPrice * volume) / (vwVSumBase + volume)
+vwConvSellN = (vwPvConv + predSellPrice * volume) / (vwVSumConv + volume)
+vwBaseSellN = (vwPvBase + predSellPrice * volume) / (vwVSumBase + volume)
+vwLagRefN = vwBase[math.max(laggingOffset - 1, 0)]
+predVwBuy = predBuyPrice > vwLagRefN and vwConvBuyN > vwBaseBuyN and low > low[1]
+predVwSell = predSellPrice < vwLagRefN and vwConvSellN < vwBaseSellN and high < high[1]
+vwRawBuyEff = isPredict ? predVwBuy : (vwLagBull and vwConvBull)
+vwRawSellEff = isPredict ? predVwSell : (vwLagBear and vwConvBear)
 var int vwLastDir = 0
-vwBuySignal = vwLagBull and vwConvBull and vwLastDir != 1
-vwSellSignal = vwLagBear and vwConvBear and vwLastDir != -1
+vwBuySignal = vwRawBuyEff and vwLastDir != 1
+vwSellSignal = vwRawSellEff and vwLastDir != -1
 if vwBuySignal
     vwLastDir := 1
 else if vwSellSignal
@@ -153,21 +182,35 @@ shortCE := close[1] < shortCEPrev ? math.min(shortCERaw, shortCEPrev) : shortCER
 //  - 양쪽 청산선: 롱은 longCE·shortCE 둘 다 위, 숏은 둘 다 아래 (기본)
 //  - 해당 청산선만: 롱은 longCE 위, 숏은 shortCE 아래
 //  - 필터 없음: 청산선과 무관하게 진입
-entryFilterMode = input.string("양쪽 청산선", title="진입 필터(청산선 기준)", options=["양쪽 청산선", "해당 청산선만", "필터 없음"], group="전략")
+entryFilterMode = input.string("해당 청산선만", title="진입 필터(청산선 기준)", options=["양쪽 청산선", "해당 청산선만", "필터 없음"], group="전략")
 longOk = entryFilterMode == "필터 없음" ? true : entryFilterMode == "해당 청산선만" ? close > longCE : (close > longCE and close > shortCE)
 shortOk = entryFilterMode == "필터 없음" ? true : entryFilterMode == "해당 청산선만" ? close < shortCE : (close < longCE and close < shortCE)
 
-// 진입: 기본·거래량 신호가 각각 5%씩(피라미딩으로 누적). 같은 방향만(모드별).
+// 진입: 기본·거래량 신호가 각각 5%씩. 단 한 포지션(청산 전)에는 신호 종류별 1회만 진입.
+// (반대 신호가 잠금만 풀고 청산은 안 하므로, 플래그로 같은 종류 중복 재진입을 막는다. 청산되면 리셋)
+var bool longBaseFilled = false
+var bool longVwFilled = false
+var bool shortBaseFilled = false
+var bool shortVwFilled = false
+if strategy.position_size == 0
+    longBaseFilled := false
+    longVwFilled := false
+    shortBaseFilled := false
+    shortVwFilled := false
 if isLongMode
-    if buySignal and longOk
+    if buySignal and longOk and not longBaseFilled
         strategy.entry("롱-기본", strategy.long, comment="롱 진입(기본)")
-    if vwBuySignal and longOk
+        longBaseFilled := true
+    if vwBuySignal and longOk and not longVwFilled
         strategy.entry("롱-거래량", strategy.long, comment="롱 진입(거래량)")
+        longVwFilled := true
 if isShortMode
-    if sellSignal and shortOk
+    if sellSignal and shortOk and not shortBaseFilled
         strategy.entry("숏-기본", strategy.short, comment="숏 진입(기본)")
-    if vwSellSignal and shortOk
+        shortBaseFilled := true
+    if vwSellSignal and shortOk and not shortVwFilled
         strategy.entry("숏-거래량", strategy.short, comment="숏 진입(거래량)")
+        shortVwFilled := true
 
 // 청산: 청산가를 크로스하면 전량 청산
 if strategy.position_size > 0 and ta.crossunder(close, longCE)
