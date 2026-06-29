@@ -314,7 +314,7 @@ ceMult = input.float(3.0, title="청산 ATR 배수", minval=0.0, step=0.01, grou
 //  - 거래량 가중: 거래량 큰 봉(VWMA)에 가중 → 거래 몰린 봉에서 청산가를 끌어올림
 //  - 최근봉 가중: 최근봉(WMA)에 가중 → 휩쏘 급등/급락 봉에서 청산가를 빠르게·높게
 //  - 거래량+최근봉: 두 가중을 함께(거래량 × 선형 최근봉)
-// 가중 모드는 표준 샹들리에와 비교해 롱은 더 높은(타이트한) 값, 숏은 더 낮은 값을 채택.
+// 기본은 룩백 극값(highest/lowest), 가중 모드는 가중 트레일 길이·배수로 계산한 가중평균 앵커를 그대로 쓴다(모드마다 위치가 달라짐).
 ceMode = input.string("기본", title="청산 가격 모드", options=["기본", "거래량 가중", "최근봉 가중", "거래량+최근봉"], group="청산(샹들리에)")
 ceWeightLen = input.int(10, title="가중 트레일 길이", minval=1, group="청산(샹들리에)")
 ceWeightMult = input.float(1.5, title="가중 트레일 ATR 배수", minval=0.0, step=0.01, group="청산(샹들리에)")
@@ -338,14 +338,12 @@ longVR   = f_volRecencyMa(high, ceWeightLen)
 shortVwma = ta.vwma(low, ceWeightLen)
 shortWma  = ta.wma(low, ceWeightLen)
 shortVR   = f_volRecencyMa(low, ceWeightLen)
-longAnchor = ceMode == "거래량 가중" ? longVwma : ceMode == "최근봉 가중" ? longWma : longVR
-shortAnchor = ceMode == "거래량 가중" ? shortVwma : ceMode == "최근봉 가중" ? shortWma : shortVR
-longWeighted = longAnchor - ceWeightMult * ta.atr(ceAtrLen)
-shortWeighted = shortAnchor + ceWeightMult * ta.atr(ceAtrLen)
-longStd = ta.highest(high, ceLength) - ceAtrVal
-shortStd = ta.lowest(low, ceLength) + ceAtrVal
-longCERaw = ceMode == "기본" ? longStd : math.max(longStd, longWeighted)
-shortCERaw = ceMode == "기본" ? shortStd : math.min(shortStd, shortWeighted)
+// 모드별 앵커 선택 — 기본은 룩백 극값, 가중 모드는 가중평균 앵커를 그대로 사용(− 가중 ATR 버퍼)
+longAnchorW = ceMode == "거래량 가중" ? longVwma : ceMode == "최근봉 가중" ? longWma : longVR
+shortAnchorW = ceMode == "거래량 가중" ? shortVwma : ceMode == "최근봉 가중" ? shortWma : shortVR
+weightAtr = ceWeightMult * ta.atr(ceAtrLen)
+longCERaw = ceMode == "기본" ? ta.highest(high, ceLength) - ceAtrVal : longAnchorW - weightAtr
+shortCERaw = ceMode == "기본" ? ta.lowest(low, ceLength) + ceAtrVal : shortAnchorW + weightAtr
 var float longCE = na
 longCEPrev = nz(longCE[1], longCERaw)
 longCE := close[1] > longCEPrev ? math.max(longCERaw, longCEPrev) : longCERaw
