@@ -168,15 +168,58 @@ vwSellCandidate = vwLagConvBear and vwConvBear and close <= close[1] and vwLastD
 ceLength = input.int(22, title="청산 룩백 길이", minval=1, group="청산(샹들리에)")
 ceAtrLen = input.int(22, title="청산 ATR 길이", minval=1, group="청산(샹들리에)")
 ceMult = input.float(3.0, title="청산 ATR 배수", minval=0.0, step=0.01, group="청산(샹들리에)")
+// 청산 가격 모드(샹들리에 기반):
+//  - 기본: 표준 샹들리에(룩백 고가/저가 − ATR)
+//  - 거래량 가중: 거래량 큰 봉(VWMA)에 가중 → 거래 몰린 봉에서 청산가를 끌어올림
+//  - 최근봉 가중: 최근봉(WMA)에 가중 → 휩쏘 급등/급락 봉에서 청산가를 빠르게·높게
+//  - 거래량+최근봉: 두 가중을 함께(거래량 × 선형 최근봉)
+// 가중 모드는 표준 샹들리에와 비교해 롱은 더 높은(타이트한) 값, 숏은 더 낮은 값을 채택.
+ceMode = input.string("기본", title="청산 가격 모드", options=["기본", "거래량 가중", "최근봉 가중", "거래량+최근봉"], group="청산(샹들리에)")
+ceWeightLen = input.int(10, title="가중 트레일 길이", minval=1, group="청산(샹들리에)")
+ceWeightMult = input.float(1.5, title="가중 트레일 ATR 배수", minval=0.0, step=0.01, group="청산(샹들리에)")
+showExitLines = input.bool(true, title="청산 수평선 표시(1px)", group="청산(샹들리에)")
+longExitLineColor = input.color(color.green, title="롱 청산선 색", group="청산(샹들리에)")
+shortExitLineColor = input.color(color.red, title="숏 청산선 색", group="청산(샹들리에)")
+
 ceAtrVal = ceMult * ta.atr(ceAtrLen)
-longCERaw = ta.highest(high, ceLength) - ceAtrVal
+// 거래량 × 최근봉(선형) 가중 평균
+f_volRecencyMa(src, len) =>
+    float num = 0.0
+    float den = 0.0
+    for i = 0 to len - 1
+        float w = volume[i] * (len - i)
+        num += src[i] * w
+        den += w
+    den != 0 ? num / den : src
+longVwma = ta.vwma(high, ceWeightLen)
+longWma  = ta.wma(high, ceWeightLen)
+longVR   = f_volRecencyMa(high, ceWeightLen)
+shortVwma = ta.vwma(low, ceWeightLen)
+shortWma  = ta.wma(low, ceWeightLen)
+shortVR   = f_volRecencyMa(low, ceWeightLen)
+longAnchor = ceMode == "거래량 가중" ? longVwma : ceMode == "최근봉 가중" ? longWma : longVR
+shortAnchor = ceMode == "거래량 가중" ? shortVwma : ceMode == "최근봉 가중" ? shortWma : shortVR
+longWeighted = longAnchor - ceWeightMult * ta.atr(ceAtrLen)
+shortWeighted = shortAnchor + ceWeightMult * ta.atr(ceAtrLen)
+longStd = ta.highest(high, ceLength) - ceAtrVal
+shortStd = ta.lowest(low, ceLength) + ceAtrVal
+longCERaw = ceMode == "기본" ? longStd : math.max(longStd, longWeighted)
+shortCERaw = ceMode == "기본" ? shortStd : math.min(shortStd, shortWeighted)
 var float longCE = na
 longCEPrev = nz(longCE[1], longCERaw)
 longCE := close[1] > longCEPrev ? math.max(longCERaw, longCEPrev) : longCERaw
-shortCERaw = ta.lowest(low, ceLength) + ceAtrVal
 var float shortCE = na
 shortCEPrev = nz(shortCE[1], shortCERaw)
 shortCE := close[1] < shortCEPrev ? math.min(shortCERaw, shortCEPrev) : shortCERaw
+
+// 청산 가격 수평선 (1px, 우측 확장) — 현재 봉 청산가 레벨
+var line longExitLine = na
+var line shortExitLine = na
+if showExitLines and barstate.islast
+    line.delete(longExitLine)
+    line.delete(shortExitLine)
+    longExitLine := line.new(bar_index - 1, longCE, bar_index, longCE, extend=extend.right, color=longExitLineColor, width=1)
+    shortExitLine := line.new(bar_index - 1, shortCE, bar_index, shortCE, extend=extend.right, color=shortExitLineColor, width=1)
 
 // 진입 필터(청산선 기준): 3가지 모드
 //  - 양쪽 청산선: 롱은 longCE·shortCE 둘 다 위, 숏은 둘 다 아래 (기본)
@@ -395,7 +438,7 @@ sellBlocked = lastSignalDirection == -1
 buyTransition = math.min(buyCandidateTrigger, buySignalTrigger)
 sellTransition = math.max(sellCandidateTrigger, sellSignalTrigger)
 
-var table triggerTable = table.new(position.bottom_right, 2, 7, border_width=1, border_color=color.new(color.gray, 50))
+var table triggerTable = table.new(position.bottom_right, 2, 8, border_width=1, border_color=color.new(color.gray, 50))
 if barstate.islast
     table.cell(triggerTable, 0, 0, "다음 봉", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
     table.cell(triggerTable, 1, 0, "트리거 가격", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
@@ -412,11 +455,14 @@ if barstate.islast
     table.cell(triggerTable, 0, 4, "이평 리본", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
     table.cell(triggerTable, 1, 4, ribbonCellText, text_color=color.white, bgcolor=ribbonCellColor, text_size=size.small)
 
-    table.cell(triggerTable, 0, 5, "롱 청산", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 5, f_price(longCE) + " (" + f_pct(longCE) + ")", text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
+    table.cell(triggerTable, 0, 5, "롱 청산", text_color=color.white, bgcolor=color.new(longExitLineColor, 55), text_size=size.small)
+    table.cell(triggerTable, 1, 5, f_price(longCE) + " (" + f_pct(longCE) + ")", text_color=color.white, bgcolor=color.new(longExitLineColor, 35), text_size=size.small)
 
-    table.cell(triggerTable, 0, 6, "숏 청산", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 6, f_price(shortCE) + " (" + f_pct(shortCE) + ")", text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
+    table.cell(triggerTable, 0, 6, "숏 청산", text_color=color.white, bgcolor=color.new(shortExitLineColor, 55), text_size=size.small)
+    table.cell(triggerTable, 1, 6, f_price(shortCE) + " (" + f_pct(shortCE) + ")", text_color=color.white, bgcolor=color.new(shortExitLineColor, 35), text_size=size.small)
+
+    table.cell(triggerTable, 0, 7, "청산 모드", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 7, ceMode, text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
 
 plotshape(series=ribbonChop, title="횡보 압축 (아래)", style=shape.diamond, location=location.belowbar, color=color.new(color.gray, 0), size=size.tiny)
 plotshape(series=ribbonChop, title="횡보 압축 (위)", style=shape.diamond, location=location.abovebar, color=color.new(color.gray, 0), size=size.tiny)
