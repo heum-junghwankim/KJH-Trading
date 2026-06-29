@@ -77,7 +77,8 @@ diEnergy     = math.abs(diDiff)
 diEnergyAvg  = ta.sma(diEnergy, obvEnergyLen)
 energyFading = diEnergy < diEnergyAvg or diEnergy < diEnergy[3]
 posVerdict = not adxStrong ? "중립(휩쏘)" : diBull ? (energyFading ? "롱 유리(약화)" : "롱 유리(강화)") : (energyFading ? "숏 유리(약화)" : "숏 유리(강화)")
-posColor   = not adxStrong ? color.new(color.gray, 40) : diBull ? color.new(color.green, energyFading ? 60 : 0) : color.new(color.red, energyFading ? 60 : 0)
+// 강화 = 채도 높은(선명한) 녹/적, 약화 = 채도 낮은(탁한) 녹/적. 투명도는 0으로 동일(흰 글씨 가독성 유지).
+posColor   = not adxStrong ? color.new(color.gray, 40) : diBull ? color.new(energyFading ? #6E8F72 : color.green, 0) : color.new(energyFading ? #A57A7A : color.red, 0)
 
 var table obvStatus = table.new(position.top_right, 2, 4, border_width=1, border_color=color.new(color.gray, 50))
 if barstate.islast
