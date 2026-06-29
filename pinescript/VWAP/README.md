@@ -14,6 +14,7 @@
 | VWAP | 선택한 기준 구간의 거래량 가중 평균 단가입니다. |
 | Band #1 | VWAP 대비 1차 확장 구간입니다. |
 | Band #2 | VWAP 대비 2차 확장 구간으로, 과확장 감시에 더 가까운 선입니다. |
+| 밴드 계산 타입 | `Log Standard Deviation`, `Absolute Standard Deviation` 중 선택합니다. |
 | Session 모드 | 현재 세션만 표시하고 이전 세션 선은 남기지 않습니다. |
 | Recent Trading Days 모드 | 최근 `N`거래일 누적 구간을 하나로 묶어 계산합니다. |
 | Recent Bars 모드 | 최근 `N`봉 누적 구간을 하나의 창처럼 계산합니다. |
@@ -21,7 +22,7 @@
 | 끝 라벨 | `VWAP = 0`, 각 밴드는 VWAP 대비 `+/- %` 차이를 표시합니다. |
 
 참고:
-- 기본값은 `Anchor Mode = Recent Bars`, `Recent Bars = 50`입니다. 즉 기본 상태는 **최근 50봉 기준 VWAP**입니다.
+- 기본값은 `Anchor Mode = Recent Bars`, `Recent Bars = 50`, `Bands Calculation Mode = Log Standard Deviation`입니다. 즉 기본 상태는 **최근 50봉 기준 VWAP + 로그 표준편차 밴드**입니다.
 - `Session`은 오늘 평균 단가, `Recent Trading Days`는 최근 비용대, `Recent Bars`는 최근 리듬 기준선에 더 가깝습니다.
 - `Band #2` 바깥 자체가 바로 반전은 아니고, 강한 추세에서는 바깥 체류가 이어질 수 있습니다.
 
@@ -100,11 +101,14 @@ Band #2 접근이나 이탈은 `강한 확장`, `과열 / 과매도`, `과확장
 
 `Bands Calculation Mode`는 두 가지입니다.
 
-`Standard Deviation`
-- 거래량 가중 표준편차를 밴드 폭으로 사용합니다.
+`Log Standard Deviation`
+- 현재 기본값입니다.
+- 거래량 가중 `log(price)` 표준편차를 사용합니다.
+- 밴드는 `VWAP * exp(± sigma_log * multiplier)` 형태로 계산되어, 절대 가격보다 비율 변화에 더 민감합니다.
+- 가격이 0 이하인 자산에는 적합하지 않습니다.
 
-`Percentage`
-- `VWAP * 1%`를 기본 폭으로 보고 배수를 곱합니다.
+`Absolute Standard Deviation`
+- 거래량 가중 표준편차를 절대 가격 단위로 계산해 밴드 폭으로 사용합니다.
 
 즉 이 지표는 `VWAP 기준선 + 확장 폭 방식`을 바꿔가며 읽는 구조입니다.
 
@@ -134,7 +138,7 @@ Band #2 접근이나 이탈은 `강한 확장`, `과열 / 과매도`, `과확장
 | `Recent Trading Days` | 스윙 기준 범위를 넓히거나 줄일 때 |
 | `Recent Bars` | 현재 타임프레임에서 최근 몇 봉을 기준으로 볼지 바꾸고 싶을 때 |
 | `Source` | 기준 가격을 `hlc3`, `close` 등으로 바꾸고 싶을 때 |
-| `Bands Calculation Mode` | 표준편차형 밴드와 퍼센트형 밴드를 바꾸고 싶을 때 |
+| `Bands Calculation Mode` | 로그 기준 밴드와 절대가격 표준편차 밴드를 바꾸고 싶을 때 |
 | `Bands Multiplier #1`, `#2` | 확장 폭을 더 넓게 또는 좁게 보고 싶을 때 |
 | `Enable Dynamic Line Color` | Band #2 이탈 시 선 색상 자동 변경을 켜거나 끄고 싶을 때 |
 | `VWAP·밴드 간격 % 라벨 표시` | VWAP/밴드 라인 끝에 붙는 **VWAP 대비 % 간격 라벨**(예 `+1.00%`)을 켜고 끌 때. **기본 꺼짐** |

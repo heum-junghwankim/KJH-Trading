@@ -11,8 +11,8 @@ enableDynamicLineColor = input.bool(true, title="Enable Dynamic Line Color", gro
 showBandPctLabels = input.bool(false, title="VWAP·밴드 간격 % 라벨 표시", group="VWAP Settings")
 
 BANDS_GROUP = "Bands Settings"
-CALC_MODE_TOOLTIP = "Determines the units used to calculate the distance of the bands. When 'Percentage' is selected, a multiplier of 1 means 1%."
-calcModeInput = input.string("Standard Deviation", "Bands Calculation Mode", options=["Standard Deviation", "Percentage"], group=BANDS_GROUP, tooltip=CALC_MODE_TOOLTIP, display=display.none)
+CALC_MODE_TOOLTIP = "Determines how band distance is calculated. Log Standard Deviation uses volume-weighted log-price volatility, and Absolute Standard Deviation uses price units."
+calcModeInput = input.string("Log Standard Deviation", "Bands Calculation Mode", options=["Log Standard Deviation", "Absolute Standard Deviation"], group=BANDS_GROUP, tooltip=CALC_MODE_TOOLTIP, display=display.none)
 showBand_1 = input(true, title="", group=BANDS_GROUP, inline="band_1", display=display.none)
 bandMult_1 = input.float(1.0, title="Bands Multiplier #1", group=BANDS_GROUP, inline="band_1", step=0.5, minval=0, display=display.none, active=showBand_1)
 showBand_2 = input(true, title="", group=BANDS_GROUP, inline="band_2", display=display.none)
@@ -57,10 +57,16 @@ isLatestSession = sessionTime <= last_bar_time and sessionCloseTime > last_bar_t
 var array<float> sessionStartPV = array.new_float()
 var array<float> sessionStartVolume = array.new_float()
 var array<float> sessionStartP2V = array.new_float()
+var array<float> sessionStartLogPV = array.new_float()
+var array<float> sessionStartLog2V = array.new_float()
+var array<float> sessionStartInvalidLogVolume = array.new_float()
 
 var float cumulativePV = 0.0
 var float cumulativeVolume = 0.0
 var float cumulativeP2V = 0.0
+var float cumulativeLogPV = 0.0
+var float cumulativeLog2V = 0.0
+var float cumulativeInvalidLogVolume = 0.0
 var label vwapLineEndLabel = na
 var label upperBand1LineEndLabel = na
 var label lowerBand1LineEndLabel = na
@@ -71,22 +77,38 @@ if isNewSession
     array.push(sessionStartPV, cumulativePV)
     array.push(sessionStartVolume, cumulativeVolume)
     array.push(sessionStartP2V, cumulativeP2V)
+    array.push(sessionStartLogPV, cumulativeLogPV)
+    array.push(sessionStartLog2V, cumulativeLog2V)
+    array.push(sessionStartInvalidLogVolume, cumulativeInvalidLogVolume)
 
 barPV = src * volume
 barP2V = src * src * volume
+logSrc = src > 0 ? math.log(src) : na
+barLogPV = na(logSrc) ? 0.0 : logSrc * volume
+barLog2V = na(logSrc) ? 0.0 : logSrc * logSrc * volume
+barInvalidLogVolume = na(logSrc) ? volume : 0.0
 cumulativePV += barPV
 cumulativeVolume += volume
 cumulativeP2V += barP2V
+cumulativeLogPV += barLogPV
+cumulativeLog2V += barLog2V
+cumulativeInvalidLogVolume += barInvalidLogVolume
 
 sessionCount = array.size(sessionStartPV)
 anchorSessionIndex = anchorMode == "Session" ? sessionCount - 1 : math.max(sessionCount - recentTradingDays, 0)
 anchorPV = anchorMode == "Recent Bars" ? nz(cumulativePV[recentBars], 0.0) : array.get(sessionStartPV, anchorSessionIndex)
 anchorVolume = anchorMode == "Recent Bars" ? nz(cumulativeVolume[recentBars], 0.0) : array.get(sessionStartVolume, anchorSessionIndex)
 anchorP2V = anchorMode == "Recent Bars" ? nz(cumulativeP2V[recentBars], 0.0) : array.get(sessionStartP2V, anchorSessionIndex)
+anchorLogPV = anchorMode == "Recent Bars" ? nz(cumulativeLogPV[recentBars], 0.0) : array.get(sessionStartLogPV, anchorSessionIndex)
+anchorLog2V = anchorMode == "Recent Bars" ? nz(cumulativeLog2V[recentBars], 0.0) : array.get(sessionStartLog2V, anchorSessionIndex)
+anchorInvalidLogVolume = anchorMode == "Recent Bars" ? nz(cumulativeInvalidLogVolume[recentBars], 0.0) : array.get(sessionStartInvalidLogVolume, anchorSessionIndex)
 
 windowPV = cumulativePV - anchorPV
 windowVolume = cumulativeVolume - anchorVolume
 windowP2V = cumulativeP2V - anchorP2V
+windowLogPV = cumulativeLogPV - anchorLogPV
+windowLog2V = cumulativeLog2V - anchorLog2V
+windowInvalidLogVolume = cumulativeInvalidLogVolume - anchorInvalidLogVolume
 
 float vwapValue = na
 float upperBandValue1 = na
@@ -100,11 +122,20 @@ if shouldPlot
     vwapValue := windowPV / windowVolume
     weightedVariance = math.max(windowP2V / windowVolume - math.pow(vwapValue, 2), 0)
     stdevAbs = math.sqrt(weightedVariance)
-    bandBasis = calcModeInput == "Standard Deviation" ? stdevAbs : vwapValue * 0.01
-    upperBandValue1 := vwapValue + bandBasis * bandMult_1
-    lowerBandValue1 := vwapValue - bandBasis * bandMult_1
-    upperBandValue2 := vwapValue + bandBasis * bandMult_2
-    lowerBandValue2 := vwapValue - bandBasis * bandMult_2
+    weightedLogVariance = math.max(windowLog2V / windowVolume - math.pow(windowLogPV / windowVolume, 2), 0)
+    stdevLog = math.sqrt(weightedLogVariance)
+    canUseLogBands = windowInvalidLogVolume == 0 and vwapValue > 0
+
+    if calcModeInput == "Absolute Standard Deviation"
+        upperBandValue1 := vwapValue + stdevAbs * bandMult_1
+        lowerBandValue1 := vwapValue - stdevAbs * bandMult_1
+        upperBandValue2 := vwapValue + stdevAbs * bandMult_2
+        lowerBandValue2 := vwapValue - stdevAbs * bandMult_2
+    else if canUseLogBands
+        upperBandValue1 := vwapValue * math.exp(stdevLog * bandMult_1)
+        lowerBandValue1 := vwapValue * math.exp(-stdevLog * bandMult_1)
+        upperBandValue2 := vwapValue * math.exp(stdevLog * bandMult_2)
+        lowerBandValue2 := vwapValue * math.exp(-stdevLog * bandMult_2)
 
 isLowerBand2Break = shouldPlot and showBand_2 and not na(lowerBandValue2) and low < lowerBandValue2
 isUpperBand2Break = shouldPlot and showBand_2 and not na(upperBandValue2) and high > upperBandValue2
