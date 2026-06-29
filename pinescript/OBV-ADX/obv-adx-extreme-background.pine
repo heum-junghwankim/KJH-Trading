@@ -69,7 +69,7 @@ adxStrong = adx >= extremeAdxMin
 diBull    = plus > minus
 adxText   = str.tostring(adx, "#.0") + (adxStrong ? " 충분" : " 약함")
 dirText   = diBull ? "+DI 우위(상승)" : "-DI 우위(하락)"
-bgText    = oversoldExtreme ? "낙폭과대(녹)" : overboughtExtreme ? "초과매수(빨)" : "-"
+bgText    = oversoldExtreme ? "되돌림 주의(반등)" : overboughtExtreme ? "되돌림 주의(하락)" : "-"
 // OBV 방향 에너지(|diDiff| = +DI/-DI 격차)의 평균 대비·기울기로 강화/약화 판정 (A안)
 // 방향(DI)·추세(ADX)는 같아도 에너지가 평균 이하로 줄거나 최근 감소 중이면 '약화'로 표시.
 obvEnergyLen = input.int(14, minval=1, title="OBV 에너지 평균 길이", group=extremeGroup)
@@ -87,5 +87,5 @@ if barstate.islast
     table.cell(obvStatus, 1, 1, adxText, text_color=color.white, bgcolor=diBull ? color.new(color.green, adxStrong ? 30 : 65) : color.new(color.red, adxStrong ? 30 : 65), text_size=size.small)
     table.cell(obvStatus, 0, 2, "DI 방향", text_color=color.white, text_size=size.small)
     table.cell(obvStatus, 1, 2, dirText, text_color=color.white, bgcolor=diBull ? color.new(color.green, 30) : color.new(color.red, 30), text_size=size.small)
-    table.cell(obvStatus, 0, 3, "극단 배경", text_color=color.white, text_size=size.small)
+    table.cell(obvStatus, 0, 3, "추세 과열", text_color=color.white, text_size=size.small)
     table.cell(obvStatus, 1, 3, bgText, text_color=color.white, bgcolor=oversoldExtreme ? color.new(color.green, 0) : overboughtExtreme ? color.new(color.red, 0) : color.new(color.gray, 50), text_size=size.small)
