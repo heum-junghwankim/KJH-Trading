@@ -70,8 +70,14 @@ diBull    = plus > minus
 adxText   = str.tostring(adx, "#.0") + (adxStrong ? " 충분" : " 약함")
 dirText   = diBull ? "+DI 우위(상승)" : "-DI 우위(하락)"
 bgText    = oversoldExtreme ? "낙폭과대(녹)" : overboughtExtreme ? "초과매수(빨)" : "-"
-posVerdict = not adxStrong ? "중립(휩쏘)" : diBull ? "롱 유리" : "숏 유리"
-posColor   = not adxStrong ? color.new(color.gray, 40) : diBull ? color.new(color.green, 0) : color.new(color.red, 0)
+// OBV 방향 에너지(|diDiff| = +DI/-DI 격차)의 평균 대비·기울기로 강화/약화 판정 (A안)
+// 방향(DI)·추세(ADX)는 같아도 에너지가 평균 이하로 줄거나 최근 감소 중이면 '약화'로 표시.
+obvEnergyLen = input.int(14, minval=1, title="OBV 에너지 평균 길이", group=extremeGroup)
+diEnergy     = math.abs(diDiff)
+diEnergyAvg  = ta.sma(diEnergy, obvEnergyLen)
+energyFading = diEnergy < diEnergyAvg or diEnergy < diEnergy[3]
+posVerdict = not adxStrong ? "중립(휩쏘)" : diBull ? (energyFading ? "롱 유리(약화)" : "롱 유리(강화)") : (energyFading ? "숏 유리(약화)" : "숏 유리(강화)")
+posColor   = not adxStrong ? color.new(color.gray, 40) : diBull ? color.new(color.green, energyFading ? 60 : 0) : color.new(color.red, energyFading ? 60 : 0)
 
 var table obvStatus = table.new(position.top_right, 2, 4, border_width=1, border_color=color.new(color.gray, 50))
 if barstate.islast
