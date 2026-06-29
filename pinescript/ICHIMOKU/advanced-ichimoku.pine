@@ -46,7 +46,7 @@ kumoLower = math.min(leadingSpanA, leadingSpanB)
 // 신호 모드: 확정(원래 로직) / 예측(다음 봉 가정으로 1봉 빨리 포착). 기본 = 확정.
 signalMode = input.string("확정 모드", title="신호 모드", options=["확정 모드", "예측 모드"], group="신호 모드")
 isPredict = signalMode == "예측 모드"
-showVwSignals = input.bool(true, title="거래량 가중 신호 표시", group="거래량 가중 신호")
+showVwSignals = input.bool(false, title="거래량 가중 신호 표시", group="거래량 가중 신호")
 vwTransp = input.int(50, minval=0, maxval=100, title="거래량 가중 투명도", group="거래량 가중 신호")
 
 // =========================
@@ -314,9 +314,10 @@ ceMult = input.float(3.0, title="청산 ATR 배수", minval=0.0, step=0.01, grou
 ceMode = input.string("기본", title="청산 가격 모드", options=["기본", "거래량 가중", "최근봉 가중", "거래량+최근봉"], group="청산(샹들리에)")
 ceWeightLen = input.int(10, title="가중 트레일 길이", minval=1, group="청산(샹들리에)")
 ceWeightMult = input.float(1.5, title="가중 트레일 ATR 배수", minval=0.0, step=0.01, group="청산(샹들리에)")
-showExitLines = input.bool(true, title="청산 수평선 표시(1px)", group="청산(샹들리에)")
-longExitLineColor = input.color(color.green, title="롱 청산선 색", group="청산(샹들리에)")
-shortExitLineColor = input.color(color.red, title="숏 청산선 색", group="청산(샹들리에)")
+showExitLines = input.bool(true, title="청산선 표시(과거 트레일 + 현재 수평선)", group="청산(샹들리에)")
+exitLineWidth = input.int(1, title="청산선 두께(트레일·수평선 공통)", minval=1, group="청산(샹들리에)")
+longExitLineColor = input.color(#00E5FF, title="롱 청산선 색", group="청산(샹들리에)")
+shortExitLineColor = input.color(#FF8C00, title="숏 청산선 색", group="청산(샹들리에)")
 
 ceAtrVal = ceMult * ta.atr(ceAtrLen)
 // 거래량 × 최근봉(선형) 가중 평균
@@ -347,14 +348,17 @@ var float shortCE = na
 shortCEPrev = nz(shortCE[1], shortCERaw)
 shortCE := close[1] < shortCEPrev ? math.min(shortCERaw, shortCEPrev) : shortCERaw
 
-// 청산 가격 수평선 (1px, 우측 확장) — 현재 봉 청산가 레벨
+// 청산 가격선: 과거 봉의 트레일(plot)이 현재 봉의 청산가에서 끝나고,
+// 그 지점에서 현재 봉 기준 수평선(우측 확장)과 맞닿는다.
+plot(showExitLines ? longCE : na, title="롱 청산선(트레일)", color=longExitLineColor, linewidth=exitLineWidth, display=display.all - display.price_scale)
+plot(showExitLines ? shortCE : na, title="숏 청산선(트레일)", color=shortExitLineColor, linewidth=exitLineWidth, display=display.all - display.price_scale)
 var line longExitLine = na
 var line shortExitLine = na
 if showExitLines and barstate.islast
     line.delete(longExitLine)
     line.delete(shortExitLine)
-    longExitLine := line.new(bar_index - 1, longCE, bar_index, longCE, extend=extend.right, color=longExitLineColor, width=1)
-    shortExitLine := line.new(bar_index - 1, shortCE, bar_index, shortCE, extend=extend.right, color=shortExitLineColor, width=1)
+    longExitLine := line.new(bar_index, longCE, bar_index + 1, longCE, extend=extend.right, color=longExitLineColor, width=exitLineWidth)
+    shortExitLine := line.new(bar_index, shortCE, bar_index + 1, shortCE, extend=extend.right, color=shortExitLineColor, width=exitLineWidth)
 
 // 트리거 셀 텍스트: 중복차단이면 '-', 아니면 화살표+가격
 f_trigCell(blocked, p) => blocked ? "-" : f_arrow(p) + f_price(p)
