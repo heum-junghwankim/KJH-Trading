@@ -37,11 +37,10 @@ showLongEntry = input.bool(true, title="롱 진입 표시", group="포지션 표
 showLongExit = input.bool(true, title="롱 청산 표시", group="포지션 표시")
 showShortEntry = input.bool(true, title="숏 진입 표시", group="포지션 표시")
 showShortExit = input.bool(true, title="숏 청산 표시", group="포지션 표시")
-showBuyCandidate = input.bool(true, title="매수 후보 표시", group="후보 신호")
-showSellCandidate = input.bool(true, title="매도 후보 표시", group="후보 신호")
+showBuySignal = input.bool(true, title="매수 신호(삼각형) 표시", group="신호 표시")
+showSellSignal = input.bool(true, title="매도 신호(삼각형) 표시", group="신호 표시")
 
 lineWidth = 1
-signalSize = size.small
 conversionLineColor = input.color(#E91E63, "컨버전 라인 색", group="색상")
 baseLineColor = input.color(#00FF00, "베이스 라인 색", group="색상")
 laggingSpanColor = input.color(#FFEB3B, "레깅 스팬 색", group="색상")
@@ -57,8 +56,6 @@ longEntryColor = #4FC3F7
 longExitColor = #FF9800
 shortEntryColor = #FF5FA2
 shortExitColor = #4CAF50
-buyCandidateColor = color.new(longEntryColor, 0)
-sellCandidateColor = color.new(shortEntryColor, 0)
 
 conversionLine = donchian(conversionPeriods)
 baseLine = donchian(basePeriods)
@@ -68,99 +65,91 @@ kumoUpper = math.max(leadingSpanA, leadingSpanB)
 kumoLower = math.min(leadingSpanA, leadingSpanB)
 
 laggingOffset = displacement - 1
-// 래깅 스팬(현재 종가)을 그 위치의 기준선(베이스)과 비교: close vs baseLine[laggingOffset]
-laggingBaseRef = baseLine[laggingOffset]
-hasLaggingReference = not na(laggingBaseRef)
-laggingBullishCross = hasLaggingReference and ta.crossover(close, laggingBaseRef)
-laggingBearishCross = hasLaggingReference and ta.crossunder(close, laggingBaseRef)
-laggingBullishState = hasLaggingReference and close > laggingBaseRef
-laggingBearishState = hasLaggingReference and close < laggingBaseRef
-
-conversionBullishCross = ta.crossover(conversionLine, baseLine)
-conversionBearishCross = ta.crossunder(conversionLine, baseLine)
+// 전환선 vs 기준선 상태 (1× — 트리거 가격 계산에 사용)
 conversionBullishState = conversionLine > baseLine
 conversionBearishState = conversionLine < baseLine
-
-rawBuySignal = (laggingBullishCross or laggingBullishState) and (conversionBullishCross or conversionBullishState)
-rawSellSignal = (laggingBearishCross or laggingBearishState) and (conversionBearishCross or conversionBearishState)
 
 // 신호 모드: 확정(원래 로직) / 예측(다음 봉 가정으로 1봉 빨리 포착). 기본 = 확정.
 signalMode = input.string("확정 모드", title="신호 모드", options=["확정 모드", "예측 모드"], group="신호 모드")
 isPredict = signalMode == "예측 모드"
-// 예측 가정: 다음 봉 종가 = 매수 (현재 종가+고가)/2, 매도 (현재 종가+저가)/2 · 모멘텀(저가↑/고가↓)
-predBuyPrice = (close + high) / 2
-predSellPrice = (close + low) / 2
-predLagRef = baseLine[math.max(laggingOffset - 1, 0)]
-predRawBuy = predBuyPrice > predLagRef and (conversionBullishCross or conversionBullishState) and low > low[1]
-predRawSell = predSellPrice < predLagRef and (conversionBearishCross or conversionBearishState) and high < high[1]
-rawBuyEff = isPredict ? predRawBuy : rawBuySignal
-rawSellEff = isPredict ? predRawSell : rawSellSignal
-
-var int lastSignalDirection = 0
-buySignal = rawBuyEff and lastSignalDirection != 1
-sellSignal = rawSellEff and lastSignalDirection != -1
-
-if buySignal
-    lastSignalDirection := 1
-else if sellSignal
-    lastSignalDirection := -1
-
 isLongMode = tradeDirection == "롱"
 isShortMode = tradeDirection == "숏"
-
-// 후보 = (래깅 스팬이 컨버전 라인을 같거나 돌파) AND (컨버전 라인이 기준선을 같거나 돌파)
-//  → 신호(래깅이 기준선 돌파)보다 빠른 조기 경고. ②(컨버전 vs 기준선)는 신호와 공통.
-laggingConvRef = conversionLine[laggingOffset]
-hasLaggingConvRef = not na(laggingConvRef)
-laggingConvBullish = hasLaggingConvRef and (ta.crossover(close, laggingConvRef) or close > laggingConvRef)
-laggingConvBearish = hasLaggingConvRef and (ta.crossunder(close, laggingConvRef) or close < laggingConvRef)
-rawBuyCandidate = laggingConvBullish and (conversionBullishCross or conversionBullishState)
-rawSellCandidate = laggingConvBearish and (conversionBearishCross or conversionBearishState)
-// 모멘텀 필터: 매수 후보는 종가가 이전 봉 이상(상승)일 때만, 매도 후보는 이전 봉 이하(하락)일 때만 표시
-buyCandidateSignal = rawBuyCandidate and close >= close[1] and lastSignalDirection != 1 and not buySignal and not sellSignal
-sellCandidateSignal = rawSellCandidate and close <= close[1] and lastSignalDirection != -1 and not buySignal and not sellSignal
-
-// =========================
-// 거래량 가중(VWMA) 변형 — 신호/후보 마커만 추가로 표시 (반투명)
-// =========================
-// 기본 라인/구름/테이블은 표준(도న키언) 그대로 두고, 컨버전·기준선을 VWMA로 바꾼 버전의
-// 매수/매도 후보·신호만 별도 마커로 함께 보여준다. (포지션 진입/청산에는 영향 없음, 표시용)
-showVwSignals = input.bool(true, title="거래량 가중 신호/후보 표시", group="거래량 가중 신호")
+showVwSignals = input.bool(true, title="거래량 가중 신호 표시", group="거래량 가중 신호")
 vwTransp = input.int(50, minval=0, maxval=100, title="거래량 가중 투명도", group="거래량 가중 신호")
 
-vwConv = ta.vwma(close, conversionPeriods)
-vwBase = ta.vwma(close, basePeriods)
-vwLagBaseRef = vwBase[laggingOffset]
-vwLagBull = not na(vwLagBaseRef) and (ta.crossover(close, vwLagBaseRef) or close > vwLagBaseRef)
-vwLagBear = not na(vwLagBaseRef) and (ta.crossunder(close, vwLagBaseRef) or close < vwLagBaseRef)
-vwConvBull = ta.crossover(vwConv, vwBase) or vwConv > vwBase
-vwConvBear = ta.crossunder(vwConv, vwBase) or vwConv < vwBase
-// 예측 모드 VWMA: 다음 봉 종가=예측가, 거래량=현재 거래량 가정으로 다음 봉 VWMA(전환·기준선) 재계산
-vwPvConv = math.sum(close * volume, conversionPeriods - 1)
-vwVSumConv = math.sum(volume, conversionPeriods - 1)
-vwPvBase = math.sum(close * volume, basePeriods - 1)
-vwVSumBase = math.sum(volume, basePeriods - 1)
-vwConvBuyN = (vwPvConv + predBuyPrice * volume) / (vwVSumConv + volume)
-vwBaseBuyN = (vwPvBase + predBuyPrice * volume) / (vwVSumBase + volume)
-vwConvSellN = (vwPvConv + predSellPrice * volume) / (vwVSumConv + volume)
-vwBaseSellN = (vwPvBase + predSellPrice * volume) / (vwVSumBase + volume)
-vwLagRefN = vwBase[math.max(laggingOffset - 1, 0)]
-predVwBuy = predBuyPrice > vwLagRefN and vwConvBuyN > vwBaseBuyN and low > low[1]
-predVwSell = predSellPrice < vwLagRefN and vwConvSellN < vwBaseSellN and high < high[1]
-vwRawBuyEff = isPredict ? predVwBuy : (vwLagBull and vwConvBull)
-vwRawSellEff = isPredict ? predVwSell : (vwLagBear and vwConvBear)
-var int vwLastDir = 0
-vwBuySignal = vwRawBuyEff and vwLastDir != 1
-vwSellSignal = vwRawSellEff and vwLastDir != -1
-if vwBuySignal
-    vwLastDir := 1
-else if vwSellSignal
-    vwLastDir := -1
-vwLagConvRef = vwConv[laggingOffset]
-vwLagConvBull = not na(vwLagConvRef) and (ta.crossover(close, vwLagConvRef) or close > vwLagConvRef)
-vwLagConvBear = not na(vwLagConvRef) and (ta.crossunder(close, vwLagConvRef) or close < vwLagConvRef)
-vwBuyCandidate = vwLagConvBull and vwConvBull and close >= close[1] and vwLastDir != 1 and not vwBuySignal and not vwSellSignal
-vwSellCandidate = vwLagConvBear and vwConvBear and close <= close[1] and vwLastDir != -1 and not vwBuySignal and not vwSellSignal
+// =========================
+// 멀티스케일 신호 — 래깅 설정값의 0.5× / 1× / 2× 스케일로 동일 로직 계산 (후보 제거)
+// 한 함수가 일반(도న키언) 신호 + 거래량 가중(VWMA) 신호를 함께 반환한다.
+// 진입은 1× 신호(일반·거래량)만 사용하고, 0.5×·2×는 차트 표시용이다.
+// =========================
+f_scale(p, mult) => math.max(1, int(math.round(p * mult)))
+
+f_scaleSignals(int convP, int baseP, int dispP) =>
+    conv = donchian(convP)
+    base = donchian(baseP)
+    lagOff = math.max(dispP - 1, 0)
+    lagBaseRef = base[lagOff]
+    lagBull = not na(lagBaseRef) and (ta.crossover(close, lagBaseRef) or close > lagBaseRef)
+    lagBear = not na(lagBaseRef) and (ta.crossunder(close, lagBaseRef) or close < lagBaseRef)
+    convBull = ta.crossover(conv, base) or conv > base
+    convBear = ta.crossunder(conv, base) or conv < base
+    pBuy = (close + high) / 2
+    pSell = (close + low) / 2
+    pLagRef = base[math.max(lagOff - 1, 0)]
+    pRawBuy = pBuy > pLagRef and convBull and low > low[1]
+    pRawSell = pSell < pLagRef and convBear and high < high[1]
+    rbEff = isPredict ? pRawBuy : (lagBull and convBull)
+    rsEff = isPredict ? pRawSell : (lagBear and convBear)
+    var int lastDir = 0
+    bSig = rbEff and lastDir != 1
+    sSig = rsEff and lastDir != -1
+    if bSig
+        lastDir := 1
+    else if sSig
+        lastDir := -1
+    vConv = ta.vwma(close, convP)
+    vBase = ta.vwma(close, baseP)
+    vLagRef = vBase[lagOff]
+    vLagBull = not na(vLagRef) and (ta.crossover(close, vLagRef) or close > vLagRef)
+    vLagBear = not na(vLagRef) and (ta.crossunder(close, vLagRef) or close < vLagRef)
+    vConvBull = ta.crossover(vConv, vBase) or vConv > vBase
+    vConvBear = ta.crossunder(vConv, vBase) or vConv < vBase
+    cN = math.max(1, convP - 1)
+    bN = math.max(1, baseP - 1)
+    pvConv = math.sum(close * volume, cN)
+    vsConv = math.sum(volume, cN)
+    pvBase = math.sum(close * volume, bN)
+    vsBase = math.sum(volume, bN)
+    vConvBuyN = (pvConv + pBuy * volume) / (vsConv + volume)
+    vBaseBuyN = (pvBase + pBuy * volume) / (vsBase + volume)
+    vConvSellN = (pvConv + pSell * volume) / (vsConv + volume)
+    vBaseSellN = (pvBase + pSell * volume) / (vsBase + volume)
+    vLagRefN = vBase[math.max(lagOff - 1, 0)]
+    pvBuy = pBuy > vLagRefN and vConvBuyN > vBaseBuyN and low > low[1]
+    pvSell = pSell < vLagRefN and vConvSellN < vBaseSellN and high < high[1]
+    vRbEff = isPredict ? pvBuy : (vLagBull and vConvBull)
+    vRsEff = isPredict ? pvSell : (vLagBear and vConvBear)
+    var int vLastDir = 0
+    vbSig = vRbEff and vLastDir != 1
+    vsSig = vRsEff and vLastDir != -1
+    if vbSig
+        vLastDir := 1
+    else if vsSig
+        vLastDir := -1
+    [bSig, sSig, vbSig, vsSig]
+
+[buy05, sell05, vwBuy05, vwSell05] = f_scaleSignals(f_scale(conversionPeriods, 0.5), f_scale(basePeriods, 0.5), f_scale(displacement, 0.5))
+[buy10, sell10, vwBuy10, vwSell10] = f_scaleSignals(conversionPeriods, basePeriods, displacement)
+[buy20, sell20, vwBuy20, vwSell20] = f_scaleSignals(f_scale(conversionPeriods, 2.0), f_scale(basePeriods, 2.0), f_scale(displacement, 2.0))
+
+// 1× 신호 방향(중복 표시 차단용) — 트리거 테이블의 '-' 처리에 사용
+var int dir10 = 0
+if buy10
+    dir10 := 1
+else if sell10
+    dir10 := -1
+buyBlocked = dir10 == 1
+sellBlocked = dir10 == -1
 
 // =========================
 // 샹들리에 ATR 트레일링 청산가 (롱/숏) — 진입 필터 + 전량청산 기준
@@ -239,17 +228,17 @@ if strategy.position_size == 0
     shortBaseFilled := false
     shortVwFilled := false
 if isLongMode
-    if buySignal and longOk and not longBaseFilled
+    if buy10 and longOk and not longBaseFilled
         strategy.entry("롱-기본", strategy.long, comment="롱 진입(기본)")
         longBaseFilled := true
-    if vwBuySignal and longOk and not longVwFilled
+    if vwBuy10 and longOk and not longVwFilled
         strategy.entry("롱-거래량", strategy.long, comment="롱 진입(거래량)")
         longVwFilled := true
 if isShortMode
-    if sellSignal and shortOk and not shortBaseFilled
+    if sell10 and shortOk and not shortBaseFilled
         strategy.entry("숏-기본", strategy.short, comment="숏 진입(기본)")
         shortBaseFilled := true
-    if vwSellSignal and shortOk and not shortVwFilled
+    if vwSell10 and shortOk and not shortVwFilled
         strategy.entry("숏-거래량", strategy.short, comment="숏 진입(거래량)")
         shortVwFilled := true
 
@@ -260,9 +249,9 @@ if strategy.position_size < 0 and ta.crossover(close, shortCE)
     strategy.close_all(comment="숏 전량청산")
 
 // 차트 마커용 신호
-longEntrySignal = isLongMode and longOk and (buySignal or vwBuySignal)
+longEntrySignal = isLongMode and longOk and (buy10 or vwBuy10)
 longExitSignal = strategy.position_size > 0 and ta.crossunder(close, longCE)
-shortEntrySignal = isShortMode and shortOk and (sellSignal or vwSellSignal)
+shortEntrySignal = isShortMode and shortOk and (sell10 or vwSell10)
 shortExitSignal = strategy.position_size < 0 and ta.crossover(close, shortCE)
 
 cloudOffset = displacement - 1
@@ -278,20 +267,30 @@ plot(showKumoUpper ? kumoUpper : na, offset=cloudOffset, title="Kumo Cloud Upper
 plot(showKumoLower ? kumoLower : na, offset=cloudOffset, title="Kumo Cloud Lower Line", color=kumoBoundaryColor, linewidth=lineWidth, display=display.all - display.price_scale)
 fill(fillSourceA, fillSourceB, title="Cloud Fill", color=showCloudFill ? (leadingSpanA > leadingSpanB ? bullishCloudColor : bearishCloudColor) : na)
 
-plotshape(showBuyCandidate and buyCandidateSignal, title="매수 후보", style=shape.circle, location=location.belowbar, color=buyCandidateColor, size=size.tiny)
-plotshape(showSellCandidate and sellCandidateSignal, title="매도 후보", style=shape.circle, location=location.abovebar, color=sellCandidateColor, size=size.tiny)
-plotshape(showLongEntry and longEntrySignal, title="롱 진입", style=shape.triangleup, location=location.belowbar, color=longEntryColor, size=signalSize)
-plotshape(showLongExit and longExitSignal, title="롱 청산", style=shape.triangledown, location=location.abovebar, color=longExitColor, size=signalSize)
-plotshape(showShortEntry and shortEntrySignal, title="숏 진입", style=shape.triangledown, location=location.abovebar, color=shortEntryColor, size=signalSize)
-plotshape(showShortExit and shortExitSignal, title="숏 청산", style=shape.triangleup, location=location.belowbar, color=shortExitColor, size=signalSize)
+// 멀티스케일 신호 삼각형 (일반=불투명) — 0.5×=가장 작음, 1×=작음, 2×=보통
+plotshape(showBuySignal and buy05, title="매수 0.5×", style=shape.triangleup, location=location.belowbar, color=longEntryColor, size=size.tiny)
+plotshape(showBuySignal and buy10, title="매수 1×", style=shape.triangleup, location=location.belowbar, color=longEntryColor, size=size.small)
+plotshape(showBuySignal and buy20, title="매수 2×", style=shape.triangleup, location=location.belowbar, color=longEntryColor, size=size.normal)
+plotshape(showSellSignal and sell05, title="매도 0.5×", style=shape.triangledown, location=location.abovebar, color=shortEntryColor, size=size.tiny)
+plotshape(showSellSignal and sell10, title="매도 1×", style=shape.triangledown, location=location.abovebar, color=shortEntryColor, size=size.small)
+plotshape(showSellSignal and sell20, title="매도 2×", style=shape.triangledown, location=location.abovebar, color=shortEntryColor, size=size.normal)
 
-plotshape(showVwSignals and vwBuyCandidate, title="매수 후보 (거래량)", style=shape.circle, location=location.belowbar, color=color.new(longEntryColor, vwTransp), size=size.tiny)
-plotshape(showVwSignals and vwSellCandidate, title="매도 후보 (거래량)", style=shape.circle, location=location.abovebar, color=color.new(shortEntryColor, vwTransp), size=size.tiny)
-plotshape(showVwSignals and vwBuySignal, title="매수 신호 (거래량)", style=shape.triangleup, location=location.belowbar, color=color.new(longEntryColor, vwTransp), size=signalSize)
-plotshape(showVwSignals and vwSellSignal, title="매도 신호 (거래량)", style=shape.triangledown, location=location.abovebar, color=color.new(shortEntryColor, vwTransp), size=signalSize)
+// 멀티스케일 거래량 가중 신호 (반투명)
+plotshape(showVwSignals and vwBuy05, title="매수 0.5× (거래량)", style=shape.triangleup, location=location.belowbar, color=color.new(longEntryColor, vwTransp), size=size.tiny)
+plotshape(showVwSignals and vwBuy10, title="매수 1× (거래량)", style=shape.triangleup, location=location.belowbar, color=color.new(longEntryColor, vwTransp), size=size.small)
+plotshape(showVwSignals and vwBuy20, title="매수 2× (거래량)", style=shape.triangleup, location=location.belowbar, color=color.new(longEntryColor, vwTransp), size=size.normal)
+plotshape(showVwSignals and vwSell05, title="매도 0.5× (거래량)", style=shape.triangledown, location=location.abovebar, color=color.new(shortEntryColor, vwTransp), size=size.tiny)
+plotshape(showVwSignals and vwSell10, title="매도 1× (거래량)", style=shape.triangledown, location=location.abovebar, color=color.new(shortEntryColor, vwTransp), size=size.small)
+plotshape(showVwSignals and vwSell20, title="매도 2× (거래량)", style=shape.triangledown, location=location.abovebar, color=color.new(shortEntryColor, vwTransp), size=size.normal)
 
-alertcondition(buySignal, title="Advanced Ichimoku Strategy Buy Signal", message="Advanced Ichimoku strategy buy signal")
-alertcondition(sellSignal, title="Advanced Ichimoku Strategy Sell Signal", message="Advanced Ichimoku strategy sell signal")
+// 실제 체결 마커 (진입/청산) — X자
+plotshape(showLongEntry and longEntrySignal, title="롱 진입", style=shape.xcross, location=location.belowbar, color=longEntryColor, size=size.tiny)
+plotshape(showLongExit and longExitSignal, title="롱 청산", style=shape.xcross, location=location.abovebar, color=longExitColor, size=size.tiny)
+plotshape(showShortEntry and shortEntrySignal, title="숏 진입", style=shape.xcross, location=location.abovebar, color=shortEntryColor, size=size.tiny)
+plotshape(showShortExit and shortExitSignal, title="숏 청산", style=shape.xcross, location=location.belowbar, color=shortExitColor, size=size.tiny)
+
+alertcondition(buy10, title="Advanced Ichimoku Strategy Buy Signal", message="Advanced Ichimoku strategy buy signal")
+alertcondition(sell10, title="Advanced Ichimoku Strategy Sell Signal", message="Advanced Ichimoku strategy sell signal")
 
 // =========================
 // 이평 수축/확장 판정 (휩쏘 필터 + 분출 확인) — A / B / A and B 모드
@@ -397,8 +396,6 @@ ribbonCellColor = ribbonState == "상승 분출" ? color.new(color.blue, 30) : r
 // 조건1: 래깅 스팬(다음 봉 종가)이 그 위치의 기준선을 돌파 → 기준값 = baseLine[laggingOffset-1] (고정 과거값)
 nextSignalRefIdx = math.max(laggingOffset - 1, 0)
 laggingBaseTrigger = baseLine[nextSignalRefIdx]
-// 후보 트리거 = 다음 봉 래깅 스팬이 닿는 컨버전 라인 (래깅이 컨버전을 돌파하는 다음 봉 종가)
-candidateConvTrigger = conversionLine[nextSignalRefIdx]
 
 // 조건2: 전환선이 (다음 봉)기준선을 돌파. 다음 봉 가격이 들어오면 기준선·전환선이 둘 다 바뀐다.
 // 교차 구간(다음 봉 가격이 21봉 극단을 넘지 않는 영역)에서는 기준선 = 직전 21봉 (최고+최저)/2 로
@@ -416,12 +413,6 @@ convSellPrice = 2 * baseMidNext - recentHigh  // 신저가로 전환선을 다�
 buySignalTrigger = conversionBullishState ? laggingBaseTrigger : math.max(laggingBaseTrigger, convBuyPrice)
 sellSignalTrigger = conversionBearishState ? laggingBaseTrigger : math.min(laggingBaseTrigger, convSellPrice)
 
-// 후보 트리거 = (래깅이 컨버전 돌파) AND (컨버전이 기준선 돌파). 신호와 같은 결합 방식,
-// 단 ①조건 기준값이 기준선이 아니라 컨버전 라인(candidateConvTrigger).
-// 모멘텀 필터: 매수 후보는 다음 봉 종가가 현재 종가 이상, 매도 후보는 현재 종가 이하여야 하므로 close를 바닥/천장으로 결합
-buyCandidateTrigger = math.max(conversionBullishState ? candidateConvTrigger : math.max(candidateConvTrigger, convBuyPrice), close)
-sellCandidateTrigger = math.min(conversionBearishState ? candidateConvTrigger : math.min(candidateConvTrigger, convSellPrice), close)
-
 f_price(p) => str.tostring(p, format.mintick)
 // 화살표는 현재 가격(close) 대비 트리거 가격 위치로 결정: 트리거가 현재가보다 높으면 ↑, 낮으면 ↓
 f_arrow(refPrice) => refPrice > close ? "↑ " : "↓ "
@@ -429,12 +420,10 @@ f_arrow(refPrice) => refPrice > close ? "↑ " : "↓ "
 f_pct(p) =>
     d = (p - close) / close * 100
     (d > 0 ? "+" : "") + str.tostring(d, "0.0") + "%"
-buyBlocked = lastSignalDirection == 1
-sellBlocked = lastSignalDirection == -1
 
-// 전환가 = 후보·신호 트리거 중 더 가까운 값 (상승=더 낮은 값, 하락=더 높은 값)
-buyTransition = math.min(buyCandidateTrigger, buySignalTrigger)
-sellTransition = math.max(sellCandidateTrigger, sellSignalTrigger)
+// 전환가 = 1× 신호 트리거 (후보 제거)
+buyTransition = buySignalTrigger
+sellTransition = sellSignalTrigger
 
 var table triggerTable = table.new(position.bottom_right, 2, 8, border_width=1, border_color=color.new(color.gray, 50))
 if barstate.islast
