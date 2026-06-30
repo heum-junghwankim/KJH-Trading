@@ -351,7 +351,8 @@ exitLineWidth = input.int(1, title="선 두께(스윕·청산 공통)", minval=1
 longExitLineColor = input.color(#00E5FF, title="롱 선 색(스윕·청산)", group="스윕/청산")
 shortExitLineColor = input.color(#FF8C00, title="숏 선 색(스윕·청산)", group="스윕/청산")
 
-ceAtrVal = ceMult * ta.atr(ceAtrLen)
+atrCe = ta.atr(ceAtrLen)   // 한 번만 계산해 ceAtrVal·weightAtr·sweepAtr에서 재사용(중복 ta.atr 제거)
+ceAtrVal = ceMult * atrCe
 // 거래량 × 최근봉(선형) 가중 평균
 f_volRecencyMa(src, len) =>
     float num = 0.0
@@ -361,16 +362,10 @@ f_volRecencyMa(src, len) =>
         num += src[i] * w
         den += w
     den != 0 ? num / den : src
-longVwma = ta.vwma(high, ceWeightLen)
-longWma  = ta.wma(high, ceWeightLen)
-longVR   = f_volRecencyMa(high, ceWeightLen)
-shortVwma = ta.vwma(low, ceWeightLen)
-shortWma  = ta.wma(low, ceWeightLen)
-shortVR   = f_volRecencyMa(low, ceWeightLen)
-// 모드별 앵커 선택 — 기본은 룩백 극값, 가중 모드는 가중평균 앵커를 그대로 사용(− 가중 ATR 버퍼)
-longAnchorW = ceMode == "거래량 가중" ? longVwma : ceMode == "최근봉 가중" ? longWma : longVR
-shortAnchorW = ceMode == "거래량 가중" ? shortVwma : ceMode == "최근봉 가중" ? shortWma : shortVR
-weightAtr = ceWeightMult * ta.atr(ceAtrLen)
+// 모드별 앵커 — 활성 모드에 필요한 것만 계산(기본 모드에선 VWMA/WMA/가중루프 모두 생략 → 속도↑). ceMode는 세션 상수.
+longAnchorW = ceMode == "거래량 가중" ? ta.vwma(high, ceWeightLen) : ceMode == "최근봉 가중" ? ta.wma(high, ceWeightLen) : ceMode == "거래량+최근봉" ? f_volRecencyMa(high, ceWeightLen) : na
+shortAnchorW = ceMode == "거래량 가중" ? ta.vwma(low, ceWeightLen) : ceMode == "최근봉 가중" ? ta.wma(low, ceWeightLen) : ceMode == "거래량+최근봉" ? f_volRecencyMa(low, ceWeightLen) : na
+weightAtr = ceWeightMult * atrCe
 longCERaw = ceMode == "기본" ? ta.highest(high, ceLength) - ceAtrVal : longAnchorW - weightAtr
 shortCERaw = ceMode == "기본" ? ta.lowest(low, ceLength) + ceAtrVal : shortAnchorW + weightAtr
 var float longCE = na
@@ -381,7 +376,7 @@ shortCEPrev = nz(shortCE[1], shortCERaw)
 shortCE := close[1] < shortCEPrev ? math.min(shortCERaw, shortCEPrev) : shortCERaw
 
 // 청산(직선) = 스윕(longCE/shortCE) 너머. ATR 버퍼 + 옵션으로 가장 가까운 스윙 풀(피벗) 너머까지.
-sweepAtr = ta.atr(ceAtrLen)
+sweepAtr = atrCe
 sweepPLow = ta.pivotlow(sweepPivotLen, sweepPivotLen)
 sweepPHigh = ta.pivothigh(sweepPivotLen, sweepPivotLen)
 var float lastSweepPLow = na
