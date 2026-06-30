@@ -287,6 +287,13 @@ disparityState = (overCount == 2 or underCount == 2) ? "되돌림 확실" : (ove
 disparityCellText = na(disparity) ? "-" : str.tostring(disparity, "0.0") + "% (" + disparityState + ")"
 // 과열(위)=빨강계 / 과매도(아래)=초록계, 확실=선명(투명도 0) / 주의=둔탁(채도 낮은 톤)
 disparityCellColor = overCount == 2 ? color.new(color.red, 0) : underCount == 2 ? color.new(color.green, 0) : overCount >= 1 ? color.new(#A57A7A, 0) : underCount >= 1 ? color.new(#6E8F72, 0) : color.new(color.gray, 40)
+// 되돌림 가격 = 이격도가 '중립'으로 복귀하는 가격 band. 중립 경계 = MA × (1 ± 중립폭%/100).
+// 중립폭 = min(고정 임계, 통계 σ) — 둘 중 더 빨리 발동하는(좁은) 쪽이 중립 경계라서.
+disparityNeutralPct = disparityStatOk ? math.min(disparityThreshold, disparityStatMult * disparityStd) : disparityThreshold
+disparityLowerEdge = not na(disparityMa) ? disparityMa * (1 - disparityNeutralPct / 100) : na
+disparityUpperEdge = not na(disparityMa) ? disparityMa * (1 + disparityNeutralPct / 100) : na
+// 단일 되돌림 가격: 과열(상승 중 하락 반등)이면 중립 상단(최대값), 과매도(하락 중 상승 반등)이면 중립 하단(최소값). 중립이면 없음.
+disparityPullbackPrice = overCount >= 1 ? disparityUpperEdge : underCount >= 1 ? disparityLowerEdge : na
 
 // =========================
 // 우측 하단: 다음 봉 트리거 가격 + 구름대/리본 상태
@@ -423,25 +430,32 @@ if showExitLines and barstate.islast
     shortClearLine := line.new(bar_index, shortClear, bar_index + 1, shortClear, extend=extend.right, color=shortExitLineColor, width=exitLineWidth, style=line.style_solid)
 
 f_trigCell(blocked, p) => blocked ? "-" : f_arrow(p) + f_price(p) + " (" + f_pct(p) + ")"
+// 셀 강조: 방향 기준. 매수는 트리거가 현재가의 +nearPct% 이내(또는 이미 아래=조건 충족→확정),
+// 매도는 트리거가 −nearPct% 이내(또는 이미 위=충족)면 포지션 색(상승=녹/하락=빨)으로 칠한다.
+nearPct = input.float(2.0, title="트리거 근접 강조 임계(%)", minval=0.1, step=0.1, group="트리거 강조")
+f_trigBg(blocked, p, isBuy) =>
+    pct = close != 0 ? (p - close) / close * 100 : na
+    hit = not blocked and not na(p) and not na(pct) and (isBuy ? pct <= nearPct : pct >= -nearPct)
+    hit ? (isBuy ? color.new(color.green, 25) : color.new(color.red, 25)) : color.new(color.gray, 40)
 
-var table triggerTable = table.new(position.bottom_right, 2, 14, border_width=1, border_color=color.new(color.gray, 50))
+var table triggerTable = table.new(position.bottom_right, 2, 15, border_width=1, border_color=color.new(color.gray, 50))
 if barstate.islast
     table.cell(triggerTable, 0, 0, "다음 봉", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
     table.cell(triggerTable, 1, 0, "트리거 가격", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
 
     table.cell(triggerTable, 0, 1, "상승 전환(0.5×)", text_color=color.white, bgcolor=color.new(color.green, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 1, f_trigCell(buyBlocked05, buyTrig05), text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
+    table.cell(triggerTable, 1, 1, f_trigCell(buyBlocked05, buyTrig05), text_color=color.white, bgcolor=f_trigBg(buyBlocked05, buyTrig05, true), text_size=size.small)
     table.cell(triggerTable, 0, 2, "상승 전환(1×)", text_color=color.white, bgcolor=color.new(color.green, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 2, f_trigCell(buyBlocked10, buyTrig10), text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
+    table.cell(triggerTable, 1, 2, f_trigCell(buyBlocked10, buyTrig10), text_color=color.white, bgcolor=f_trigBg(buyBlocked10, buyTrig10, true), text_size=size.small)
     table.cell(triggerTable, 0, 3, "상승 전환(2×)", text_color=color.white, bgcolor=color.new(color.green, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 3, f_trigCell(buyBlocked20, buyTrig20), text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
+    table.cell(triggerTable, 1, 3, f_trigCell(buyBlocked20, buyTrig20), text_color=color.white, bgcolor=f_trigBg(buyBlocked20, buyTrig20, true), text_size=size.small)
 
     table.cell(triggerTable, 0, 4, "하락 전환(0.5×)", text_color=color.white, bgcolor=color.new(color.red, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 4, f_trigCell(sellBlocked05, sellTrig05), text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
+    table.cell(triggerTable, 1, 4, f_trigCell(sellBlocked05, sellTrig05), text_color=color.white, bgcolor=f_trigBg(sellBlocked05, sellTrig05, false), text_size=size.small)
     table.cell(triggerTable, 0, 5, "하락 전환(1×)", text_color=color.white, bgcolor=color.new(color.red, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 5, f_trigCell(sellBlocked10, sellTrig10), text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
+    table.cell(triggerTable, 1, 5, f_trigCell(sellBlocked10, sellTrig10), text_color=color.white, bgcolor=f_trigBg(sellBlocked10, sellTrig10, false), text_size=size.small)
     table.cell(triggerTable, 0, 6, "하락 전환(2×)", text_color=color.white, bgcolor=color.new(color.red, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 6, f_trigCell(sellBlocked20, sellTrig20), text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
+    table.cell(triggerTable, 1, 6, f_trigCell(sellBlocked20, sellTrig20), text_color=color.white, bgcolor=f_trigBg(sellBlocked20, sellTrig20, false), text_size=size.small)
 
     table.cell(triggerTable, 0, 7, "구름대", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
     table.cell(triggerTable, 1, 7, cloudCellText, text_color=color.white, bgcolor=cloudCellColor, text_size=size.small)
@@ -452,17 +466,20 @@ if barstate.islast
     table.cell(triggerTable, 0, 9, "이격도 (" + str.tostring(disparityMaLen) + ")", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
     table.cell(triggerTable, 1, 9, disparityCellText, text_color=color.white, bgcolor=disparityCellColor, text_size=size.small)
 
-    table.cell(triggerTable, 0, 10, "롱 스윕", text_color=color.white, bgcolor=color.new(longExitLineColor, 65), text_size=size.small)
-    table.cell(triggerTable, 1, 10, f_price(longCE) + " (" + f_pct(longCE) + ")", text_color=color.white, bgcolor=color.new(longExitLineColor, 50), text_size=size.small)
+    table.cell(triggerTable, 0, 10, "되돌림 가격", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 10, na(disparityPullbackPrice) ? "-" : f_price(disparityPullbackPrice) + " (" + f_pct(disparityPullbackPrice) + ")", text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
 
-    table.cell(triggerTable, 0, 11, "숏 스윕", text_color=color.white, bgcolor=color.new(shortExitLineColor, 65), text_size=size.small)
-    table.cell(triggerTable, 1, 11, f_price(shortCE) + " (" + f_pct(shortCE) + ")", text_color=color.white, bgcolor=color.new(shortExitLineColor, 50), text_size=size.small)
+    table.cell(triggerTable, 0, 11, "롱 스윕", text_color=color.white, bgcolor=color.new(longExitLineColor, 65), text_size=size.small)
+    table.cell(triggerTable, 1, 11, f_price(longCE) + " (" + f_pct(longCE) + ")", text_color=color.white, bgcolor=color.new(longExitLineColor, 50), text_size=size.small)
 
-    table.cell(triggerTable, 0, 12, "롱 청산", text_color=color.white, bgcolor=color.new(longExitLineColor, 40), text_size=size.small)
-    table.cell(triggerTable, 1, 12, f_price(longClear) + " (" + f_pct(longClear) + ")", text_color=color.white, bgcolor=color.new(longExitLineColor, 20), text_size=size.small)
+    table.cell(triggerTable, 0, 12, "숏 스윕", text_color=color.white, bgcolor=color.new(shortExitLineColor, 65), text_size=size.small)
+    table.cell(triggerTable, 1, 12, f_price(shortCE) + " (" + f_pct(shortCE) + ")", text_color=color.white, bgcolor=color.new(shortExitLineColor, 50), text_size=size.small)
 
-    table.cell(triggerTable, 0, 13, "숏 청산", text_color=color.white, bgcolor=color.new(shortExitLineColor, 40), text_size=size.small)
-    table.cell(triggerTable, 1, 13, f_price(shortClear) + " (" + f_pct(shortClear) + ")", text_color=color.white, bgcolor=color.new(shortExitLineColor, 20), text_size=size.small)
+    table.cell(triggerTable, 0, 13, "롱 청산", text_color=color.white, bgcolor=color.new(longExitLineColor, 40), text_size=size.small)
+    table.cell(triggerTable, 1, 13, f_price(longClear) + " (" + f_pct(longClear) + ")", text_color=color.white, bgcolor=color.new(longExitLineColor, 20), text_size=size.small)
+
+    table.cell(triggerTable, 0, 14, "숏 청산", text_color=color.white, bgcolor=color.new(shortExitLineColor, 40), text_size=size.small)
+    table.cell(triggerTable, 1, 14, f_price(shortClear) + " (" + f_pct(shortClear) + ")", text_color=color.white, bgcolor=color.new(shortExitLineColor, 20), text_size=size.small)
 
 // 이평 기반 상태 다이아몬드 (압축=보라 #9C27B0[상승·하락과 확실히 구분], 상승 분출=파랑, 하락 분출=빨강)
 // 먼저 그려서 아래 신호 삼각형보다 뒤(아래 레이어)에 오게 한다.
