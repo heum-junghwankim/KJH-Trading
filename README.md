@@ -13,7 +13,7 @@
 
 | 지표 | 역할 | 링크 |
 | --- | --- | --- |
-| **이치모쿠**(메인) | 추세추종 매수/매도 신호 | [인디케이터](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/ICHIMOKU/advanced-ichimoku.pine) · [전략](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/ICHIMOKU/advanced-ichimoku-strategy.pine) · [설명](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/ICHIMOKU/README.md) |
+| **이치모쿠**(메인) | 추세추종 매수/매도 신호 | [인디케이터](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/ICHIMOKU/advanced-ichimoku.pine) · [설명](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/ICHIMOKU/README.md) |
 | 거래량 압력 | 신호 봉에 추진력이 실렸나 | [README](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/%EA%B1%B0%EB%9E%98%EB%9F%89%20%EC%95%95%EB%A0%A5%20%EC%B6%94%EC%A0%81/README.md) |
 | cRSI | 국면(수축/확장)별 자리·다이버전스 | [README](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/cRSI/README.md) |
 | CCI | 극단 후 재진입 + 추세 추종 | [README](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/CCI/README.md) |
@@ -35,7 +35,7 @@
 - 같은 방향 신호는 반대 신호가 한 번 나온 뒤에만 다시 발생(중복 방지). 같은 신호를 래깅 설정값의 **0.5× / 1× / 2× 스케일**로 계산해 삼각형 **크기**(가장 작음/작음/보통)로 동시 표시하고, 일반 신호와 함께 **거래량 가중(VWMA) 반투명 마커**도 같이 표시. (여러 크기가 한 봉에 겹치면 신뢰↑)
 - ⚠️ 추세추종이라 **횡보장 휩쏘 / 후행성** 약점 → 그대로 믿지 말고 아래 상태판·리본 필터로 검증.
 
-차트 **우측 하단 테이블**(인디케이터 전용 — 전략은 차트에 아무것도 그리지 않는 트레이딩 전용):
+차트 **우측 하단 테이블**:
 
 | 행 | 내용 |
 | --- | --- |
@@ -81,4 +81,5 @@
 1. `Pine Editor`에 [이치모쿠 인디케이터](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/ICHIMOKU/advanced-ichimoku.pine)를 올려 메인 신호를 띄웁니다.
 2. 보조지표 5종을 추가해 상태판 `포지션`이 신호 방향으로 정렬되는지 확인합니다.
 3. 이치모쿠 차트의 `리본 압축/분출` 다이아몬드로 휩쏘 구간(`횡보 압축`)인지, 풀릴 때 `상승/하락 분출`이 신호 방향과 맞는지 거릅니다. (이평선 리본 오버레이는 정렬·추세 구조를 눈으로 볼 때 보조로 사용)
-4. 수익률 검증은 [전략](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/ICHIMOKU/advanced-ichimoku-strategy.pine)을 `Strategy Tester`에서 돌립니다.
+
+> 이치모쿠 백테스트 전략은 추후 다시 추가될 예정입니다.

@@ -150,21 +150,8 @@ plot(showKumoUpper ? kumoUpper : na, offset=cloudOffset, title="Kumo Cloud Upper
 plot(showKumoLower ? kumoLower : na, offset=cloudOffset, title="Kumo Cloud Lower Line", color=kumoBoundaryColor, linewidth=lineWidth, display=display.all - display.price_scale)
 fill(fillSourceA, fillSourceB, title="Cloud Fill", color=showCloudFill ? (leadingSpanA > leadingSpanB ? bullishCloudColor : bearishCloudColor) : na)
 
-// 일반 신호 (불투명) — 스케일별 크기: 0.5×=가장 작음, 1×=작음, 2×=보통
-plotshape(showBuySignal and buy05, title="매수 0.5×", style=shape.triangleup, location=location.belowbar, color=defaultBuyColor, size=size.tiny)
-plotshape(showBuySignal and buy10, title="매수 1×", style=shape.triangleup, location=location.belowbar, color=defaultBuyColor, size=size.small)
-plotshape(showBuySignal and buy20, title="매수 2×", style=shape.triangleup, location=location.belowbar, color=defaultBuyColor, size=size.normal)
-plotshape(showSellSignal and sell05, title="매도 0.5×", style=shape.triangledown, location=location.abovebar, color=defaultSellColor, size=size.tiny)
-plotshape(showSellSignal and sell10, title="매도 1×", style=shape.triangledown, location=location.abovebar, color=defaultSellColor, size=size.small)
-plotshape(showSellSignal and sell20, title="매도 2×", style=shape.triangledown, location=location.abovebar, color=defaultSellColor, size=size.normal)
-
-// 거래량 가중(VWMA) 신호 (반투명) — 동일 스케일/크기
-plotshape(showVwSignals and vwBuy05, title="매수 0.5× (거래량)", style=shape.triangleup, location=location.belowbar, color=color.new(defaultBuyColor, vwTransp), size=size.tiny)
-plotshape(showVwSignals and vwBuy10, title="매수 1× (거래량)", style=shape.triangleup, location=location.belowbar, color=color.new(defaultBuyColor, vwTransp), size=size.small)
-plotshape(showVwSignals and vwBuy20, title="매수 2× (거래량)", style=shape.triangleup, location=location.belowbar, color=color.new(defaultBuyColor, vwTransp), size=size.normal)
-plotshape(showVwSignals and vwSell05, title="매도 0.5× (거래량)", style=shape.triangledown, location=location.abovebar, color=color.new(defaultSellColor, vwTransp), size=size.tiny)
-plotshape(showVwSignals and vwSell10, title="매도 1× (거래량)", style=shape.triangledown, location=location.abovebar, color=color.new(defaultSellColor, vwTransp), size=size.small)
-plotshape(showVwSignals and vwSell20, title="매도 2× (거래량)", style=shape.triangledown, location=location.abovebar, color=color.new(defaultSellColor, vwTransp), size=size.normal)
+// 신호 삼각형은 리본 압축/분출 다이아몬드보다 **뒤(코드상 나중)** 에 그려 삼각형이 위 레이어에 오도록
+// 파일 하단(다이아몬드 plotshape 다음)에서 그린다.
 
 alertcondition(buy10, title="Advanced Ichimoku Buy Signal", message="Advanced Ichimoku buy signal")
 alertcondition(sell10, title="Advanced Ichimoku Sell Signal", message="Advanced Ichimoku sell signal")
@@ -227,8 +214,9 @@ rHeight = isBMode ? bWidth : aHeight   // 테이블 폭/ATR 표시용
 rConfirmed = not ribbonConfirmOnClose or barstate.isconfirmed
 rChopEnter = compNow and not compNow[1]
 
-// 수축 진입 시 무장 → 폭이 다시 늘기 시작하는(확장) 첫 봉에 방향 확정. (A and B는 방향 일치 시에만)
+// 수축 진입 시 무장 → 확장 첫 봉에 방향 확정. 또한 직전 분출과 **반대 방향** 확장이면 압축 없이 바로 반전 분출.
 var bool rArmed = false
+var int rLastExpDir = 0   // 직전 분출 방향(1=상승, -1=하락, 0=없음)
 var string ribbonState = "대기"
 bool rBullExpansion = false
 bool rBearExpansion = false
@@ -236,11 +224,15 @@ if rConfirmed
     if rChopEnter
         rArmed := true
         ribbonState := "횡보 압축"
-    else if rArmed and expNow and (bullNow or bearNow)
-        rBullExpansion := bullNow
-        rBearExpansion := bearNow
-        ribbonState := bullNow ? "상승 분출" : "하락 분출"
-        rArmed := false
+    else if expNow and (bullNow or bearNow)
+        expDir = bullNow ? 1 : -1
+        // 발화 조건: 압축 후 무장(rArmed) 또는 직전 분출과 반대 방향(압축 없이 직접 반전)
+        if rArmed or (rLastExpDir != 0 and expDir != rLastExpDir)
+            rBullExpansion := bullNow
+            rBearExpansion := bearNow
+            ribbonState := bullNow ? "상승 분출" : "하락 분출"
+            rArmed := false
+            rLastExpDir := expDir
 
 ribbonChop = showChopWarn and rConfirmed and rChopEnter
 ribbonBull = showExpansion and rBullExpansion
@@ -255,14 +247,43 @@ cloudBottom = math.min(curSpanA, curSpanB)
 cloudThickAtr = (cloudTop - cloudBottom) / rAtr
 cloudPosText = close > cloudTop ? "위" : close < cloudBottom ? "아래" : "안"
 cloudColorText = curSpanA >= curSpanB ? "양운" : "음운"
-cloudCellText = cloudPosText + "·" + cloudColorText + " (" + str.tostring(cloudThickAtr, "0.0") + ")"
+cloudCellText = cloudPosText + "·" + cloudColorText
 cloudCellColor = close > cloudTop ? color.new(color.green, 30) : close < cloudBottom ? color.new(color.red, 30) : color.new(color.gray, 40)
 
 // 리본 상태 = 마지막으로 발생한 다이아몬드(상태머신) 기준이라 차트 표시와 동기화된다.
-// 괄호 숫자 = 현재 리본폭/ATR 배수(압축 배수보다 작으면 압축 구간).
-ribbonWidthRatio = rHeight / rAtr
-ribbonCellText = ribbonState + " (" + str.tostring(ribbonWidthRatio, "0.00") + ")"
+// 괄호 숫자 = 현재 리본폭이 '압축 기준선'(ATR×수축배수) 대비 몇 %인지. 음수면 압축 구간(기준보다 좁음), 양수면 그만큼 넓음.
+ribbonComprPct = rAtr != 0 and ribbonCompressAtrMult != 0 ? (rHeight / rAtr / ribbonCompressAtrMult - 1) * 100 : na
+ribbonCellText = ribbonState + " (" + (na(ribbonComprPct) ? "-" : (ribbonComprPct > 0 ? "+" : "") + str.tostring(ribbonComprPct, "0.0") + "%") + ")"
 ribbonCellColor = ribbonState == "상승 분출" ? color.new(color.blue, 30) : ribbonState == "하락 분출" ? color.new(color.red, 30) : color.new(color.gray, 40)
+
+// =========================
+// 이격도 (Disparity) — 종가가 선택한 이평선에서 몇 %인지. 기준선 100, 임계 ±N%면 되돌림 주의.
+// =========================
+disparityMaType = input.string("SMA", title="이격도 MA 종류", options=["SMA", "EMA", "WMA", "VWMA"], group="이격도")
+disparityMaLen = input.int(20, minval=1, title="이격도 MA 길이", group="이격도")
+disparityThreshold = input.float(10.0, minval=0.1, step=0.1, title="이격도 임계(±%, 고정)", group="이격도")
+disparityStatLen = input.int(50, minval=5, title="이격도 통계 구간(적응형)", group="이격도")
+disparityStatMult = input.float(1.5, minval=0.1, step=0.1, title="이격도 통계 시그마 배수", group="이격도")
+disparityMa = switch disparityMaType
+    "SMA" => ta.sma(close, disparityMaLen)
+    "EMA" => ta.ema(close, disparityMaLen)
+    "WMA" => ta.wma(close, disparityMaLen)
+    "VWMA" => ta.vwma(close, disparityMaLen)
+disparity = not na(disparityMa) and disparityMa != 0 ? close / disparityMa * 100 : na
+// 되돌림 판정 = 고정 임계(±%) + 적응형(자기 표준편차 시그마), 방향별로 두 기준 충족 개수를 센다.
+//  1개 충족 → '되돌림 주의'(둔탁색), 2개 모두 → '되돌림 확실'(선명색), 0개 → '중립'(회색).
+disparityStd = ta.stdev(disparity, disparityStatLen)
+disparityStatOk = not na(disparity) and not na(disparityStd) and disparityStd > 0
+overFixed  = not na(disparity) and disparity - 100 >= disparityThreshold
+overStat   = disparityStatOk and disparity - 100 >= disparityStatMult * disparityStd
+underFixed = not na(disparity) and 100 - disparity >= disparityThreshold
+underStat  = disparityStatOk and 100 - disparity >= disparityStatMult * disparityStd
+overCount  = (overFixed ? 1 : 0) + (overStat ? 1 : 0)
+underCount = (underFixed ? 1 : 0) + (underStat ? 1 : 0)
+disparityState = (overCount == 2 or underCount == 2) ? "되돌림 확실" : (overCount >= 1 or underCount >= 1) ? "되돌림 주의" : "중립"
+disparityCellText = na(disparity) ? "-" : str.tostring(disparity, "0.0") + "% (" + disparityState + ")"
+// 과열(위)=빨강계 / 과매도(아래)=초록계, 확실=선명(투명도 0) / 주의=둔탁(채도 낮은 톤)
+disparityCellColor = overCount == 2 ? color.new(color.red, 0) : underCount == 2 ? color.new(color.green, 0) : overCount >= 1 ? color.new(#A57A7A, 0) : underCount >= 1 ? color.new(#6E8F72, 0) : color.new(color.gray, 40)
 
 // =========================
 // 우측 하단: 다음 봉 트리거 가격 + 구름대/리본 상태
@@ -293,7 +314,10 @@ f_trigger(int convP, int baseP, int dispP) =>
 [buyTrig10, sellTrig10] = f_trigger(conversionPeriods, basePeriods, displacement)
 [buyTrig20, sellTrig20] = f_trigger(f_scale(conversionPeriods, 2.0), f_scale(basePeriods, 2.0), f_scale(displacement, 2.0))
 
-f_price(p) => str.tostring(p, format.mintick)
+// 천 단위 쉼표 + 심볼 mintick 소수 자릿수
+priceDecimals = syminfo.mintick >= 1 ? 0 : syminfo.mintick >= 0.1 ? 1 : syminfo.mintick >= 0.01 ? 2 : syminfo.mintick >= 0.001 ? 3 : syminfo.mintick >= 0.0001 ? 4 : 5
+priceFmt = priceDecimals == 0 ? "#,##0" : priceDecimals == 1 ? "#,##0.0" : priceDecimals == 2 ? "#,##0.00" : priceDecimals == 3 ? "#,##0.000" : priceDecimals == 4 ? "#,##0.0000" : "#,##0.00000"
+f_price(p) => str.tostring(p, priceFmt)
 // 화살표는 현재 가격(close) 대비 트리거 가격 위치로 결정: 트리거가 현재가보다 높으면 ↑, 낮으면 ↓
 f_arrow(refPrice) => refPrice > close ? "↑ " : "↓ "
 // 청산가의 현재 종가 대비 % (롱 청산은 아래라 −, 숏 청산은 위라 +)
@@ -301,23 +325,28 @@ f_pct(p) =>
     d = (p - close) / close * 100
     (d > 0 ? "+" : "") + str.tostring(d, "0.0") + "%"
 
-// 샹들리에 ATR 트레일링 청산가 (현재 봉 기준 롱/숏 청산) — 차트에 수평선 + 테이블 표시
-ceLength = input.int(22, title="청산 룩백 길이", minval=1, group="청산(샹들리에)")
-ceAtrLen = input.int(22, title="청산 ATR 길이", minval=1, group="청산(샹들리에)")
-ceMult = input.float(3.0, title="청산 ATR 배수", minval=0.0, step=0.01, group="청산(샹들리에)")
-// 청산 가격 모드(샹들리에 기반):
+// 스윕(점선) = 샹들리에 ATR 트레일링(세력 스톱헌트 자리). 청산(직선) = 그 너머(버퍼+스윙 풀).
+ceLength = input.int(22, title="스윕 룩백 길이", minval=1, group="스윕/청산")
+ceAtrLen = input.int(22, title="스윕 ATR 길이", minval=1, group="스윕/청산")
+ceMult = input.float(3.0, title="스윕 ATR 배수", minval=0.0, step=0.01, group="스윕/청산")
+// 스윕 가격 모드(샹들리에 기반):
 //  - 기본: 표준 샹들리에(룩백 고가/저가 − ATR)
-//  - 거래량 가중: 거래량 큰 봉(VWMA)에 가중 → 거래 몰린 봉에서 청산가를 끌어올림
-//  - 최근봉 가중: 최근봉(WMA)에 가중 → 휩쏘 급등/급락 봉에서 청산가를 빠르게·높게
+//  - 거래량 가중: 거래량 큰 봉(VWMA)에 가중 → 거래 몰린 봉에서 스윕가를 끌어올림
+//  - 최근봉 가중: 최근봉(WMA)에 가중 → 휩쏘 급등/급락 봉에서 스윕가를 빠르게·높게
 //  - 거래량+최근봉: 두 가중을 함께(거래량 × 선형 최근봉)
-// 기본은 룩백 극값(highest/lowest), 가중 모드는 가중 트레일 길이·배수로 계산한 가중평균 앵커를 그대로 쓴다(모드마다 위치가 달라짐).
-ceMode = input.string("기본", title="청산 가격 모드", options=["기본", "거래량 가중", "최근봉 가중", "거래량+최근봉"], group="청산(샹들리에)")
-ceWeightLen = input.int(10, title="가중 트레일 길이", minval=1, group="청산(샹들리에)")
-ceWeightMult = input.float(1.5, title="가중 트레일 ATR 배수", minval=0.0, step=0.01, group="청산(샹들리에)")
-showExitLines = input.bool(true, title="청산선 표시(과거 트레일 + 현재 수평선)", group="청산(샹들리에)")
-exitLineWidth = input.int(1, title="청산선 두께(트레일·수평선 공통)", minval=1, group="청산(샹들리에)")
-longExitLineColor = input.color(#00E5FF, title="롱 청산선 색", group="청산(샹들리에)")
-shortExitLineColor = input.color(#FF8C00, title="숏 청산선 색", group="청산(샹들리에)")
+ceMode = input.string("기본", title="스윕 가격 모드", options=["기본", "거래량 가중", "최근봉 가중", "거래량+최근봉"], group="스윕/청산")
+ceWeightLen = input.int(10, title="가중 트레일 길이", minval=1, group="스윕/청산")
+ceWeightMult = input.float(1.5, title="가중 트레일 ATR 배수", minval=0.0, step=0.01, group="스윕/청산")
+// 청산(직선) = 스윕 너머. 세력이 스윕을 더 깊게 찌를 것을 예상해 청산선을 그만큼 바깥에 둔다.
+sweepBufferMult = input.float(0.4, title="청산 버퍼 ATR 배수(스윕 너머)", minval=0.0, step=0.1, group="스윕/청산")
+useSweepPivot = input.bool(true, title="청산에 스윙 풀(피벗) 반영", group="스윕/청산")
+sweepPivotLen = input.int(5, minval=1, title="스윙 풀 좌우 봉수", group="스윕/청산")
+sweepMaxGapMult = input.float(1.0, title="청산-스윕 최대 간격 ATR 배수", minval=0.1, step=0.1, group="스윕/청산")
+trailLen = input.int(200, title="트레일 길이(봉)", minval=10, group="스윕/청산")
+showExitLines = input.bool(true, title="스윕·청산선 표시(트레일+수평선)", group="스윕/청산")
+exitLineWidth = input.int(1, title="선 두께(스윕·청산 공통)", minval=1, group="스윕/청산")
+longExitLineColor = input.color(#00E5FF, title="롱 선 색(스윕·청산)", group="스윕/청산")
+shortExitLineColor = input.color(#FF8C00, title="숏 선 색(스윕·청산)", group="스윕/청산")
 
 ceAtrVal = ceMult * ta.atr(ceAtrLen)
 // 거래량 × 최근봉(선형) 가중 평균
@@ -348,22 +377,56 @@ var float shortCE = na
 shortCEPrev = nz(shortCE[1], shortCERaw)
 shortCE := close[1] < shortCEPrev ? math.min(shortCERaw, shortCEPrev) : shortCERaw
 
-// 청산 가격선: 과거 봉의 트레일(plot)이 현재 봉의 청산가에서 끝나고,
-// 그 지점에서 현재 봉 기준 수평선(우측 확장)과 맞닿는다.
-plot(showExitLines ? longCE : na, title="롱 청산선(트레일)", color=longExitLineColor, linewidth=exitLineWidth, display=display.all - display.price_scale)
-plot(showExitLines ? shortCE : na, title="숏 청산선(트레일)", color=shortExitLineColor, linewidth=exitLineWidth, display=display.all - display.price_scale)
-var line longExitLine = na
-var line shortExitLine = na
+// 청산(직선) = 스윕(longCE/shortCE) 너머. ATR 버퍼 + 옵션으로 가장 가까운 스윙 풀(피벗) 너머까지.
+sweepAtr = ta.atr(ceAtrLen)
+sweepPLow = ta.pivotlow(sweepPivotLen, sweepPivotLen)
+sweepPHigh = ta.pivothigh(sweepPivotLen, sweepPivotLen)
+var float lastSweepPLow = na
+var float lastSweepPHigh = na
+lastSweepPLow := not na(sweepPLow) ? sweepPLow : lastSweepPLow
+lastSweepPHigh := not na(sweepPHigh) ? sweepPHigh : lastSweepPHigh
+longClear = longCE - sweepBufferMult * sweepAtr
+longClear := useSweepPivot and not na(lastSweepPLow) ? math.min(longClear, lastSweepPLow - syminfo.mintick) : longClear
+longClear := math.max(longClear, longCE - sweepMaxGapMult * sweepAtr)   // 스윕과의 간격 상한(괴리감 방지)
+shortClear = shortCE + sweepBufferMult * sweepAtr
+shortClear := useSweepPivot and not na(lastSweepPHigh) ? math.max(shortClear, lastSweepPHigh + syminfo.mintick) : shortClear
+shortClear := math.min(shortClear, shortCE + sweepMaxGapMult * sweepAtr)
+
+// 스윕(점선)·청산(직선) 트레일 — plot이 아니라 polyline(선)으로 그려 점선/직선 스타일을 적용.
+f_trailLine(float src, int lb, color col, int w, string sty, bool show) =>
+    var polyline pl = na
+    if barstate.islast
+        polyline.delete(pl)
+        pl := na
+        if show
+            pts = array.new<chart.point>()
+            for i = lb to 0
+                if not na(src[i])
+                    array.push(pts, chart.point.from_index(bar_index - i, src[i]))
+            pl := array.size(pts) > 1 ? polyline.new(pts, curved=false, closed=false, line_color=col, line_width=w, line_style=sty) : na
+    pl
+trailLb = math.min(bar_index, trailLen)
+f_trailLine(longCE,     trailLb, longExitLineColor,  exitLineWidth, line.style_dotted, showExitLines)
+f_trailLine(shortCE,    trailLb, shortExitLineColor, exitLineWidth, line.style_dotted, showExitLines)
+f_trailLine(longClear,  trailLb, longExitLineColor,  exitLineWidth, line.style_solid,  showExitLines)
+f_trailLine(shortClear, trailLb, shortExitLineColor, exitLineWidth, line.style_solid,  showExitLines)
+var line longSweepLine = na
+var line shortSweepLine = na
+var line longClearLine = na
+var line shortClearLine = na
 if showExitLines and barstate.islast
-    line.delete(longExitLine)
-    line.delete(shortExitLine)
-    longExitLine := line.new(bar_index, longCE, bar_index + 1, longCE, extend=extend.right, color=longExitLineColor, width=exitLineWidth)
-    shortExitLine := line.new(bar_index, shortCE, bar_index + 1, shortCE, extend=extend.right, color=shortExitLineColor, width=exitLineWidth)
+    line.delete(longSweepLine)
+    line.delete(shortSweepLine)
+    line.delete(longClearLine)
+    line.delete(shortClearLine)
+    longSweepLine := line.new(bar_index, longCE, bar_index + 1, longCE, extend=extend.right, color=longExitLineColor, width=exitLineWidth, style=line.style_dotted)
+    shortSweepLine := line.new(bar_index, shortCE, bar_index + 1, shortCE, extend=extend.right, color=shortExitLineColor, width=exitLineWidth, style=line.style_dotted)
+    longClearLine := line.new(bar_index, longClear, bar_index + 1, longClear, extend=extend.right, color=longExitLineColor, width=exitLineWidth, style=line.style_solid)
+    shortClearLine := line.new(bar_index, shortClear, bar_index + 1, shortClear, extend=extend.right, color=shortExitLineColor, width=exitLineWidth, style=line.style_solid)
 
-// 트리거 셀 텍스트: 중복차단이면 '-', 아니면 화살표+가격
-f_trigCell(blocked, p) => blocked ? "-" : f_arrow(p) + f_price(p)
+f_trigCell(blocked, p) => blocked ? "-" : f_arrow(p) + f_price(p) + " (" + f_pct(p) + ")"
 
-var table triggerTable = table.new(position.bottom_right, 2, 12, border_width=1, border_color=color.new(color.gray, 50))
+var table triggerTable = table.new(position.bottom_right, 2, 14, border_width=1, border_color=color.new(color.gray, 50))
 if barstate.islast
     table.cell(triggerTable, 0, 0, "다음 봉", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
     table.cell(triggerTable, 1, 0, "트리거 가격", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
@@ -388,19 +451,41 @@ if barstate.islast
     table.cell(triggerTable, 0, 8, "이평 리본", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
     table.cell(triggerTable, 1, 8, ribbonCellText, text_color=color.white, bgcolor=ribbonCellColor, text_size=size.small)
 
-    table.cell(triggerTable, 0, 9, "롱 청산", text_color=color.white, bgcolor=color.new(longExitLineColor, 55), text_size=size.small)
-    table.cell(triggerTable, 1, 9, f_price(longCE) + " (" + f_pct(longCE) + ")", text_color=color.white, bgcolor=color.new(longExitLineColor, 35), text_size=size.small)
+    table.cell(triggerTable, 0, 9, "이격도 (" + str.tostring(disparityMaLen) + ")", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 9, disparityCellText, text_color=color.white, bgcolor=disparityCellColor, text_size=size.small)
 
-    table.cell(triggerTable, 0, 10, "숏 청산", text_color=color.white, bgcolor=color.new(shortExitLineColor, 55), text_size=size.small)
-    table.cell(triggerTable, 1, 10, f_price(shortCE) + " (" + f_pct(shortCE) + ")", text_color=color.white, bgcolor=color.new(shortExitLineColor, 35), text_size=size.small)
+    table.cell(triggerTable, 0, 10, "롱 스윕", text_color=color.white, bgcolor=color.new(longExitLineColor, 65), text_size=size.small)
+    table.cell(triggerTable, 1, 10, f_price(longCE) + " (" + f_pct(longCE) + ")", text_color=color.white, bgcolor=color.new(longExitLineColor, 50), text_size=size.small)
 
-    table.cell(triggerTable, 0, 11, "청산 모드", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 11, ceMode, text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
+    table.cell(triggerTable, 0, 11, "숏 스윕", text_color=color.white, bgcolor=color.new(shortExitLineColor, 65), text_size=size.small)
+    table.cell(triggerTable, 1, 11, f_price(shortCE) + " (" + f_pct(shortCE) + ")", text_color=color.white, bgcolor=color.new(shortExitLineColor, 50), text_size=size.small)
 
-plotshape(series=ribbonChop, title="횡보 압축 (아래)", style=shape.diamond, location=location.belowbar, color=color.new(color.gray, 0), size=size.tiny)
-plotshape(series=ribbonChop, title="횡보 압축 (위)", style=shape.diamond, location=location.abovebar, color=color.new(color.gray, 0), size=size.tiny)
+    table.cell(triggerTable, 0, 12, "롱 청산", text_color=color.white, bgcolor=color.new(longExitLineColor, 40), text_size=size.small)
+    table.cell(triggerTable, 1, 12, f_price(longClear) + " (" + f_pct(longClear) + ")", text_color=color.white, bgcolor=color.new(longExitLineColor, 20), text_size=size.small)
+
+    table.cell(triggerTable, 0, 13, "숏 청산", text_color=color.white, bgcolor=color.new(shortExitLineColor, 40), text_size=size.small)
+    table.cell(triggerTable, 1, 13, f_price(shortClear) + " (" + f_pct(shortClear) + ")", text_color=color.white, bgcolor=color.new(shortExitLineColor, 20), text_size=size.small)
+
+// 이평 기반 상태 다이아몬드 (압축=보라 #9C27B0[상승·하락과 확실히 구분], 상승 분출=파랑, 하락 분출=빨강)
+// 먼저 그려서 아래 신호 삼각형보다 뒤(아래 레이어)에 오게 한다.
+plotshape(series=ribbonChop, title="횡보 압축 (아래)", style=shape.diamond, location=location.belowbar, color=color.new(#9C27B0, 0), size=size.tiny)
+plotshape(series=ribbonChop, title="횡보 압축 (위)", style=shape.diamond, location=location.abovebar, color=color.new(#9C27B0, 0), size=size.tiny)
 plotshape(series=ribbonBull, title="상승 분출", style=shape.diamond, location=location.belowbar, color=color.new(color.blue, 0), size=size.tiny)
 plotshape(series=ribbonBear, title="하락 분출", style=shape.diamond, location=location.abovebar, color=color.new(color.red, 0), size=size.tiny)
+
+// 신호 삼각형 — 다이아몬드 뒤에(나중에) 그려 위 레이어로. 스케일별 크기: 0.5×=가장 작음, 1×=작음, 2×=보통
+plotshape(showBuySignal and buy05, title="매수 0.5×", style=shape.triangleup, location=location.belowbar, color=defaultBuyColor, size=size.tiny)
+plotshape(showBuySignal and buy10, title="매수 1×", style=shape.triangleup, location=location.belowbar, color=defaultBuyColor, size=size.small)
+plotshape(showBuySignal and buy20, title="매수 2×", style=shape.triangleup, location=location.belowbar, color=defaultBuyColor, size=size.normal)
+plotshape(showSellSignal and sell05, title="매도 0.5×", style=shape.triangledown, location=location.abovebar, color=defaultSellColor, size=size.tiny)
+plotshape(showSellSignal and sell10, title="매도 1×", style=shape.triangledown, location=location.abovebar, color=defaultSellColor, size=size.small)
+plotshape(showSellSignal and sell20, title="매도 2×", style=shape.triangledown, location=location.abovebar, color=defaultSellColor, size=size.normal)
+plotshape(showVwSignals and vwBuy05, title="매수 0.5× (거래량)", style=shape.triangleup, location=location.belowbar, color=color.new(defaultBuyColor, vwTransp), size=size.tiny)
+plotshape(showVwSignals and vwBuy10, title="매수 1× (거래량)", style=shape.triangleup, location=location.belowbar, color=color.new(defaultBuyColor, vwTransp), size=size.small)
+plotshape(showVwSignals and vwBuy20, title="매수 2× (거래량)", style=shape.triangleup, location=location.belowbar, color=color.new(defaultBuyColor, vwTransp), size=size.normal)
+plotshape(showVwSignals and vwSell05, title="매도 0.5× (거래량)", style=shape.triangledown, location=location.abovebar, color=color.new(defaultSellColor, vwTransp), size=size.tiny)
+plotshape(showVwSignals and vwSell10, title="매도 1× (거래량)", style=shape.triangledown, location=location.abovebar, color=color.new(defaultSellColor, vwTransp), size=size.small)
+plotshape(showVwSignals and vwSell20, title="매도 2× (거래량)", style=shape.triangledown, location=location.abovebar, color=color.new(defaultSellColor, vwTransp), size=size.normal)
 
 alertcondition(ribbonChop, title="횡보 압축", message="Ribbon compressed (chop) — Ichimoku signals unreliable.")
 alertcondition(ribbonBull, title="상승 분출", message="Ribbon bullish expansion after compression.")

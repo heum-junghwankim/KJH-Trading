@@ -96,7 +96,8 @@ priceRising  = close > close[1]
 longConfirm  = cciPos == 1 and cciRising and priceRising      // 가격·CCI 동반 상승 = 추세 확인
 shortConfirm = cciPos == -1 and not cciRising and not priceRising  // 가격·CCI 동반 하락 = 추세 확인
 posVerdict = cciPos == 1 ? (longConfirm ? "롱 유리(추세 확인)" : "롱 유리(둔화)") : cciPos == -1 ? (shortConfirm ? "숏 유리(추세 확인)" : "숏 유리(둔화)") : bullArmed ? "롱 대기(과매도)" : bearArmed ? "숏 대기(과매수)" : "중립"
-posColor   = cciPos == 1 ? (longConfirm ? color.new(color.green, 0) : color.new(color.green, 45)) : cciPos == -1 ? (shortConfirm ? color.new(color.red, 0) : color.new(color.red, 45)) : color.new(color.gray, 40)
+// 추세 확인 = 채도 높은(선명한) 녹/적, 둔화 = 채도 낮은(탁한) 녹/적 (OBV-ADX 약화와 동일 톤)
+posColor   = cciPos == 1 ? (longConfirm ? color.new(color.green, 0) : color.new(#6E8F72, 0)) : cciPos == -1 ? (shortConfirm ? color.new(color.red, 0) : color.new(#A57A7A, 0)) : color.new(color.gray, 40)
 
 var table cciStatus = table.new(position.top_right, 2, 3, border_width=1, border_color=color.new(color.gray, 50))
 if barstate.islast
