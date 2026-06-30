@@ -218,12 +218,14 @@ rChopEnter = compNow and not compNow[1]
 var bool rArmed = false
 var int rLastExpDir = 0   // 직전 분출 방향(1=상승, -1=하락, 0=없음)
 var string ribbonState = "대기"
+var float ribbonEventClose = na   // 마지막 이벤트(압축/분출) 발생 봉의 종가 — 이후 가격 변화% 기준
 bool rBullExpansion = false
 bool rBearExpansion = false
 if rConfirmed
     if rChopEnter
         rArmed := true
         ribbonState := "횡보 압축"
+        ribbonEventClose := close
     else if expNow and (bullNow or bearNow)
         expDir = bullNow ? 1 : -1
         // 발화 조건: 압축 후 무장(rArmed) 또는 직전 분출과 반대 방향(압축 없이 직접 반전)
@@ -233,6 +235,7 @@ if rConfirmed
             ribbonState := bullNow ? "상승 분출" : "하락 분출"
             rArmed := false
             rLastExpDir := expDir
+            ribbonEventClose := close
 
 ribbonChop = showChopWarn and rConfirmed and rChopEnter
 ribbonBull = showExpansion and rBullExpansion
@@ -251,9 +254,9 @@ cloudCellText = cloudPosText + "·" + cloudColorText
 cloudCellColor = close > cloudTop ? color.new(color.green, 30) : close < cloudBottom ? color.new(color.red, 30) : color.new(color.gray, 40)
 
 // 리본 상태 = 마지막으로 발생한 다이아몬드(상태머신) 기준이라 차트 표시와 동기화된다.
-// 괄호 숫자 = 현재 리본폭이 '압축 기준선'(ATR×수축배수) 대비 몇 %인지. 음수면 압축 구간(기준보다 좁음), 양수면 그만큼 넓음.
-ribbonComprPct = rAtr != 0 and ribbonCompressAtrMult != 0 ? (rHeight / rAtr / ribbonCompressAtrMult - 1) * 100 : na
-ribbonCellText = ribbonState + " (" + (na(ribbonComprPct) ? "-" : (ribbonComprPct > 0 ? "+" : "") + str.tostring(ribbonComprPct, "0.0") + "%") + ")"
+// 괄호 숫자 = 마지막 이벤트(압축/분출) 발생 봉 종가 대비 현재 종가의 가격 변화 %.
+ribbonMovePct = not na(ribbonEventClose) and ribbonEventClose != 0 ? (close / ribbonEventClose - 1) * 100 : na
+ribbonCellText = ribbonState + (na(ribbonMovePct) ? "" : " (" + (ribbonMovePct > 0 ? "+" : "") + str.tostring(ribbonMovePct, "0.0") + "%)")
 ribbonCellColor = ribbonState == "상승 분출" ? color.new(color.blue, 30) : ribbonState == "하락 분출" ? color.new(color.red, 30) : color.new(color.gray, 40)
 
 // =========================
