@@ -22,7 +22,7 @@ showBuySignal = input.bool(true, title="매수 신호 표시", group="매수 신
 showSellSignal = input.bool(true, title="매도 신호 표시", group="매도 신호")
 
 lineWidth = 1
-conversionLineColor = input.color(#E91E63, "컨버전 라인 색", group="색상")
+conversionLineColor = input.color(#00BFA5, "컨버전 라인 색", group="색상")
 baseLineColor = input.color(#00FF00, "베이스 라인 색", group="색상")
 laggingSpanColor = input.color(#FFEB3B, "레깅 스팬 색", group="색상")
 leadingSpanAColor = input.color(#7B9077, "리딩 스팬 A 색", group="색상")
@@ -463,7 +463,7 @@ trailLen = input.int(200, title="트레일 길이(봉)", minval=10, group="스�
 showExitLines = input.bool(true, title="스윕·청산선 표시(트레일+수평선)", group="스윕/청산")
 exitLineWidth = input.int(1, title="선 두께(스윕·청산 공통)", minval=1, group="스윕/청산")
 longExitLineColor = input.color(#00E5FF, title="롱 선 색(스윕·청산)", group="스윕/청산")
-shortExitLineColor = input.color(#FF8C00, title="숏 선 색(스윕·청산)", group="스윕/청산")
+shortExitLineColor = input.color(#FF1744, title="숏 선 색(스윕·청산)", group="스윕/청산")
 
 atrCe = ta.atr(ceAtrLen)   // 한 번만 계산해 ceAtrVal·weightAtr·sweepAtr에서 재사용(중복 ta.atr 제거)
 ceAtrVal = ceMult * atrCe
