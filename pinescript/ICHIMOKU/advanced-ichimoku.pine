@@ -56,9 +56,7 @@ vwTransp = input.int(50, minval=0, maxval=100, title="거래량 가중 투명도
 // =========================
 f_scale(p, mult) => math.max(1, int(math.round(p * mult)))
 
-f_scaleSignals(int convP, int baseP, int dispP) =>
-    conv = donchian(convP)
-    base = donchian(baseP)
+f_scaleSignals(float conv, float base, int convP, int baseP, int dispP) =>
     lagOff = math.max(dispP - 1, 0)
     lagBaseRef = base[lagOff]
     lagBull = not na(lagBaseRef) and (ta.crossover(close, lagBaseRef) or close > lagBaseRef)
@@ -110,9 +108,20 @@ f_scaleSignals(int convP, int baseP, int dispP) =>
         vLastDir := -1
     [bSig, sSig, vbSig, vsSig]
 
-[buy05, sell05, vwBuy05, vwSell05] = f_scaleSignals(f_scale(conversionPeriods, 0.5), f_scale(basePeriods, 0.5), f_scale(displacement, 0.5))
-[buy10, sell10, vwBuy10, vwSell10] = f_scaleSignals(conversionPeriods, basePeriods, displacement)
-[buy20, sell20, vwBuy20, vwSell20] = f_scaleSignals(f_scale(conversionPeriods, 2.0), f_scale(basePeriods, 2.0), f_scale(displacement, 2.0))
+// 스케일 기간·donchian 라인을 한 번만 계산해 신호·트리거 함수가 함께 재활용(1×는 전역 conversionLine/baseLine 재사용)
+c05 = f_scale(conversionPeriods, 0.5)
+b05 = f_scale(basePeriods, 0.5)
+d05 = f_scale(displacement, 0.5)
+c20 = f_scale(conversionPeriods, 2.0)
+b20 = f_scale(basePeriods, 2.0)
+d20 = f_scale(displacement, 2.0)
+donC05 = donchian(c05)
+donB05 = donchian(b05)
+donC20 = donchian(c20)
+donB20 = donchian(b20)
+[buy05, sell05, vwBuy05, vwSell05] = f_scaleSignals(donC05, donB05, c05, b05, d05)
+[buy10, sell10, vwBuy10, vwSell10] = f_scaleSignals(conversionLine, baseLine, conversionPeriods, basePeriods, displacement)
+[buy20, sell20, vwBuy20, vwSell20] = f_scaleSignals(donC20, donB20, c20, b20, d20)
 
 // 스케일별 신호 방향(중복 표시 차단용) — 각 스케일 트리거 칸의 '-' 처리에 사용
 var int dir05 = 0
@@ -295,22 +304,62 @@ ribbonChop = showChopWarn and rConfirmed and rChopEnter
 ribbonBull = showExpansion and rBullExpansion
 ribbonBear = showExpansion and rBearExpansion
 
-// 현재 봉 구름대 상태(가격 위치 + 색). 구름은 displacement만큼 앞으로 밀려 그려지므로
-// 현재 봉 아래 구름은 cloudOffset 만큼 과거의 선행스팬 값으로 평가한다.
+// 현재 봉 아래 구름(displacement 밀림 → cloudOffset 과거 선행스팬으로 평가).
 curSpanA = leadingSpanA[cloudOffset]
 curSpanB = leadingSpanB[cloudOffset]
 cloudTop = math.max(curSpanA, curSpanB)
 cloudBottom = math.min(curSpanA, curSpanB)
 cloudPosText = close > cloudTop ? "위" : close < cloudBottom ? "아래" : "안"
 cloudColorText = curSpanA >= curSpanB ? "양운" : "음운"
-// 구름 두께로 지지/돌파 난이도 판단: 현재봉·과거2봉·미래2봉 구름 두께의 평균 ÷ ATR.
-// (미래 구름은 더 최근 선행스팬이 앞으로 투영된 값 = cloudOffset−1/−2, 과거는 cloudOffset+1/+2)
-f_cloudThk(k) => math.abs(leadingSpanA[k] - leadingSpanB[k])
-cloudThk5 = (f_cloudThk(cloudOffset + 2) + f_cloudThk(cloudOffset + 1) + f_cloudThk(cloudOffset) + f_cloudThk(math.max(cloudOffset - 1, 0)) + f_cloudThk(math.max(cloudOffset - 2, 0))) / 5
-cloudThk5Atr = rAtr != 0 ? cloudThk5 / rAtr : na
-cloudDifficulty = na(cloudThk5Atr) ? "-" : cloudThk5Atr >= 1.2 ? "돌파 어려움" : cloudThk5Atr >= 0.6 ? "보통" : "돌파 쉬움"
-cloudCellText = cloudPosText + "·" + cloudColorText + " (" + cloudDifficulty + ")"
-cloudCellColor = close > cloudTop ? color.new(color.green, 30) : close < cloudBottom ? color.new(color.red, 30) : color.new(color.gray, 40)
+// =========================
+// 구름대 지지/저항 강도 — 지그재그 레그가 구름 안으로 들어올 때만 판단
+//  지지: 전고점에서 꺾여 하락하던 가격이 구름 안으로 → 구름이 받쳐줄 강도. 저항: 전저점서 상승 중 구름 안.
+//  강도 = 구름 두께(ATR 대비) 클수록 ↑, 접근 각도(ATR/봉) 가파를수록 ↓(모멘텀이 뚫기 쉬움).
+// 러닝 지그재그(지연 없음): 현재 레그 극값에서 ATR 배수만큼 되돌리면 즉시 반전.
+//  피벗 확정(길이만큼 지연)을 안 기다리므로, 전고점서 꺾여 내려오는 즉시 하락 레그로 인식된다.
+// =========================
+srRevMult = input.float(1.5, minval=0.1, step=0.1, title="구름 지그재그 반전 감도(ATR 배수, 베이스 라인 유사)", group="구름 지지/저항")
+srRev = rAtr * srRevMult
+var int srDir = 0          // 1=상승 레그(저점서 상승 중), -1=하락 레그(고점서 꺾여 하락 중)
+var float srExtreme = na   // 현재 레그 진행 극값(상승=고점, 하락=저점)
+var int srExtremeBar = na
+var float srAnchor = na    // 직전 레그가 꺾인 지점(지지=전고점, 저항=전저점)
+var int srAnchorBar = na
+if srDir == 0
+    srDir := close >= open ? 1 : -1
+    srExtreme := close
+    srExtremeBar := bar_index
+if srDir == 1
+    if high > srExtreme
+        srExtreme := high
+        srExtremeBar := bar_index
+    else if srExtreme - low >= srRev   // 고점서 반전 감도만큼 하락 → 하락 레그로 전환
+        srDir := -1
+        srAnchor := srExtreme
+        srAnchorBar := srExtremeBar
+        srExtreme := low
+        srExtremeBar := bar_index
+else
+    if low < srExtreme
+        srExtreme := low
+        srExtremeBar := bar_index
+    else if high - srExtreme >= srRev  // 저점서 반전 감도만큼 상승 → 상승 레그로 전환
+        srDir := 1
+        srAnchor := srExtreme
+        srAnchorBar := srExtremeBar
+        srExtreme := high
+        srExtremeBar := bar_index
+inCloud = close <= cloudTop and close >= cloudBottom
+cloudThickAtr = rAtr != 0 ? (cloudTop - cloudBottom) / rAtr : na
+srLegBars = not na(srAnchorBar) ? math.max(bar_index - srAnchorBar, 1) : na
+srSlopeAtr = (not na(srAnchor) and not na(srLegBars) and rAtr != 0) ? math.abs(close - srAnchor) / srLegBars / rAtr : na
+srScore = (not na(cloudThickAtr) and not na(srSlopeAtr)) ? cloudThickAtr / (1 + srSlopeAtr * 3) : na   // 두께↑=강, 각도↑=약
+isSupport = inCloud and srDir == -1   // 하락 중 구름 안 → 지지
+isResist  = inCloud and srDir == 1    // 상승 중 구름 안 → 저항
+f_srLabel(pfx) => na(srScore) ? pfx : srScore >= 0.8 ? pfx + " 강함" : srScore >= 0.4 ? pfx + " 보통" : pfx + " 약함"
+srTransp = na(srScore) ? 40 : srScore >= 0.8 ? 0 : srScore >= 0.4 ? 30 : 55
+cloudCellText = isSupport ? f_srLabel("지지") : isResist ? f_srLabel("저항") : cloudPosText + "·" + cloudColorText
+cloudCellColor = isSupport ? color.new(color.green, srTransp) : isResist ? color.new(color.red, srTransp) : close > cloudTop ? color.new(color.green, 30) : close < cloudBottom ? color.new(color.red, 30) : color.new(color.gray, 40)
 
 // 리본 상태 = 마지막으로 발생한 다이아몬드(상태머신) 기준이라 차트 표시와 동기화된다.
 // 괄호 숫자 = 마지막 이벤트(압축/분출) 발생 봉 종가 대비 현재 종가의 가격 변화 %.
@@ -360,14 +409,12 @@ disparityPullbackPrice = overCount >= 1 ? disparityUpperEdge : underCount >= 1 ?
 // 신호 = (후행스팬 조건) AND (전환선 vs 기준선 게이트). 다음 봉 종가가 돌파해야 할 기준 가격을 표시한다.
 // 매수/매도 트리거 가격을 0.5× / 1× / 2× 세 스케일로 각각 계산해 테이블에 표시한다.
 // 같은 방향 신호가 직전에 이미 나온 상태(중복방지)에서는 그 방향 트리거가를 '-'로 표시한다.
-f_trigger(int convP, int baseP, int dispP) =>
-    cLine = donchian(convP)
-    bLine = donchian(baseP)
-    cBull = cLine > bLine
-    cBear = cLine < bLine
+f_trigger(float conv, float base, int convP, int baseP, int dispP) =>
+    cBull = conv > base
+    cBear = conv < base
     lagOff = math.max(dispP - 1, 0)
     refIdx = math.max(lagOff - 1, 0)
-    lagBaseTrig = bLine[refIdx]
+    lagBaseTrig = base[refIdx]
     cPrior = math.max(convP - 1, 1)
     bPrior = math.max(baseP - 1, 1)
     rLow = ta.lowest(cPrior)
@@ -379,9 +426,10 @@ f_trigger(int convP, int baseP, int dispP) =>
     sTrig = cBear ? lagBaseTrig : math.min(lagBaseTrig, cSellP)
     [bTrig, sTrig]
 
-[buyTrig05, sellTrig05] = f_trigger(f_scale(conversionPeriods, 0.5), f_scale(basePeriods, 0.5), f_scale(displacement, 0.5))
-[buyTrig10, sellTrig10] = f_trigger(conversionPeriods, basePeriods, displacement)
-[buyTrig20, sellTrig20] = f_trigger(f_scale(conversionPeriods, 2.0), f_scale(basePeriods, 2.0), f_scale(displacement, 2.0))
+// 위에서 계산한 스케일 기간·donchian 라인을 그대로 재사용(중복 계산 제거)
+[buyTrig05, sellTrig05] = f_trigger(donC05, donB05, c05, b05, d05)
+[buyTrig10, sellTrig10] = f_trigger(conversionLine, baseLine, conversionPeriods, basePeriods, displacement)
+[buyTrig20, sellTrig20] = f_trigger(donC20, donB20, c20, b20, d20)
 
 // 천 단위 쉼표 + 심볼 mintick 소수 자릿수
 priceDecimals = syminfo.mintick >= 1 ? 0 : syminfo.mintick >= 0.1 ? 1 : syminfo.mintick >= 0.01 ? 2 : syminfo.mintick >= 0.001 ? 3 : syminfo.mintick >= 0.0001 ? 4 : 5
