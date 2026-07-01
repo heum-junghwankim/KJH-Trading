@@ -559,7 +559,134 @@ f_trigBg(blocked, p, isBuy) =>
     hit = not blocked and not na(p) and not na(pct) and (isBuy ? pct <= nearPct : pct >= -nearPct)
     blocked ? color.new(dirCol, 30) : hit ? color.new(dirCol, 25) : color.new(color.gray, 40)
 
-var table triggerTable = table.new(position.bottom_right, 2, 16, border_width=1, border_color=color.new(color.gray, 50))
+// =========================
+// Auto VWAP 통합 — 계산 전용(차트 미표시). 밴드워킹(추세) vs 지지·저항 상태만 테이블 하단 행에 추가.
+//  (동적 선색·밴드 % 라벨 없음 · 기본: 최근 봉 50 / Recent Bars / hlc3)
+// =========================
+vwapHideDWM = input.bool(false, title="1D 이상에서 VWAP 계산 제외", group="Auto VWAP", display=display.none)
+vwapAnchorMode = input.string("Recent Bars", title="앵커 모드", options=["Session", "Recent Trading Days", "Recent Bars"], group="Auto VWAP")
+vwapRecentDays = input.int(5, title="최근 거래일 수", minval=1, group="Auto VWAP", display=display.none)
+vwapRecentBars = input.int(50, title="최근 봉 수", minval=1, group="Auto VWAP")
+vwapSrc = input(title="소스", defval=hlc3, group="Auto VWAP")
+vwapCalcMode = input.string("Log Standard Deviation", "밴드 계산 모드", options=["Log Standard Deviation", "Absolute Standard Deviation"], group="Auto VWAP", display=display.none)
+vwapBandMult1 = input.float(1.0, title="밴드 배수 #1", group="Auto VWAP", step=0.5, minval=0, display=display.none)
+vwapBandMult2 = input.float(2.0, title="밴드 배수 #2", group="Auto VWAP", step=0.5, minval=0, display=display.none)
+
+vwapNewSession = barstate.isfirst or timeframe.change("D")
+vwapSessTime = time("D")
+vwapSessClose = time_close("D")
+vwapIsLatestSession = vwapSessTime <= last_bar_time and vwapSessClose > last_bar_time
+
+var array<float> vwSessPV = array.new_float()
+var array<float> vwSessVol = array.new_float()
+var array<float> vwSessP2V = array.new_float()
+var array<float> vwSessLogPV = array.new_float()
+var array<float> vwSessLog2V = array.new_float()
+var array<float> vwSessInvalidLogVol = array.new_float()
+var float vwCumPV = 0.0
+var float vwCumVol = 0.0
+var float vwCumP2V = 0.0
+var float vwCumLogPV = 0.0
+var float vwCumLog2V = 0.0
+var float vwCumInvalidLogVol = 0.0
+
+if vwapNewSession
+    array.push(vwSessPV, vwCumPV)
+    array.push(vwSessVol, vwCumVol)
+    array.push(vwSessP2V, vwCumP2V)
+    array.push(vwSessLogPV, vwCumLogPV)
+    array.push(vwSessLog2V, vwCumLog2V)
+    array.push(vwSessInvalidLogVol, vwCumInvalidLogVol)
+
+vwLogSrc = vwapSrc > 0 ? math.log(vwapSrc) : na
+vwCumPV += vwapSrc * volume
+vwCumVol += volume
+vwCumP2V += vwapSrc * vwapSrc * volume
+vwCumLogPV += na(vwLogSrc) ? 0.0 : vwLogSrc * volume
+vwCumLog2V += na(vwLogSrc) ? 0.0 : vwLogSrc * vwLogSrc * volume
+vwCumInvalidLogVol += na(vwLogSrc) ? volume : 0.0
+
+vwSessCount = array.size(vwSessPV)
+vwAnchorIdx = vwapAnchorMode == "Session" ? vwSessCount - 1 : math.max(vwSessCount - vwapRecentDays, 0)
+vwAnchorPV = vwapAnchorMode == "Recent Bars" ? nz(vwCumPV[vwapRecentBars], 0.0) : array.get(vwSessPV, vwAnchorIdx)
+vwAnchorVol = vwapAnchorMode == "Recent Bars" ? nz(vwCumVol[vwapRecentBars], 0.0) : array.get(vwSessVol, vwAnchorIdx)
+vwAnchorP2V = vwapAnchorMode == "Recent Bars" ? nz(vwCumP2V[vwapRecentBars], 0.0) : array.get(vwSessP2V, vwAnchorIdx)
+vwAnchorLogPV = vwapAnchorMode == "Recent Bars" ? nz(vwCumLogPV[vwapRecentBars], 0.0) : array.get(vwSessLogPV, vwAnchorIdx)
+vwAnchorLog2V = vwapAnchorMode == "Recent Bars" ? nz(vwCumLog2V[vwapRecentBars], 0.0) : array.get(vwSessLog2V, vwAnchorIdx)
+vwAnchorInvalidLogVol = vwapAnchorMode == "Recent Bars" ? nz(vwCumInvalidLogVol[vwapRecentBars], 0.0) : array.get(vwSessInvalidLogVol, vwAnchorIdx)
+
+vwWinPV = vwCumPV - vwAnchorPV
+vwWinVol = vwCumVol - vwAnchorVol
+vwWinP2V = vwCumP2V - vwAnchorP2V
+vwWinLogPV = vwCumLogPV - vwAnchorLogPV
+vwWinLog2V = vwCumLog2V - vwAnchorLog2V
+vwWinInvalidLogVol = vwCumInvalidLogVol - vwAnchorInvalidLogVol
+
+float vwapValue = na
+float vwUpper1 = na
+float vwLower1 = na
+float vwUpper2 = na
+float vwLower2 = na
+vwShouldCalc = not (vwapHideDWM and timeframe.isdwm) and vwWinVol > 0 and (vwapAnchorMode != "Session" or vwapIsLatestSession)
+if vwShouldCalc
+    vwapValue := vwWinPV / vwWinVol
+    vwStdAbs = math.sqrt(math.max(vwWinP2V / vwWinVol - math.pow(vwapValue, 2), 0))
+    vwStdLog = math.sqrt(math.max(vwWinLog2V / vwWinVol - math.pow(vwWinLogPV / vwWinVol, 2), 0))
+    vwCanLog = vwWinInvalidLogVol == 0 and vwapValue > 0
+    if vwapCalcMode == "Absolute Standard Deviation"
+        vwUpper1 := vwapValue + vwStdAbs * vwapBandMult1
+        vwLower1 := vwapValue - vwStdAbs * vwapBandMult1
+        vwUpper2 := vwapValue + vwStdAbs * vwapBandMult2
+        vwLower2 := vwapValue - vwStdAbs * vwapBandMult2
+    else if vwCanLog
+        vwUpper1 := vwapValue * math.exp(vwStdLog * vwapBandMult1)
+        vwLower1 := vwapValue * math.exp(-vwStdLog * vwapBandMult1)
+        vwUpper2 := vwapValue * math.exp(vwStdLog * vwapBandMult2)
+        vwLower2 := vwapValue * math.exp(-vwStdLog * vwapBandMult2)
+
+// VWAP 상태 판정 (밴드워킹=추세 / 지지·저항=되돌림) — 차트엔 안 그리고 테이블에만 사용
+vwHasVwap = vwShouldCalc and not na(vwapValue)
+vwAbove = vwHasVwap and close > vwapValue
+vwGapPct = vwHasVwap and vwapValue != 0 ? (close / vwapValue - 1.0) * 100.0 : na
+vwPosText = not vwHasVwap ? "-" : vwAbove ? "VWAP 위" : "VWAP 아래"
+vwNearLower = vwHasVwap and not na(vwLower1) and close < vwLower1
+vwNearUpper = vwHasVwap and not na(vwUpper1) and close > vwUpper1
+vwSlopeLen = 5
+vwBw2 = vwHasVwap and not na(vwUpper2) and not na(vwLower2) ? vwUpper2 - vwLower2 : na
+vwSlope = vwHasVwap and not na(vwapValue[vwSlopeLen]) ? vwapValue - vwapValue[vwSlopeLen] : na
+vwFlatThresh = not na(vwBw2) ? vwBw2 * 0.25 : na
+vwSlopeUp = not na(vwSlope) and not na(vwFlatThresh) and vwSlope > vwFlatThresh
+vwSlopeDown = not na(vwSlope) and not na(vwFlatThresh) and vwSlope < -vwFlatThresh
+vwSlopeFlat = vwHasVwap and not vwSlopeUp and not vwSlopeDown
+vwBwExpanding = vwHasVwap and not na(vwBw2[vwSlopeLen]) and vwBw2 > vwBw2[vwSlopeLen]
+vwBwContracting = vwHasVwap and not na(vwBw2[vwSlopeLen]) and vwBw2 < vwBw2[vwSlopeLen]
+vwPreWalk = vwBwContracting or vwSlopeFlat or vwBwContracting[1] or vwBwContracting[2]
+vwUpBreakout = vwPreWalk and close > open and not na(vwUpper2) and close > vwUpper2
+vwDownBreakout = vwPreWalk and close < open and not na(vwLower2) and close < vwLower2
+vwWalkSlopeLen = 3
+vwLowerRising = vwHasVwap and not na(vwLower2[vwWalkSlopeLen]) and vwLower2 > vwLower2[vwWalkSlopeLen]
+vwUpperFalling = vwHasVwap and not na(vwUpper2[vwWalkSlopeLen]) and vwUpper2 < vwUpper2[vwWalkSlopeLen]
+var int vwWalk = 0
+if vwWalk == 1 and (not vwHasVwap or vwUpperFalling)
+    vwWalk := 0
+if vwWalk == -1 and (not vwHasVwap or vwLowerRising)
+    vwWalk := 0
+if vwUpBreakout
+    vwWalk := 1
+if vwDownBreakout
+    vwWalk := -1
+vwUpperWalk = vwWalk == 1 or (vwBwExpanding and vwSlopeUp and vwNearUpper)
+vwLowerWalk = vwWalk == -1 or (vwBwExpanding and vwSlopeDown and vwNearLower)
+vwSupport = not vwUpperWalk and not vwLowerWalk and (vwBwContracting or vwSlopeFlat) and vwNearLower
+vwResistance = not vwUpperWalk and not vwLowerWalk and (vwBwContracting or vwSlopeFlat) and vwNearUpper
+vwSlopeText = not vwHasVwap ? "-" : vwSlopeUp ? "상승" : vwSlopeDown ? "하락" : "평탄(중심)"
+vwBwStateText = not vwHasVwap ? "-" : vwBwExpanding ? "확장" : vwBwContracting ? "수축" : "유지"
+vwBandState = vwLowerWalk ? "하단 밴드워킹" : vwUpperWalk ? "상단 밴드워킹" : vwSupport ? "하단 지지" : vwResistance ? "상단 저항" : "중앙(공방)"
+vwBandColor = vwLowerWalk or vwUpperWalk ? color.new(color.orange, 0) : vwSupport or vwResistance ? color.new(color.gray, 30) : color.new(color.gray, 50)
+vwVerdict = vwLowerWalk ? "숏 유리(하단 밴드워킹)" : vwUpperWalk ? "롱 유리(상단 밴드워킹)" : vwSupport ? "롱 유리(하단 지지)" : vwResistance ? "숏 유리(상단 저항)" : "중립"
+vwVerdictColor = vwLowerWalk ? color.new(color.red, 0) : vwUpperWalk ? color.new(color.green, 0) : vwSupport ? color.new(color.green, 0) : vwResistance ? color.new(color.red, 0) : color.new(color.gray, 40)
+
+var table triggerTable = table.new(position.top_left, 2, 21, border_width=1, border_color=color.new(color.gray, 50))
 if barstate.islast
     table.cell(triggerTable, 0, 0, "다음 봉", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
     table.cell(triggerTable, 1, 0, "트리거 가격", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
@@ -604,6 +731,18 @@ if barstate.islast
 
     table.cell(triggerTable, 0, 15, "숏 청산", text_color=color.white, bgcolor=color.new(shortExitLineColor, 40), text_size=size.small)
     table.cell(triggerTable, 1, 15, f_price(shortClear) + " (" + f_pct(shortClear) + ")", text_color=color.white, bgcolor=color.new(shortExitLineColor, 20), text_size=size.small)
+
+    // Auto VWAP (헤더 제외, 이치모쿠 테이블 하단 행) — 계산 전용, 차트 미표시
+    table.cell(triggerTable, 0, 16, "VWAP", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 16, vwVerdict, text_color=color.white, bgcolor=vwVerdictColor, text_size=size.small)
+    table.cell(triggerTable, 0, 17, "VWAP 위치", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 17, vwPosText + (na(vwGapPct) ? "" : " " + (vwGapPct > 0 ? "+" : "") + str.tostring(vwGapPct, "0.0") + "%"), text_color=color.white, bgcolor=not vwHasVwap ? color.new(color.gray, 50) : vwAbove ? color.new(color.green, 30) : color.new(color.red, 30), text_size=size.small)
+    table.cell(triggerTable, 0, 18, "VWAP 기울기", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 18, vwSlopeText, text_color=color.white, bgcolor=vwSlopeUp ? color.new(color.green, 30) : vwSlopeDown ? color.new(color.red, 30) : color.new(color.gray, 50), text_size=size.small)
+    table.cell(triggerTable, 0, 19, "VWAP 밴드폭", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 19, vwBwStateText, text_color=color.white, bgcolor=vwBwExpanding ? color.new(color.orange, 20) : color.new(color.gray, 50), text_size=size.small)
+    table.cell(triggerTable, 0, 20, "VWAP 밴드 상태", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 20, vwBandState, text_color=color.white, bgcolor=vwBandColor, text_size=size.small)
 
 // 이평 기반 상태 다이아몬드 (압축=보라 #9C27B0[상승·하락과 확실히 구분], 상승 분출=파랑, 하락 분출=빨강)
 // 먼저 그려서 아래 신호 삼각형보다 뒤(아래 레이어)에 오게 한다.
