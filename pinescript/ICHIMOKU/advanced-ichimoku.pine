@@ -33,7 +33,7 @@ bearCloudColor = input.color(#6B1E28, "음운(하락 구름) 색", group="색상
 cloudTransp = input.int(45, "구름 투명도", minval=0, maxval=100, group="색상")
 bullishCloudColor = color.new(bullCloudColor, cloudTransp)
 bearishCloudColor = color.new(bearCloudColor, cloudTransp)
-defaultBuyColor = #4FC3F7
+defaultBuyColor = #2979FF
 defaultSellColor = #FF5FA2
 
 conversionLine = donchian(conversionPeriods)
@@ -151,7 +151,7 @@ fillSourceA = plot(leadingSpanA, offset=cloudOffset, title="Cloud Fill Source A"
 fillSourceB = plot(leadingSpanB, offset=cloudOffset, title="Cloud Fill Source B", color=color.new(leadingSpanBColor, 100), display=display.none)
 
 plot(showConversionLine ? conversionLine : na, title="Conversion Line", color=conversionLineColor, linewidth=lineWidth, display=display.all - display.price_scale)
-plot(showBaseLine ? baseLine : na, title="Base Line", color=baseLineColor, linewidth=lineWidth, display=display.all)
+plot(showBaseLine ? baseLine : na, title="Base Line", color=baseLineColor, linewidth=2, display=display.all)
 plot(showLaggingSpan ? close : na, offset=-cloudOffset, title="Lagging Span", color=laggingSpanColor, linewidth=lineWidth, display=display.all - display.price_scale)
 plot(showLeadingSpanA ? leadingSpanA : na, offset=cloudOffset, title="Leading Span A", color=leadingSpanAColor, linewidth=lineWidth, display=display.all - display.price_scale)
 plot(showLeadingSpanB ? leadingSpanB : na, offset=cloudOffset, title="Leading Span B", color=leadingSpanBColor, linewidth=lineWidth, display=display.all - display.price_scale)
@@ -461,7 +461,8 @@ sweepPivotLen = input.int(5, minval=1, title="스윙 풀 좌우 봉수", group="
 sweepMaxGapMult = input.float(1.0, title="청산-스윕 최대 간격 ATR 배수", minval=0.1, step=0.1, group="스윕/청산")
 trailLen = input.int(200, title="트레일 길이(봉)", minval=10, group="스윕/청산")
 showExitLines = input.bool(true, title="스윕·청산선 표시(트레일+수평선)", group="스윕/청산")
-exitLineWidth = input.int(1, title="선 두께(스윕·청산 공통)", minval=1, group="스윕/청산")
+sweepLineWidth = input.int(1, title="스윕 선 두께", minval=1, group="스윕/청산")
+clearLineWidth = input.int(2, title="청산 선 두께", minval=1, group="스윕/청산")
 longExitLineColor = input.color(#00E5FF, title="롱 선 색(스윕·청산)", group="스윕/청산")
 shortExitLineColor = input.color(#FF1744, title="숏 선 색(스윕·청산)", group="스윕/청산")
 
@@ -518,10 +519,10 @@ f_trailLine(float src, int lb, color col, int w, string sty, bool show) =>
             pl := array.size(pts) > 1 ? polyline.new(pts, curved=false, closed=false, line_color=col, line_width=w, line_style=sty) : na
     pl
 trailLb = math.min(bar_index, trailLen)
-f_trailLine(longCE,     trailLb, longExitLineColor,  exitLineWidth, line.style_dotted, showExitLines)
-f_trailLine(shortCE,    trailLb, shortExitLineColor, exitLineWidth, line.style_dotted, showExitLines)
-f_trailLine(longClear,  trailLb, longExitLineColor,  exitLineWidth, line.style_solid,  showExitLines)
-f_trailLine(shortClear, trailLb, shortExitLineColor, exitLineWidth, line.style_solid,  showExitLines)
+f_trailLine(longCE,     trailLb, longExitLineColor,  sweepLineWidth, line.style_dotted, showExitLines)
+f_trailLine(shortCE,    trailLb, shortExitLineColor, sweepLineWidth, line.style_dotted, showExitLines)
+f_trailLine(longClear,  trailLb, longExitLineColor,  clearLineWidth, line.style_solid,  showExitLines)
+f_trailLine(shortClear, trailLb, shortExitLineColor, clearLineWidth, line.style_solid,  showExitLines)
 var line longSweepLine = na
 var line shortSweepLine = na
 var line longClearLine = na
@@ -531,23 +532,32 @@ if showExitLines and barstate.islast
     line.delete(shortSweepLine)
     line.delete(longClearLine)
     line.delete(shortClearLine)
-    longSweepLine := line.new(bar_index, longCE, bar_index + 1, longCE, extend=extend.right, color=longExitLineColor, width=exitLineWidth, style=line.style_dotted)
-    shortSweepLine := line.new(bar_index, shortCE, bar_index + 1, shortCE, extend=extend.right, color=shortExitLineColor, width=exitLineWidth, style=line.style_dotted)
-    longClearLine := line.new(bar_index, longClear, bar_index + 1, longClear, extend=extend.right, color=longExitLineColor, width=exitLineWidth, style=line.style_solid)
-    shortClearLine := line.new(bar_index, shortClear, bar_index + 1, shortClear, extend=extend.right, color=shortExitLineColor, width=exitLineWidth, style=line.style_solid)
+    longSweepLine := line.new(bar_index, longCE, bar_index + 1, longCE, extend=extend.right, color=longExitLineColor, width=sweepLineWidth, style=line.style_dotted)
+    shortSweepLine := line.new(bar_index, shortCE, bar_index + 1, shortCE, extend=extend.right, color=shortExitLineColor, width=sweepLineWidth, style=line.style_dotted)
+    longClearLine := line.new(bar_index, longClear, bar_index + 1, longClear, extend=extend.right, color=longExitLineColor, width=clearLineWidth, style=line.style_solid)
+    shortClearLine := line.new(bar_index, shortClear, bar_index + 1, shortClear, extend=extend.right, color=shortExitLineColor, width=clearLineWidth, style=line.style_solid)
+
+// 기준선(베이스 라인) 현재값 수평 라인 — 현재 봉에서 오른쪽으로 연장, 1px
+var line baseHLine = na
+if showBaseLine and barstate.islast
+    line.delete(baseHLine)
+    baseHLine := line.new(bar_index, baseLine, bar_index + 1, baseLine, extend=extend.right, color=baseLineColor, width=1, style=line.style_solid)
 
 // 롱/숏 포지션 청산가만 가격축(price scale)에 라벨 표시 (선은 위 line·polyline이 그리므로 여기선 라벨만)
 plot(showExitLines ? longClear : na, title="롱 청산가 라벨", color=longExitLineColor, display=display.price_scale)
 plot(showExitLines ? shortClear : na, title="숏 청산가 라벨", color=shortExitLineColor, display=display.price_scale)
 
-f_trigCell(blocked, p) => blocked ? "-" : f_arrow(p) + f_price(p) + " (" + f_pct(p) + ")"
+// 가격이 없으면(같은 방향 신호가 이미 나와 막힘 = 그 방향 진행 중) 상승/하락으로 표시.
+f_trigCell(blocked, p, isBuy) => blocked ? (isBuy ? "상승 추세" : "하락 추세") : f_arrow(p) + f_price(p) + " (" + f_pct(p) + ")"
 // 셀 강조: 방향 기준. 매수는 트리거가 현재가의 +nearPct% 이내(또는 이미 아래=조건 충족→확정),
 // 매도는 트리거가 −nearPct% 이내(또는 이미 위=충족)면 포지션 색(상승=녹/하락=빨)으로 칠한다.
+// 진행 중(상승/하락 추세)이면 구름대 셀과 같은 채도(투명도 30)의 포지션 색.
 nearPct = input.float(2.0, title="트리거 근접 강조 임계(%)", minval=0.1, step=0.1, group="트리거 강조")
 f_trigBg(blocked, p, isBuy) =>
+    dirCol = isBuy ? color.green : color.red
     pct = close != 0 ? (p - close) / close * 100 : na
     hit = not blocked and not na(p) and not na(pct) and (isBuy ? pct <= nearPct : pct >= -nearPct)
-    hit ? (isBuy ? color.new(color.green, 25) : color.new(color.red, 25)) : color.new(color.gray, 40)
+    blocked ? color.new(dirCol, 30) : hit ? color.new(dirCol, 25) : color.new(color.gray, 40)
 
 var table triggerTable = table.new(position.bottom_right, 2, 16, border_width=1, border_color=color.new(color.gray, 50))
 if barstate.islast
@@ -555,18 +565,18 @@ if barstate.islast
     table.cell(triggerTable, 1, 0, "트리거 가격", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
 
     table.cell(triggerTable, 0, 1, "상승 전환(0.5×)", text_color=color.white, bgcolor=color.new(color.green, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 1, f_trigCell(buyBlocked05, buyTrig05), text_color=color.white, bgcolor=f_trigBg(buyBlocked05, buyTrig05, true), text_size=size.small)
+    table.cell(triggerTable, 1, 1, f_trigCell(buyBlocked05, buyTrig05, true), text_color=color.white, bgcolor=f_trigBg(buyBlocked05, buyTrig05, true), text_size=size.small)
     table.cell(triggerTable, 0, 2, "상승 전환(1×)", text_color=color.white, bgcolor=color.new(color.green, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 2, f_trigCell(buyBlocked10, buyTrig10), text_color=color.white, bgcolor=f_trigBg(buyBlocked10, buyTrig10, true), text_size=size.small)
+    table.cell(triggerTable, 1, 2, f_trigCell(buyBlocked10, buyTrig10, true), text_color=color.white, bgcolor=f_trigBg(buyBlocked10, buyTrig10, true), text_size=size.small)
     table.cell(triggerTable, 0, 3, "상승 전환(2×)", text_color=color.white, bgcolor=color.new(color.green, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 3, f_trigCell(buyBlocked20, buyTrig20), text_color=color.white, bgcolor=f_trigBg(buyBlocked20, buyTrig20, true), text_size=size.small)
+    table.cell(triggerTable, 1, 3, f_trigCell(buyBlocked20, buyTrig20, true), text_color=color.white, bgcolor=f_trigBg(buyBlocked20, buyTrig20, true), text_size=size.small)
 
     table.cell(triggerTable, 0, 4, "하락 전환(0.5×)", text_color=color.white, bgcolor=color.new(color.red, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 4, f_trigCell(sellBlocked05, sellTrig05), text_color=color.white, bgcolor=f_trigBg(sellBlocked05, sellTrig05, false), text_size=size.small)
+    table.cell(triggerTable, 1, 4, f_trigCell(sellBlocked05, sellTrig05, false), text_color=color.white, bgcolor=f_trigBg(sellBlocked05, sellTrig05, false), text_size=size.small)
     table.cell(triggerTable, 0, 5, "하락 전환(1×)", text_color=color.white, bgcolor=color.new(color.red, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 5, f_trigCell(sellBlocked10, sellTrig10), text_color=color.white, bgcolor=f_trigBg(sellBlocked10, sellTrig10, false), text_size=size.small)
+    table.cell(triggerTable, 1, 5, f_trigCell(sellBlocked10, sellTrig10, false), text_color=color.white, bgcolor=f_trigBg(sellBlocked10, sellTrig10, false), text_size=size.small)
     table.cell(triggerTable, 0, 6, "하락 전환(2×)", text_color=color.white, bgcolor=color.new(color.red, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 6, f_trigCell(sellBlocked20, sellTrig20), text_color=color.white, bgcolor=f_trigBg(sellBlocked20, sellTrig20, false), text_size=size.small)
+    table.cell(triggerTable, 1, 6, f_trigCell(sellBlocked20, sellTrig20, false), text_color=color.white, bgcolor=f_trigBg(sellBlocked20, sellTrig20, false), text_size=size.small)
 
     table.cell(triggerTable, 0, 7, "구름대", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
     table.cell(triggerTable, 1, 7, cloudCellText, text_color=color.white, bgcolor=cloudCellColor, text_size=size.small)
