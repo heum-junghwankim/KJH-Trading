@@ -660,11 +660,11 @@ vwGapPct = vwHasVwap and vwapValue != 0 ? (close / vwapValue - 1.0) * 100.0 : na
 vwPosText = not vwHasVwap ? "-" : vwAbove ? "VWAP 위" : "VWAP 아래"
 vwNearLower = vwHasVwap and not na(vwLower1) and close < vwLower1
 vwNearUpper = vwHasVwap and not na(vwUpper1) and close > vwUpper1
-vwSlopeLen = 3
+vwSlopeLen = 5
 vwBw2 = vwHasVwap and not na(vwUpper2) and not na(vwLower2) ? vwUpper2 - vwLower2 : na
 vwSlope = vwHasVwap and not na(vwapValue[vwSlopeLen]) ? vwapValue - vwapValue[vwSlopeLen] : na
-// 기울기 매우 민감: 평탄 판정 임계를 밴드폭의 1%로(기존 25%) 낮춰 미세 기울기도 상승/하락으로 리포트
-vwFlatThresh = not na(vwBw2) ? vwBw2 * 0.01 : na
+// 평탄 판정 임계 = 밴드폭의 5%(기울기가 이보다 작으면 평탄)
+vwFlatThresh = not na(vwBw2) ? vwBw2 * 0.05 : na
 vwSlopeUp = not na(vwSlope) and not na(vwFlatThresh) and vwSlope > vwFlatThresh
 vwSlopeDown = not na(vwSlope) and not na(vwFlatThresh) and vwSlope < -vwFlatThresh
 vwSlopeFlat = vwHasVwap and not vwSlopeUp and not vwSlopeDown
@@ -691,6 +691,8 @@ vwSupport = not vwUpperWalk and not vwLowerWalk and (vwBwContracting or vwSlopeF
 vwResistance = not vwUpperWalk and not vwLowerWalk and (vwBwContracting or vwSlopeFlat) and vwNearUpper
 vwSlopeText = not vwHasVwap ? "-" : vwSlopeUp ? "상승" : vwSlopeDown ? "하락" : "평탄(중심)"
 vwBwStateText = not vwHasVwap ? "-" : vwBwExpanding ? "확장" : vwBwContracting ? "수축" : "유지"
+// VWAP 모양 셀 색: 상승+확장=녹색, 하락+확장=빨강, 그 외 회색
+vwShapeColor = vwSlopeUp and vwBwExpanding ? color.new(color.green, 20) : vwSlopeDown and vwBwExpanding ? color.new(color.red, 20) : color.new(color.gray, 50)
 vwBandState = vwLowerWalk ? "하단 밴드워킹" : vwUpperWalk ? "상단 밴드워킹" : vwSupport ? "하단 지지" : vwResistance ? "상단 저항" : "중앙(공방)"
 vwBandColor = vwUpperWalk ? color.new(color.green, 0) : vwLowerWalk ? color.new(color.red, 0) : vwSupport or vwResistance ? color.new(color.gray, 30) : color.new(color.gray, 50)
 
@@ -885,7 +887,7 @@ if barstate.islast
     table.cell(triggerTable, 0, 16, "VWAP 위치", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
     table.cell(triggerTable, 1, 16, vwPosText + (na(vwGapPct) ? "" : " " + (vwGapPct > 0 ? "+" : "") + str.tostring(vwGapPct, "0.0") + "%"), text_color=color.white, bgcolor=not vwHasVwap ? color.new(color.gray, 50) : vwAbove ? color.new(color.green, 30) : color.new(color.red, 30), text_size=size.small)
     table.cell(triggerTable, 0, 17, "VWAP 모양", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 17, vwSlopeText + " | " + vwBwStateText, text_color=color.white, bgcolor=color.new(color.gray, 50), text_size=size.small)
+    table.cell(triggerTable, 1, 17, vwSlopeText + " | " + vwBwStateText, text_color=color.white, bgcolor=vwShapeColor, text_size=size.small)
     table.cell(triggerTable, 0, 18, "VWAP 밴드 상태", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
     table.cell(triggerTable, 1, 18, vwBandState, text_color=color.white, bgcolor=vwBandColor, text_size=size.small)
 
