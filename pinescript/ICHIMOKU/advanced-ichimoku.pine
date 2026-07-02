@@ -724,8 +724,8 @@ vwSupport = not vwUpperWalk and not vwLowerWalk and (vwBwContracting or vwSlopeF
 vwResistance = not vwUpperWalk and not vwLowerWalk and (vwBwContracting or vwSlopeFlat) and vwNearUpper
 vwSlopeText = not vwHasVwap ? "-" : vwSlopeUp ? "상승" : vwSlopeDown ? "하락" : "평탄(중심)"
 vwBwStateText = not vwHasVwap ? "-" : vwBwExpanding ? "확장" : vwBwContracting ? "수축" : "유지"
-// VWAP 모양 셀 색: 상승+확장=녹색, 하락+확장=빨강, 그 외 회색
-vwShapeColor = vwSlopeUp and vwBwExpanding ? color.new(color.green, 20) : vwSlopeDown and vwBwExpanding ? color.new(color.red, 20) : color.new(color.gray, 50)
+// VWAP 모양 셀 색: 상승+확장=선명 녹·상승+수축=둔탁 녹 / 하락+확장=선명 적·하락+수축=둔탁 적 / 그 외 회색
+vwShapeColor = vwSlopeUp and vwBwExpanding ? color.new(color.green, 0) : vwSlopeUp and vwBwContracting ? color.new(#6E8F72, 0) : vwSlopeDown and vwBwExpanding ? color.new(color.red, 0) : vwSlopeDown and vwBwContracting ? color.new(#A57A7A, 0) : color.new(color.gray, 50)
 vwBandState = vwLowerWalk ? "하단 밴드워킹" : vwUpperWalk ? "상단 밴드워킹" : vwSupport ? "하단 지지" : vwResistance ? "상단 저항" : "중앙(공방)"
 vwBandColor = vwUpperWalk ? color.new(color.green, 0) : vwLowerWalk ? color.new(color.red, 0) : vwSupport or vwResistance ? color.new(color.gray, 30) : color.new(color.gray, 50)
 
