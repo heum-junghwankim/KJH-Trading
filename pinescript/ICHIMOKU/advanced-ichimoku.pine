@@ -24,7 +24,7 @@ showSellSignal = input.bool(true, title="매도 신호 표시", group="매도 �
 lineWidth = 1
 conversionLineColor = input.color(#FFEB3B, "컨버전 라인 색", group="색상")
 baseLineColor = input.color(#00FF00, "베이스 라인 색", group="색상")
-laggingSpanColor = input.color(#FFFFFF, "레깅 스팬 색", group="색상")
+laggingSpanColor = input.color(#FF9800, "레깅 스팬 색", group="색상")
 leadingSpanAColor = input.color(#7B9077, "리딩 스팬 A 색", group="색상")
 leadingSpanBColor = input.color(#9A7272, "리딩 스팬 B 색", group="색상")
 kumoBoundaryColor = input.color(#3F5AA9, "Kumo 경계선 색", group="색상")
@@ -600,7 +600,8 @@ f_trigBg(blocked, p, isBuy) =>
     dirCol = isBuy ? color.green : color.red
     pct = close != 0 ? (p - close) / close * 100 : na
     hit = not blocked and not na(p) and not na(pct) and (isBuy ? pct <= nearPct : pct >= -nearPct)
-    blocked ? color.new(dirCol, 30) : hit ? color.new(dirCol, 25) : color.new(color.gray, 40)
+    // 진행 중(상승/하락 추세)=선명 녹/적, 근접(작은 % 이내)=둔탁 녹/적, 그 외=회색
+    blocked ? color.new(dirCol, 30) : hit ? (isBuy ? color.new(#6E8F72, 0) : color.new(#A57A7A, 0)) : color.new(color.gray, 40)
 
 // =========================
 // Auto VWAP 통합 — 계산 전용(차트 미표시). 밴드워킹(추세) vs 지지·저항 상태만 테이블 하단 행에 추가.

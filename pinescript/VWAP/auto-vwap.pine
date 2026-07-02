@@ -151,14 +151,15 @@ else if isLowerBand2Break and isUpperBand2Break
 color activeLineColor = enableDynamicLineColor ? breakHighlightLineColor : DEFAULT_LINE_COLOR
 color activeFillColor = color.new(activeLineColor, 92)
 
-plot(vwapValue, title="브이왑", color=activeLineColor, offset=offset, editable=true, linestyle=plot.linestyle_solid)
+// VWAP 선: 기본 2px + 가격축 라벨은 이 선만 표시(display 기본=all). 밴드는 라벨 제외.
+plot(vwapValue, title="브이왑", color=activeLineColor, offset=offset, linewidth=2, editable=true, linestyle=plot.linestyle_solid)
 
-displayBand1 = showBand_1 ? display.all : display.none
+displayBand1 = showBand_1 ? display.all - display.price_scale : display.none
 upperBand_1 = plot(upperBandValue1, title="Upper Band #1", color=activeLineColor, offset=offset, display=displayBand1, editable=true, linestyle=plot.linestyle_dotted)
 lowerBand_1 = plot(lowerBandValue1, title="Lower Band #1", color=activeLineColor, offset=offset, display=displayBand1, editable=true, linestyle=plot.linestyle_dotted)
 fill(upperBand_1, lowerBand_1, title="Bands Fill #1", color=activeFillColor, display=display.none, editable=true)
 
-displayBand2 = showBand_2 ? display.all : display.none
+displayBand2 = showBand_2 ? display.all - display.price_scale : display.none
 upperBand_2 = plot(upperBandValue2, title="Upper Band #2", color=activeLineColor, offset=offset, display=displayBand2, editable=true, linestyle=plot.linestyle_dashed)
 lowerBand_2 = plot(lowerBandValue2, title="Lower Band #2", color=activeLineColor, offset=offset, display=displayBand2, editable=true, linestyle=plot.linestyle_dashed)
 fill(upperBand_2, lowerBand_2, title="Bands Fill #2", color=activeFillColor, display=display.none, editable=true)
