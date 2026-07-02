@@ -150,6 +150,39 @@ sellBlocked10 = dir10 == -1
 buyBlocked20 = dir20 == 1
 sellBlocked20 = dir20 == -1
 
+// =========================
+// 스케일 캐스케이드 — 표시 신호는 4→8→16 컨버전 순으로만 나온다.
+//  매수: 4컨버전(0.5×) 뒤에 8컨버전(1×), 8 뒤에 16(2×). 매도도 동일.
+//  8/16 매수가 나온 뒤 첫 매도 신호가 나오면 사다리 리셋 → 다시 4 매수부터. 반대도 동일.
+// =========================
+var int buyStage = 0   // 0=4컨버전 대기, 1=4 발생(8 대기), 2=8 발생(16 대기), 3=16 발생
+var int sellStage = 0
+// 게이트된 표시 신호(직전 봉까지의 stage 기준)
+gBuy05 = buy05 and buyStage == 0
+gBuy10 = buy10 and buyStage == 1
+gBuy20 = buy20 and buyStage == 2
+gSell05 = sell05 and sellStage == 0
+gSell10 = sell10 and sellStage == 1
+gSell20 = sell20 and sellStage == 2
+// 반대 방향 표시 신호가 나오면 상대 사다리 리셋(첫 반대 신호에)
+if gSell05 or gSell10 or gSell20
+    buyStage := 0
+if gBuy05 or gBuy10 or gBuy20
+    sellStage := 0
+// 같은 방향 진행 단계 상승
+if gBuy05
+    buyStage := 1
+if gBuy10
+    buyStage := 2
+if gBuy20
+    buyStage := 3
+if gSell05
+    sellStage := 1
+if gSell10
+    sellStage := 2
+if gSell20
+    sellStage := 3
+
 cloudOffset = displacement - 1
 fillSourceA = plot(leadingSpanA, offset=cloudOffset, title="Cloud Fill Source A", color=color.new(leadingSpanAColor, 100), display=display.none)
 fillSourceB = plot(leadingSpanB, offset=cloudOffset, title="Cloud Fill Source B", color=color.new(leadingSpanBColor, 100), display=display.none)
@@ -220,8 +253,8 @@ ltCellColor = ltGoldCross ? color.new(ltColor1, 0) : ltDeadCross ? color.new(ltC
 // 신호 삼각형은 리본 압축/분출 다이아몬드보다 **뒤(코드상 나중)** 에 그려 삼각형이 위 레이어에 오도록
 // 파일 하단(다이아몬드 plotshape 다음)에서 그린다.
 
-alertcondition(buy10, title="Advanced Ichimoku Buy Signal", message="Advanced Ichimoku buy signal")
-alertcondition(sell10, title="Advanced Ichimoku Sell Signal", message="Advanced Ichimoku sell signal")
+alertcondition(gBuy10, title="Advanced Ichimoku Buy Signal", message="Advanced Ichimoku buy signal")
+alertcondition(gSell10, title="Advanced Ichimoku Sell Signal", message="Advanced Ichimoku sell signal")
 
 // =========================
 // 이평 수축/확장 판정 (휩쏘 필터 + 분출 확인) — A / B / A and B 모드
@@ -907,12 +940,12 @@ plotshape(series=ribbonBull, title="상승 분출", style=shape.diamond, locatio
 plotshape(series=ribbonBear, title="하락 분출", style=shape.diamond, location=location.abovebar, color=color.new(color.red, 0), size=size.tiny)
 
 // 신호 삼각형 — 다이아몬드 뒤에(나중에) 그려 위 레이어로. 스케일별 크기: 0.5×=가장 작음, 1×=작음, 2×=보통
-plotshape(showBuySignal and buy05, title="매수 0.5×", style=shape.triangleup, location=location.belowbar, color=longExitLineColor, size=size.tiny)
-plotshape(showBuySignal and buy10, title="매수 1×", style=shape.triangleup, location=location.belowbar, color=longExitLineColor, size=size.small)
-plotshape(showBuySignal and buy20, title="매수 2×", style=shape.triangleup, location=location.belowbar, color=longExitLineColor, size=size.normal)
-plotshape(showSellSignal and sell05, title="매도 0.5×", style=shape.triangledown, location=location.abovebar, color=defaultSellColor, size=size.tiny)
-plotshape(showSellSignal and sell10, title="매도 1×", style=shape.triangledown, location=location.abovebar, color=defaultSellColor, size=size.small)
-plotshape(showSellSignal and sell20, title="매도 2×", style=shape.triangledown, location=location.abovebar, color=defaultSellColor, size=size.normal)
+plotshape(showBuySignal and gBuy05, title="매수 0.5×", style=shape.triangleup, location=location.belowbar, color=longExitLineColor, size=size.tiny)
+plotshape(showBuySignal and gBuy10, title="매수 1×", style=shape.triangleup, location=location.belowbar, color=longExitLineColor, size=size.small)
+plotshape(showBuySignal and gBuy20, title="매수 2×", style=shape.triangleup, location=location.belowbar, color=longExitLineColor, size=size.normal)
+plotshape(showSellSignal and gSell05, title="매도 0.5×", style=shape.triangledown, location=location.abovebar, color=defaultSellColor, size=size.tiny)
+plotshape(showSellSignal and gSell10, title="매도 1×", style=shape.triangledown, location=location.abovebar, color=defaultSellColor, size=size.small)
+plotshape(showSellSignal and gSell20, title="매도 2×", style=shape.triangledown, location=location.abovebar, color=defaultSellColor, size=size.normal)
 plotshape(showVwSignals and vwBuy05, title="매수 0.5× (거래량)", style=shape.triangleup, location=location.belowbar, color=color.new(longExitLineColor, vwTransp), size=size.tiny)
 plotshape(showVwSignals and vwBuy10, title="매수 1× (거래량)", style=shape.triangleup, location=location.belowbar, color=color.new(longExitLineColor, vwTransp), size=size.small)
 plotshape(showVwSignals and vwBuy20, title="매수 2× (거래량)", style=shape.triangleup, location=location.belowbar, color=color.new(longExitLineColor, vwTransp), size=size.normal)
