@@ -34,6 +34,7 @@ cloudTransp = input.int(45, "구름 투명도", minval=0, maxval=100, group="색
 bullishCloudColor = color.new(bullCloudColor, cloudTransp)
 bearishCloudColor = color.new(bearCloudColor, cloudTransp)
 defaultSellColor = #FF5FA2
+defaultBuyColor = #00ACC1
 
 conversionLine = donchian(conversionPeriods)
 baseLine = donchian(basePeriods)
@@ -940,15 +941,15 @@ plotshape(series=ribbonBull, title="상승 분출", style=shape.diamond, locatio
 plotshape(series=ribbonBear, title="하락 분출", style=shape.diamond, location=location.abovebar, color=color.new(color.red, 0), size=size.tiny)
 
 // 신호 삼각형 — 다이아몬드 뒤에(나중에) 그려 위 레이어로. 스케일별 크기: 0.5×=가장 작음, 1×=작음, 2×=보통
-plotshape(showBuySignal and gBuy05, title="매수 0.5×", style=shape.triangleup, location=location.belowbar, color=longExitLineColor, size=size.tiny)
-plotshape(showBuySignal and gBuy10, title="매수 1×", style=shape.triangleup, location=location.belowbar, color=longExitLineColor, size=size.small)
-plotshape(showBuySignal and gBuy20, title="매수 2×", style=shape.triangleup, location=location.belowbar, color=longExitLineColor, size=size.normal)
+plotshape(showBuySignal and gBuy05, title="매수 0.5×", style=shape.triangleup, location=location.belowbar, color=defaultBuyColor, size=size.tiny)
+plotshape(showBuySignal and gBuy10, title="매수 1×", style=shape.triangleup, location=location.belowbar, color=defaultBuyColor, size=size.small)
+plotshape(showBuySignal and gBuy20, title="매수 2×", style=shape.triangleup, location=location.belowbar, color=defaultBuyColor, size=size.normal)
 plotshape(showSellSignal and gSell05, title="매도 0.5×", style=shape.triangledown, location=location.abovebar, color=defaultSellColor, size=size.tiny)
 plotshape(showSellSignal and gSell10, title="매도 1×", style=shape.triangledown, location=location.abovebar, color=defaultSellColor, size=size.small)
 plotshape(showSellSignal and gSell20, title="매도 2×", style=shape.triangledown, location=location.abovebar, color=defaultSellColor, size=size.normal)
-plotshape(showVwSignals and vwBuy05, title="매수 0.5× (거래량)", style=shape.triangleup, location=location.belowbar, color=color.new(longExitLineColor, vwTransp), size=size.tiny)
-plotshape(showVwSignals and vwBuy10, title="매수 1× (거래량)", style=shape.triangleup, location=location.belowbar, color=color.new(longExitLineColor, vwTransp), size=size.small)
-plotshape(showVwSignals and vwBuy20, title="매수 2× (거래량)", style=shape.triangleup, location=location.belowbar, color=color.new(longExitLineColor, vwTransp), size=size.normal)
+plotshape(showVwSignals and vwBuy05, title="매수 0.5× (거래량)", style=shape.triangleup, location=location.belowbar, color=color.new(defaultBuyColor, vwTransp), size=size.tiny)
+plotshape(showVwSignals and vwBuy10, title="매수 1× (거래량)", style=shape.triangleup, location=location.belowbar, color=color.new(defaultBuyColor, vwTransp), size=size.small)
+plotshape(showVwSignals and vwBuy20, title="매수 2× (거래량)", style=shape.triangleup, location=location.belowbar, color=color.new(defaultBuyColor, vwTransp), size=size.normal)
 plotshape(showVwSignals and vwSell05, title="매도 0.5× (거래량)", style=shape.triangledown, location=location.abovebar, color=color.new(defaultSellColor, vwTransp), size=size.tiny)
 plotshape(showVwSignals and vwSell10, title="매도 1× (거래량)", style=shape.triangledown, location=location.abovebar, color=color.new(defaultSellColor, vwTransp), size=size.small)
 plotshape(showVwSignals and vwSell20, title="매도 2× (거래량)", style=shape.triangledown, location=location.abovebar, color=color.new(defaultSellColor, vwTransp), size=size.normal)
