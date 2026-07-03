@@ -740,8 +740,8 @@ abnVibration = input.int(10, minval=1, title="비정상 캔들 cRSI Vibration", 
 abnOB = input.float(70.0, title="비정상 절대 과매수", group="비정상 캔들")
 abnOS = input.float(30.0, title="비정상 절대 과매도", group="비정상 캔들")
 abnBbMult = input.float(2.0, minval=0.1, step=0.1, title="비정상 볼린저 배수", group="비정상 캔들")
-abnBodyRatio = input.float(0.3, minval=0.0, step=0.05, title="비정상 몸통 밴드 초과 비율", group="비정상 캔들")
-abnVisualRatio = input.float(0.15, minval=0.0, step=0.05, title="비정상 바색 밴드 초과 비율", group="비정상 캔들")
+abnBodyRatio = input.float(0.3, minval=0.0, step=0.05, title="비정상 밴드 초과 비율(고저 기준)", group="비정상 캔들")
+abnVisualRatio = input.float(0.15, minval=0.0, step=0.05, title="비정상 바색 밴드 초과 비율(고저 기준)", group="비정상 캔들")
 abnAtrMult = input.float(1.2, minval=0.1, step=0.1, title="비정상 배경 ATR 배수", group="비정상 캔들")
 abnStrongAtrMult = input.float(1.8, minval=1.0, step=0.1, title="비정상 강한 배경 ATR 배수", group="비정상 캔들")
 abnRsiMoveLimit = input.float(15.0, minval=0.1, step=0.1, title="비정상 RSI 이동 제한", group="비정상 캔들")
@@ -770,25 +770,21 @@ abnCrsi := abnTorque * (2.0 * abnRsiRaw - nz(abnRsiRaw[abnPhasingLag])) + (1.0 -
 abnIsOB = abnCrsi >= abnOB
 abnIsOS = abnCrsi <= abnOS
 
-// 볼린저 몸통 이탈 = 비정상 캔들
+// 볼린저 밴드 이탈 = 비정상 캔들. 종가(몸통)는 실시간 변동이 커서 **고가/저가** 기준으로 판정.
+//  비정상 매수=현재봉 고가가 상단 밴드 초과, 비정상 매도=현재봉 저가가 하단 밴드 초과. 초과폭÷캔들 범위 비율로 강도 판정.
 abnBbBasis = ta.sma(close, abnLen)
 abnBbDev = ta.stdev(close, abnLen) * abnBbMult
 abnBbUpper = abnBbBasis + abnBbDev
 abnBbLower = abnBbBasis - abnBbDev
-abnBodyHigh = math.max(open, close)
-abnBodyLow = math.min(open, close)
-abnBodySpan = math.max(abnBodyHigh - abnBodyLow, syminfo.mintick)
 abnRangeSpan = math.max(high - low, syminfo.mintick)
-abnUpperBodyOut = math.max(abnBodyHigh - abnBbUpper, 0.0)
-abnLowerBodyOut = math.max(abnBbLower - abnBodyLow, 0.0)
-abnBearExt = abnUpperBodyOut > 0 and abnUpperBodyOut / abnBodySpan >= abnBodyRatio
-abnBullExt = abnLowerBodyOut > 0 and abnLowerBodyOut / abnBodySpan >= abnBodyRatio
+abnUpperOut = math.max(high - abnBbUpper, 0.0)
+abnLowerOut = math.max(abnBbLower - low, 0.0)
+abnBearExt = abnUpperOut > 0 and abnUpperOut / abnRangeSpan >= abnBodyRatio
+abnBullExt = abnLowerOut > 0 and abnLowerOut / abnRangeSpan >= abnBodyRatio
 abnBearCandle = abnIsOB and abnBearExt
 abnBullCandle = abnIsOS and abnBullExt
-abnUpperVisOut = math.max(high - abnBbUpper, 0.0)
-abnLowerVisOut = math.max(abnBbLower - low, 0.0)
-abnBearVis = abnUpperVisOut > 0 and abnUpperVisOut / abnRangeSpan >= abnVisualRatio
-abnBullVis = abnLowerVisOut > 0 and abnLowerVisOut / abnRangeSpan >= abnVisualRatio
+abnBearVis = abnUpperOut > 0 and abnUpperOut / abnRangeSpan >= abnVisualRatio
+abnBullVis = abnLowerOut > 0 and abnLowerOut / abnRangeSpan >= abnVisualRatio
 abnBarCol = abnBearCandle and abnBearVis ? abnOverboughtColor : abnBullCandle and abnBullVis ? abnOversoldColor : na
 barcolor(abnShowBars ? abnBarCol : na, title="비정상 캔들 바색")
 
@@ -812,12 +808,12 @@ if not na(abnBearBar) and abnDisparityNeutral
     abnBearBar := na
 if abnBullCandle
     abnBullBar := bar_index
-    abnBullRefPrice := abnBodyLow
+    abnBullRefPrice := low
     abnBullRefRsi := abnOsc
     abnBullRefAtr := abnAtr
 if abnBearCandle
     abnBearBar := bar_index
-    abnBearRefPrice := abnBodyHigh
+    abnBearRefPrice := high
     abnBearRefRsi := abnOsc
     abnBearRefAtr := abnAtr
 abnBullBars = not na(abnBullBar) ? bar_index - abnBullBar : na
