@@ -502,7 +502,7 @@ ltM1Txt = ltM1St == 1 ? "지지" : ltM1St == -1 ? "저항" : "중립"
 ltM2Txt = ltM2St == 1 ? "지지" : ltM2St == -1 ? "저항" : "중립"
 ltSrText = (na(ltMa1) or na(ltMa2)) ? "-" : "100선 " + ltM1Txt + " | 200선 " + ltM2Txt
 // 색: 200선 기준 지지=파랑·저항=빨강·중립=회색, 100선 일치=선명·엇갈림=둔탁.
-ltSrColor = (na(ltMa1) or na(ltMa2)) ? color.new(color.gray, 40) : ltM2St == 1 ? (ltM1St == 1 ? color.new(#2979FF, 0) : color.new(#6E7E9F, 0)) : ltM2St == -1 ? (ltM1St == -1 ? color.new(color.red, 0) : color.new(#A57A7A, 0)) : color.new(color.gray, 40)
+ltSrColor = (na(ltMa1) or na(ltMa2)) ? color.new(color.gray, 40) : ltM2St == 1 ? (ltM1St == 1 ? color.new(#2979FF, 0) : color.new(#6E7E9F, 0)) : ltM2St == -1 ? (ltM1St == -1 ? color.new(color.red, 30) : color.new(#A57A7A, 0)) : color.new(color.gray, 40)
 
 // 신호 삼각형은 리본 압축/분출 다이아몬드보다 **뒤(코드상 나중)** 에 그려 삼각형이 위 레이어에 오도록
 // 파일 하단(다이아몬드 plotshape 다음)에서 그린다.
@@ -939,10 +939,11 @@ vwSupport = not vwUpperWalk and not vwLowerWalk and (vwBwContracting or vwSlopeF
 vwResistance = not vwUpperWalk and not vwLowerWalk and (vwBwContracting or vwSlopeFlat) and vwNearUpper
 vwSlopeText = not vwHasVwap ? "-" : vwSlopeUp ? "상승" : vwSlopeDown ? "하락" : "평탄(중심)"
 vwBwStateText = not vwHasVwap ? "-" : vwBwExpanding ? "확장" : vwBwContracting ? "수축" : "유지"
-// VWAP 모양 셀 색: 상승+확장=선명 녹·상승+수축=둔탁 녹 / 하락+확장=선명 적·하락+수축=둔탁 적 / 그 외 회색
-vwShapeColor = vwSlopeUp and vwBwExpanding ? color.new(color.green, 0) : vwSlopeUp and vwBwContracting ? color.new(#6E8F72, 0) : vwSlopeDown and vwBwExpanding ? color.new(color.red, 0) : vwSlopeDown and vwBwContracting ? color.new(#A57A7A, 0) : color.new(color.gray, 50)
 vwBandState = vwLowerWalk ? "하단 밴드워킹" : vwUpperWalk ? "상단 밴드워킹" : vwSupport ? "하단 지지" : vwResistance ? "상단 저항" : "중앙(공방)"
-vwBandColor = vwUpperWalk ? color.new(color.green, 0) : vwLowerWalk ? color.new(color.red, 0) : vwSupport or vwResistance ? color.new(color.gray, 30) : color.new(color.gray, 50)
+// 밴드워킹(상단/하단)은 텍스트로 방향을 안 쓰고 셀 색(상단=초록/하단=빨강)으로 구분.
+// 중앙(공방) 상태는 기울기 방향으로 둔탁색: 상승=둔탁 녹(#6E8F72)·하락=둔탁 빨강(#A57A7A)·평탄=회색.
+vwBandStateShort = (vwUpperWalk or vwLowerWalk) ? "밴드워킹" : vwBandState
+vwBandColor = vwUpperWalk ? color.new(color.green, 0) : vwLowerWalk ? color.new(color.red, 0) : vwSupport or vwResistance ? color.new(color.gray, 30) : vwSlopeUp ? color.new(#6E8F72, 0) : vwSlopeDown ? color.new(#A57A7A, 0) : color.new(color.gray, 50)
 
 // =========================
 // 비정상 캔들 상태/색/텍스트는 상단(멀티스케일 신호 앞)에서 이미 계산했다(모멘텀 즉시 반영). 여기선 생략.
@@ -964,13 +965,25 @@ rrPbReward = not na(disparityPullbackPrice) and close != 0 ? math.abs(disparityP
 rrPbRisk = 4.0
 rrPbRR = not na(rrPbReward) ? rrPbReward / rrPbRisk : na
 f_rrPbText(rr, rewardPct) => "R " + str.tostring(rr, "0.00") + " (+" + str.tostring(rewardPct, "0.0") + "% / -" + str.tostring(rrPbRisk, "0.0") + "%)"
-longRRText = rrValid ? f_rrText(longRR, rrUpPct, rrDownPct) : (underCount >= 1 and not na(rrPbRR) ? f_rrPbText(rrPbRR, rrPbReward) : "계산 불가")
-shortRRText = rrValid ? f_rrText(shortRR, rrDownPct, rrUpPct) : (overCount >= 1 and not na(rrPbRR) ? f_rrPbText(rrPbRR, rrPbReward) : "계산 불가")
-// 셀 색은 실제 표시하는 손익비(청산가 기준 or 되돌림 폴백) 값으로 판정
-longRREff = rrValid ? longRR : (underCount >= 1 ? rrPbRR : na)
-shortRREff = rrValid ? shortRR : (overCount >= 1 ? rrPbRR : na)
+// VWAP+청산 기준 손익비(V): VWAP 상태 기울기 방향 + 그 방향 0.5×↑ 신호(buyStage/sellStage≥1)가 있으면,
+//  손절=VWAP(추세 지지/저항)·목표=반대편 청산가로 손익비 산출(텍스트에 'V' 표기, 되돌림 R·정상보다 우선).
+vHasVwap = not na(vwapValue)
+vLongOn = vwSlopeUp and buyStage >= 1 and vHasVwap and shortClear > close and close > vwapValue
+vShortOn = vwSlopeDown and sellStage >= 1 and vHasVwap and close > longClear and vwapValue > close
+vLongRR = vLongOn ? (shortClear - close) / (close - vwapValue) : na
+vShortRR = vShortOn ? (close - longClear) / (vwapValue - close) : na
+vLongRewPct = vLongOn and close != 0 ? (shortClear - close) / close * 100 : na
+vLongRiskPct = vLongOn and close != 0 ? (close - vwapValue) / close * 100 : na
+vShortRewPct = vShortOn and close != 0 ? (close - longClear) / close * 100 : na
+vShortRiskPct = vShortOn and close != 0 ? (vwapValue - close) / close * 100 : na
+f_rrVText(rr, rewardPct, riskPct) => "V " + str.tostring(rr, "0.00") + " (+" + str.tostring(rewardPct, "0.0") + "% / -" + str.tostring(riskPct, "0.0") + "%)"
+longRRText = vLongOn ? f_rrVText(vLongRR, vLongRewPct, vLongRiskPct) : rrValid ? f_rrText(longRR, rrUpPct, rrDownPct) : (underCount >= 1 and not na(rrPbRR) ? f_rrPbText(rrPbRR, rrPbReward) : "계산 불가")
+shortRRText = vShortOn ? f_rrVText(vShortRR, vShortRewPct, vShortRiskPct) : rrValid ? f_rrText(shortRR, rrDownPct, rrUpPct) : (overCount >= 1 and not na(rrPbRR) ? f_rrPbText(rrPbRR, rrPbReward) : "계산 불가")
+// 셀 색은 실제 표시하는 손익비(V 우선 → 청산가 기준 → 되돌림 폴백) 값으로 판정
+longRREff = vLongOn ? vLongRR : rrValid ? longRR : (underCount >= 1 ? rrPbRR : na)
+shortRREff = vShortOn ? vShortRR : rrValid ? shortRR : (overCount >= 1 ? rrPbRR : na)
 
-var table triggerTable = table.new(position.top_right, 2, 23, border_width=1, border_color=color.new(color.gray, 50))
+var table triggerTable = table.new(position.top_right, 2, 22, border_width=1, border_color=color.new(color.gray, 50))
 if barstate.islast
     table.cell(triggerTable, 0, 0, "다음 봉", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
     table.cell(triggerTable, 1, 0, "트리거 가격", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
@@ -1004,30 +1017,29 @@ if barstate.islast
 
     table.cell(triggerTable, 0, 12, "VWAP 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
     table.cell(triggerTable, 1, 12, vwSrText, text_color=color.white, bgcolor=vwSrColor, text_size=size.small)
-    table.cell(triggerTable, 0, 13, "VWAP 모양", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 13, vwSlopeText + " | " + vwBwStateText, text_color=color.white, bgcolor=vwShapeColor, text_size=size.small)
-    table.cell(triggerTable, 0, 14, "VWAP 밴드 상태", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 14, vwBandState, text_color=color.white, bgcolor=vwBandColor, text_size=size.small)
+    // VWAP 상태 = 모양값(기울기 | 밴드폭) | 상태값. 셀 색은 밴드 상태 기준(밴드워킹 상단=초록·하단=빨강).
+    table.cell(triggerTable, 0, 13, "VWAP 상태", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 13, vwSlopeText + " | " + vwBwStateText + " | " + vwBandStateShort, text_color=color.white, bgcolor=vwBandColor, text_size=size.small)
 
-    table.cell(triggerTable, 0, 15, "장기 추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 15, ltCellText, text_color=color.white, bgcolor=ltCellColor, text_size=size.small)
-    table.cell(triggerTable, 0, 16, "장기 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 16, ltSrText, text_color=color.white, bgcolor=ltSrColor, text_size=size.small)
+    table.cell(triggerTable, 0, 14, "장기 추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 14, ltCellText, text_color=color.white, bgcolor=ltCellColor, text_size=size.small)
+    table.cell(triggerTable, 0, 15, "장기 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 15, ltSrText, text_color=color.white, bgcolor=ltSrColor, text_size=size.small)
 
-    table.cell(triggerTable, 0, 17, "롱 스윕", text_color=color.white, bgcolor=color.new(longExitLineColor, 65), text_size=size.small)
-    table.cell(triggerTable, 1, 17, f_price(longCE) + " (" + f_pct(longCE) + ")", text_color=color.white, bgcolor=color.new(longExitLineColor, 50), text_size=size.small)
+    table.cell(triggerTable, 0, 16, "롱 스윕", text_color=color.white, bgcolor=color.new(longExitLineColor, 65), text_size=size.small)
+    table.cell(triggerTable, 1, 16, f_price(longCE) + " (" + f_pct(longCE) + ")", text_color=color.white, bgcolor=color.new(longExitLineColor, 50), text_size=size.small)
+    table.cell(triggerTable, 0, 17, "롱 청산", text_color=color.white, bgcolor=color.new(longExitLineColor, 40), text_size=size.small)
+    table.cell(triggerTable, 1, 17, f_price(longClear) + " (" + f_pct(longClear) + ")", text_color=color.white, bgcolor=color.new(longExitLineColor, 20), text_size=size.small)
     table.cell(triggerTable, 0, 18, "숏 스윕", text_color=color.white, bgcolor=color.new(shortExitLineColor, 65), text_size=size.small)
     table.cell(triggerTable, 1, 18, f_price(shortCE) + " (" + f_pct(shortCE) + ")", text_color=color.white, bgcolor=color.new(shortExitLineColor, 50), text_size=size.small)
-    table.cell(triggerTable, 0, 19, "롱 청산", text_color=color.white, bgcolor=color.new(longExitLineColor, 40), text_size=size.small)
-    table.cell(triggerTable, 1, 19, f_price(longClear) + " (" + f_pct(longClear) + ")", text_color=color.white, bgcolor=color.new(longExitLineColor, 20), text_size=size.small)
-    table.cell(triggerTable, 0, 20, "숏 청산", text_color=color.white, bgcolor=color.new(shortExitLineColor, 40), text_size=size.small)
-    table.cell(triggerTable, 1, 20, f_price(shortClear) + " (" + f_pct(shortClear) + ")", text_color=color.white, bgcolor=color.new(shortExitLineColor, 20), text_size=size.small)
+    table.cell(triggerTable, 0, 19, "숏 청산", text_color=color.white, bgcolor=color.new(shortExitLineColor, 40), text_size=size.small)
+    table.cell(triggerTable, 1, 19, f_price(shortClear) + " (" + f_pct(shortClear) + ")", text_color=color.white, bgcolor=color.new(shortExitLineColor, 20), text_size=size.small)
 
     // 손익비(RR) — 롱/숏 청산가 기준. 현재가가 청산가 밖이면 "계산 불가"
-    table.cell(triggerTable, 0, 21, "롱 손익비", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 21, longRRText, text_color=color.white, bgcolor=f_rrColor(longRREff), text_size=size.small)
-    table.cell(triggerTable, 0, 22, "숏 손익비", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 22, shortRRText, text_color=color.white, bgcolor=f_rrColor(shortRREff), text_size=size.small)
+    table.cell(triggerTable, 0, 20, "롱 손익비", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 20, longRRText, text_color=color.white, bgcolor=f_rrColor(longRREff), text_size=size.small)
+    table.cell(triggerTable, 0, 21, "숏 손익비", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 21, shortRRText, text_color=color.white, bgcolor=f_rrColor(shortRREff), text_size=size.small)
 
 // 이평 기반 상태 표식(+ 모양) (압축=보라 #9C27B0[상승·하락과 확실히 구분], 상승 분출=파랑, 하락 분출=빨강)
 // 먼저 그려서 아래 신호 삼각형보다 뒤(아래 레이어)에 오게 한다.
