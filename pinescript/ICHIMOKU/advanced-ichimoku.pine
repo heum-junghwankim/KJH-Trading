@@ -251,6 +251,20 @@ ltCellText = ltDeadCross ? "데드 크로스" : ltGoldCross ? "골든 크로스"
 ltCellTransp = not ltEstablished ? 30 : (ltNearCross or ltNarrowing) ? 55 : ltWidening ? 0 : 30
 ltCellColor = ltGoldCross ? color.new(ltColor1, 0) : ltDeadCross ? color.new(ltColor2, 0) : ltUp ? color.new(ltColor1, ltCellTransp) : color.new(ltColor2, ltCellTransp)
 
+// 장기 지지/저항 — 종가가 MA100/MA200 위=지지·아래=저항. 글자는 흰색, 셀 배경색으로 상태 구분.
+//  200선(장기) 기준 지지=파랑·저항=빨강, 100선이 일치하면 선명·엇갈리면 둔탁.
+//  둘 다 지지=파랑 / 둘 다 저항=빨강 / 100저항·200지지=둔탁 파랑 / 100지지·200저항=둔탁 빨강.
+// 몸통(min/max(open,close))이 선을 완전히 이탈한 경우만 지지(+1)/저항(-1), 걸치면 중립(0).
+ltBodyHi = math.max(open, close)
+ltBodyLo = math.min(open, close)
+ltM1St = na(ltMa1) ? 0 : (ltBodyLo > ltMa1 ? 1 : ltBodyHi < ltMa1 ? -1 : 0)
+ltM2St = na(ltMa2) ? 0 : (ltBodyLo > ltMa2 ? 1 : ltBodyHi < ltMa2 ? -1 : 0)
+ltM1Txt = ltM1St == 1 ? "지지" : ltM1St == -1 ? "저항" : "중립"
+ltM2Txt = ltM2St == 1 ? "지지" : ltM2St == -1 ? "저항" : "중립"
+ltSrText = (na(ltMa1) or na(ltMa2)) ? "-" : "100선 " + ltM1Txt + " | 200선 " + ltM2Txt
+// 색: 200선 기준 지지=파랑·저항=빨강·중립=회색, 100선 일치=선명·엇갈림=둔탁.
+ltSrColor = (na(ltMa1) or na(ltMa2)) ? color.new(color.gray, 40) : ltM2St == 1 ? (ltM1St == 1 ? color.new(#2979FF, 0) : color.new(#6E7E9F, 0)) : ltM2St == -1 ? (ltM1St == -1 ? color.new(color.red, 0) : color.new(#A57A7A, 0)) : color.new(color.gray, 40)
+
 // 신호 삼각형은 리본 압축/분출 다이아몬드보다 **뒤(코드상 나중)** 에 그려 삼각형이 위 레이어에 오도록
 // 파일 하단(다이아몬드 plotshape 다음)에서 그린다.
 
@@ -263,14 +277,14 @@ alertcondition(gSell10, title="Advanced Ichimoku Sell Signal", message="Advanced
 // A(이평 리본): 입력값 기반 리본(전환선~리딩B 길이)의 폭이 ATR 대비 좁으면 수축, 다시 벌어지는 첫 봉에 빠른선 vs 느린선 방향으로 확장.
 // B(구름 두께): 선행스팬 A·B 간격(구름 두께)이 ATR 대비 좁으면 수축, 벌어지는 첫 봉에 구름 색(양운/음운) 방향으로 확장.
 // A and B(기본): 두 기준이 모두 수축/확장(방향 일치)할 때만. 압축 → 분출 → 압축 … 순서.
-ribbonMode = input.string("리본+구름", title="수축/확장 판정 모드", options=["이평 리본", "구름 두께", "리본+구름"], group="중기 추세(수축·분출)")
-ribbonMaType = input.string("SMA", title="리본 이동평균 종류(A)", options=["SMA", "EMA", "WMA", "VWMA"], group="중기 추세(수축·분출)")
-showChopWarn = input.bool(true, title="횡보 압축(수축) 표시", group="중기 추세(수축·분출)")
-showExpansion = input.bool(true, title="분출(상승/하락 확장) 표시", group="중기 추세(수축·분출)")
-ribbonConfirmOnClose = input.bool(true, title="봉마감 후 확정", group="중기 추세(수축·분출)")
-ribbonAtrLength = input.int(14, minval=1, title="폭 ATR 기준", group="중기 추세(수축·분출)")
-ribbonCompressAtrMult = input.float(0.8, minval=0.1, step=0.1, title="수축 판정 ATR 배수", group="중기 추세(수축·분출)")
-ribbonExpandBars = input.int(1, minval=1, title="확장 판정 폭 증가 봉수(작을수록 빠름)", group="중기 추세(수축·분출)")
+ribbonMode = input.string("리본+구름", title="수축/확장 판정 모드", options=["이평 리본", "구름 두께", "리본+구름"], group="평균 추세(수축·분출)")
+ribbonMaType = input.string("SMA", title="리본 이동평균 종류(A)", options=["SMA", "EMA", "WMA", "VWMA"], group="평균 추세(수축·분출)")
+showChopWarn = input.bool(true, title="횡보 압축(수축) 표시", group="평균 추세(수축·분출)")
+showExpansion = input.bool(true, title="분출(상승/하락 확장) 표시", group="평균 추세(수축·분출)")
+ribbonConfirmOnClose = input.bool(true, title="봉마감 후 확정", group="평균 추세(수축·분출)")
+ribbonAtrLength = input.int(14, minval=1, title="폭 ATR 기준", group="평균 추세(수축·분출)")
+ribbonCompressAtrMult = input.float(0.8, minval=0.1, step=0.1, title="수축 판정 ATR 배수", group="평균 추세(수축·분출)")
+ribbonExpandBars = input.int(1, minval=1, title="확장 판정 폭 증가 봉수(작을수록 빠름)", group="평균 추세(수축·분출)")
 
 ribbonMa(length) =>
     switch ribbonMaType
@@ -320,6 +334,7 @@ var bool rArmed = false
 var int rLastExpDir = 0   // 직전 분출 방향(1=상승, -1=하락, 0=없음)
 var string ribbonState = "대기"
 var float ribbonEventClose = na   // 마지막 이벤트(압축/분출) 발생 봉의 종가 — 이후 가격 변화% 기준
+var int ribbonEventBar = na       // 마지막 이벤트 발생 봉 인덱스 — 몇 봉째인지 표시용
 bool rBullExpansion = false
 bool rBearExpansion = false
 if rConfirmed
@@ -327,6 +342,7 @@ if rConfirmed
         rArmed := true
         ribbonState := "횡보 압축"
         ribbonEventClose := close
+        ribbonEventBar := bar_index
     else if expNow and (bullNow or bearNow)
         expDir = bullNow ? 1 : -1
         // 발화 조건: 압축 후 무장(rArmed) 또는 직전 분출과 반대 방향(압축 없이 직접 반전)
@@ -337,6 +353,7 @@ if rConfirmed
             rArmed := false
             rLastExpDir := expDir
             ribbonEventClose := close
+            ribbonEventBar := bar_index
 
 ribbonChop = showChopWarn and rConfirmed and rChopEnter
 ribbonBull = showExpansion and rBullExpansion
@@ -402,7 +419,8 @@ cloudCellColor = isSupport ? color.new(color.green, srTransp) : isResist ? color
 // 리본 상태 = 마지막으로 발생한 다이아몬드(상태머신) 기준이라 차트 표시와 동기화된다.
 // 괄호 숫자 = 마지막 이벤트(압축/분출) 발생 봉 종가 대비 현재 종가의 가격 변화 %.
 ribbonMovePct = not na(ribbonEventClose) and ribbonEventClose != 0 ? (close / ribbonEventClose - 1) * 100 : na
-ribbonCellText = ribbonState + (na(ribbonMovePct) ? "" : " (" + (ribbonMovePct > 0 ? "+" : "") + str.tostring(ribbonMovePct, "0.0") + "%)")
+ribbonBars = not na(ribbonEventBar) ? bar_index - ribbonEventBar + 1 : na   // 이벤트 봉=1봉째
+ribbonCellText = ribbonState + (na(ribbonMovePct) ? "" : " (" + (ribbonMovePct > 0 ? "+" : "") + str.tostring(ribbonMovePct, "0.0") + "%" + (na(ribbonBars) ? "" : " | " + str.tostring(ribbonBars) + "봉") + ")")
 ribbonCellColor = ribbonState == "상승 분출" ? color.new(color.blue, 30) : ribbonState == "하락 분출" ? color.new(color.red, 30) : color.new(color.gray, 40)
 
 // =========================
@@ -430,7 +448,7 @@ underStat  = disparityStatOk and 100 - disparity >= disparityStatMult * disparit
 overCount  = (overFixed ? 1 : 0) + (overStat ? 1 : 0)
 underCount = (underFixed ? 1 : 0) + (underStat ? 1 : 0)
 disparityState = (overCount == 2 or underCount == 2) ? "되돌림 확실" : (overCount >= 1 or underCount >= 1) ? "되돌림 주의" : "중립"
-disparityCellText = na(disparity) ? "-" : str.tostring(disparity, "0.0") + "% (" + disparityState + ")"
+disparityCellText = na(disparity) ? "-" : str.tostring(disparity, "0.0") + " (" + disparityState + ")"
 // 과열(위)=빨강계 / 과매도(아래)=초록계, 확실=선명(투명도 0) / 주의=둔탁(채도 낮은 톤)
 disparityCellColor = overCount == 2 ? color.new(color.red, 0) : underCount == 2 ? color.new(color.green, 0) : overCount >= 1 ? color.new(#A57A7A, 0) : underCount >= 1 ? color.new(#6E8F72, 0) : color.new(color.gray, 40)
 // 되돌림 가격 = 이격도가 '중립'으로 복귀하는 가격 band. 중립 경계 = MA × (1 ± 중립폭%/100).
@@ -693,6 +711,18 @@ vwHasVwap = vwShouldCalc and not na(vwapValue)
 vwAbove = vwHasVwap and close > vwapValue
 vwGapPct = vwHasVwap and vwapValue != 0 ? (close / vwapValue - 1.0) * 100.0 : na
 vwPosText = not vwHasVwap ? "-" : vwAbove ? "VWAP 위" : "VWAP 아래"
+// VWAP 지지/저항 — 위=지지·아래=저항, 괄호는 이격도(기준 100: 종가÷VWAP×100)와 유지 봉수. 이격도가 ±2σ 밖이면(너무 큼) 둔탁 색.
+vwSrTooFar = vwHasVwap and (vwAbove ? (not na(vwUpper2) and close > vwUpper2) : (not na(vwLower2) and close < vwLower2))
+vwAboveInt = vwHasVwap ? (vwAbove ? 1 : -1) : 0   // 1=VWAP 위(지지), -1=아래(저항), 0=없음
+var int vwSrBars = 0   // 현재 지지/저항(위/아래) 상태가 유지된 봉수
+if vwAboveInt == 0
+    vwSrBars := 0
+else if vwAboveInt == vwAboveInt[1]
+    vwSrBars := vwSrBars + 1
+else
+    vwSrBars := 1
+vwSrText = not vwHasVwap ? "-" : (vwAbove ? "지지" : "저항") + " (" + str.tostring(close / vwapValue * 100, "0.0") + " | " + str.tostring(vwSrBars) + "봉)"
+vwSrColor = not vwHasVwap ? color.new(color.gray, 50) : vwAbove ? (vwSrTooFar ? color.new(#6E8F72, 0) : color.new(color.green, 30)) : (vwSrTooFar ? color.new(#A57A7A, 0) : color.new(color.red, 30))
 vwNearLower = vwHasVwap and not na(vwLower1) and close < vwLower1
 vwNearUpper = vwHasVwap and not na(vwUpper1) and close > vwUpper1
 vwSlopeLen = 5
@@ -831,29 +861,36 @@ abnBearBgOn = abnHasBear and abnBearBars > 0 and not na(abnBearPriceMove) and no
 abnBullBgStrong = abnBullBgOn and abnBullPriceMove >= abnBullRefAtr * abnStrongAtrMult
 abnBearBgStrong = abnBearBgOn and abnBearPriceMove >= abnBearRefAtr * abnStrongAtrMult
 
-// 상태 래치: 이격도 중립 복귀 시 정상 캔들(먼저). 그 외엔 비정상 캔들/감시 중 가장 마지막 신호 유지.
-if abnSig != 0 and abnDisparityNeutral
-    abnSig := 0
+// 상태 래치: 이격도 중립 복귀 시 리셋. 비정상 캔들(±1)과 반등 감시(±2/±3)를 **각각** 래치해 동시 표시 가능.
+var int abnCandleState = 0   // 1=비정상 매도, -1=비정상 매수, 0=없음
+var int abnWatch = 0         // 2/3=롱 감시(강), -2/-3=숏 감시(강), 0=없음
+if abnDisparityNeutral
+    abnCandleState := 0
+    abnWatch := 0
 if abnBullCandle
-    abnSig := 1
+    abnCandleState := 1
 if abnBearCandle
-    abnSig := -1
+    abnCandleState := -1
 if abnBullBgStrong
-    abnSig := 3
+    abnWatch := 3
 else if abnBullBgOn
-    abnSig := 2
+    abnWatch := 2
 if abnBearBgStrong
-    abnSig := -3
+    abnWatch := -3
 else if abnBearBgOn
-    abnSig := -2
+    abnWatch := -2
+// 방향(빠른 신호용) = 캔들 우선, 없으면 감시 부호
+abnSig := abnCandleState != 0 ? (abnCandleState > 0 ? 1 : -1) : abnWatch > 0 ? 1 : abnWatch < 0 ? -1 : 0
 
-// 반등 감시 배경은 래치된 상태 동안 유지(밴드워킹 종료 전까지)
-abnBg = abnSig == 3 ? color.new(abnBullStrongColor, abnBgTransp) : abnSig == 2 ? color.new(abnBullBaseColor, abnBgTransp) : abnSig == -3 ? color.new(abnBearStrongColor, abnBgTransp) : abnSig == -2 ? color.new(abnBearBaseColor, abnBgTransp) : na
+// 반등 감시 배경은 감시 래치가 유지되는 동안 표시
+abnBg = abnWatch == 3 ? color.new(abnBullStrongColor, abnBgTransp) : abnWatch == 2 ? color.new(abnBullBaseColor, abnBgTransp) : abnWatch == -3 ? color.new(abnBearStrongColor, abnBgTransp) : abnWatch == -2 ? color.new(abnBearBaseColor, abnBgTransp) : na
 bgcolor(abnShowBg ? abnBg : na, title="비정상 캔들 배경")
 
-// 비정상 캔들 테이블 셀: 감시 4단계 + 비정상 캔들 상태 + 정상
-abnCellText = abnSig == 3 ? "롱 감시 강화" : abnSig == 2 ? "롱 감시" : abnSig == -3 ? "숏 감시 강화" : abnSig == -2 ? "숏 감시" : abnSig == 1 ? "비정상 매도 캔들" : abnSig == -1 ? "비정상 매수 캔들" : "정상 캔들"
-abnCellColor = abnSig == 3 ? color.new(abnBullStrongColor, 0) : abnSig == 2 ? color.new(abnBullBaseColor, 0) : abnSig == -3 ? color.new(abnBearStrongColor, 0) : abnSig == -2 ? color.new(abnBearBaseColor, 0) : abnSig == 1 ? color.new(abnOversoldColor, 20) : abnSig == -1 ? color.new(abnOverboughtColor, 20) : color.new(color.gray, 40)
+// 비정상 캔들 + 감시를 함께 표기(예: "비정상 매수 | 숏 감시"). 셀 색은 캔들(비정상) 우선, 없으면 감시, 없으면 정상.
+abnCandleTxt = abnCandleState == 1 ? "비정상 매도" : abnCandleState == -1 ? "비정상 매수" : ""
+abnWatchTxt = abnWatch == 3 ? "롱 감시 강화" : abnWatch == 2 ? "롱 감시" : abnWatch == -3 ? "숏 감시 강화" : abnWatch == -2 ? "숏 감시" : ""
+abnCellText = (abnCandleTxt != "" and abnWatchTxt != "") ? abnCandleTxt + " | " + abnWatchTxt : abnCandleTxt != "" ? abnCandleTxt : abnWatchTxt != "" ? abnWatchTxt : close > open ? "정상 매수" : close < open ? "정상 매도" : "정상"
+abnCellColor = abnCandleState == 1 ? color.new(abnOversoldColor, 20) : abnCandleState == -1 ? color.new(abnOverboughtColor, 20) : abnWatch == 3 ? color.new(abnBullStrongColor, 0) : abnWatch == 2 ? color.new(abnBullBaseColor, 0) : abnWatch == -3 ? color.new(abnBearStrongColor, 0) : abnWatch == -2 ? color.new(abnBearBaseColor, 0) : color.new(color.gray, 40)
 
 // 손익비(RR) — 현재 봉 기준. 롱: 위(숏 청산가)=목표·아래(롱 청산가)=손절 / 숏: 반대
 rrUp = shortClear - close
@@ -869,7 +906,7 @@ f_rrColor(rr) => na(rr) ? color.new(color.gray, 40) : rr >= 1.5 ? color.new(colo
 longRRText = rrValid ? f_rrText(longRR, rrUpPct, rrDownPct) : "계산 불가"
 shortRRText = rrValid ? f_rrText(shortRR, rrDownPct, rrUpPct) : "계산 불가"
 
-var table triggerTable = table.new(position.top_right, 2, 22, border_width=1, border_color=color.new(color.gray, 50))
+var table triggerTable = table.new(position.top_right, 2, 23, border_width=1, border_color=color.new(color.gray, 50))
 if barstate.islast
     table.cell(triggerTable, 0, 0, "다음 봉", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
     table.cell(triggerTable, 1, 0, "트리거 가격", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
@@ -888,47 +925,45 @@ if barstate.islast
     table.cell(triggerTable, 0, 6, "하락 전환(2×)", text_color=color.white, bgcolor=color.new(color.red, 30), text_size=size.small)
     table.cell(triggerTable, 1, 6, f_trigCell(sellBlocked20, sellTrig20, false), text_color=color.white, bgcolor=f_trigBg(sellBlocked20, sellTrig20, false), text_size=size.small)
 
-    table.cell(triggerTable, 0, 7, "구름대", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 7, cloudCellText, text_color=color.white, bgcolor=cloudCellColor, text_size=size.small)
+    table.cell(triggerTable, 0, 7, "평균 추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 7, ribbonCellText, text_color=color.white, bgcolor=ribbonCellColor, text_size=size.small)
 
-    table.cell(triggerTable, 0, 8, "중기 추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 8, ribbonCellText, text_color=color.white, bgcolor=ribbonCellColor, text_size=size.small)
+    table.cell(triggerTable, 0, 8, "비정상 매수/매도", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 8, abnCellText, text_color=color.white, bgcolor=abnCellColor, text_size=size.small)
+    table.cell(triggerTable, 0, 9, "이격도 (" + str.tostring(disparityMaLen) + ")", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 9, disparityCellText, text_color=color.white, bgcolor=disparityCellColor, text_size=size.small)
+    table.cell(triggerTable, 0, 10, "되돌림 가격", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 10, na(disparityPullbackPrice) ? "-" : f_price(disparityPullbackPrice) + " (" + f_pct(disparityPullbackPrice) + ")", text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
 
-    table.cell(triggerTable, 0, 9, "장기 추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 9, ltCellText, text_color=color.white, bgcolor=ltCellColor, text_size=size.small)
+    table.cell(triggerTable, 0, 11, "구름대", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 11, cloudCellText, text_color=color.white, bgcolor=cloudCellColor, text_size=size.small)
 
-    table.cell(triggerTable, 0, 10, "롱 스윕", text_color=color.white, bgcolor=color.new(longExitLineColor, 65), text_size=size.small)
-    table.cell(triggerTable, 1, 10, f_price(longCE) + " (" + f_pct(longCE) + ")", text_color=color.white, bgcolor=color.new(longExitLineColor, 50), text_size=size.small)
+    table.cell(triggerTable, 0, 12, "VWAP 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 12, vwSrText, text_color=color.white, bgcolor=vwSrColor, text_size=size.small)
+    table.cell(triggerTable, 0, 13, "VWAP 모양", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 13, vwSlopeText + " | " + vwBwStateText, text_color=color.white, bgcolor=vwShapeColor, text_size=size.small)
+    table.cell(triggerTable, 0, 14, "VWAP 밴드 상태", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 14, vwBandState, text_color=color.white, bgcolor=vwBandColor, text_size=size.small)
 
-    table.cell(triggerTable, 0, 11, "숏 스윕", text_color=color.white, bgcolor=color.new(shortExitLineColor, 65), text_size=size.small)
-    table.cell(triggerTable, 1, 11, f_price(shortCE) + " (" + f_pct(shortCE) + ")", text_color=color.white, bgcolor=color.new(shortExitLineColor, 50), text_size=size.small)
+    table.cell(triggerTable, 0, 15, "장기 추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 15, ltCellText, text_color=color.white, bgcolor=ltCellColor, text_size=size.small)
+    table.cell(triggerTable, 0, 16, "장기 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 16, ltSrText, text_color=color.white, bgcolor=ltSrColor, text_size=size.small)
 
-    table.cell(triggerTable, 0, 12, "롱 청산", text_color=color.white, bgcolor=color.new(longExitLineColor, 40), text_size=size.small)
-    table.cell(triggerTable, 1, 12, f_price(longClear) + " (" + f_pct(longClear) + ")", text_color=color.white, bgcolor=color.new(longExitLineColor, 20), text_size=size.small)
-
-    table.cell(triggerTable, 0, 13, "숏 청산", text_color=color.white, bgcolor=color.new(shortExitLineColor, 40), text_size=size.small)
-    table.cell(triggerTable, 1, 13, f_price(shortClear) + " (" + f_pct(shortClear) + ")", text_color=color.white, bgcolor=color.new(shortExitLineColor, 20), text_size=size.small)
+    table.cell(triggerTable, 0, 17, "롱 스윕", text_color=color.white, bgcolor=color.new(longExitLineColor, 65), text_size=size.small)
+    table.cell(triggerTable, 1, 17, f_price(longCE) + " (" + f_pct(longCE) + ")", text_color=color.white, bgcolor=color.new(longExitLineColor, 50), text_size=size.small)
+    table.cell(triggerTable, 0, 18, "숏 스윕", text_color=color.white, bgcolor=color.new(shortExitLineColor, 65), text_size=size.small)
+    table.cell(triggerTable, 1, 18, f_price(shortCE) + " (" + f_pct(shortCE) + ")", text_color=color.white, bgcolor=color.new(shortExitLineColor, 50), text_size=size.small)
+    table.cell(triggerTable, 0, 19, "롱 청산", text_color=color.white, bgcolor=color.new(longExitLineColor, 40), text_size=size.small)
+    table.cell(triggerTable, 1, 19, f_price(longClear) + " (" + f_pct(longClear) + ")", text_color=color.white, bgcolor=color.new(longExitLineColor, 20), text_size=size.small)
+    table.cell(triggerTable, 0, 20, "숏 청산", text_color=color.white, bgcolor=color.new(shortExitLineColor, 40), text_size=size.small)
+    table.cell(triggerTable, 1, 20, f_price(shortClear) + " (" + f_pct(shortClear) + ")", text_color=color.white, bgcolor=color.new(shortExitLineColor, 20), text_size=size.small)
 
     // 손익비(RR) — 롱/숏 청산가 기준. 현재가가 청산가 밖이면 "계산 불가"
-    table.cell(triggerTable, 0, 14, "롱 손익비", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 14, longRRText, text_color=color.white, bgcolor=f_rrColor(longRR), text_size=size.small)
-    table.cell(triggerTable, 0, 15, "숏 손익비", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 15, shortRRText, text_color=color.white, bgcolor=f_rrColor(shortRR), text_size=size.small)
-
-    table.cell(triggerTable, 0, 16, "VWAP 위치", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 16, vwPosText + (na(vwGapPct) ? "" : " " + (vwGapPct > 0 ? "+" : "") + str.tostring(vwGapPct, "0.0") + "%"), text_color=color.white, bgcolor=not vwHasVwap ? color.new(color.gray, 50) : vwAbove ? color.new(color.green, 30) : color.new(color.red, 30), text_size=size.small)
-    table.cell(triggerTable, 0, 17, "VWAP 모양", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 17, vwSlopeText + " | " + vwBwStateText, text_color=color.white, bgcolor=vwShapeColor, text_size=size.small)
-    table.cell(triggerTable, 0, 18, "VWAP 밴드 상태", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 18, vwBandState, text_color=color.white, bgcolor=vwBandColor, text_size=size.small)
-
-    table.cell(triggerTable, 0, 19, "비정상 캔들", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 19, abnCellText, text_color=color.white, bgcolor=abnCellColor, text_size=size.small)
-
-    table.cell(triggerTable, 0, 20, "이격도 (" + str.tostring(disparityMaLen) + ")", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 20, disparityCellText, text_color=color.white, bgcolor=disparityCellColor, text_size=size.small)
-    table.cell(triggerTable, 0, 21, "되돌림 가격", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 21, na(disparityPullbackPrice) ? "-" : f_price(disparityPullbackPrice) + " (" + f_pct(disparityPullbackPrice) + ")", text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
+    table.cell(triggerTable, 0, 21, "롱 손익비", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 21, longRRText, text_color=color.white, bgcolor=f_rrColor(longRR), text_size=size.small)
+    table.cell(triggerTable, 0, 22, "숏 손익비", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 22, shortRRText, text_color=color.white, bgcolor=f_rrColor(shortRR), text_size=size.small)
 
 // 이평 기반 상태 다이아몬드 (압축=보라 #9C27B0[상승·하락과 확실히 구분], 상승 분출=파랑, 하락 분출=빨강)
 // 먼저 그려서 아래 신호 삼각형보다 뒤(아래 레이어)에 오게 한다.
