@@ -246,7 +246,9 @@ ltNearCross = ltEstablished and not na(ltGapPct) and ltGapPct <= ltCrossWarnPct 
 ltDir = ltUp ? "상승 추세" : "하락 추세"
 ltStateBase = not ltEstablished ? ltDir : ltNearCross ? (ltUp ? "약한 상승 추세" : "약한 하락 추세") : ltWidening ? (ltUp ? "강한 상승 추세" : "강한 하락 추세") : ltNarrowing ? (ltUp ? "약한 상승 추세" : "약한 하락 추세") : ltDir
 ltWarnText = ltNearCross ? (ltUp ? " (데크 주의)" : " (골크 주의)") : ""
-ltCellText = ltDeadCross ? "데드 크로스" : ltGoldCross ? "골든 크로스" : ltStateBase + ltWarnText
+// 마지막 크로스(골든/데드) 이후 경과 봉수를 괄호로 — 골든크로스 후 데드크로스 전(및 반대) 몇 봉 지났는지.
+ltBarsTxt = na(ltBarsSince) ? "" : " (" + str.tostring(ltBarsSince) + "봉)"
+ltCellText = ltDeadCross ? "데드 크로스" : ltGoldCross ? "골든 크로스" : ltStateBase + ltWarnText + ltBarsTxt
 // 색: 골든 크로스=파랑·데드 크로스=보라 배경. 그 외 강함(확대)=선명(0)·약함(축소)=옅음(55)·추세=중간(30).
 ltCellTransp = not ltEstablished ? 30 : (ltNearCross or ltNarrowing) ? 55 : ltWidening ? 0 : 30
 ltCellColor = ltGoldCross ? color.new(ltColor1, 0) : ltDeadCross ? color.new(ltColor2, 0) : ltUp ? color.new(ltColor1, ltCellTransp) : color.new(ltColor2, ltCellTransp)
