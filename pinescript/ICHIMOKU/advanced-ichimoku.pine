@@ -323,7 +323,6 @@ vwSell10 = momentum ? vsB : vsC
 vwBuy20 = momentum ? vbC : vbD
 vwSell20 = momentum ? vsC : vsD
 
-// 스케일별 신호 방향(테이블 '상승/하락 추세' 표시용)은 아래 캐스케이드 뒤에서 '실제 표시 신호(gBuy*/gSell*)' 기준으로 계산 — 삼각형과 테이블 동기화.
 
 // =========================
 // 트리거 가격(스킵 판정 + 테이블에서 공용) — 4세트(0.25/0.5/1/2×) 계산 후 모멘텀 모드면 한 단계 빠른 기간으로 시프트.
@@ -363,19 +362,24 @@ sellTrig20 = momentum ? stC : stD
 // =========================
 var int buyStage = 0   // 0=4컨버전 대기, 1=4 발생(8 대기), 2=8 발생(16 대기), 3=16 발생
 var int sellStage = 0
+// 스케일별 신호 방향(테이블 '상승/하락 추세' 표시용, 실제 표시 신호 기준). 캐스케이드 게이트에도 쓰려고 앞에서 선언(이전 봉까지의 값).
+var int dir05 = 0
+var int dir10 = 0
+var int dir20 = 0
 // 스킵: 상위 배수의 트리거가 이미 현재 봉에서 충족(매수=종가≥트리거, 매도=종가≤트리거)되면 원시 신호를 기다리지 않고 바로 표시.
 // '직전 배수가 같은 방향 신호'는 공유 사다리(buyStage/sellStage)로 판정 — 반대 신호가 나면 사다리가 리셋되므로 모멘텀/정상 무관하게 순차성 강제(중복 방지).
 buySkip10 = buyStage == 1 and close >= buyTrig10
 buySkip20 = buyStage == 2 and close >= buyTrig20
 sellSkip10 = sellStage == 1 and close <= sellTrig10
 sellSkip20 = sellStage == 2 and close <= sellTrig20
-// 게이트된 표시 신호(직전 봉까지의 stage 기준) — 원시 신호 or 스킵
-gBuy05 = buy05 and buyStage == 0
-gBuy10 = (buy10 and buyStage == 1) or buySkip10
-gBuy20 = (buy20 and buyStage == 2) or buySkip20
-gSell05 = sell05 and sellStage == 0
-gSell10 = (sell10 and sellStage == 1) or sellSkip10
-gSell20 = (sell20 and sellStage == 2) or sellSkip20
+// 게이트된 표시 신호 = (stage 조건) and (그 스케일이 이미 같은 방향이 아님, dir!=방향).
+//  → 같은 방향 신호가 그 스케일에 이미 떠 있으면(예: 2x 이미 상승 추세) 반대 신호가 그 스케일에 나오기 전엔 재발화 금지(중복 차단, 롱숏·전 스케일 공통).
+gBuy05 = buy05 and buyStage == 0 and dir05 != 1
+gBuy10 = ((buy10 and buyStage == 1) or buySkip10) and dir10 != 1
+gBuy20 = ((buy20 and buyStage == 2) or buySkip20) and dir20 != 1
+gSell05 = sell05 and sellStage == 0 and dir05 != -1
+gSell10 = ((sell10 and sellStage == 1) or sellSkip10) and dir10 != -1
+gSell20 = ((sell20 and sellStage == 2) or sellSkip20) and dir20 != -1
 // 반대 방향 표시 신호가 나오면 상대 사다리 리셋(첫 반대 신호에)
 if gSell05 or gSell10 or gSell20
     buyStage := 0
@@ -394,19 +398,15 @@ if gSell10
     sellStage := 2
 if gSell20
     sellStage := 3
-
-// 스케일별 신호 방향(테이블 '상승/하락 추세' 표시용) — 실제 표시 신호(gBuy*/gSell*) 기준이라 차트 삼각형과 항상 일치.
-var int dir05 = 0
+// dir 갱신(실제 표시 신호 기준 — 차트 삼각형과 테이블 '상승/하락 추세' 동기화). 위 게이트는 이 갱신 전(=직전 값)을 참조.
 if gBuy05
     dir05 := 1
 else if gSell05
     dir05 := -1
-var int dir10 = 0
 if gBuy10
     dir10 := 1
 else if gSell10
     dir10 := -1
-var int dir20 = 0
 if gBuy20
     dir20 := 1
 else if gSell20
@@ -940,10 +940,11 @@ vwResistance = not vwUpperWalk and not vwLowerWalk and (vwBwContracting or vwSlo
 vwSlopeText = not vwHasVwap ? "-" : vwSlopeUp ? "상승" : vwSlopeDown ? "하락" : "평탄(중심)"
 vwBwStateText = not vwHasVwap ? "-" : vwBwExpanding ? "확장" : vwBwContracting ? "수축" : "유지"
 vwBandState = vwLowerWalk ? "하단 밴드워킹" : vwUpperWalk ? "상단 밴드워킹" : vwSupport ? "하단 지지" : vwResistance ? "상단 저항" : "중앙(공방)"
-// 밴드워킹(상단/하단)은 텍스트로 방향을 안 쓰고 셀 색(상단=초록/하단=빨강)으로 구분.
-// 중앙(공방) 상태는 기울기 방향으로 둔탁색: 상승=둔탁 녹(#6E8F72)·하락=둔탁 빨강(#A57A7A)·평탄=회색.
+// VWAP 상태 셀 색은 전부 둔탁 계열이고 방향(롱=둔탁 녹 #6E8F72 / 숏=둔탁 빨강 #A57A7A)에 맞춘다.
+//  롱: 상단 밴드워킹·하단 지지·상승 기울기 / 숏: 하단 밴드워킹·상단 저항·하락 기울기.
+//  평탄(중심)은 기울기 부호로 방향 결정. VWAP 없으면만 회색.
 vwBandStateShort = (vwUpperWalk or vwLowerWalk) ? "밴드워킹" : vwBandState
-vwBandColor = vwUpperWalk ? color.new(color.green, 0) : vwLowerWalk ? color.new(color.red, 0) : vwSupport or vwResistance ? color.new(color.gray, 30) : vwSlopeUp ? color.new(#6E8F72, 0) : vwSlopeDown ? color.new(#A57A7A, 0) : color.new(color.gray, 50)
+vwBandColor = not vwHasVwap ? color.new(color.gray, 40) : vwUpperWalk ? color.new(#6E8F72, 0) : vwLowerWalk ? color.new(#A57A7A, 0) : vwSupport ? color.new(#6E8F72, 0) : vwResistance ? color.new(#A57A7A, 0) : vwSlopeUp ? color.new(#6E8F72, 0) : vwSlopeDown ? color.new(#A57A7A, 0) : (not na(vwSlope) and vwSlope < 0 ? color.new(#A57A7A, 0) : color.new(#6E8F72, 0))
 
 // =========================
 // 비정상 캔들 상태/색/텍스트는 상단(멀티스케일 신호 앞)에서 이미 계산했다(모멘텀 즉시 반영). 여기선 생략.
