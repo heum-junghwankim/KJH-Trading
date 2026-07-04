@@ -281,7 +281,7 @@ ribbonMode = input.string("리본+구름", title="수축/확장 판정 모드", 
 ribbonMaType = input.string("SMA", title="리본 이동평균 종류(A)", options=["SMA", "EMA", "WMA", "VWMA"], group="평균 추세(수축·분출)")
 showChopWarn = input.bool(true, title="횡보 압축(수축) 표시", group="평균 추세(수축·분출)")
 showExpansion = input.bool(true, title="분출(상승/하락 확장) 표시", group="평균 추세(수축·분출)")
-ribbonConfirmOnClose = input.bool(true, title="봉마감 후 확정", group="평균 추세(수축·분출)")
+ribbonConfirmOnClose = input.bool(false, title="봉마감 후 확정(끄면 현재봉 실시간)", group="평균 추세(수축·분출)")
 ribbonAtrLength = input.int(14, minval=1, title="폭 ATR 기준", group="평균 추세(수축·분출)")
 ribbonCompressAtrMult = input.float(0.8, minval=0.1, step=0.1, title="수축 판정 ATR 배수", group="평균 추세(수축·분출)")
 ribbonExpandBars = input.int(1, minval=1, title="확장 판정 폭 증가 봉수(작을수록 빠름)", group="평균 추세(수축·분출)")
@@ -340,7 +340,7 @@ bool rBearExpansion = false
 if rConfirmed
     if rChopEnter
         rArmed := true
-        ribbonState := "횡보 압축"
+        ribbonState := "횡보"
         ribbonEventClose := close
         ribbonEventBar := bar_index
     else if expNow and (bullNow or bearNow)
@@ -349,7 +349,7 @@ if rConfirmed
         if rArmed or (rLastExpDir != 0 and expDir != rLastExpDir)
             rBullExpansion := bullNow
             rBearExpansion := bearNow
-            ribbonState := bullNow ? "상승 분출" : "하락 분출"
+            ribbonState := bullNow ? "상승" : "하락"
             rArmed := false
             rLastExpDir := expDir
             ribbonEventClose := close
@@ -421,7 +421,7 @@ cloudCellColor = isSupport ? color.new(color.green, srTransp) : isResist ? color
 ribbonMovePct = not na(ribbonEventClose) and ribbonEventClose != 0 ? (close / ribbonEventClose - 1) * 100 : na
 ribbonBars = not na(ribbonEventBar) ? bar_index - ribbonEventBar + 1 : na   // 이벤트 봉=1봉째
 ribbonCellText = ribbonState + (na(ribbonMovePct) ? "" : " (" + (ribbonMovePct > 0 ? "+" : "") + str.tostring(ribbonMovePct, "0.0") + "%" + (na(ribbonBars) ? "" : " | " + str.tostring(ribbonBars) + "봉") + ")")
-ribbonCellColor = ribbonState == "상승 분출" ? color.new(color.blue, 30) : ribbonState == "하락 분출" ? color.new(color.red, 30) : color.new(color.gray, 40)
+ribbonCellColor = ribbonState == "상승" ? color.new(color.blue, 30) : ribbonState == "하락" ? color.new(color.red, 30) : color.new(color.gray, 40)
 
 // =========================
 // 이격도 (Disparity) — 종가가 선택한 이평선에서 몇 %인지. 기준선 100, 임계 ±N%면 되돌림 주의.
@@ -609,7 +609,8 @@ plot(showExitLines ? longClear : na, title="롱 청산가 라벨", color=longExi
 plot(showExitLines ? shortClear : na, title="숏 청산가 라벨", color=shortExitLineColor, display=display.price_scale)
 
 // 가격이 없으면(같은 방향 신호가 이미 나와 막힘 = 그 방향 진행 중) 상승/하락으로 표시.
-f_trigCell(blocked, p, isBuy) => blocked ? (isBuy ? "상승 추세" : "하락 추세") : f_arrow(p) + f_price(p) + " (" + f_pct(p) + ")"
+// 진행 중(상승/하락 추세)이면 그 스케일 기준선(baseRef) 대비 이격도(기준 100: 종가÷기준선×100)를 괄호로 표기.
+f_trigCell(blocked, p, isBuy, baseRef) => blocked ? (isBuy ? "상승 추세" : "하락 추세") + (na(baseRef) or baseRef == 0 ? "" : " (" + str.tostring(close / baseRef * 100, "0.0") + ")") : f_arrow(p) + f_price(p) + " (" + f_pct(p) + ")"
 // 셀 강조: 방향 기준. 매수는 트리거가 현재가의 +nearPct% 이내(또는 이미 아래=조건 충족→확정),
 // 매도는 트리거가 −nearPct% 이내(또는 이미 위=충족)면 포지션 색(상승=녹/하락=빨)으로 칠한다.
 // 진행 중(상승/하락 추세)이면 구름대 셀과 같은 채도(투명도 30)의 포지션 색.
@@ -912,18 +913,18 @@ if barstate.islast
     table.cell(triggerTable, 1, 0, "트리거 가격", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
 
     table.cell(triggerTable, 0, 1, "상승 전환(0.5×)", text_color=color.white, bgcolor=color.new(color.green, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 1, f_trigCell(buyBlocked05, buyTrig05, true), text_color=color.white, bgcolor=f_trigBg(buyBlocked05, buyTrig05, true), text_size=size.small)
+    table.cell(triggerTable, 1, 1, f_trigCell(buyBlocked05, buyTrig05, true, donB05), text_color=color.white, bgcolor=f_trigBg(buyBlocked05, buyTrig05, true), text_size=size.small)
     table.cell(triggerTable, 0, 2, "상승 전환(1×)", text_color=color.white, bgcolor=color.new(color.green, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 2, f_trigCell(buyBlocked10, buyTrig10, true), text_color=color.white, bgcolor=f_trigBg(buyBlocked10, buyTrig10, true), text_size=size.small)
+    table.cell(triggerTable, 1, 2, f_trigCell(buyBlocked10, buyTrig10, true, baseLine), text_color=color.white, bgcolor=f_trigBg(buyBlocked10, buyTrig10, true), text_size=size.small)
     table.cell(triggerTable, 0, 3, "상승 전환(2×)", text_color=color.white, bgcolor=color.new(color.green, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 3, f_trigCell(buyBlocked20, buyTrig20, true), text_color=color.white, bgcolor=f_trigBg(buyBlocked20, buyTrig20, true), text_size=size.small)
+    table.cell(triggerTable, 1, 3, f_trigCell(buyBlocked20, buyTrig20, true, donB20), text_color=color.white, bgcolor=f_trigBg(buyBlocked20, buyTrig20, true), text_size=size.small)
 
     table.cell(triggerTable, 0, 4, "하락 전환(0.5×)", text_color=color.white, bgcolor=color.new(color.red, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 4, f_trigCell(sellBlocked05, sellTrig05, false), text_color=color.white, bgcolor=f_trigBg(sellBlocked05, sellTrig05, false), text_size=size.small)
+    table.cell(triggerTable, 1, 4, f_trigCell(sellBlocked05, sellTrig05, false, donB05), text_color=color.white, bgcolor=f_trigBg(sellBlocked05, sellTrig05, false), text_size=size.small)
     table.cell(triggerTable, 0, 5, "하락 전환(1×)", text_color=color.white, bgcolor=color.new(color.red, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 5, f_trigCell(sellBlocked10, sellTrig10, false), text_color=color.white, bgcolor=f_trigBg(sellBlocked10, sellTrig10, false), text_size=size.small)
+    table.cell(triggerTable, 1, 5, f_trigCell(sellBlocked10, sellTrig10, false, baseLine), text_color=color.white, bgcolor=f_trigBg(sellBlocked10, sellTrig10, false), text_size=size.small)
     table.cell(triggerTable, 0, 6, "하락 전환(2×)", text_color=color.white, bgcolor=color.new(color.red, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 6, f_trigCell(sellBlocked20, sellTrig20, false), text_color=color.white, bgcolor=f_trigBg(sellBlocked20, sellTrig20, false), text_size=size.small)
+    table.cell(triggerTable, 1, 6, f_trigCell(sellBlocked20, sellTrig20, false, donB20), text_color=color.white, bgcolor=f_trigBg(sellBlocked20, sellTrig20, false), text_size=size.small)
 
     table.cell(triggerTable, 0, 7, "평균 추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
     table.cell(triggerTable, 1, 7, ribbonCellText, text_color=color.white, bgcolor=ribbonCellColor, text_size=size.small)
