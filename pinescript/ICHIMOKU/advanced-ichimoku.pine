@@ -221,10 +221,10 @@ ltPlot1 = plot(showLongTrend ? ltMa1 : na, title="장기추세 MA #1(100)", colo
 ltPlot2 = plot(showLongTrend ? ltMa2 : na, title="장기추세 MA #2(200)", color=ltColor2, linewidth=lineWidth, display=display.all - display.price_scale)
 fill(ltPlot1, ltPlot2, title="장기추세 backfill", color=showLongTrend ? (ltUp ? color.new(ltColor1, ltFillTransp) : color.new(ltColor2, ltFillTransp)) : na)
 
-// 장기 추세 강도/크로스 판정(테이블용):
-//  두께(MA100·200 간격) 커짐 또는 (유지+방향대로 진행) = 강함, 좁아짐 = 약함. 약한 상승=데드크로스 주의, 약한 하락=골든크로스 주의.
+// 장기 추세 강도/크로스 판정(테이블용) — 상태 8종: 골든/데드 크로스, 상승/강한 상승/약한 상승, 하락/강한 하락/약한 하락.
+//  두께(MA100·200 간격) 확대=강한, 축소=약한, 그 사이(평탄대)=상승/하락. 반대 크로스 임박(간격 좁음)이면 약한 고정.
 ltTrendLook = input.int(5, minval=1, title="장기 추세 폭 변화 판정 봉수", group="장기 추세")
-ltFlatTol = input.float(0.1, minval=0.0, step=0.05, title="평탄 판정 ATR 배수(강↔약 사이 '추세')", group="장기 추세")
+ltFlatTol = input.float(0.25, minval=0.0, step=0.05, title="평탄 판정 ATR 배수(강↔약 사이 '상승/하락')", group="장기 추세")
 ltCrossWarnPct = input.float(4.0, minval=0.05, step=0.05, title="크로스 주의 간격(%, 클수록 빨리)", group="장기 추세")
 ltAtr = ta.atr(14)
 ltGap = math.abs(ltMa1 - ltMa2)
@@ -239,16 +239,19 @@ ltGapChg = (ltEstablished and not na(ltGap[ltTrendLook])) ? ltGap - ltGap[ltTren
 ltDeadBand = not na(ltAtr) ? ltAtr * ltFlatTol : 0.0
 ltWidening = not na(ltGapChg) and ltGapChg > ltDeadBand    // 확대 = 강함
 ltNarrowing = not na(ltGapChg) and ltGapChg < -ltDeadBand  // 축소 = 약함
-// 반대 크로스 임박 = 확립 후 + 간격이 좁고(≤주의%) 확대 중이 아님. 평탄이어도 '약한'으로 고정 → 크로스 직전 '그냥 추세' 블립 방지.
+// 반대 크로스 임박 = 확립 후 + 간격이 좁고(≤주의%) 확대 중이 아님 → '약한'으로 고정(크로스 직전 블립 방지).
 ltNearCross = ltEstablished and not na(ltGapPct) and ltGapPct <= ltCrossWarnPct and not ltWidening
-// 상태 세그먼트(한 단계씩):
-//  크로스 이벤트 → (빌드업/평탄) 상승·하락 추세 → 확대 강한 → 축소 약한 → 임박 약한(주의) → 반대 크로스
-ltDir = ltUp ? "상승 추세" : "하락 추세"
-ltStateBase = not ltEstablished ? ltDir : ltNearCross ? (ltUp ? "약한 상승 추세" : "약한 하락 추세") : ltWidening ? (ltUp ? "강한 상승 추세" : "강한 하락 추세") : ltNarrowing ? (ltUp ? "약한 상승 추세" : "약한 하락 추세") : ltDir
-ltWarnText = ltNearCross ? (ltUp ? " (데크 주의)" : " (골크 주의)") : ""
-// 마지막 크로스(골든/데드) 이후 경과 봉수를 괄호로 — 골든크로스 후 데드크로스 전(및 반대) 몇 봉 지났는지.
-ltBarsTxt = na(ltBarsSince) ? "" : " (" + str.tostring(ltBarsSince) + "봉)"
-ltCellText = ltDeadCross ? "데드 크로스" : ltGoldCross ? "골든 크로스" : ltStateBase + ltWarnText + ltBarsTxt
+// 상태 세그먼트: 크로스 → (빌드업/평탄) 상승·하락 → 확대=강한 → 축소·임박=약한 → 반대 크로스
+ltDir = ltUp ? "상승" : "하락"
+ltStateBase = not ltEstablished ? ltDir : ltNearCross ? (ltUp ? "약한 상승" : "약한 하락") : ltWidening ? (ltUp ? "강한 상승" : "강한 하락") : ltNarrowing ? (ltUp ? "약한 상승" : "약한 하락") : ltDir
+// 마지막 크로스(골든/데드) 이후 변화율(%)과 경과 봉수 — 골든 후 상승%·데드 후 하락%, 몇 봉 지났는지.
+// 크로스 시점의 MA100 값을 기준으로 이후 MA100이 몇 % 올랐/내렸는지(골든=상승%·데드=하락%).
+var float ltCrossMa1 = na
+if ltGoldCross or ltDeadCross
+    ltCrossMa1 := ltMa1
+ltMovePct = not na(ltCrossMa1) and ltCrossMa1 != 0 ? (ltMa1 / ltCrossMa1 - 1) * 100 : na
+ltInfoTxt = (na(ltMovePct) or na(ltBarsSince)) ? "" : " (" + (ltMovePct >= 0 ? "+" : "") + str.tostring(ltMovePct, "0.0") + "% | " + str.tostring(ltBarsSince) + "봉)"
+ltCellText = ltDeadCross ? "데드 크로스" : ltGoldCross ? "골든 크로스" : ltStateBase + ltInfoTxt
 // 색: 골든 크로스=파랑·데드 크로스=보라 배경. 그 외 강함(확대)=선명(0)·약함(축소)=옅음(55)·추세=중간(30).
 ltCellTransp = not ltEstablished ? 30 : (ltNearCross or ltNarrowing) ? 55 : ltWidening ? 0 : 30
 ltCellColor = ltGoldCross ? color.new(ltColor1, 0) : ltDeadCross ? color.new(ltColor2, 0) : ltUp ? color.new(ltColor1, ltCellTransp) : color.new(ltColor2, ltCellTransp)
@@ -279,14 +282,14 @@ alertcondition(gSell10, title="Advanced Ichimoku Sell Signal", message="Advanced
 // A(이평 리본): 입력값 기반 리본(전환선~리딩B 길이)의 폭이 ATR 대비 좁으면 수축, 다시 벌어지는 첫 봉에 빠른선 vs 느린선 방향으로 확장.
 // B(구름 두께): 선행스팬 A·B 간격(구름 두께)이 ATR 대비 좁으면 수축, 벌어지는 첫 봉에 구름 색(양운/음운) 방향으로 확장.
 // A and B(기본): 두 기준이 모두 수축/확장(방향 일치)할 때만. 압축 → 분출 → 압축 … 순서.
-ribbonMode = input.string("리본+구름", title="수축/확장 판정 모드", options=["이평 리본", "구름 두께", "리본+구름"], group="평균 추세(수축·분출)")
-ribbonMaType = input.string("SMA", title="리본 이동평균 종류(A)", options=["SMA", "EMA", "WMA", "VWMA"], group="평균 추세(수축·분출)")
-showChopWarn = input.bool(true, title="횡보 압축(수축) 표시", group="평균 추세(수축·분출)")
-showExpansion = input.bool(true, title="분출(상승/하락 확장) 표시", group="평균 추세(수축·분출)")
-ribbonConfirmOnClose = input.bool(false, title="봉마감 후 확정(끄면 현재봉 실시간)", group="평균 추세(수축·분출)")
-ribbonAtrLength = input.int(14, minval=1, title="폭 ATR 기준", group="평균 추세(수축·분출)")
-ribbonCompressAtrMult = input.float(0.8, minval=0.1, step=0.1, title="수축 판정 ATR 배수", group="평균 추세(수축·분출)")
-ribbonExpandBars = input.int(1, minval=1, title="확장 판정 폭 증가 봉수(작을수록 빠름)", group="평균 추세(수축·분출)")
+ribbonMode = input.string("리본+구름", title="수축/확장 판정 모드", options=["이평 리본", "구름 두께", "리본+구름"], group="리본 추세(수축·분출)")
+ribbonMaType = input.string("SMA", title="리본 이동평균 종류(A)", options=["SMA", "EMA", "WMA", "VWMA"], group="리본 추세(수축·분출)")
+showChopWarn = input.bool(true, title="횡보 압축(수축) 표시", group="리본 추세(수축·분출)")
+showExpansion = input.bool(true, title="분출(상승/하락 확장) 표시", group="리본 추세(수축·분출)")
+ribbonConfirmOnClose = input.bool(false, title="봉마감 후 확정(끄면 현재봉 실시간)", group="리본 추세(수축·분출)")
+ribbonAtrLength = input.int(14, minval=1, title="폭 ATR 기준", group="리본 추세(수축·분출)")
+ribbonCompressAtrMult = input.float(0.8, minval=0.1, step=0.1, title="수축 판정 ATR 배수", group="리본 추세(수축·분출)")
+ribbonExpandBars = input.int(1, minval=1, title="확장 판정 폭 증가 봉수(작을수록 빠름)", group="리본 추세(수축·분출)")
 
 ribbonMa(length) =>
     switch ribbonMaType
@@ -928,7 +931,7 @@ if barstate.islast
     table.cell(triggerTable, 0, 6, "하락 전환(2×)", text_color=color.white, bgcolor=color.new(color.red, 30), text_size=size.small)
     table.cell(triggerTable, 1, 6, f_trigCell(sellBlocked20, sellTrig20, false, donB20), text_color=color.white, bgcolor=f_trigBg(sellBlocked20, sellTrig20, false), text_size=size.small)
 
-    table.cell(triggerTable, 0, 7, "평균 추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 0, 7, "리본 추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
     table.cell(triggerTable, 1, 7, ribbonCellText, text_color=color.white, bgcolor=ribbonCellColor, text_size=size.small)
 
     table.cell(triggerTable, 0, 8, "비정상 매수/매도", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
