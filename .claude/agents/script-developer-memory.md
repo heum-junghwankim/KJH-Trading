@@ -11,7 +11,8 @@
 - **원격 규율:** 커밋·푸시·병합은 **본부장 지시(=CEO 승인)에 따라서만** 수행. 임의로 원격/기본 브랜치를 건드리지 않는다.
 - 파일 이동/삭제는 `git mv`/`git rm`으로 히스토리 보존. 커밋 메시지 한국어 + 끝에 `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
 
-- **마지막 학습 커밋:** `2cf7b8b` (브랜치 `refactor/pinescript-restructure`)
+- **마지막 학습 커밋:** `6a3b9d8` (main, origin 동기화됨 — 재구조화 2커밋 ff 병합 + 조직 설정 커밋)
+- **원격 이동 안내(2026-07-05 관측):** origin push 시 GitHub가 저장소 이동을 통지(`junghwan-kim-84/KJH-Trading` → `heum-junghwankim/KJH-Trading`). 아직 리다이렉트로 정상 동작하나, remote URL 갱신은 본부장/CEO 승인 후 별도 처리 권고.
 - **학습 스크립트:** 활성 7개 `.pine` (SUPER-ICHIMOKU/VWAP/MACD/cRSI/OBV-ADX/CCI/VOLUME-PRESSURE) + 레거시 3개(`pinescript/_legacy/` 하위, 미사용). 각 폴더 `README.md` 유지, **`pinescript/README.md`(하위 가이드)는 삭제됨 → 루트 `README.md`가 안내서.**
 - **학습일:** 2026-07-05
 - **구조 정리 이력(2cf7b8b):** `ICHIMOKU/`→`SUPER-ICHIMOKU/` 리네이밍, `MA-RIBBON`·`비정상 가격 추적(캔들·보조)`을 `_legacy/`로 이동(미사용), `pinescript/README.md` 제거, `거래량 압력 추적`→`VOLUME-PRESSURE`.
