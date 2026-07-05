@@ -67,9 +67,10 @@ plot(showAdxLines ? na : histLevel, style=plot.style_columns, color=color.new(di
 // =========================
 adxStrong = adx >= extremeAdxMin
 diBull    = plus > minus
-adxText   = str.tostring(adx, "#.0") + (adxStrong ? " 충분" : " 약함")
+// 과열(추세 통계 극단·되돌림 주의) 여부 — ADX 셀에 (과열) 접미·배경색으로 병합
+extremeOverheat = oversoldExtreme or overboughtExtreme
+adxText   = str.tostring(adx, "#.0") + (adxStrong ? " 충분" : " 약함") + (extremeOverheat ? " (과열)" : "")
 dirText   = diBull ? "+DI 우위(상승)" : "-DI 우위(하락)"
-bgText    = oversoldExtreme ? "되돌림 주의(반등)" : overboughtExtreme ? "되돌림 주의(하락)" : "-"
 // OBV 방향 에너지(|diDiff| = +DI/-DI 격차)의 평균 대비·기울기로 강화/약화 판정 (A안)
 // 방향(DI)·추세(ADX)는 같아도 에너지가 평균 이하로 줄거나 최근 감소 중이면 '약화'로 표시.
 obvEnergyLen = input.int(14, minval=1, title="OBV 에너지 평균 길이", group=extremeGroup)
@@ -80,13 +81,14 @@ posVerdict = not adxStrong ? "중립(휩쏘)" : diBull ? (energyFading ? "롱 �
 // 강화 = 채도 높은(선명한) 녹/적, 약화 = 채도 낮은(탁한) 녹/적. 투명도는 0으로 동일(흰 글씨 가독성 유지).
 posColor   = not adxStrong ? color.new(color.gray, 40) : diBull ? color.new(energyFading ? #6E8F72 : color.green, 0) : color.new(energyFading ? #A57A7A : color.red, 0)
 
-var table obvStatus = table.new(position.top_right, 2, 4, border_width=1, border_color=color.new(color.gray, 50))
+// ADX 셀 배경: 과열이면 롱측(oversold)=둔한 녹, 숏측(overbought)=둔한 빨. 아니면 기존 색 유지.
+adxCellColor = oversoldExtreme ? color.new(#6E8F72, 0) : overboughtExtreme ? color.new(#A57A7A, 0) : (adxStrong ? (diBull ? color.new(color.green, 30) : color.new(color.red, 30)) : (diBull ? color.new(#6E8F72, 0) : color.new(#A57A7A, 0)))
+
+var table obvStatus = table.new(position.top_right, 2, 3, border_width=1, border_color=color.new(color.gray, 50))
 if barstate.islast
     table.cell(obvStatus, 0, 0, "OBV ADX", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
     table.cell(obvStatus, 1, 0, posVerdict, text_color=color.white, bgcolor=posColor, text_size=size.small)
     table.cell(obvStatus, 0, 1, "ADX", text_color=color.white, text_size=size.small)
-    table.cell(obvStatus, 1, 1, adxText, text_color=color.white, bgcolor=adxStrong ? (diBull ? color.new(color.green, 30) : color.new(color.red, 30)) : (diBull ? color.new(#6E8F72, 0) : color.new(#A57A7A, 0)), text_size=size.small)
+    table.cell(obvStatus, 1, 1, adxText, text_color=color.white, bgcolor=adxCellColor, text_size=size.small)
     table.cell(obvStatus, 0, 2, "DI 방향", text_color=color.white, text_size=size.small)
     table.cell(obvStatus, 1, 2, dirText, text_color=color.white, bgcolor=diBull ? color.new(color.green, 30) : color.new(color.red, 30), text_size=size.small)
-    table.cell(obvStatus, 0, 3, "추세 과열", text_color=color.white, text_size=size.small)
-    table.cell(obvStatus, 1, 3, bgText, text_color=color.white, bgcolor=oversoldExtreme ? color.new(color.green, 0) : overboughtExtreme ? color.new(color.red, 0) : color.new(color.gray, 50), text_size=size.small)
