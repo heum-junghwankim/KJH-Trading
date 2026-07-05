@@ -940,11 +940,11 @@ vwResistance = not vwUpperWalk and not vwLowerWalk and (vwBwContracting or vwSlo
 vwSlopeText = not vwHasVwap ? "-" : vwSlopeUp ? "상승" : vwSlopeDown ? "하락" : "평탄(중심)"
 vwBwStateText = not vwHasVwap ? "-" : vwBwExpanding ? "확장" : vwBwContracting ? "수축" : "유지"
 vwBandState = vwLowerWalk ? "하단 밴드워킹" : vwUpperWalk ? "상단 밴드워킹" : vwSupport ? "하단 지지" : vwResistance ? "상단 저항" : "중앙(공방)"
-// VWAP 상태 셀 색(둔탁 계열, 롱=둔탁 녹 #6E8F72 / 숏=둔탁 빨강 #A57A7A):
-//  밴드워킹은 방향색(상단=녹/하단=빨강). 밴드워킹이 아니면 '기울기 우선' — 상승=녹(상단 저항이어도)·하락=빨강(하단 지지여도).
-//  기울기 평탄이면 하단 지지=녹·상단 저항=빨강·중앙(공방)=회색. VWAP 없음=회색.
+// VWAP 상태 셀 색:
+//  상승 → 녹(밴드워킹=선명 green, 그 외=둔탁 #6E8F72) / 하락 → 빨강(밴드워킹=선명 red, 그 외=둔탁 #A57A7A)
+//  평탄(중심) → 밴드 상태별: 상단 밴드워킹·하단 지지=둔탁 녹, 하단 밴드워킹·상단 저항=둔탁 빨강, 중앙(공방)=회색. VWAP 없음=회색.
 vwBandStateShort = (vwUpperWalk or vwLowerWalk) ? "밴드워킹" : vwBandState
-vwBandColor = not vwHasVwap ? color.new(color.gray, 40) : vwUpperWalk ? color.new(#6E8F72, 0) : vwLowerWalk ? color.new(#A57A7A, 0) : vwSlopeUp ? color.new(#6E8F72, 0) : vwSlopeDown ? color.new(#A57A7A, 0) : vwSupport ? color.new(#6E8F72, 0) : vwResistance ? color.new(#A57A7A, 0) : color.new(color.gray, 30)
+vwBandColor = not vwHasVwap ? color.new(color.gray, 40) : vwSlopeUp ? ((vwUpperWalk or vwLowerWalk) ? color.new(color.green, 0) : color.new(#6E8F72, 0)) : vwSlopeDown ? ((vwUpperWalk or vwLowerWalk) ? color.new(color.red, 0) : color.new(#A57A7A, 0)) : vwUpperWalk ? color.new(#6E8F72, 0) : vwLowerWalk ? color.new(#A57A7A, 0) : vwSupport ? color.new(#6E8F72, 0) : vwResistance ? color.new(#A57A7A, 0) : color.new(color.gray, 30)
 
 // =========================
 // 비정상 캔들 상태/색/텍스트는 상단(멀티스케일 신호 앞)에서 이미 계산했다(모멘텀 즉시 반영). 여기선 생략.
