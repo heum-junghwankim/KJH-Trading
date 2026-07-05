@@ -207,5 +207,7 @@ marimo/_lsp/
 __marimo__/
 
 # ETC
-.claude
 .downloads
+
+# Claude Code — 로컬 전용 개인 설정만 무시 (에이전트 페르소나·공유 설정은 추적)
+.claude/settings.local.json
