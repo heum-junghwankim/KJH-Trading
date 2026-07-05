@@ -6,7 +6,7 @@
 
 ![적용 예시](./assets/img.png)
 
-> 저장소: [`github.com/heum-junghwankim/KJH-Trading`](https://github.com/heum-junghwankim/KJH-Trading) · 전체 인덱스: [PineScript 가이드](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/README.md)
+> 저장소: [`github.com/heum-junghwankim/KJH-Trading`](https://github.com/heum-junghwankim/KJH-Trading)
 
 ---
 
@@ -14,8 +14,8 @@
 
 | 지표 | 역할 | 링크 |
 | --- | --- | --- |
-| **이치모쿠**(메인) | 추세추종 매수/매도 신호 + 종합 테이블 | [인디케이터](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/ICHIMOKU/advanced-ichimoku.pine) · [설명](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/ICHIMOKU/README.md) |
-| 거래량 압력 | 신호 봉에 추진력(매수/매도 우세)이 실렸나 | [README](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/%EA%B1%B0%EB%9E%98%EB%9F%89%20%EC%95%95%EB%A0%A5%20%EC%B6%94%EC%A0%81/README.md) |
+| **이치모쿠**(메인) | 추세추종 매수/매도 신호 + 종합 테이블 | [인디케이터](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/SUPER-ICHIMOKU/advanced-ichimoku.pine) · [설명](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/SUPER-ICHIMOKU/README.md) |
+| 거래량 압력 | 신호 봉에 추진력(매수/매도 우세)이 실렸나 | [README](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/VOLUME-PRESSURE/README.md) |
 | cRSI | 국면(수축/확장)·과매수/과매도·다이버전스 | [README](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/cRSI/README.md) |
 | CCI | 극단 후 재진입 + 추세 추종 | [README](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/CCI/README.md) |
 | OBV-ADX | 추세 힘(방향 에너지) / 휩쏘 1차 필터 | [README](https://github.com/heum-junghwankim/KJH-Trading/blob/main/pinescript/OBV-ADX/README.md) |
