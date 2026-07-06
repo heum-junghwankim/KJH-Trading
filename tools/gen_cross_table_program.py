@@ -1,23 +1,27 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-신호-상태 교차표 (프로그램/자동조회용) 생성기 — 13축 완전 열거 · 7표 방향 판정
+신호-상태 교차표 (프로그램/자동조회용) 생성기 — 12축 완전 열거 · 7표 방향 판정
 ================================================================================
 근거 코드(읽기만, 무수정):
   pinescript/SUPER-ICHIMOKU/advanced-ichimoku.pine   (메인: 이치모쿠 10축)
   pinescript/cRSI/rsi-cyclic-smoothed.pine           (보조: cRSI posVerdict)
-  pinescript/CCI/cci-extreme-cross-signals.pine       (보조: CCI posVerdict)
   pinescript/OBV-ADX/obv-adx-extreme-background.pine  (보조: OBV-ADX posVerdict)
 
-이 스크립트는 펀드 지표군이 출력하는 **13개 상태축**을 각 3상태로 정규화하고,
-그 완전 열거(3^13 = 1,594,323행)를 결정론적으로 로컬(/tmp)에 생성한 뒤,
+이 스크립트는 펀드 지표군이 출력하는 **12개 상태축**을 각 3상태로 정규화하고,
+그 완전 열거(3^12 = 531,441행)를 결정론적으로 스트리밍 생성한 뒤,
 **정렬행(방향≠중립·혼조)만 필터**해 프로그램용 CSV로 커밋한다. 완전열거 전체는
-용량(수백 MB)이라 커밋하지 않으며, 필요 시 이 생성기로 온디맨드 재생성한다.
+디스크에 쌓지 않고 필터만 스트림한다(대용량 방지). 필요 시 온디맨드 재생성.
+
+※ CCI 축 제거 근거(수학자 지적): CCI(cci-extreme-cross-signals)의 posVerdict는
+  cRSI와 마찬가지로 "가격의 극단 이탈"을 같은 정보원으로 측정 → 중복. 종전엔 둘을
+  osc묶음(1표)으로 합쳤으나, 중복 축 자체를 제거해 cRSI 단독 1표로 단순화한다.
+  (지표 파일 pinescript/CCI 는 유지 — 이 CSV의 축에서만 뺀다.)
 
 ■ 출력 형식: CSV(표만) — 헤더 1줄 + 정렬행. 산문·범례는 담지 않는다(사람용 설명은
   MD `신호-교차표.md`의 "프로그램용 CSV 안내" 섹션). UTF-8 · RFC 4180(csv 모듈).
 
-■ 13 표시축 · 3상태 정규화 (코드 근거)
+■ 12 표시축 · 3상태 정규화 (코드 근거)
   이치모쿠(10):
     1. 추세(멀티스케일)  = dir05/dir10/dir20 부호합 → 상승/하락/중립
     2. 리본 추세         = ribbonState → 상승/하락/횡보(대기→횡보)
@@ -29,18 +33,16 @@
     8. VWAP 지지/저항     = vwSrText → 지지/저항/없음
     9. 장기 추세         = ltStateBase+크로스 8종 → 상승/하락/중립
    10. 장기 지지/저항     = ltSrText 100선×200선 9종 → 지지우세/저항우세/혼조
-  보조(3):
+  보조(2):
    11. cRSI             = posVerdict → 롱/숏/중립
-   12. CCI              = posVerdict → 롱/숏/중립
-   13. OBV-ADX          = posVerdict → 롱/숏/중립
+   12. OBV-ADX          = posVerdict → 롱/숏/중립
 
-■ 방향 판정 — 이중계상 제거(묶음 2건) → **7표** (수학자 리뷰 확정)
-  · 오실레이터 묶음: osc_vote = sign(cRSI_vote + CCI_vote).
-      cRSI·CCI 둘 다 "가격 극단 이탈"이라는 동일 정보원 → 1표로 합산.
-      (롱+롱=+1, 롱+중=+1, 롱+숏=0 상쇄, 중+중=0.)
+■ 방향 판정 — 이중계상 제거(장기 묶음 1건) → **7표** (수학자 리뷰 확정)
+  · cRSI: CCI 제거로 오실레이터는 cRSI 단독 → cRSI가 방향에 직접 1표 투표.
+      (종전 osc묶음 = sign(cRSI+CCI)는 제거.)
   · 장기 묶음: lt_vote = sign(장기추세_vote + 장기지지저항_vote).
       둘 다 VWMA100/200 소스 → 1표로 합산.
-  · 최종 방향표 7개: 추세 · 구름대 · 리본추세 · VWAP지지저항 · OBV-ADX · osc_vote · lt_vote.
+  · 최종 방향표 7개: 추세 · 구름대 · 리본추세 · VWAP지지저항 · OBV-ADX · cRSI · lt_vote.
       각 +1/−1/0. (VWAP은 지지저항으로만 투표 — 기울기·밴드폭·밴드상태는 신뢰도 보정.
        이격도는 신뢰도 페널티. A군 원칙 = 1계열 1표.)
   · 순합 vsum ∈ [−7, +7].
@@ -57,13 +59,14 @@
     - VWAP 밴드상태: 밴드워킹 +0.05 / 지지·저항 0
 
 ■ 컬럼(정직 표기):
-  No · 13축 · 방향 · 정렬도 · 정렬표수 · 유효표수 · osc묶음 · lt묶음 · 종합해석
+  No · 12축 · 방향 · 정렬도 · 정렬표수 · 유효표수 · lt묶음 · 종합해석
   - `정렬도` = alignment(일치도). "확률·승률" 아님(용어 금지).
   - `정렬표수/유효표수` = 정렬 방향과 같은 부호 표 수 / 전체 방향표 수(=7).
   - `종합해석` = 정렬 강도 서술만("강한 롱 정렬" 등). 수익 뉘앙스 단어 지양.
+  - (CCI 축 제거로 osc묶음 컬럼도 제거 — cRSI가 방향에 직접 반영되어 별도 묶음 없음.)
 
 산출물(커밋): pinescript/신호-교차표-프로그램용.csv  (정렬행만)
-임시(비커밋): /tmp 완전열거는 담지 않음 — 필터만 스트림. 코드(.pine)는 무수정.
+비커밋: 완전열거는 디스크에 담지 않음 — 스트리밍 필터만. 코드(.pine)는 무수정.
 """
 
 import csv
@@ -72,8 +75,8 @@ from pathlib import Path
 from collections import Counter
 
 # ---------------------------------------------------------------------------
-# 13 표시축 정의 (각 3상태). 순서 = 표 열 순서(컬럼 사양과 일치).
-#   완전 열거 = 3^13 = 1,594,323
+# 12 표시축 정의 (각 3상태). 순서 = 표 열 순서(컬럼 사양과 일치).
+#   완전 열거 = 3^12 = 531,441
 # ---------------------------------------------------------------------------
 TREND      = ["상승", "하락", "중립"]              # 1 추세(멀티스케일 통합)
 RIBBON     = ["상승", "하락", "횡보"]              # 2 리본 추세
@@ -86,14 +89,13 @@ VW_SR      = ["지지", "저항", "없음"]              # 8 VWAP 지지/저항
 LT_TREND   = ["상승", "하락", "중립"]              # 9 장기 추세
 LT_SR      = ["지지우세", "저항우세", "혼조"]        # 10 장기 지지/저항
 CRSI       = ["롱", "숏", "중립"]                  # 11 cRSI (posVerdict 정규화)
-CCI        = ["롱", "숏", "중립"]                  # 12 CCI (posVerdict 정규화)
-OBV_ADX    = ["롱", "숏", "중립"]                  # 13 OBV-ADX (posVerdict 정규화)
+OBV_ADX    = ["롱", "숏", "중립"]                  # 12 OBV-ADX (posVerdict 정규화)
 
 AXES = [TREND, RIBBON, GAP, CLOUD, VW_SLOPE, VW_BW, VW_BAND, VW_SR,
-        LT_TREND, LT_SR, CRSI, CCI, OBV_ADX]
+        LT_TREND, LT_SR, CRSI, OBV_ADX]
 COLS = ["추세", "리본추세", "이격도", "구름대", "VWAP기울기", "VWAP밴드폭",
         "VWAP밴드상태", "VWAP지지저항", "장기추세", "장기지지저항",
-        "cRSI", "CCI", "OBV-ADX"]
+        "cRSI", "OBV-ADX"]
 
 # 방향 판정 임계 (7표 기준 · 잠정 — 백테스트 대상)
 VOTE_THRESHOLD = 4     # 순합 절댓값 이 이상 + 반대표 0개 → 정렬 (7표 중 ≥4)
@@ -111,13 +113,13 @@ def cloud_vote(v):    return 1 if v == "위" else (-1 if v == "아래" else 0)  
 def lt_trend_vote(v): return 1 if v == "상승" else (-1 if v == "하락" else 0)
 def lt_sr_vote(v):    return 1 if v == "지지우세" else (-1 if v == "저항우세" else 0)  # 혼조=0
 def vw_sr_vote(v):    return 1 if v == "지지" else (-1 if v == "저항" else 0)       # 없음=0
-def lsn_vote(v):      return 1 if v == "롱" else (-1 if v == "숏" else 0)          # cRSI/CCI/OBV-ADX
+def lsn_vote(v):      return 1 if v == "롱" else (-1 if v == "숏" else 0)          # cRSI/OBV-ADX
 
 
 def score(trend, ribbon, gap, cloud, vw_slope, vw_bw, vw_band, vw_sr,
-          lt_trend, lt_sr, crsi, cci, obv_adx):
+          lt_trend, lt_sr, crsi, obv_adx):
     # --- 묶음(이중계상 제거) ---
-    osc_vote = sign(lsn_vote(crsi) + lsn_vote(cci))          # 오실레이터 묶음(동일 정보원)
+    #  CCI 제거로 오실레이터는 cRSI 단독 → cRSI가 방향에 직접 투표(별도 묶음 없음).
     lt_vote  = sign(lt_trend_vote(lt_trend) + lt_sr_vote(lt_sr))  # 장기 묶음(VWMA100/200)
 
     # --- 최종 방향표 7개 ---
@@ -127,7 +129,7 @@ def score(trend, ribbon, gap, cloud, vw_slope, vw_bw, vw_band, vw_sr,
         ribbon_vote(ribbon), # 리본추세
         vw_sr_vote(vw_sr),   # VWAP 지지저항
         lsn_vote(obv_adx),   # OBV-ADX
-        osc_vote,            # 오실레이터 묶음
+        lsn_vote(crsi),      # cRSI (단독 투표 — CCI 제거)
         lt_vote,             # 장기 묶음
     ]
     vsum = sum(votes)
@@ -162,7 +164,7 @@ def score(trend, ribbon, gap, cloud, vw_slope, vw_bw, vw_band, vw_sr,
             align += 0.05
 
     align = max(0.0, min(1.0, align))
-    return vsum, pos, neg, direction, aligned, align, osc_vote, lt_vote
+    return vsum, pos, neg, direction, aligned, align, lt_vote
 
 
 def verdict_text(direction, align, gap):
@@ -180,9 +182,9 @@ def verdict_text(direction, align, gap):
     return base
 
 
-# CSV 컬럼 (정직 표기): No · 13축 · 방향 · 정렬도 · 정렬표수 · 유효표수 · osc묶음 · lt묶음 · 종합해석
+# CSV 컬럼 (정직 표기): No · 12축 · 방향 · 정렬도 · 정렬표수 · 유효표수 · lt묶음 · 종합해석
 CSV_HEADER = ["No"] + COLS + [
-    "방향", "정렬도", "정렬표수", "유효표수", "osc묶음", "lt묶음", "종합해석"
+    "방향", "정렬도", "정렬표수", "유효표수", "lt묶음", "종합해석"
 ]
 
 DIR_TXT = {1: "롱", -1: "숏", 0: "중립"}
@@ -190,15 +192,15 @@ VOTE_TXT = {1: "롱", -1: "숏", 0: "중립"}
 
 
 def build_aligned_rows():
-    """완전 열거(3^13)를 스트림하며 정렬행(방향≠0)만 수집.
-    메모리에 담는 것은 정렬행뿐 — 전체 1,594,323행을 리스트로 쌓지 않는다."""
+    """완전 열거(3^12)를 스트림하며 정렬행(방향≠0)만 수집.
+    메모리에 담는 것은 정렬행뿐 — 전체 531,441행을 리스트로 쌓지 않고,
+    완전열거 파일도 만들지 않는다(스트리밍 필터)."""
     total = 0
     aligned_rows = []
     for combo in product(*AXES):
         total += 1
-        (trend, ribbon, gap, cloud, vw_slope, vw_bw, vw_band, vw_sr,
-         lt_trend, lt_sr, crsi, cci, obv_adx) = combo
-        vsum, pos, neg, direction, aligned, align, osc_v, lt_v = score(*combo)
+        gap = combo[2]   # 이격도(verdict_text에 필요) — 축 순서 고정
+        vsum, pos, neg, direction, aligned, align, lt_v = score(*combo)
         if direction == 0:
             continue
         aligned_rows.append({
@@ -206,7 +208,6 @@ def build_aligned_rows():
             "dir": direction,
             "align": align,
             "aligned": aligned,
-            "osc": osc_v,
             "lt": lt_v,
             "verdict": verdict_text(direction, align, gap),
         })
@@ -233,7 +234,6 @@ def write_csv(rows, out_path):
                 f"{r['align']:.2f}",
                 r["aligned"],
                 VOTE_TOTAL,
-                VOTE_TXT[r["osc"]],
                 VOTE_TXT[r["lt"]],
                 r["verdict"],
             ])
@@ -241,7 +241,7 @@ def write_csv(rows, out_path):
 
 def main():
     total, rows = build_aligned_rows()
-    assert total == 1594323, f"완전 열거 행 수 오류: {total}"
+    assert total == 531441, f"완전 열거 행 수 오류: {total}"
     rows = sort_rows(rows)
 
     out_path = Path(__file__).resolve().parent.parent / "pinescript" / "신호-교차표-프로그램용.csv"
@@ -254,7 +254,7 @@ def main():
     size_mb = out_path.stat().st_size / (1024 * 1024)
 
     print(f"생성 완료: {out_path}")
-    print(f"완전 열거(로컬 계산): {total:,}  (3^13)")
+    print(f"완전 열거(로컬 계산): {total:,}  (3^12)")
     print(f"커밋 대상 정렬행: {len(rows):,}  (방향≠중립·혼조만)")
     print(f"방향 분포: 롱={dist['롱']:,}  숏={dist['숏']:,}")
     print(f"정렬도 등급: 강한(≥0.80)={strong:,}  중(0.50~0.80)={mid:,}  약(<0.50)={weak:,}")
