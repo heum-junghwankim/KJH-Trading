@@ -411,12 +411,21 @@ fBuy20 = pend20[1] == 1 and not na(pendTrig20[1]) and close >= pendTrig20[1]
 fSell20 = pend20[1] == -1 and not na(pendTrig20[1]) and close <= pendTrig20[1]
 // 대기 갱신 — 새 게이트가 이번 봉에 참이면 대기 등록/전환(대기 봉의 트리거 가격 래치). 매수·매도 상호배타.
 //  게이트가 없으면 대기 해제(직전 대기는 확정 검사에 이미 [1]로 쓰였으므로 이번 봉엔 소멸 = 미확정 취소).
-pend05 := gBuy05 ? 1 : gSell05 ? -1 : 0
-pend10 := gBuy10 ? 1 : gSell10 ? -1 : 0
-pend20 := gBuy20 ? 1 : gSell20 ? -1 : 0
-pendTrig05 := gBuy05 ? buyTrig05 : gSell05 ? sellTrig05 : na
-pendTrig10 := gBuy10 ? buyTrig10 : gSell10 ? sellTrig10 : na
-pendTrig20 := gBuy20 ? buyTrig20 : gSell20 ? sellTrig20 : na
+//  중복 발화 차단: 게이트(gBuyXX)는 dir 갱신 '이전'의 dir(=직전 봉 값)을 참조하므로, 이번 봉에서 확정 발화(fBuyXX)가
+//   나는 봉에도 같은 방향 게이트가 다시 참이 되어 대기가 재등록된다. 그러면 다음 봉에서 재확정되어 확정봉+다음봉 2개 삼각형이 찍힌다.
+//   → 이번 봉에 확정 발화가 난 방향은 같은 봉에서 재대기 금지(확정봉 단일 발화 보장). 반대 방향 등록/취소는 그대로 유지.
+regBuy05 = gBuy05 and not fBuy05
+regSell05 = gSell05 and not fSell05
+regBuy10 = gBuy10 and not fBuy10
+regSell10 = gSell10 and not fSell10
+regBuy20 = gBuy20 and not fBuy20
+regSell20 = gSell20 and not fSell20
+pend05 := regBuy05 ? 1 : regSell05 ? -1 : 0
+pend10 := regBuy10 ? 1 : regSell10 ? -1 : 0
+pend20 := regBuy20 ? 1 : regSell20 ? -1 : 0
+pendTrig05 := regBuy05 ? buyTrig05 : regSell05 ? sellTrig05 : na
+pendTrig10 := regBuy10 ? buyTrig10 : regSell10 ? sellTrig10 : na
+pendTrig20 := regBuy20 ? buyTrig20 : regSell20 ? sellTrig20 : na
 // dir 갱신(실제 발화 신호 기준 — 차트 삼각형과 테이블 '상승/하락 추세' 동기화). 확정봉(fBuyXX/fSellXX)에서 잠근다.
 //  위 게이트(gBuyXX)는 이 갱신 전(=직전 값) dir을 참조하므로, 하위 dir은 하위가 확정된 뒤에야 1/-1이 되어 상위 대기가 등록된다(봉 순서 정상).
 // 반대 방향 발화가 나면 그 스케일 dir 부호가 뒤집혀 상위 스케일의 전제가 자연히 풀린다(구 사다리 리셋 대체).
