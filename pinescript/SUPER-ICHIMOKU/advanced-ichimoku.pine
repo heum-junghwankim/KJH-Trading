@@ -1131,22 +1131,25 @@ chaDownPct = close != 0 ? math.abs(chaDown / close * 100) : na
 chaLongText = chaValid ? f_rrText("", chaLongRR, chaUpPct, chaDownPct) : "계산 불가"
 chaShortText = chaValid ? f_rrText("", chaShortRR, chaDownPct, chaUpPct) : "계산 불가"
 
-// (2) VWAP 롱/숏 손익비 — VWAP선과 ±밴드2선 기준(보조). 항상 회색.
-//  VWAP 롱: 종가가 VWAP 위일 때 유효 — 목표=상단 밴드2·손절=VWAP선. RR=(상단밴드2−종가)/(종가−VWAP).
-//  VWAP 숏: 종가가 VWAP 아래일 때 유효 — 목표=하단 밴드2·손절=VWAP선. RR=(종가−하단밴드2)/(VWAP−종가).
-//  이탈=계산 불가: VWAP/밴드2 없음, 방향 불일치(롱인데 종가≤VWAP·숏인데 종가≥VWAP),
-//   또는 종가가 목표 밴드2를 이미 넘어(롱 종가≥상단밴드2·숏 종가≤하단밴드2 → reward≤0)면 계산 불가.
+// (2) VWAP 롱/숏 손익비 — VWAP선과 ±밴드2선 기준(보조). 항상 회색. 위/아래 양쪽 모두 계산.
+//  기준선(regime): 종가>VWAP(위) → 하단기준선=VWAP·상단기준선=상단밴드2 / 종가<VWAP(아래) → 하단기준선=하단밴드2·상단기준선=VWAP.
+//  VWAP 롱: 목표=상단기준선·손절=하단기준선. RR=(상단기준선−종가)/(종가−하단기준선).
+//  VWAP 숏: 목표=하단기준선·손절=상단기준선. RR=(종가−하단기준선)/(상단기준선−종가).
+//  계산 불가(이것만): VWAP/밴드2 없음, 밴드2 이탈(종가≥상단밴드2 or 종가≤하단밴드2), 또는 분모 0(종가==기준선).
+//  ※ "종가가 VWAP 반대편"은 계산 불가 사유가 아니다 — 밴드2 범위 안이면 롱·숏 둘 다 유효.
 vwHasBands = vwHasVwap and not na(vwUpper2) and not na(vwLower2)
-vwLongOn = vwHasBands and close > vwapValue and close < vwUpper2   // VWAP 위 + 상단밴드2 미도달
-vwShortOn = vwHasBands and close < vwapValue and close > vwLower2  // VWAP 아래 + 하단밴드2 미도달
-vwLongRR = vwLongOn ? (vwUpper2 - close) / (close - vwapValue) : na
-vwShortRR = vwShortOn ? (close - vwLower2) / (vwapValue - close) : na
-vwLongRewPct = vwLongOn and close != 0 ? (vwUpper2 - close) / close * 100 : na
-vwLongRiskPct = vwLongOn and close != 0 ? (close - vwapValue) / close * 100 : na
-vwShortRewPct = vwShortOn and close != 0 ? (close - vwLower2) / close * 100 : na
-vwShortRiskPct = vwShortOn and close != 0 ? (vwapValue - close) / close * 100 : na
-vwLongText = vwLongOn ? f_rrText("", vwLongRR, vwLongRewPct, vwLongRiskPct) : "계산 불가"
-vwShortText = vwShortOn ? f_rrText("", vwShortRR, vwShortRewPct, vwShortRiskPct) : "계산 불가"
+vwInBands = vwHasBands and close < vwUpper2 and close > vwLower2   // 밴드2 범위 안(이탈 아님)일 때만 유효
+vwLowerRef = close > vwapValue ? vwapValue : vwLower2              // 하단기준선: 위=VWAP·아래=하단밴드2
+vwUpperRef = close > vwapValue ? vwUpper2 : vwapValue              // 상단기준선: 위=상단밴드2·아래=VWAP
+vwUpDist = vwUpperRef - close    // 상단기준선까지 거리
+vwDownDist = close - vwLowerRef  // 하단기준선까지 거리
+vwValid = vwInBands and vwUpDist > 0 and vwDownDist > 0            // 분모/reward 양수(경계 방어)
+vwLongRR = vwValid ? vwUpDist / vwDownDist : na
+vwShortRR = vwValid ? vwDownDist / vwUpDist : na
+vwUpPct = vwValid and close != 0 ? vwUpDist / close * 100 : na
+vwDownPct = vwValid and close != 0 ? vwDownDist / close * 100 : na
+vwLongText = vwValid ? f_rrText("", vwLongRR, vwUpPct, vwDownPct) : "계산 불가"
+vwShortText = vwValid ? f_rrText("", vwShortRR, vwDownPct, vwUpPct) : "계산 불가"
 
 // (3) Ret 롱숏 손익비(1행 통합) — 되돌림 가격 기준(보조). 회색.
 //  되돌림 가격이 존재할 때: 손절=현재가 정적 −4%(고정 리스크)·목표=되돌림 가격까지 %. RR=목표%/4.
