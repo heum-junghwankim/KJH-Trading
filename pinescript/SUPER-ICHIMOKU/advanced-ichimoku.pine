@@ -1119,6 +1119,8 @@ candleOff = candleConfirmOnClose ? 1 : 0
 // =========================
 // 공통 RR 텍스트: "비율 (+목표%/-손절%)". 접두(pfx)로 Cha/VWAP/Ret·L/S 구분.
 f_rrText(pfx, rr, rewardPct, riskPct) => na(rr) ? "계산 불가" : pfx + str.tostring(rr, "0.00") + " (+" + str.tostring(rewardPct, "0.0") + "% / -" + str.tostring(riskPct, "0.0") + "%)"
+// Ret 고정손절 폴백 전용: 괄호 안 손절 자리를 "고정 -X.X%"로 렌더(괄호 밖 태그 없음). 순수 E는 f_rrText 그대로.
+f_rrTextFixed(pfx, rr, rewardPct, fixedPct) => na(rr) ? "계산 불가" : pfx + str.tostring(rr, "0.00") + " (+" + str.tostring(rewardPct, "0.0") + "% / 고정 -" + str.tostring(fixedPct, "0.0") + "%)"
 // Cha(주 손익비) 색: ≥1.5 유리(초록)·≥1.0 중립(회색)·<1 불리(빨강)·na 계산불가(회색). VWAP·Ret은 항상 회색.
 f_rrColor(rr) => na(rr) ? color.new(color.gray, 40) : rr >= 1.5 ? color.new(color.green, 30) : rr >= 1.0 ? color.new(color.gray, 40) : color.new(color.red, 30)
 rrGrayColor = color.new(color.gray, 40)
@@ -1187,8 +1189,8 @@ retPfx = underCount >= 1 ? "L " : overCount >= 1 ? "S " : ""
 retFixedPct = disparityState == "되돌림 확실" ? retFixedStopSure : retFixedStopWarn
 retUseFixed = na(retRRPure) and not na(disparityPullbackPrice) and not na(retReward) and retReward > 0 and retPfx != ""
 retRRFixed = retUseFixed and retFixedPct > 0 ? retReward / retFixedPct : na
-retFixedTag = " 고정 -" + str.tostring(retFixedPct, "0.0") + "%"
-retText = not na(retRRPure) ? f_rrText(retPfx, retRRPure, retReward, retRisk) : (not na(retRRFixed) ? f_rrText(retPfx, retRRFixed, retReward, retFixedPct) + retFixedTag : "계산 불가")
+// 폴백 셀: 괄호 안 손절 자리를 "고정 -X.X%"로 통합 렌더(외부 태그 제거). 순수 E 유효 케이스는 f_rrText 그대로.
+retText = not na(retRRPure) ? f_rrText(retPfx, retRRPure, retReward, retRisk) : (not na(retRRFixed) ? f_rrTextFixed(retPfx, retRRFixed, retReward, retFixedPct) : "계산 불가")
 
 var table triggerTable = table.new(position.top_right, 2, 26, border_width=1, border_color=color.new(color.gray, 50))
 if barstate.islast
