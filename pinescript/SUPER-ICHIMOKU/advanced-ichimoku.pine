@@ -375,26 +375,31 @@ sellTrig20 = momentum ? stC : stD
 //    이미 그 방향 추세(blocked)면 트리거 셀은 "상승/하락 추세" 텍스트라 N봉을 붙이지 않는다(호출부에서 처리).
 //  [미래참조/리페인팅] 전부 과거 데이터로 미래 창을 수학적으로 투영(현재 종가 상수 가정) → 미래참조 아님.
 //    barstate.islast에서만 1회 계산(성능 안전). 확정봉 종가 기준이라 리페인팅 없음.
+//  [성능] prefix 극값(pHi/pLo)은 스케일·방향과 무관한 순수 high/low 누적이므로, 6개 스케일 호출이
+//    각자 재구축하지 않고 호출부(islast)에서 최대 need만큼 1회 구축한 공유 배열을 참조한다(6→1).
+//    함수는 그 공유 배열의 앞부분(자기 need 범위)만 읽어 크로스 최소 k를 탐색 — 결과는 재구축 때와 완전 동일.
 // =========================
-f_nbarsToCross(int convLen, int baseLen, bool isBuy) =>
+// prefix 극값 배열 구축 헬퍼: pHi[j] = max(high[0..j]), pLo[j] = min(low[0..j]) 를 한 번 순회로 누적.
+//  len = math.min(bar_index+1, maxNeed) 만큼만 만들면 각 스케일 호출의 need(≤maxNeed) 인덱스를 커버한다.
+f_buildPrefixExtremes(int len, float[] pHi, float[] pLo) =>
+    array.clear(pHi)
+    array.clear(pLo)
+    float runHi = na
+    float runLo = na
+    if len > 0
+        for j = 0 to len - 1
+            runHi := na(runHi) ? high[j] : math.max(runHi, high[j])
+            runLo := na(runLo) ? low[j] : math.min(runLo, low[j])
+            array.push(pHi, runHi)   // pHi[j] = max(high[0..j])  → 창 길이 (j+1)의 극값
+            array.push(pLo, runLo)
+// 공유 prefix 배열(pHi/pLo)을 받아 크로스 최소 k(N봉)만 탐색. prefix 값은 호출부에서 1회 구축한 것과 동일.
+f_nbarsToCross(int convLen, int baseLen, bool isBuy, float[] pHi, float[] pLo) =>
     hz = math.max(baseLen, 22)
     // 과거 데이터가 (가장 긴 창 baseLen − 1)만큼 확보돼야 prefix 극값이 유효 → 부족하면 na
     need = math.max(convLen, baseLen)
     int result = na
     if bar_index >= need and not na(close)
-        // prefix 극값: pHi[m] = max(high[0..m-1]), pLo[m] = min(low[0..m-1]) 를 한 번 순회로 누적.
-        //  k봉 후 conv 창(길이 m=convLen−k)의 극값 = pHi[m]/pLo[m] (m>0), m≤0 이면 창 전체 close.
-        var float[] pHi = array.new_float(0)
-        var float[] pLo = array.new_float(0)
-        array.clear(pHi)
-        array.clear(pLo)
-        float runHi = na
-        float runLo = na
-        for j = 0 to need - 1
-            runHi := na(runHi) ? high[j] : math.max(runHi, high[j])
-            runLo := na(runLo) ? low[j] : math.min(runLo, low[j])
-            array.push(pHi, runHi)   // pHi[j] = max(high[0..j])  → 창 길이 (j+1)의 극값
-            array.push(pLo, runLo)
+        // k봉 후 conv 창(길이 m=convLen−k)의 극값 = pHi[m-1]/pLo[m-1] (m>0), m≤0 이면 창 전체 close.
         int found = na
         for k = 1 to hz
             int mC = convLen - k
@@ -871,25 +876,41 @@ f_trailLine(longCE,     trailLb, longExitLineColor,  sweepLineWidth, line.style_
 f_trailLine(shortCE,    trailLb, shortExitLineColor, sweepLineWidth, line.style_dotted, showExitLines)
 f_trailLine(longClear,  trailLb, longExitLineColor,  clearLineWidth, line.style_solid,  showExitLines)
 f_trailLine(shortClear, trailLb, shortExitLineColor, clearLineWidth, line.style_solid,  showExitLines)
+// 스윕/청산 수평선 4개 — var로 1회 생성 후 islast마다 좌표·색만 set 갱신(delete→new churn 제거).
+//  style은 생성 시 고정(dotted=스윕·solid=청산)이며 이후 불변이라 set 불필요. width=1도 불변.
 var line longSweepLine = na
 var line shortSweepLine = na
 var line longClearLine = na
 var line shortClearLine = na
 if showExitLines and barstate.islast
-    line.delete(longSweepLine)
-    line.delete(shortSweepLine)
-    line.delete(longClearLine)
-    line.delete(shortClearLine)
-    longSweepLine := line.new(bar_index, longCE, bar_index + 20, longCE, color=longExitLineColor, width=1, style=line.style_dotted)
-    shortSweepLine := line.new(bar_index, shortCE, bar_index + 20, shortCE, color=shortExitLineColor, width=1, style=line.style_dotted)
-    longClearLine := line.new(bar_index, longClear, bar_index + 20, longClear, color=longExitLineColor, width=1, style=line.style_solid)
-    shortClearLine := line.new(bar_index, shortClear, bar_index + 20, shortClear, color=shortExitLineColor, width=1, style=line.style_solid)
+    if na(longSweepLine)
+        longSweepLine := line.new(bar_index, longCE, bar_index + 20, longCE, color=longExitLineColor, width=1, style=line.style_dotted)
+        shortSweepLine := line.new(bar_index, shortCE, bar_index + 20, shortCE, color=shortExitLineColor, width=1, style=line.style_dotted)
+        longClearLine := line.new(bar_index, longClear, bar_index + 20, longClear, color=longExitLineColor, width=1, style=line.style_solid)
+        shortClearLine := line.new(bar_index, shortClear, bar_index + 20, shortClear, color=shortExitLineColor, width=1, style=line.style_solid)
+    else
+        line.set_xy1(longSweepLine, bar_index, longCE)
+        line.set_xy2(longSweepLine, bar_index + 20, longCE)
+        line.set_color(longSweepLine, longExitLineColor)
+        line.set_xy1(shortSweepLine, bar_index, shortCE)
+        line.set_xy2(shortSweepLine, bar_index + 20, shortCE)
+        line.set_color(shortSweepLine, shortExitLineColor)
+        line.set_xy1(longClearLine, bar_index, longClear)
+        line.set_xy2(longClearLine, bar_index + 20, longClear)
+        line.set_color(longClearLine, longExitLineColor)
+        line.set_xy1(shortClearLine, bar_index, shortClear)
+        line.set_xy2(shortClearLine, bar_index + 20, shortClear)
+        line.set_color(shortClearLine, shortExitLineColor)
 
-// 기준선(베이스 라인) 현재값 수평 라인 — 현재 봉에서 오른쪽으로 연장, 1px
+// 기준선(베이스 라인) 현재값 수평 라인 — 현재 봉에서 오른쪽으로 연장, 1px. var로 1회 생성 후 set 갱신.
 var line baseHLine = na
 if showBaseLine and barstate.islast
-    line.delete(baseHLine)
-    baseHLine := line.new(bar_index, baseLine, bar_index + 20, baseLine, color=baseLineColor, width=1, style=line.style_solid)
+    if na(baseHLine)
+        baseHLine := line.new(bar_index, baseLine, bar_index + 20, baseLine, color=baseLineColor, width=1, style=line.style_solid)
+    else
+        line.set_xy1(baseHLine, bar_index, baseLine)
+        line.set_xy2(baseHLine, bar_index + 20, baseLine)
+        line.set_color(baseHLine, baseLineColor)
 
 // 롱/숏 포지션 청산가만 가격축(price scale)에 라벨 표시 (선은 위 line·polyline이 그리므로 여기선 라벨만)
 plot(showExitLines ? longClear : na, title="롱 청산가 라벨", color=longExitLineColor, display=display.price_scale)
@@ -1317,19 +1338,25 @@ if barstate.islast
     int nbBase10 = momentum ? b05 : basePeriods
     int nbConv20 = momentum ? conversionPeriods : c20
     int nbBase20 = momentum ? basePeriods : b20
+    // prefix 극값 배열을 6개 스케일 호출 중 최대 need만큼 1회 구축(공유). 각 호출은 자기 need 범위만 참조.
+    int nbMaxNeed = math.max(math.max(math.max(nbConv05, nbBase05), math.max(nbConv10, nbBase10)), math.max(nbConv20, nbBase20))
+    int nbLen = math.min(bar_index + 1, nbMaxNeed)
+    var float[] nbPHi = array.new_float(0)
+    var float[] nbPLo = array.new_float(0)
+    f_buildPrefixExtremes(nbLen, nbPHi, nbPLo)
     table.cell(triggerTable, 0, 2, "상승 전환(0.5×)", text_color=color.white, bgcolor=color.new(color.green, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 2, f_trigCell(buyBlocked05, buyTrig05, true, donB05, momentum, f_nbarsToCross(nbConv05, nbBase05, true)), text_color=color.white, bgcolor=f_trigBg(buyBlocked05, buyTrig05, true), text_size=size.small)
+    table.cell(triggerTable, 1, 2, f_trigCell(buyBlocked05, buyTrig05, true, donB05, momentum, f_nbarsToCross(nbConv05, nbBase05, true, nbPHi, nbPLo)), text_color=color.white, bgcolor=f_trigBg(buyBlocked05, buyTrig05, true), text_size=size.small)
     table.cell(triggerTable, 0, 3, "상승 전환(1×)", text_color=color.white, bgcolor=color.new(color.green, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 3, f_trigCell(buyBlocked10, buyTrig10, true, baseLine, momentum, f_nbarsToCross(nbConv10, nbBase10, true)), text_color=color.white, bgcolor=f_trigBg(buyBlocked10, buyTrig10, true), text_size=size.small)
+    table.cell(triggerTable, 1, 3, f_trigCell(buyBlocked10, buyTrig10, true, baseLine, momentum, f_nbarsToCross(nbConv10, nbBase10, true, nbPHi, nbPLo)), text_color=color.white, bgcolor=f_trigBg(buyBlocked10, buyTrig10, true), text_size=size.small)
     table.cell(triggerTable, 0, 4, "상승 전환(2×)", text_color=color.white, bgcolor=color.new(color.green, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 4, f_trigCell(buyBlocked20, buyTrig20, true, donB20, momentum, f_nbarsToCross(nbConv20, nbBase20, true)), text_color=color.white, bgcolor=f_trigBg(buyBlocked20, buyTrig20, true), text_size=size.small)
+    table.cell(triggerTable, 1, 4, f_trigCell(buyBlocked20, buyTrig20, true, donB20, momentum, f_nbarsToCross(nbConv20, nbBase20, true, nbPHi, nbPLo)), text_color=color.white, bgcolor=f_trigBg(buyBlocked20, buyTrig20, true), text_size=size.small)
 
     table.cell(triggerTable, 0, 5, "하락 전환(0.5×)", text_color=color.white, bgcolor=color.new(color.red, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 5, f_trigCell(sellBlocked05, sellTrig05, false, donB05, momentum, f_nbarsToCross(nbConv05, nbBase05, false)), text_color=color.white, bgcolor=f_trigBg(sellBlocked05, sellTrig05, false), text_size=size.small)
+    table.cell(triggerTable, 1, 5, f_trigCell(sellBlocked05, sellTrig05, false, donB05, momentum, f_nbarsToCross(nbConv05, nbBase05, false, nbPHi, nbPLo)), text_color=color.white, bgcolor=f_trigBg(sellBlocked05, sellTrig05, false), text_size=size.small)
     table.cell(triggerTable, 0, 6, "하락 전환(1×)", text_color=color.white, bgcolor=color.new(color.red, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 6, f_trigCell(sellBlocked10, sellTrig10, false, baseLine, momentum, f_nbarsToCross(nbConv10, nbBase10, false)), text_color=color.white, bgcolor=f_trigBg(sellBlocked10, sellTrig10, false), text_size=size.small)
+    table.cell(triggerTable, 1, 6, f_trigCell(sellBlocked10, sellTrig10, false, baseLine, momentum, f_nbarsToCross(nbConv10, nbBase10, false, nbPHi, nbPLo)), text_color=color.white, bgcolor=f_trigBg(sellBlocked10, sellTrig10, false), text_size=size.small)
     table.cell(triggerTable, 0, 7, "하락 전환(2×)", text_color=color.white, bgcolor=color.new(color.red, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 7, f_trigCell(sellBlocked20, sellTrig20, false, donB20, momentum, f_nbarsToCross(nbConv20, nbBase20, false)), text_color=color.white, bgcolor=f_trigBg(sellBlocked20, sellTrig20, false), text_size=size.small)
+    table.cell(triggerTable, 1, 7, f_trigCell(sellBlocked20, sellTrig20, false, donB20, momentum, f_nbarsToCross(nbConv20, nbBase20, false, nbPHi, nbPLo)), text_color=color.white, bgcolor=f_trigBg(sellBlocked20, sellTrig20, false), text_size=size.small)
 
     table.cell(triggerTable, 0, 8, "리본 추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
     table.cell(triggerTable, 1, 8, ribbonCellText, text_color=color.white, bgcolor=ribbonCellColor, text_size=size.small)
