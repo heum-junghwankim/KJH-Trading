@@ -1301,8 +1301,8 @@ retRR = not na(retRRPure) ? retRRPure : retRRFixed
 var table triggerTable = table.new(position.top_right, 2, 23, border_width=1, border_color=color.new(color.gray, 50))
 if barstate.islast
     // 헤더(row 0): 테이블 전체 2열 구조 대표 — 좌열=항목(라벨), 우열=값/상태. ("다음 봉/트리거 가격"은 전환 3행만 대표해 부적절)
-    table.cell(triggerTable, 0, 0, "항목", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
-    table.cell(triggerTable, 1, 0, "값", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
+    table.cell(triggerTable, 0, 0, "항목", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
+    table.cell(triggerTable, 1, 0, "값", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
 
     // 캔들 상태 (3) — 표시 전용. 최상단(헤더 바로 아래, row 1)에 배치. 좌열 라벨 스타일은 다른 행과 동일(gray 20). 우열은 "패턴명 | 다음봉예측" + 5단계 배경색.
     if candleShowState
@@ -1355,9 +1355,9 @@ if barstate.islast
     table.cell(triggerTable, 0, 16, "장기 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
     table.cell(triggerTable, 1, 16, ltSrText, text_color=color.white, bgcolor=ltSrColor, text_size=size.small)
 
-    // 손익비 섹션 헤더(row 17) — 좌우 2열 병합(한 칸), 스타일은 테이블 헤더(row 0)와 동일(파랑 배경·흰 글자·small).
-    table.cell(triggerTable, 0, 17, "손익비 타입 & 계산", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
-    table.cell(triggerTable, 1, 17, "", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
+    // 손익비 섹션 헤더(row 17) — 좌우 2열 병합(한 칸), 스타일은 테이블 헤더(row 0)와 동일(딥 네이비 배경·흰 글자·small).
+    table.cell(triggerTable, 0, 17, "손익비 타입 & 계산", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
+    table.cell(triggerTable, 1, 17, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.merge_cells(triggerTable, 0, 17, 1, 17)
 
     // 손익비(RR) 5행 — Cha(청산선, 주 손익비·색 로직) / VWAP(밴드2, 회색) / Ret(되돌림, 회색).
