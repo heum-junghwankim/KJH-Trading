@@ -28,7 +28,7 @@ cyclicmemory = domcycle * 2
 showBandWidthBg = input(true, title="Show Band Width Background")
 narrowBandThreshold = input(20.0, minval=0.0, title="Narrow Band Width Threshold")
 wideBandThreshold = input(35.0, minval=0.0, title="Wide Band Width Threshold")
-bandBgOpacity = input(35, minval=0, maxval=100, title="밴드 배경 농도 (0=안보임, 100=진함)")
+bandBgOpacity = input(20, minval=0, maxval=100, title="밴드 배경 농도 (0=안보임, 100=진함)")
 
 h1 = hline(30, color=color.silver, linestyle=hline.style_dashed)
 h2 = hline(70, color=color.silver, linestyle=hline.style_dashed)
@@ -111,7 +111,7 @@ lowband = plot(db, "LowBand", color.aqua)
 highband = plot(ub, "HighBand", color.aqua)
 fill(h1, h2, color=color.silver, transp=90)
 fill(lowband, highband, color=color.gray, transp=90)
-plot(crsi, "CRSI", color.white)
+plot(crsi, "CRSI", color.red)
 plot(cmfi, "cMFI", color.yellow)
 
 // =========================
