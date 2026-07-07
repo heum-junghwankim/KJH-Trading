@@ -55,8 +55,8 @@ plot(showAdxLines ? plus : na, color=plusColor, title="+DI")
 plot(showAdxLines ? minus : na, color=minusColor, title="-DI")
 plot(showAdxLines ? adx : na, color=adxColor, title="ADX")
 
-bgcolor(showBackground and oversoldExtreme ? color.new(#00796b, backgroundTransparency) : na, title="Oversold Background")
-bgcolor(showBackground and overboughtExtreme ? color.new(#880e4f, backgroundTransparency) : na, title="Overbought Background")
+bgcolor(showBackground and oversoldExtreme ? color.new(#880e4f, backgroundTransparency) : na, title="Oversold Background")
+bgcolor(showBackground and overboughtExtreme ? color.new(#00796b, backgroundTransparency) : na, title="Overbought Background")
 
 plotshape(ta.crossover(plus, minus) and showAdxLines ? (plus + minus) * 0.5 : na, location=location.absolute, style=shape.circle, color=color.new(color.green, 30), size=size.tiny, offset=0, title="Bullish DI Cross")
 plotshape(ta.crossover(minus, plus) and showAdxLines ? (plus + minus) * 0.5 : na, location=location.absolute, style=shape.circle, color=color.new(color.red, 30), size=size.tiny, offset=0, title="Bearish DI Cross")
