@@ -637,8 +637,10 @@ cloudBottom = math.min(curSpanA, curSpanB)
 cloudPosText = close > cloudTop ? "위" : close < cloudBottom ? "아래" : "안"
 cloudColorText = curSpanA >= curSpanB ? "양운" : "음운"
 // =========================
-// 구름대 지지/저항 강도 — 지그재그 레그가 구름 안으로 들어올 때만 판단
-//  지지: 전고점에서 꺾여 하락하던 가격이 구름 안으로 → 구름이 받쳐줄 강도. 저항: 전저점서 상승 중 구름 안.
+// 구름대 지지/저항 — 이치모쿠 표준 S/R 기하(가격의 구름 대비 위치가 1차, 접근 방향이 확인).
+//  지지: 가격이 구름 **위쪽**에서 하락 레그로 되돌아 내려와 구름이 하방을 받치는 상황 → "지지".
+//  저항: 가격이 구름 **아래쪽**에서 상승 레그로 올라와 구름이 상방을 막는 상황 → "저항".
+//  (위치=1차 판정: 구름 위=지지 후보·구름 아래=저항 후보. 접근 방향(레그)=확인: 구름을 향해 접근할 때만 S/R로 인정.)
 //  강도 = 구름 두께(ATR 대비) 클수록 ↑, 접근 각도(ATR/봉) 가파를수록 ↓(모멘텀이 뚫기 쉬움).
 // 러닝 지그재그(지연 없음): 현재 레그 극값에서 ATR 배수만큼 되돌리면 즉시 반전.
 //  피벗 확정(길이만큼 지연)을 안 기다리므로, 전고점서 꺾여 내려오는 즉시 하락 레그로 인식된다.
@@ -679,12 +681,23 @@ cloudThickAtr = rAtr != 0 ? (cloudTop - cloudBottom) / rAtr : na
 srLegBars = not na(srAnchorBar) ? math.max(bar_index - srAnchorBar, 1) : na
 srSlopeAtr = (not na(srAnchor) and not na(srLegBars) and rAtr != 0) ? math.abs(close - srAnchor) / srLegBars / rAtr : na
 srScore = (not na(cloudThickAtr) and not na(srSlopeAtr)) ? cloudThickAtr / (1 + srSlopeAtr * 3) : na   // 두께↑=강, 각도↑=약
-isSupport = inCloud and srDir == -1   // 하락 중 구름 안 → 지지
-isResist  = inCloud and srDir == 1    // 상승 중 구름 안 → 저항
+// 위치(1차) + 접근 방향(확인). 지지 = 구름 위 + 하락 레그(위에서 되돌아 내려와 접근). 저항 = 구름 아래 + 상승 레그(아래서 올라와 접근).
+priceAboveCloud = not na(cloudTop) and close > cloudTop
+priceBelowCloud = not na(cloudBottom) and close < cloudBottom
+isSupport = priceAboveCloud and srDir == -1   // 구름 위에서 하락 레그로 되돌아 내려옴 → 구름이 하방 지지
+isResist  = priceBelowCloud and srDir == 1    // 구름 아래에서 상승 레그로 올라옴 → 구름이 상방 저항
+// 강도 3단계(지지/저항 대칭): srScore(두께/각도) 기준. 강함 ≥0.8 / 보통 ≥0.4 / 약함 <0.4(또는 na).
 f_srLabel(pfx) => na(srScore) ? pfx : srScore >= 0.8 ? pfx + " 강함" : srScore >= 0.4 ? pfx + " 보통" : pfx + " 약함"
-srTransp = na(srScore) ? 40 : srScore >= 0.8 ? 0 : srScore >= 0.4 ? 30 : 55
-cloudCellText = isSupport ? f_srLabel("지지") : isResist ? f_srLabel("저항") : cloudPosText + "·" + cloudColorText
-cloudCellColor = isSupport ? color.new(color.green, srTransp) : isResist ? color.new(color.red, srTransp) : close > cloudTop ? color.new(color.green, 30) : close < cloudBottom ? color.new(color.red, 30) : color.new(color.gray, 40)
+// 셀 색(지지=녹 / 저항=빨강, 강도 그라데이션. 대칭). 강함=선명·보통=중간·약함=둔탁.
+supportWeakColor = #6E8F72   // 지지 약함 = 둔탁 녹
+supportMidColor  = #3E9142   // 지지 보통 = 중간 녹
+resistWeakColor  = #A57A7A   // 저항 약함 = 둔탁 빨강
+resistMidColor   = #B14A4A   // 저항 보통 = 중간 빨강
+f_srColor(bool support) =>
+    na(srScore) ? (support ? color.new(supportWeakColor, 0) : color.new(resistWeakColor, 0)) : srScore >= 0.8 ? (support ? color.new(color.green, 0) : color.new(color.red, 0)) : srScore >= 0.4 ? (support ? color.new(supportMidColor, 0) : color.new(resistMidColor, 0)) : (support ? color.new(supportWeakColor, 0) : color.new(resistWeakColor, 0))
+// 양운/음운 접두(cloudColorText: leadingSpanA vs B) — 예 "양운 지지 강함", "음운 저항 약함".
+cloudCellText = isSupport ? cloudColorText + " " + f_srLabel("지지") : isResist ? cloudColorText + " " + f_srLabel("저항") : cloudPosText + "·" + cloudColorText
+cloudCellColor = isSupport ? f_srColor(true) : isResist ? f_srColor(false) : color.new(color.gray, 40)
 
 // 리본 상태 = 마지막으로 발생한 다이아몬드(상태머신) 기준이라 차트 표시와 동기화된다.
 // 괄호 숫자 = 마지막 이벤트(압축/분출) 발생 봉 종가 대비 현재 종가의 가격 변화 %.
