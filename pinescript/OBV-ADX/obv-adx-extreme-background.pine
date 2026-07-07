@@ -7,6 +7,9 @@ extremeGroup = "Extreme Background"
 
 len = input.int(20, minval=1, title="DI Length", group=adxGroup)
 lensig = input.int(20, minval=1, maxval=50, title="ADX Smoothing", group=adxGroup)
+plusColor = input.color(color.blue, title="+DI Line Color", group=adxGroup)
+minusColor = input.color(color.orange, title="-DI Line Color", group=adxGroup)
+adxColor = input.color(color.red, title="ADX Line Color", group=adxGroup)
 showAdxLines = input.bool(false, title="ADX Line or Histogram", group=displayGroup)
 showBackground = input.bool(true, title="Background Highlighting", group=displayGroup)
 backgroundTransparency = input.int(72, minval=0, maxval=100, title="Background Transparency", group=displayGroup)
@@ -48,9 +51,9 @@ overboughtExtreme = diDiffZScore >= overboughtZThreshold and adx >= extremeAdxMi
 // =========================
 // PLOTS
 // =========================
-plot(showAdxLines ? plus : na, color=color.new(color.blue, 0), title="+DI")
-plot(showAdxLines ? minus : na, color=color.new(color.orange, 0), title="-DI")
-plot(showAdxLines ? adx : na, color=color.new(color.red, 0), title="ADX")
+plot(showAdxLines ? plus : na, color=plusColor, title="+DI")
+plot(showAdxLines ? minus : na, color=minusColor, title="-DI")
+plot(showAdxLines ? adx : na, color=adxColor, title="ADX")
 
 bgcolor(showBackground and oversoldExtreme ? color.new(#00796b, backgroundTransparency) : na, title="Oversold Background")
 bgcolor(showBackground and overboughtExtreme ? color.new(#880e4f, backgroundTransparency) : na, title="Overbought Background")
