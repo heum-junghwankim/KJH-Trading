@@ -41,6 +41,15 @@ down = rma(-min(change(src), 0), cyclelen)
 rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - 100 / (1 + up / down)
 crsi := torque * (2 * rsi - rsi[phasingLag]) + (1 - torque) * nz(crsi[1])
 
+// 순환 평활 MFI (cMFI)
+// cRSI와 동일 파이프라인을 그대로 재사용하되, 입력만 RSI → MFI로 교체한다.
+//  - 주기: cRSI와 같은 cyclelen 사용 (mfi(hlc3, cyclelen))
+//  - 평활: cRSI와 동일한 torque / phasingLag (vibration 기반) 재귀식 적용
+// 신규 파라미터 없이 cRSI 파라미터(domcycle→cyclelen, vibration)를 공유하므로 "동일 간격/주기"가 보장된다.
+cmfi = 0.0
+mfiRaw = mfi(hlc3, cyclelen)
+cmfi := torque * (2 * mfiRaw - mfiRaw[phasingLag]) + (1 - torque) * nz(cmfi[1])
+
 lmax = -999999.0
 lmin = 999999.0
 for i = 0 to cyclicmemory - 1 by 1
@@ -102,7 +111,8 @@ lowband = plot(db, "LowBand", color.aqua)
 highband = plot(ub, "HighBand", color.aqua)
 fill(h1, h2, color=color.silver, transp=90)
 fill(lowband, highband, color=color.gray, transp=90)
-plot(crsi, "CRSI", color.fuchsia)
+plot(crsi, "CRSI", color.white)
+plot(cmfi, "cMFI", color.yellow)
 
 // =========================
 // 우측 상단 상태판 (매수 신호 신뢰도)
