@@ -70,13 +70,11 @@ f_scaleSignals(float conv, float base, int convP, int baseP, int dispP) =>
     pRawSell = pSell < pLagRef and convBear and high < high[1]
     rbEff = isPredict ? pRawBuy : (lagBull and convBull)
     rsEff = isPredict ? pRawSell : (lagBear and convBear)
-    var int lastDir = 0
-    bSig = rbEff and lastDir != 1
-    sSig = rsEff and lastDir != -1
-    if bSig
-        lastDir := 1
-    else if sSig
-        lastDir := -1
+    // 원시 매수·매도 신호를 그대로 상위로 반환한다. 함수 내부 방향 래치(구 var int lastDir)는 제거.
+    //  중복 발화 차단은 상위 게이트(gBuyXX/gSellXX, dir!=방향)와 확정 래치(regXX + fXX + dir 잠금)가 완결적으로 담당.
+    //  내부 래치는 상위 확정 dir와 비동기로 어긋나 방향 전환 시 원시 하락신호를 삼키는 버그 원인이었다.
+    bSig = rbEff
+    sSig = rsEff
     vConv = ta.vwma(close, convP)
     vBase = ta.vwma(close, baseP)
     vLagRef = vBase[lagOff]
