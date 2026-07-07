@@ -1079,26 +1079,33 @@ vwBandColor = not vwHasVwap ? color.new(color.gray, 40) : vwSlopeUp ? ((vwUpperW
 // 비정상 캔들 상태/색/텍스트는 상단(멀티스케일 신호 앞)에서 이미 계산했다(모멘텀 즉시 반영). 여기선 생략.
 
 // =========================
-// 캔들 상태 (3) — 표시 전용(display only). 최근 3봉의 캔들스틱 패턴을 12개 상호배타 상태로 분류.
+// 캔들 상태 (3) — 표시 전용(display only). 최근 3봉을 5분류 스코어링으로 분류.
 //  ★ 어떤 진입/청산/신호 변수에도 연결하지 않는다. 순수 테이블 표기용이다.
-//  셀 텍스트 = "패턴명 | 다음봉예측". 셀 배경색 = CEO 지정 5단계(강세/약강세/강약세/약세/중립).
+//  5분류(상호배타): 하락 진행 / 하락 예측 / 혼조 / 상승 예측 / 상승 진행.
+//   - 진행(momentum): 3봉 구조(HH/HL·LL/LH)와 순몸통(netBody, ATR 정규화) 스코어로 추세 지속을 판정.
+//   - 예측(reversal): 직전 하락/상승 뒤 반전 패턴(장악/망치·유성/샛별·석별)이면 방향 반전을 예측(진행보다 우선).
+//   - 혼조: 데이터 부족·3봉 총폭 부족·미매칭(도지연속 포함) 흡수.
+//  판정 순서(첫 매칭 확정): 혼조게이트 → 상승예측 → 하락예측 → 상승진행 → 하락진행 → (강순몸통)상승/하락진행 → 혼조.
+//  셀 텍스트 = "분류명 | 근거패턴"(근거 특정 안 되면 분류명만). 셀 배경색 = 5단계.
 //  b0=현재확정봉, b1=직전, b2=2봉전. candleConfirmOnClose=true면 확정봉 기준(리페인팅 방지),
 //  false면 현재 진행봉 기준(실시간, 봉 완성 전 변동 가능).
 // =========================
 candleShowState = input.bool(true, title="캔들 상태 (3) 표시", group="캔들 상태")
 candleConfirmOnClose = input.bool(true, title="확정봉 기준(끄면 현재봉 실시간)", group="캔들 상태", tooltip="켜면 마지막으로 완성된 봉을 현재봉(b0)으로 보고 계산해 리페인팅을 막습니다. 끄면 형성 중인 봉을 b0으로 써서 실시간 반영되지만 봉 완성 전까지 값이 바뀔 수 있습니다.")
 candleAtrLen = input.int(14, minval=1, title="캔들 ATR 길이(정규화)", group="캔들 상태")
-candleDojiBodyRatio = input.float(0.10, minval=0.0, step=0.01, title="도지 몸통비율 한계", group="캔들 상태")
-candleLongWickRatio = input.float(0.60, minval=0.0, step=0.05, title="긴 꼬리 비율 한계", group="캔들 상태")
-candleSmallBodyRatio = input.float(0.35, minval=0.0, step=0.05, title="작은 몸통 비율 한계", group="캔들 상태")
-candleStrongBodyRatio = input.float(0.60, minval=0.0, step=0.05, title="강한 몸통 비율 한계", group="캔들 상태")
-candleMinRangeAtr = input.float(0.5, minval=0.0, step=0.1, title="최소 범위 ATR 배수(혼조 판정)", group="캔들 상태")
+candleNetBodyMin = input.float(0.8, minval=0.0, step=0.1, title="순몸통 최소(진행 판정)", group="캔들 상태", tooltip="3봉 순몸통 합(body 합)을 ATR로 나눈 값의 최소 임계. 진행(추세지속) 판정의 유일한 핵심 튜닝 노브입니다. 높일수록 진행 판정이 보수적.")
+candleNetBodyStrong = input.float(1.5, minval=0.0, step=0.1, title="순몸통 강(계단 하나만 만족)", group="캔들 상태", tooltip="HH·HL(또는 LL·LH) 중 하나만 성립하고 3봉 방향이 모두 같을 때 요구하는 더 강한 순몸통 임계.")
+candleMinRange3Atr = input.float(1.0, minval=0.0, step=0.1, title="3봉 총폭 최소 ATR 배수(혼조 판정)", group="캔들 상태", tooltip="최근 3봉 전체 고저폭을 ATR로 나눈 값이 이 미만이면 변동성 부족으로 혼조 처리합니다.")
+candleStrongBodyRatio = input.float(0.55, minval=0.0, step=0.05, title="강한 몸통 비율 한계", group="캔들 상태", tooltip="샛별/석별의 첫 봉(b2) 강봉 판정 기준(범위 대비 몸통비율).")
+candleLongWickRatio = input.float(0.55, minval=0.0, step=0.05, title="긴 꼬리 비율 한계", group="캔들 상태", tooltip="망치/유성의 긴 꼬리 판정 기준(범위 대비 꼬리비율).")
+candleSmallBodyRatio = input.float(0.35, minval=0.0, step=0.05, title="작은 몸통 비율 한계", group="캔들 상태", tooltip="샛별/석별 가운데 봉(b1)·망치/유성 몸통(b0)의 작은 몸통 판정 기준.")
 
 // candleAtrLen 전용 ATR — 기존 ta.atr(14=ltAtr)는 길이 고정이라 사용자 입력(candleAtrLen)을 못 따라간다. 정규화 기준을 입력에 맞추려 별도 인스턴스 사용.
 candleAtrN = ta.atr(candleAtrLen)
 
-// 3봉 캔들 분류. off = b0 오프셋(확정봉 모드면 1, 실시간 모드면 0). b0=close[off], b1=close[off+1], b2=close[off+2].
-// 반환: [패턴명, 다음봉예측, 셀배경색]. 우선순위: 3·4 → 1·2 → 7·8 → 5·6 → 9·10 → 11 → 12 (첫 매칭 확정, 상호배타).
+// 3봉 캔들 5분류. off = b0 오프셋(확정봉 모드면 1, 실시간 모드면 0). b0=close[off], b1=close[off+1], b2=close[off+2].
+// 반환: [셀텍스트, 셀배경색]. 판정 순서(첫 매칭 확정, 상호배타):
+//   1 혼조게이트 → 2 상승예측 → 3 하락예측 → 4 상승진행 → 5 하락진행 → 6·7 강순몸통 상승/하락진행 → 8 혼조.
 f_candleState(int off) =>
     // 봉 원자료
     o0 = open[off]
@@ -1114,123 +1121,97 @@ f_candleState(int off) =>
     h2 = high[off + 2]
     l2 = low[off + 2]
     atrN = candleAtrN
-    // 범위(0 방어), 몸통, 꼬리, 몸통비율, 방향(+1/-1/0)
+    // 데이터 부족(초기 봉)·ATR 0 방어
+    ready = not na(o0) and not na(o1) and not na(o2) and not na(atrN) and atrN > 0
+    // 범위(0 방어), 부호몸통(signed), 몸통비율, 방향(math.sign → +1/-1/0)
     r0 = math.max(h0 - l0, syminfo.mintick)
     r1 = math.max(h1 - l1, syminfo.mintick)
     r2 = math.max(h2 - l2, syminfo.mintick)
-    body0 = math.abs(c0 - o0)
-    body1 = math.abs(c1 - o1)
-    body2 = math.abs(c2 - o2)
-    br0 = body0 / r0
-    br1 = body1 / r1
-    br2 = body2 / r2
-    dir0 = c0 > o0 ? 1 : c0 < o0 ? -1 : 0
-    dir1 = c1 > o1 ? 1 : c1 < o1 ? -1 : 0
-    dir2 = c2 > o2 ? 1 : c2 < o2 ? -1 : 0
+    body0 = c0 - o0
+    body1 = c1 - o1
+    body2 = c2 - o2
+    br0 = math.abs(body0) / r0
+    br1 = math.abs(body1) / r1
+    br2 = math.abs(body2) / r2
+    dir0 = int(math.sign(body0))
+    dir1 = int(math.sign(body1))
+    dir2 = int(math.sign(body2))
     upWick0 = h0 - math.max(o0, c0)
     dnWick0 = math.min(o0, c0) - l0
-    // 데이터 부족(초기 봉) 방어
-    ready = not na(o0) and not na(o1) and not na(o2) and not na(atrN) and atrN > 0
     // b2 몸통 중앙(샛별/석별 회복 기준)
     mid2 = (o2 + c2) / 2
-    // 패턴 판정 (우선순위 순서대로 첫 매칭)
-    string patName = na
-    string patPred = na
-    // 3 샛별: b2 강한음봉 → b1 작은몸통 → b0 양봉이 b2 몸통중앙 이상 회복
-    isMorningStar = dir2 == -1 and br2 >= candleStrongBodyRatio and br1 <= candleSmallBodyRatio and dir0 == 1 and c0 >= mid2
-    // 4 석별: b2 강한양봉 → b1 작은몸통 → b0 음봉이 b2 몸통중앙 이하
-    isEveningStar = dir2 == 1 and br2 >= candleStrongBodyRatio and br1 <= candleSmallBodyRatio and dir0 == -1 and c0 <= mid2
-    // 1 상승장악형: b1 음봉 → b0 양봉이 b1 몸통 완전포함
-    isBullEngulf = dir1 == -1 and dir0 == 1 and c0 >= o1 and o0 <= c1
-    // 2 하락장악형: b1 양봉 → b0 음봉이 b1 몸통 완전포함
-    isBearEngulf = dir1 == 1 and dir0 == -1 and c0 <= o1 and o0 >= c1
-    // 7 적삼병: b2,b1,b0 모두 강한 양봉 + 종가 계단상승 + 윗꼬리 짧음
-    upWick1 = h1 - math.max(o1, c1)
-    upWick2 = h2 - math.max(o2, c2)
-    shortUp0 = upWick0 / r0 <= (1 - candleStrongBodyRatio)
-    shortUp1 = upWick1 / r1 <= (1 - candleStrongBodyRatio)
-    shortUp2 = upWick2 / r2 <= (1 - candleStrongBodyRatio)
-    isThreeSoldiers = dir2 == 1 and dir1 == 1 and dir0 == 1 and br2 >= candleStrongBodyRatio and br1 >= candleStrongBodyRatio and br0 >= candleStrongBodyRatio and c0 > c1 and c1 > c2 and shortUp0 and shortUp1 and shortUp2
-    // 8 흑삼병: 모두 강한 음봉 + 종가 계단하락 + 아랫꼬리 짧음
-    dnWick1 = math.min(o1, c1) - l1
-    dnWick2 = math.min(o2, c2) - l2
-    shortDn0 = dnWick0 / r0 <= (1 - candleStrongBodyRatio)
-    shortDn1 = dnWick1 / r1 <= (1 - candleStrongBodyRatio)
-    shortDn2 = dnWick2 / r2 <= (1 - candleStrongBodyRatio)
-    isThreeCrows = dir2 == -1 and dir1 == -1 and dir0 == -1 and br2 >= candleStrongBodyRatio and br1 >= candleStrongBodyRatio and br0 >= candleStrongBodyRatio and c0 < c1 and c1 < c2 and shortDn0 and shortDn1 and shortDn2
-    // 5 망치/역망치(강세반전): b0 작은몸통 + 한쪽 긴꼬리 + 반대꼬리 짧음, 직전 하락(close1<close2)
-    smallBody0 = br0 <= candleSmallBodyRatio
-    longDn0 = dnWick0 / r0 >= candleLongWickRatio and upWick0 / r0 <= (1 - candleLongWickRatio)   // 망치(긴 아랫꼬리)
-    longUp0 = upWick0 / r0 >= candleLongWickRatio and dnWick0 / r0 <= (1 - candleLongWickRatio)   // 역망치(긴 윗꼬리)
-    // ※ v1: "직전 추세"는 close 기반(close1 vs close2). 추후 이치모쿠 라인 정렬(전환/기준선·구름 위치)과 연동할 여지 있음.
-    prevDown = c1 < c2
-    prevUp = c1 > c2
-    isHammer = smallBody0 and (longDn0 or longUp0) and prevDown
-    // 6 교수형/유성(약세반전): b0 작은몸통 + 긴 윗꼬리(유성)/긴 아랫꼬리(교수형), 직전 상승(close1>close2)
-    isHangShoot = smallBody0 and (longUp0 or longDn0) and prevUp
-    // 9 내부봉: high0<=high1 and low0>=low1
-    isInside = h0 <= h1 and l0 >= l1
-    // 10 외부봉: high0>high1 and low0<low1 (장악형에 안 걸린 경우)
-    isOutside = h0 > h1 and l0 < l1
-    // 11 도지연속: 몸비0<=doji and 몸비1<=doji
-    isDojiPair = br0 <= candleDojiBodyRatio and br1 <= candleDojiBodyRatio
-    // 12 혼조: 위 미매칭 또는 range0/atrN < minRangeAtr
-    lowRange = r0 / atrN < candleMinRangeAtr
+    // 스코어링 파생 — 3봉 구조·순몸통·방향카운트·총폭·직전추세
+    // atrN>0은 ready에서 가드되나 함수 초반 계산이라 안전하게 atrSafe 사용.
+    atrSafe = na(atrN) or atrN <= 0 ? syminfo.mintick : atrN
+    HH = h0 > h1 and h1 > h2
+    HL = l0 > l1 and l1 > l2
+    LH = h0 < h1 and h1 < h2
+    LL = l0 < l1 and l1 < l2
+    netBody = (body0 + body1 + body2) / atrSafe
+    upCount = (dir0 == 1 ? 1 : 0) + (dir1 == 1 ? 1 : 0) + (dir2 == 1 ? 1 : 0)
+    dnCount = (dir0 == -1 ? 1 : 0) + (dir1 == -1 ? 1 : 0) + (dir2 == -1 ? 1 : 0)
+    range3 = (math.max(h0, h1, h2) - math.min(l0, l1, l2)) / atrSafe
+    priorDown = c1 < c2
+    priorUp = c1 > c2
+    // 반전 패턴(예측) 정의
+    strongBody = candleStrongBodyRatio
+    smallBody = candleSmallBodyRatio
+    longWick = candleLongWickRatio
+    // 장악형
+    bullEngulf = dir1 == -1 and dir0 == 1 and c0 >= o1 and o0 <= c1
+    bearEngulf = dir1 == 1 and dir0 == -1 and c0 <= o1 and o0 >= c1
+    // 망치(강세)·유성(약세): b0 작은몸통 + 한쪽 긴꼬리 + 반대꼬리 짧음, 직전 방향 조건
+    hammer = priorDown and br0 <= smallBody and dnWick0 / r0 >= longWick and upWick0 / r0 <= (1 - longWick)
+    shootingStar = priorUp and br0 <= smallBody and upWick0 / r0 >= longWick and dnWick0 / r0 <= (1 - longWick)
+    // 샛별(강세)·석별(약세)
+    morningStar = dir2 == -1 and br2 >= strongBody and br1 <= smallBody and dir0 == 1 and c0 >= mid2
+    eveningStar = dir2 == 1 and br2 >= strongBody and br1 <= smallBody and dir0 == -1 and c0 <= mid2
+    // 상승/하락 예측 성립 여부 및 근거 패턴명
+    bullReversal = priorDown and (bullEngulf or hammer or morningStar)
+    bearReversal = priorUp and (bearEngulf or shootingStar or eveningStar)
+    bullReversalPat = morningStar ? "샛별" : bullEngulf ? "장악형" : hammer ? "망치" : na
+    bearReversalPat = eveningStar ? "석별" : bearEngulf ? "장악형" : shootingStar ? "유성" : na
+    // 진행 성립 여부 및 근거 패턴명(적삼병/흑삼병 = 강순몸통 계단, 그 외 "진행")
+    upTrend = (HH and HL) and upCount >= 2 and netBody >= candleNetBodyMin
+    dnTrend = (LL and LH) and dnCount >= 2 and netBody <= -candleNetBodyMin
+    upStrong = (HH or HL) and upCount == 3 and netBody >= candleNetBodyStrong
+    dnStrong = (LL or LH) and dnCount == 3 and netBody <= -candleNetBodyStrong
 
-    // 우선순위 판정: 3·4 → 1·2 → 7·8 → 5·6 → 9·10 → 11 → 12
-    if not ready
-        patName := "혼조"
-        patPred := "신호없음"
-    else if isMorningStar
-        patName := "샛별"
-        patPred := "강세반전(강)"
-    else if isEveningStar
-        patName := "석별"
-        patPred := "약세반전(강)"
-    else if isBullEngulf
-        patName := "상승장악형"
-        patPred := "강세반전"
-    else if isBearEngulf
-        patName := "하락장악형"
-        patPred := "약세반전"
-    else if isThreeSoldiers
-        patName := "적삼병"
-        patPred := "상승지속"
-    else if isThreeCrows
-        patName := "흑삼병"
-        patPred := "하락지속"
-    else if isHammer
-        patName := "망치/역망치"
-        patPred := "강세반전"
-    else if isHangShoot
-        patName := "교수형/유성"
-        patPred := "약세반전"
-    else if isInside
-        patName := "내부봉"
-        patPred := "돌파대기"
-    else if isOutside
-        patName := "외부봉"
-        patPred := "변동성확대"
-    else if isDojiPair
-        patName := "도지연속"
-        patPred := "관망"
+    // 판정 (상호배타, 첫 매칭 확정 — 예측이 진행보다 우선)
+    string clsName = na
+    string clsPat = na
+    if not ready or range3 < candleMinRange3Atr
+        clsName := "혼조"
+    else if bullReversal
+        clsName := "상승 예측"
+        clsPat := bullReversalPat
+    else if bearReversal
+        clsName := "하락 예측"
+        clsPat := bearReversalPat
+    else if upTrend
+        clsName := "상승 진행"
+        clsPat := (upCount == 3 ? "적삼병" : na)
+    else if dnTrend
+        clsName := "하락 진행"
+        clsPat := (dnCount == 3 ? "흑삼병" : na)
+    else if upStrong
+        clsName := "상승 진행"
+        clsPat := "적삼병"
+    else if dnStrong
+        clsName := "하락 진행"
+        clsPat := "흑삼병"
     else
-        patName := "혼조"
-        patPred := "신호없음"
-    // 셀 배경색 (CEO 지정 5단계)
-    //  녹색=강한 강세(샛별·적삼병), 둔한 녹색=약강세(상승장악형·망치/역망치),
-    //  빨강=강한 약세(석별·흑삼병), 둔한 빨강=약세(하락장악형·교수형/유성), 회색=중립(내부/외부/도지/혼조)
-    color cellCol = switch patName
-        "샛별" => color.new(color.green, 0)
-        "적삼병" => color.new(color.green, 0)
-        "상승장악형" => color.new(#6E8F72, 0)
-        "망치/역망치" => color.new(#6E8F72, 0)
-        "석별" => color.new(color.red, 0)
-        "흑삼병" => color.new(color.red, 0)
-        "하락장악형" => color.new(#A57A7A, 0)
-        "교수형/유성" => color.new(#A57A7A, 0)
+        clsName := "혼조"
+    // 셀 배경색 (5분류)
+    color cellCol = switch clsName
+        "상승 진행" => color.new(color.green, 0)
+        "상승 예측" => color.new(#6E8F72, 0)
+        "하락 예측" => color.new(#A57A7A, 0)
+        "하락 진행" => color.new(color.red, 0)
         => color.new(color.gray, 40)
-    [patName + " | " + patPred, cellCol]
+    // 근거 패턴 병기(특정 시): "분류명 | 패턴"
+    cellText = na(clsPat) ? clsName : clsName + " | " + clsPat
+    [cellText, cellCol]
 
 // 확정봉 모드면 off=1(직전 완성봉을 b0으로), 실시간 모드면 off=0(형성 중 봉을 b0으로).
 candleOff = candleConfirmOnClose ? 1 : 0
