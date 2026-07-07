@@ -30,6 +30,10 @@ narrowBandThreshold = input.float(20.0, minval=0.0, title="Narrow Band Width Thr
 wideBandThreshold = input.float(35.0, minval=0.0, title="Wide Band Width Threshold")
 bgOpacity = input.int(15, minval=0, maxval=100, title="밴드 배경 불투명성 (0=투명, 100=진함)")
 
+// 선 색상 (사용자 지정 가능, 기본값은 기존 하드코딩 색 유지)
+crsiColor = input.color(#FDD835, title="cRSI 선 색", group="선 색상")
+cmfiColor = input.color(#2962FF, title="cMFI 선 색", group="선 색상")
+
 h1 = hline(30, color=color.silver, linestyle=hline.style_dashed)
 h2 = hline(70, color=color.silver, linestyle=hline.style_dashed)
 
@@ -107,13 +111,11 @@ bandBgColor = not showBandWidthBg or bar_index < cyclicmemory ? na :
 // 불투명성(opacity) 입력을 v6 방식으로 색상에 baking(0=투명, 100=진함). 투명도(transp) = 100 - opacity.
 bgcolor(color.new(bandBgColor, 100 - bgOpacity))
 
-// CRSI만 프라이스 스케일(우측 축) 라벨 표시. 나머지 3선은 패널·상태줄엔 보이되 우측 축 라벨만 숨김.
-lowband = plot(db, "LowBand", #26A69A, display = display.all - display.price_scale)
-highband = plot(ub, "HighBand", #EF5350, display = display.all - display.price_scale)
-fill(h1, h2, color=color.new(color.silver, 90))
-fill(lowband, highband, color=color.new(color.gray, 90))
-plot(crsi, "CRSI", #FDD835, display = display.all)
-plot(cmfi, "cMFI", #2962FF, display = display.all - display.price_scale)
+// 밴드 상·하단(ub/db)은 우측 프라이스 스케일 라벨에 값 표시. cMFI만 우측 축 라벨 숨김.
+lowband = plot(db, "LowBand", #26A69A, display = display.all)
+highband = plot(ub, "HighBand", #EF5350, display = display.all)
+plot(crsi, "CRSI", crsiColor, display = display.all)
+plot(cmfi, "cMFI", cmfiColor, display = display.all - display.price_scale)
 
 // =========================
 // 우측 상단 상태판 (매수 신호 신뢰도)
