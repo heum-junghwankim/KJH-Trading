@@ -1170,9 +1170,10 @@ candleOff = candleConfirmOnClose ? 1 : 0
 f_rrText(pfx, rr, rewardPct, riskPct) => na(rr) ? "계산 불가" : pfx + str.tostring(rr, "0.00") + " (+" + str.tostring(rewardPct, "0.0") + "% / -" + str.tostring(riskPct, "0.0") + "%)"
 // Ret 고정손절 폴백 전용: 괄호 안 손절 자리를 "고정 -X.X%"로 렌더(괄호 밖 태그 없음). 순수 E는 f_rrText 그대로.
 f_rrTextFixed(pfx, rr, rewardPct, fixedPct) => na(rr) ? "계산 불가" : pfx + str.tostring(rr, "0.00") + " (+" + str.tostring(rewardPct, "0.0") + "% / 고정 -" + str.tostring(fixedPct, "0.0") + "%)"
-// Cha(주 손익비) 색: ≥1.5 유리(초록)·≥1.0 중립(회색)·<1 불리(빨강)·na 계산불가(회색). VWAP·Ret은 항상 회색.
+// Cha·VWAP 손익비 색(동일 로직): ≥1.5 유리(초록)·≥1.0 중립(회색)·<1 불리(빨강)·na 계산불가(회색).
 f_rrColor(rr) => na(rr) ? color.new(color.gray, 40) : rr >= 1.5 ? color.new(color.green, 30) : rr >= 1.0 ? color.new(color.gray, 40) : color.new(color.red, 30)
-rrGrayColor = color.new(color.gray, 40)
+// Ret 손익비 색(별도 등급 — Cha/VWAP와 임계 다름): ≥5 녹색·3~5 둔탁녹·<3 회색·na 계산불가(회색). <3=회색은 본부 기본값(저RR 보조, 조정 가능).
+f_retRrColor(rr) => na(rr) ? color.new(color.gray, 40) : rr >= 5 ? color.new(color.green, 0) : rr >= 3 ? color.new(#6E8F72, 0) : color.new(color.gray, 40)
 
 // (1) Cha 롱/숏 손익비 — 롱숏 청산선 기준. 진입=현재 종가.
 //  Cha 롱: 목표=숏 청산선(위)·손절=롱 청산선(아래). 종가가 두 청산선 사이일 때만 유효.
@@ -1240,6 +1241,8 @@ retUseFixed = na(retRRPure) and not na(disparityPullbackPrice) and not na(retRew
 retRRFixed = retUseFixed and retFixedPct > 0 ? retReward / retFixedPct : na
 // 폴백 셀: 괄호 안 손절 자리를 "고정 -X.X%"로 통합 렌더(외부 태그 제거). 순수 E 유효 케이스는 f_rrText 그대로.
 retText = not na(retRRPure) ? f_rrText(retPfx, retRRPure, retReward, retRisk) : (not na(retRRFixed) ? f_rrTextFixed(retPfx, retRRFixed, retReward, retFixedPct) : "계산 불가")
+// 셀 색이 참조할 실제 표시 RR = 순수 E 우선, 없으면 폴백(retText와 동일 우선순위). 둘 다 na면 na(회색).
+retRR = not na(retRRPure) ? retRRPure : retRRFixed
 
 var table triggerTable = table.new(position.top_right, 2, 26, border_width=1, border_color=color.new(color.gray, 50))
 if barstate.islast
@@ -1304,14 +1307,14 @@ if barstate.islast
     table.cell(triggerTable, 1, 21, chaLongText, text_color=color.white, bgcolor=f_rrColor(chaLongRR), text_size=size.small)
     table.cell(triggerTable, 0, 22, "Cha 숏 손익비", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
     table.cell(triggerTable, 1, 22, chaShortText, text_color=color.white, bgcolor=f_rrColor(chaShortRR), text_size=size.small)
-    //  (2) VWAP 롱/숏 — VWAP선·밴드2 기준, 항상 회색. 종가가 VWAP 이탈/밴드2 초과면 "계산 불가".
+    //  (2) VWAP 롱/숏 — VWAP선·밴드2 기준, 셀 색 = f_rrColor(Cha와 동일: 유리 초록/중립 회색/불리 빨강/계산불가 회색). 종가가 VWAP 이탈/밴드2 초과면 "계산 불가".
     table.cell(triggerTable, 0, 23, "VWAP 롱 손익비", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 23, vwLongText, text_color=color.white, bgcolor=rrGrayColor, text_size=size.small)
+    table.cell(triggerTable, 1, 23, vwLongText, text_color=color.white, bgcolor=f_rrColor(vwLongRR), text_size=size.small)
     table.cell(triggerTable, 0, 24, "VWAP 숏 손익비", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 24, vwShortText, text_color=color.white, bgcolor=rrGrayColor, text_size=size.small)
-    //  (3) Ret 롱숏 — 되돌림 가격 기준(1행 통합), 회색. L=과매도(롱)·S=과열(숏)·없으면 "계산 불가".
+    table.cell(triggerTable, 1, 24, vwShortText, text_color=color.white, bgcolor=f_rrColor(vwShortRR), text_size=size.small)
+    //  (3) Ret 롱숏 — 되돌림 가격 기준(1행 통합), 셀 색 = f_retRrColor(≥5 녹/3~5 둔탁녹/<3·na 회색). L=과매도(롱)·S=과열(숏)·없으면 "계산 불가".
     table.cell(triggerTable, 0, 25, "Ret 롱숏 손익비", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 25, retText, text_color=color.white, bgcolor=rrGrayColor, text_size=size.small)
+    table.cell(triggerTable, 1, 25, retText, text_color=color.white, bgcolor=f_retRrColor(retRR), text_size=size.small)
 
 // 이평 기반 상태 표식(+ 모양) (압축=보라 #9C27B0[상승·하락과 확실히 구분], 상승 분출=파랑, 하락 분출=빨강)
 // 먼저 그려서 아래 신호 삼각형보다 뒤(아래 레이어)에 오게 한다.
