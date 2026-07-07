@@ -66,7 +66,7 @@ pressureColor = buyDominant ? color.new(color.green, abnormal ? 0 : 55) : color.
 
 var table volStatus = table.new(position.top_right, 2, 3, border_width=1, border_color=color.new(color.gray, 50))
 if barstate.islast
-    table.cell(volStatus, 0, 0, "거래량 압력", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
+    table.cell(volStatus, 0, 0, "거래량 압력", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.cell(volStatus, 1, 0, posText, text_color=color.white, bgcolor=posColor, text_size=size.small)
     table.cell(volStatus, 0, 1, "압력 방향", text_color=color.white, text_size=size.small)
     table.cell(volStatus, 1, 1, pressureText, text_color=color.white, bgcolor=pressureColor, text_size=size.small)

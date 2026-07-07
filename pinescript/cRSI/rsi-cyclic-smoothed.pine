@@ -184,7 +184,7 @@ posColor   = crsiBreak == -1 ? color.new(color.red, 0) : crsiBreak == 1 ? color.
 
 var table crsiStatus = table.new(position.top_right, 2, 3, border_width=1, border_color=color.new(color.gray, 50))
 if barstate.islast
-    table.cell(crsiStatus, 0, 0, "cRSI", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
+    table.cell(crsiStatus, 0, 0, "cRSI", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.cell(crsiStatus, 1, 0, posVerdict, text_color=color.white, bgcolor=posColor, text_size=size.small)
     table.cell(crsiStatus, 0, 1, "cRSI 값", text_color=color.white, text_size=size.small)
     table.cell(crsiStatus, 1, 1, tostring(crsi, "#.0") + " (" + tostring(bandWidth, "#.0") + " " + bwText + ")", text_color=color.white, bgcolor=narrowBw ? color.new(#D35400, 0) : wideBw ? color.new(color.purple, 0) : color.new(color.gray, 50), text_size=size.small)
