@@ -1,4 +1,4 @@
-//@version=4
+//@version=6
 //
 // Copyright (C) 2017 CC BY, whentotrade / Lars von Thienen
 // Source:
@@ -14,10 +14,10 @@
 // even commercially. You must give appropriate credit to the authors book and website, provide a link to the license, and indicate
 // if changes were made. You may do so in any reasonable manner, but not in any way that suggests the licensor endorses you or your use.
 //
-study(title="RSI cyclic smoothed", shorttitle="cRSI")
+indicator(title="RSI cyclic smoothed", shorttitle="cRSI")
 
 src = close
-domcycle = input(20, minval=10, title="Dominant Cycle Length")
+domcycle = input.int(20, minval=10, title="Dominant Cycle Length")
 crsi = 0.0
 cyclelen = int(domcycle / 2)
 vibration = 10
@@ -25,10 +25,16 @@ leveling = 10.0
 cyclicmemory = domcycle * 2
 
 // 밴드폭 배경색 옵션
-showBandWidthBg = input(true, title="Show Band Width Background")
-narrowBandThreshold = input(20.0, minval=0.0, title="Narrow Band Width Threshold")
-wideBandThreshold = input(35.0, minval=0.0, title="Wide Band Width Threshold")
-bandBgTransp = input(15, minval=0, maxval=100, title="밴드 배경 투명도 (0=불투명·진함, 100=완전투명)")
+showBandWidthBg = input.bool(true, title="Show Band Width Background")
+narrowBandThreshold = input.float(20.0, minval=0.0, title="Narrow Band Width Threshold")
+wideBandThreshold = input.float(35.0, minval=0.0, title="Wide Band Width Threshold")
+bgOpacity = input.int(15, minval=0, maxval=100, title="밴드 배경 불투명성 (0=투명, 100=진함)")
+
+// 선 색상 (사용자 지정 가능, 기본값은 기존 하드코딩 색 유지)
+crsiColor = input.color(#FDD835, title="cRSI 선 색", group="선 색상")
+cmfiColor = input.color(#2962FF, title="cMFI 선 색", group="선 색상")
+lowBandColor = input.color(#26A69A, title="하단밴드(LowBand) 색", group="선 색상")
+highBandColor = input.color(#EF5350, title="상단밴드(HighBand) 색", group="선 색상")
 
 h1 = hline(30, color=color.silver, linestyle=hline.style_dashed)
 h2 = hline(70, color=color.silver, linestyle=hline.style_dashed)
@@ -36,18 +42,18 @@ h2 = hline(70, color=color.silver, linestyle=hline.style_dashed)
 torque = 2.0 / (vibration + 1)
 phasingLag = int((vibration - 1) / 2)
 
-up = rma(max(change(src), 0), cyclelen)
-down = rma(-min(change(src), 0), cyclelen)
+up = ta.rma(math.max(ta.change(src), 0), cyclelen)
+down = ta.rma(-math.min(ta.change(src), 0), cyclelen)
 rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - 100 / (1 + up / down)
 crsi := torque * (2 * rsi - rsi[phasingLag]) + (1 - torque) * nz(crsi[1])
 
 // 순환 평활 MFI (cMFI)
 // cRSI와 동일 파이프라인을 그대로 재사용하되, 입력만 RSI → MFI로 교체한다.
-//  - 주기: cRSI와 같은 cyclelen 사용 (mfi(hlc3, cyclelen))
+//  - 주기: cRSI와 같은 cyclelen 사용 (ta.mfi(hlc3, cyclelen))
 //  - 평활: cRSI와 동일한 torque / phasingLag (vibration 기반) 재귀식 적용
 // 신규 파라미터 없이 cRSI 파라미터(domcycle→cyclelen, vibration)를 공유하므로 "동일 간격/주기"가 보장된다.
 cmfi = 0.0
-mfiRaw = mfi(hlc3, cyclelen)
+mfiRaw = ta.mfi(hlc3, cyclelen)
 cmfi := torque * (2 * mfiRaw - mfiRaw[phasingLag]) + (1 - torque) * nz(cmfi[1])
 
 lmax = -999999.0
@@ -69,7 +75,7 @@ for steps = 0 to 100 by 1
     testvalue = lmin + mstep * steps
     below = 0
     for m = 0 to cyclicmemory - 1 by 1
-        below := below + iff(crsi[m] < testvalue, 1, 0)
+        below := below + (crsi[m] < testvalue ? 1 : 0)
         below
 
     ratio = below / cyclicmemory
@@ -84,7 +90,7 @@ for steps = 0 to 100 by 1
     testvalue = lmax - mstep * steps
     above = 0
     for m = 0 to cyclicmemory - 1 by 1
-        above := above + iff(crsi[m] >= testvalue, 1, 0)
+        above := above + (crsi[m] >= testvalue ? 1 : 0)
         above
 
     ratio = above / cyclicmemory
@@ -96,23 +102,22 @@ for steps = 0 to 100 by 1
 
 // 밴드폭 계산
 bandWidth = ub - db
-narrowLimit = min(narrowBandThreshold, wideBandThreshold)
-wideLimit = max(narrowBandThreshold, wideBandThreshold)
+narrowLimit = math.min(narrowBandThreshold, wideBandThreshold)
+wideLimit = math.max(narrowBandThreshold, wideBandThreshold)
 
 // 밴드폭이 좁으면 진한 주황색(수축), 넓으면 보라색(확장) 배경
 bandBgColor = not showBandWidthBg or bar_index < cyclicmemory ? na :
      bandWidth <= narrowLimit ? #D35400 :
      bandWidth >= wideLimit ? color.purple : na
 
-// 투명도 입력을 Pine transp에 그대로 전달(0=불투명·진함, 100=완전투명). 반전 없음.
-bgcolor(bandBgColor, transp=bandBgTransp)
+// 불투명성(opacity) 입력을 v6 방식으로 색상에 baking(0=투명, 100=진함). 투명도(transp) = 100 - opacity.
+bgcolor(color.new(bandBgColor, 100 - bgOpacity))
 
-lowband = plot(db, "LowBand", #26A69A)
-highband = plot(ub, "HighBand", #EF5350)
-fill(h1, h2, color=color.silver, transp=90)
-fill(lowband, highband, color=color.gray, transp=90)
-plot(crsi, "CRSI", #FDD835)
-plot(cmfi, "cMFI", #2962FF)
+// 밴드 상·하단(ub/db)은 우측 프라이스 스케일 라벨에 값 표시. cMFI만 우측 축 라벨 숨김.
+lowband = plot(db, "LowBand", lowBandColor, display = display.all)
+highband = plot(ub, "HighBand", highBandColor, display = display.all)
+plot(crsi, "CRSI", crsiColor, display = display.all)
+plot(cmfi, "cMFI", cmfiColor, display = display.all - display.price_scale)
 
 // =========================
 // 우측 상단 상태판 (매수 신호 신뢰도)
@@ -146,15 +151,15 @@ divLbL = 5
 divLbR = 5
 divRangeMax = 60
 divRangeMin = 5
-plFound = not na(pivotlow(crsi, divLbL, divLbR))
-phFound = not na(pivothigh(crsi, divLbL, divLbR))
-inRangeBull = barssince(plFound[1]) >= divRangeMin and barssince(plFound[1]) <= divRangeMax
-inRangeBear = barssince(phFound[1]) >= divRangeMin and barssince(phFound[1]) <= divRangeMax
-oscHL   = crsi[divLbR] > valuewhen(plFound, crsi[divLbR], 1) and inRangeBull
-priceLL = low[divLbR] < valuewhen(plFound, low[divLbR], 1)
+plFound = not na(ta.pivotlow(crsi, divLbL, divLbR))
+phFound = not na(ta.pivothigh(crsi, divLbL, divLbR))
+inRangeBull = ta.barssince(plFound[1]) >= divRangeMin and ta.barssince(plFound[1]) <= divRangeMax
+inRangeBear = ta.barssince(phFound[1]) >= divRangeMin and ta.barssince(phFound[1]) <= divRangeMax
+oscHL   = crsi[divLbR] > ta.valuewhen(plFound, crsi[divLbR], 1) and inRangeBull
+priceLL = low[divLbR] < ta.valuewhen(plFound, low[divLbR], 1)
 bullDiv = plFound and priceLL and oscHL
-oscLH   = crsi[divLbR] < valuewhen(phFound, crsi[divLbR], 1) and inRangeBear
-priceHH = high[divLbR] > valuewhen(phFound, high[divLbR], 1)
+oscLH   = crsi[divLbR] < ta.valuewhen(phFound, crsi[divLbR], 1) and inRangeBear
+priceHH = high[divLbR] > ta.valuewhen(phFound, high[divLbR], 1)
 bearDiv = phFound and priceHH and oscLH
 
 // 확장(보라) 구간의 다이버전스를 상태로 래치
@@ -197,6 +202,6 @@ if barstate.islast
     table.cell(crsiStatus, 0, 0, "cRSI", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.cell(crsiStatus, 1, 0, posVerdict, text_color=color.white, bgcolor=posColor, text_size=size.small)
     table.cell(crsiStatus, 0, 1, "cRSI 값", text_color=color.white, text_size=size.small)
-    table.cell(crsiStatus, 1, 1, tostring(crsi, "#.0") + " (" + tostring(bandWidth, "#.0") + " " + bwText + ")", text_color=color.white, bgcolor=narrowBw ? color.new(#D35400, 0) : wideBw ? color.new(color.purple, 0) : color.new(color.gray, 50), text_size=size.small)
+    table.cell(crsiStatus, 1, 1, str.tostring(crsi, "#.0") + " (" + str.tostring(bandWidth, "#.0") + " " + bwText + ")", text_color=color.white, bgcolor=narrowBw ? color.new(#D35400, 0) : wideBw ? color.new(color.purple, 0) : color.new(color.gray, 50), text_size=size.small)
     table.cell(crsiStatus, 0, 2, "밴드 위치", text_color=color.white, text_size=size.small)
     table.cell(crsiStatus, 1, 2, posText, text_color=color.white, bgcolor=atLowCrsi ? color.new(color.green, 30) : atHighCrsi ? color.new(color.red, 30) : color.new(color.gray, 50), text_size=size.small)
