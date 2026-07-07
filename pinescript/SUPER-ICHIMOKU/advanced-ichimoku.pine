@@ -1091,7 +1091,7 @@ vwBandColor = not vwHasVwap ? color.new(color.gray, 40) : vwSlopeUp ? ((vwUpperW
 //  false면 현재 진행봉 기준(실시간, 봉 완성 전 변동 가능).
 // =========================
 candleShowState = input.bool(true, title="캔들 상태 (3) 표시", group="캔들 상태")
-candleConfirmOnClose = input.bool(true, title="확정봉 기준(끄면 현재봉 실시간)", group="캔들 상태", tooltip="켜면 마지막으로 완성된 봉을 현재봉(b0)으로 보고 계산해 리페인팅을 막습니다. 끄면 형성 중인 봉을 b0으로 써서 실시간 반영되지만 봉 완성 전까지 값이 바뀔 수 있습니다.")
+candleConfirmOnClose = input.bool(false, title="확정봉 기준(끄면 현재봉 실시간)", group="캔들 상태", tooltip="기본=실시간(리페인팅 있음). 켜면 마지막으로 완성된 봉을 현재봉(b0)으로 보고 계산해 리페인팅을 막습니다. 끄면(기본) 형성 중인 봉을 b0으로 써서 실시간 반영되지만 봉 완성 전까지 값이 바뀔 수 있습니다.")
 candleAtrLen = input.int(14, minval=1, title="캔들 ATR 길이(정규화)", group="캔들 상태")
 candleNetBodyMin = input.float(0.8, minval=0.0, step=0.1, title="순몸통 최소(진행 판정)", group="캔들 상태", tooltip="3봉 순몸통 합(body 합)을 ATR로 나눈 값의 최소 임계. 진행(추세지속) 판정의 유일한 핵심 튜닝 노브입니다. 높일수록 진행 판정이 보수적.")
 candleNetBodyStrong = input.float(1.5, minval=0.0, step=0.1, title="순몸통 강(계단 하나만 만족)", group="캔들 상태", tooltip="HH·HL(또는 LL·LH) 중 하나만 성립하고 3봉 방향이 모두 같을 때 요구하는 더 강한 순몸통 임계.")
