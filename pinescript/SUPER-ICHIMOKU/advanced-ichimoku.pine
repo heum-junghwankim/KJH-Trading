@@ -705,7 +705,9 @@ f_srColor(bool support) =>
     na(srScore) ? color.new(color.gray, 40) : srScore >= 0.8 ? (support ? color.new(color.green, 0) : color.new(color.red, 0)) : srScore >= 0.4 ? (support ? color.new(supportMidColor, 0) : color.new(resistMidColor, 0)) : (support ? color.new(supportWeakColor, 0) : color.new(resistWeakColor, 0))
 // 양운/음운 접두(cloudColorText: leadingSpanA vs B) — 예 "양운 지지 강함", "음운 저항 약함".
 cloudCellText = isSupport ? cloudColorText + " " + f_srLabel("지지") : isResist ? cloudColorText + " " + f_srLabel("저항") : cloudPosText + "·" + cloudColorText
-cloudCellColor = isSupport ? f_srColor(true) : isResist ? f_srColor(false) : color.new(color.gray, 40)
+// 맥락(능동 S/R 아닐 때) 색: 위치×구름색 방향색. 위+양운=선명 녹, 위+음운=흐린 녹(약강세), 아래+음운=선명 빨, 아래+양운=흐린 빨(약약세), 구름 안=회색.
+cloudContextColor = priceAboveCloud ? (cloudColorText == "양운" ? color.new(color.green, 0) : color.new(#6E8F72, 55)) : priceBelowCloud ? (cloudColorText == "음운" ? color.new(color.red, 0) : color.new(#A57A7A, 55)) : color.new(color.gray, 40)
+cloudCellColor = isSupport ? f_srColor(true) : isResist ? f_srColor(false) : cloudContextColor
 
 // 리본 상태 = 마지막으로 발생한 다이아몬드(상태머신) 기준이라 차트 표시와 동기화된다.
 // 괄호 숫자 = 마지막 이벤트(압축/분출) 발생 봉 종가 대비 현재 종가의 가격 변화 %.
