@@ -361,6 +361,58 @@ buyTrig20 = momentum ? btC : btD
 sellTrig20 = momentum ? stC : stD
 
 // =========================
+// 시간 조정(N봉) 투영 — 트리거 셀 보조표기. "현재 종가가 유지된다고 가정할 때 몇 봉 더 지나야
+//  해당 스케일의 상승/하락 전환(핵심 도치안 크로스)이 성립하는가"의 최소 k(N봉)를 추정한다.
+// -------------------------------------------------------------------------
+//  [투영 대상 조건] 핵심 도치안 전환선 vs 기준선 크로스만: 매수=convProj > baseProj, 매도=convProj < baseProj.
+//    (트리거 가격의 래깅 성분·스케일 캐스케이드는 다봉·확률 의존이라 시간 투영이 애매 → 제외. 범위 = 핵심 conv/base 크로스.)
+//  [가정] 미래 봉들의 고가·저가·종가 = 현재 종가(close)로 고정. 그러면 k봉 후 도치안 창은
+//    과거 (len−k)봉의 실제 고저 + 미래 k개의 close(=단일 상수)로 구성된다.
+//      hi_k = max( highest(high, len−k) , close ),  lo_k = min( lowest(low, len−k) , close )   (k<len)
+//      convProj(k) = avg(hi_k[conv], lo_k[conv]),  baseProj(k) = avg(hi_k[base], lo_k[base])
+//    k ≥ len 이면 창 전체가 close → conv=base=close → 크로스 불성립. 그래서 유효 horizon은 len 미만이 핵심.
+//  [horizon] 각 스케일 base 기간(baseP)과 22 중 큰 값까지 탐색. 그 안에 성립 안 하면 "-"(계산 불가).
+//    이미 그 방향 추세(blocked)면 트리거 셀은 "상승/하락 추세" 텍스트라 N봉을 붙이지 않는다(호출부에서 처리).
+//  [미래참조/리페인팅] 전부 과거 데이터로 미래 창을 수학적으로 투영(현재 종가 상수 가정) → 미래참조 아님.
+//    barstate.islast에서만 1회 계산(성능 안전). 확정봉 종가 기준이라 리페인팅 없음.
+// =========================
+f_nbarsToCross(int convLen, int baseLen, bool isBuy) =>
+    hz = math.max(baseLen, 22)
+    // 과거 데이터가 (가장 긴 창 baseLen − 1)만큼 확보돼야 prefix 극값이 유효 → 부족하면 na
+    need = math.max(convLen, baseLen)
+    int result = na
+    if bar_index >= need and not na(close)
+        // prefix 극값: pHi[m] = max(high[0..m-1]), pLo[m] = min(low[0..m-1]) 를 한 번 순회로 누적.
+        //  k봉 후 conv 창(길이 m=convLen−k)의 극값 = pHi[m]/pLo[m] (m>0), m≤0 이면 창 전체 close.
+        var float[] pHi = array.new_float(0)
+        var float[] pLo = array.new_float(0)
+        array.clear(pHi)
+        array.clear(pLo)
+        float runHi = na
+        float runLo = na
+        for j = 0 to need - 1
+            runHi := na(runHi) ? high[j] : math.max(runHi, high[j])
+            runLo := na(runLo) ? low[j] : math.min(runLo, low[j])
+            array.push(pHi, runHi)   // pHi[j] = max(high[0..j])  → 창 길이 (j+1)의 극값
+            array.push(pLo, runLo)
+        int found = na
+        for k = 1 to hz
+            int mC = convLen - k
+            int mB = baseLen - k
+            // 창 길이 m>0 이면 과거 m봉 극값과 close 비교, m≤0 이면 창 전체 close(=중립)
+            float hiC = mC > 0 ? math.max(array.get(pHi, mC - 1), close) : close
+            float loC = mC > 0 ? math.min(array.get(pLo, mC - 1), close) : close
+            float hiB = mB > 0 ? math.max(array.get(pHi, mB - 1), close) : close
+            float loB = mB > 0 ? math.min(array.get(pLo, mB - 1), close) : close
+            float convProj = math.avg(hiC, loC)
+            float baseProj = math.avg(hiB, loB)
+            bool crossed = isBuy ? convProj > baseProj : convProj < baseProj
+            if crossed and na(found)
+                found := k
+        result := found
+    result
+
+// =========================
 // 스케일 캐스케이드 — 하위 스케일이 '해당 방향 추세 상태'일 때 상위 스케일이 발화한다.
 //  매수 1×: 0.5×가 상승 추세(dir05==1)인 동안 1× 자기 트리거 충족 시. 매도 1×: 0.5×가 하락 추세(dir05==-1)인 동안.
 //  매수 2×: 0.5×·1×가 둘 다 상승 추세(dir05==1 and dir10==1)인 동안 2× 자기 트리거 충족 시. 매도 2×: 0.5×·1× 둘 다 하락 추세.
@@ -846,7 +898,9 @@ plot(showExitLines ? shortClear : na, title="숏 청산가 라벨", color=shortE
 // 가격이 없으면(같은 방향 신호가 이미 나와 막힘 = 그 방향 진행 중) 상승/하락으로 표시.
 // 진행 중(상승/하락 추세)이면 그 스케일 기준선(baseRef) 대비 이격도(기준 100: 종가÷기준선×100)를 괄호로 표기.
 // mom=모멘텀 모드면 트리거 가격/추세 텍스트 앞에 "M " 표기.
-f_trigCell(blocked, p, isBuy, baseRef, mom) => (mom ? "M " : "") + (blocked ? (isBuy ? "상승 추세" : "하락 추세") + (na(baseRef) or baseRef == 0 ? "" : " (" + str.tostring(close / baseRef * 100, "0.0") + ")") : f_arrow(p) + f_price(p) + " (" + f_pct(p) + ")")
+// nbars = 시간 조정 투영 봉수(na면 horizon 안 성립 안 함 = "-"). blocked(추세 진행 중)이면 N봉 미표기(기존 텍스트 유지).
+//  트리거 가격 표시 케이스에만 "{기존값} | N봉"(성립) 또는 "{기존값} | -"(계산 불가)로 부착.
+f_trigCell(blocked, p, isBuy, baseRef, mom, nbars) => (mom ? "M " : "") + (blocked ? (isBuy ? "상승 추세" : "하락 추세") + (na(baseRef) or baseRef == 0 ? "" : " (" + str.tostring(close / baseRef * 100, "0.0") + ")") : f_arrow(p) + f_price(p) + " (" + f_pct(p) + ")" + " | " + (na(nbars) ? "-" : str.tostring(nbars) + "봉"))
 // 셀 강조: 방향 기준. 매수는 트리거가 현재가의 +nearPct% 이내(또는 이미 아래=조건 충족→확정),
 // 매도는 트리거가 −nearPct% 이내(또는 이미 위=충족)면 포지션 색(상승=녹/하락=빨)으로 칠한다.
 // 진행 중(상승/하락 추세)이면 구름대 셀과 같은 채도(투명도 30)의 포지션 색.
@@ -1246,27 +1300,36 @@ retRR = not na(retRRPure) ? retRRPure : retRRFixed
 
 var table triggerTable = table.new(position.top_right, 2, 26, border_width=1, border_color=color.new(color.gray, 50))
 if barstate.islast
-    table.cell(triggerTable, 0, 0, "다음 봉", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
-    table.cell(triggerTable, 1, 0, "트리거 가격", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
+    // 헤더(row 0): 테이블 전체 2열 구조 대표 — 좌열=항목(라벨), 우열=값/상태. ("다음 봉/트리거 가격"은 전환 3행만 대표해 부적절)
+    table.cell(triggerTable, 0, 0, "항목", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
+    table.cell(triggerTable, 1, 0, "값", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
 
     // 캔들 상태 (3) — 표시 전용. 최상단(헤더 바로 아래, row 1)에 배치. 좌열 라벨 스타일은 다른 행과 동일(gray 20). 우열은 "패턴명 | 다음봉예측" + 5단계 배경색.
     if candleShowState
         table.cell(triggerTable, 0, 1, "캔들 상태 (3)", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
         table.cell(triggerTable, 1, 1, candleCellText, text_color=color.white, bgcolor=candleCellColor, text_size=size.small)
 
+    // N봉(시간 조정) 투영 — 모멘텀 모드면 트리거와 동일하게 한 단계 빠른 기간(conv/base 길이)으로 시프트.
+    //  0.5×: 정상 (c05,b05) / 모멘텀 (c025,b025) · 1×: 정상 (conv,base) / 모멘텀 (c05,b05) · 2×: 정상 (c20,b20) / 모멘텀 (conv,base)
+    int nbConv05 = momentum ? c025 : c05
+    int nbBase05 = momentum ? b025 : b05
+    int nbConv10 = momentum ? c05 : conversionPeriods
+    int nbBase10 = momentum ? b05 : basePeriods
+    int nbConv20 = momentum ? conversionPeriods : c20
+    int nbBase20 = momentum ? basePeriods : b20
     table.cell(triggerTable, 0, 2, "상승 전환(0.5×)", text_color=color.white, bgcolor=color.new(color.green, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 2, f_trigCell(buyBlocked05, buyTrig05, true, donB05, momentum), text_color=color.white, bgcolor=f_trigBg(buyBlocked05, buyTrig05, true), text_size=size.small)
+    table.cell(triggerTable, 1, 2, f_trigCell(buyBlocked05, buyTrig05, true, donB05, momentum, f_nbarsToCross(nbConv05, nbBase05, true)), text_color=color.white, bgcolor=f_trigBg(buyBlocked05, buyTrig05, true), text_size=size.small)
     table.cell(triggerTable, 0, 3, "상승 전환(1×)", text_color=color.white, bgcolor=color.new(color.green, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 3, f_trigCell(buyBlocked10, buyTrig10, true, baseLine, momentum), text_color=color.white, bgcolor=f_trigBg(buyBlocked10, buyTrig10, true), text_size=size.small)
+    table.cell(triggerTable, 1, 3, f_trigCell(buyBlocked10, buyTrig10, true, baseLine, momentum, f_nbarsToCross(nbConv10, nbBase10, true)), text_color=color.white, bgcolor=f_trigBg(buyBlocked10, buyTrig10, true), text_size=size.small)
     table.cell(triggerTable, 0, 4, "상승 전환(2×)", text_color=color.white, bgcolor=color.new(color.green, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 4, f_trigCell(buyBlocked20, buyTrig20, true, donB20, momentum), text_color=color.white, bgcolor=f_trigBg(buyBlocked20, buyTrig20, true), text_size=size.small)
+    table.cell(triggerTable, 1, 4, f_trigCell(buyBlocked20, buyTrig20, true, donB20, momentum, f_nbarsToCross(nbConv20, nbBase20, true)), text_color=color.white, bgcolor=f_trigBg(buyBlocked20, buyTrig20, true), text_size=size.small)
 
     table.cell(triggerTable, 0, 5, "하락 전환(0.5×)", text_color=color.white, bgcolor=color.new(color.red, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 5, f_trigCell(sellBlocked05, sellTrig05, false, donB05, momentum), text_color=color.white, bgcolor=f_trigBg(sellBlocked05, sellTrig05, false), text_size=size.small)
+    table.cell(triggerTable, 1, 5, f_trigCell(sellBlocked05, sellTrig05, false, donB05, momentum, f_nbarsToCross(nbConv05, nbBase05, false)), text_color=color.white, bgcolor=f_trigBg(sellBlocked05, sellTrig05, false), text_size=size.small)
     table.cell(triggerTable, 0, 6, "하락 전환(1×)", text_color=color.white, bgcolor=color.new(color.red, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 6, f_trigCell(sellBlocked10, sellTrig10, false, baseLine, momentum), text_color=color.white, bgcolor=f_trigBg(sellBlocked10, sellTrig10, false), text_size=size.small)
+    table.cell(triggerTable, 1, 6, f_trigCell(sellBlocked10, sellTrig10, false, baseLine, momentum, f_nbarsToCross(nbConv10, nbBase10, false)), text_color=color.white, bgcolor=f_trigBg(sellBlocked10, sellTrig10, false), text_size=size.small)
     table.cell(triggerTable, 0, 7, "하락 전환(2×)", text_color=color.white, bgcolor=color.new(color.red, 30), text_size=size.small)
-    table.cell(triggerTable, 1, 7, f_trigCell(sellBlocked20, sellTrig20, false, donB20, momentum), text_color=color.white, bgcolor=f_trigBg(sellBlocked20, sellTrig20, false), text_size=size.small)
+    table.cell(triggerTable, 1, 7, f_trigCell(sellBlocked20, sellTrig20, false, donB20, momentum, f_nbarsToCross(nbConv20, nbBase20, false)), text_color=color.white, bgcolor=f_trigBg(sellBlocked20, sellTrig20, false), text_size=size.small)
 
     table.cell(triggerTable, 0, 8, "리본 추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
     table.cell(triggerTable, 1, 8, ribbonCellText, text_color=color.white, bgcolor=ribbonCellColor, text_size=size.small)
