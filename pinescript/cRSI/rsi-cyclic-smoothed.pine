@@ -104,8 +104,8 @@ bandBgColor = not showBandWidthBg or bar_index < cyclicmemory ? na :
      bandWidth <= narrowLimit ? #D35400 :
      bandWidth >= wideLimit ? color.purple : na
 
-// 불투명성(opacity) 입력을 Pine transp로 변환(0=투명, 100=진함). transp = 100 - opacity.
-bgcolor(bandBgColor, transp = 100 - bgOpacity)
+// 불투명성(opacity) 입력을 v6 방식으로 색상에 baking(0=투명, 100=진함). 투명도(transp) = 100 - opacity.
+bgcolor(color.new(bandBgColor, 100 - bgOpacity))
 
 // CRSI만 프라이스 스케일(우측 축) 라벨 표시. 나머지 3선은 패널·상태줄엔 보이되 우측 축 라벨만 숨김.
 lowband = plot(db, "LowBand", #26A69A, display = display.all - display.price_scale)
