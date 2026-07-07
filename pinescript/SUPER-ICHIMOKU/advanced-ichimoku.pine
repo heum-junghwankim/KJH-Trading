@@ -1,5 +1,5 @@
 //@version=6
-indicator(title="Advanced Ichimoku", shorttitle="Adv Ichimoku", overlay=true)
+indicator(title="Advanced Ichimoku", shorttitle="Adv Ichimoku", overlay=true, max_bars_back=5000)
 
 donchian(len) =>
     math.avg(ta.lowest(len), ta.highest(len))
