@@ -646,6 +646,8 @@ cloudColorText = curSpanA >= curSpanB ? "양운" : "음운"
 //  피벗 확정(길이만큼 지연)을 안 기다리므로, 전고점서 꺾여 내려오는 즉시 하락 레그로 인식된다.
 // =========================
 srRevMult = input.float(1.5, minval=0.1, step=0.1, title="구름 지그재그 반전 감도(ATR 배수, 베이스 라인 유사)", group="구름 지지/저항")
+// 구름 경계 ±이 배수×ATR 이내에서만 지지/저항 인정(멀리서 오탐 방지). 초기 2.0 잠정.
+srProxMult = input.float(2.0, minval=0.1, step=0.1, title="구름 S/R 근접 배수(ATR)", group="구름 지지/저항")
 srRev = rAtr * srRevMult
 var int srDir = 0          // 1=상승 레그(저점서 상승 중), -1=하락 레그(고점서 꺾여 하락 중)
 var float srExtreme = na   // 현재 레그 진행 극값(상승=고점, 하락=저점)
@@ -678,14 +680,20 @@ else
         srExtremeBar := bar_index
 inCloud = close <= cloudTop and close >= cloudBottom
 cloudThickAtr = rAtr != 0 ? (cloudTop - cloudBottom) / rAtr : na
-srLegBars = not na(srAnchorBar) ? math.max(bar_index - srAnchorBar, 1) : na
-srSlopeAtr = (not na(srAnchor) and not na(srLegBars) and rAtr != 0) ? math.abs(close - srAnchor) / srLegBars / rAtr : na
-srScore = (not na(cloudThickAtr) and not na(srSlopeAtr)) ? cloudThickAtr / (1 + srSlopeAtr * 3) : na   // 두께↑=강, 각도↑=약
+// srSlopeAtr: 현재 종가가 앵커(직전 레그 반전점)에서 ATR 몇 배 벗어났나 — 무차원. 레그 이동폭의 ATR 배수.
+//  (구식 /srLegBars/rAtr 은 단위 1/봉 → 차원 불일치였다. srLegBars 정규화 제거·무차원화.)
+srSlopeAtr = (not na(srAnchor) and rAtr != 0) ? math.abs(close - srAnchor) / rAtr : na
+// srScore = 무차원 두께 / (1 + 무차원 이동폭 × 계수) → 무차원/무차원 = 무차원(차원 일관).
+//  두께↑=강, 이동폭↑(가파른 접근=모멘텀 강)=약. 계수 0.5는 새 정의 기준 잠정(미검증).
+srScore = (not na(cloudThickAtr) and not na(srSlopeAtr)) ? cloudThickAtr / (1 + srSlopeAtr * 0.5) : na
 // 위치(1차) + 접근 방향(확인). 지지 = 구름 위 + 하락 레그(위에서 되돌아 내려와 접근). 저항 = 구름 아래 + 상승 레그(아래서 올라와 접근).
 priceAboveCloud = not na(cloudTop) and close > cloudTop
 priceBelowCloud = not na(cloudBottom) and close < cloudBottom
-isSupport = priceAboveCloud and srDir == -1   // 구름 위에서 하락 레그로 되돌아 내려옴 → 구름이 하방 지지
-isResist  = priceBelowCloud and srDir == 1    // 구름 아래에서 상승 레그로 올라옴 → 구름이 상방 저항
+// 근접 게이팅(CEO "만나면" 의도): 구름 경계에서 srProxMult×ATR 이내로 접근했을 때만 S/R 인정. 멀리서 오탐 방지.
+nearSupport = priceAboveCloud and rAtr != 0 and (close - cloudTop) <= srProxMult * rAtr
+nearResist  = priceBelowCloud and rAtr != 0 and (cloudBottom - close) <= srProxMult * rAtr
+isSupport = nearSupport and srDir == -1   // 구름 위 + 근접 + 하락 레그로 되돌아 내려옴 → 구름이 하방 지지
+isResist  = nearResist  and srDir == 1    // 구름 아래 + 근접 + 상승 레그로 올라옴 → 구름이 상방 저항
 // 강도 3단계(지지/저항 대칭): srScore(두께/각도) 기준. 강함 ≥0.8 / 보통 ≥0.4 / 약함 <0.4(또는 na).
 f_srLabel(pfx) => na(srScore) ? pfx : srScore >= 0.8 ? pfx + " 강함" : srScore >= 0.4 ? pfx + " 보통" : pfx + " 약함"
 // 셀 색(지지=녹 / 저항=빨강, 강도 그라데이션. 대칭). 강함=선명·보통=중간·약함=둔탁.
@@ -694,7 +702,7 @@ supportMidColor  = #3E9142   // 지지 보통 = 중간 녹
 resistWeakColor  = #A57A7A   // 저항 약함 = 둔탁 빨강
 resistMidColor   = #B14A4A   // 저항 보통 = 중간 빨강
 f_srColor(bool support) =>
-    na(srScore) ? (support ? color.new(supportWeakColor, 0) : color.new(resistWeakColor, 0)) : srScore >= 0.8 ? (support ? color.new(color.green, 0) : color.new(color.red, 0)) : srScore >= 0.4 ? (support ? color.new(supportMidColor, 0) : color.new(resistMidColor, 0)) : (support ? color.new(supportWeakColor, 0) : color.new(resistWeakColor, 0))
+    na(srScore) ? color.new(color.gray, 40) : srScore >= 0.8 ? (support ? color.new(color.green, 0) : color.new(color.red, 0)) : srScore >= 0.4 ? (support ? color.new(supportMidColor, 0) : color.new(resistMidColor, 0)) : (support ? color.new(supportWeakColor, 0) : color.new(resistWeakColor, 0))
 // 양운/음운 접두(cloudColorText: leadingSpanA vs B) — 예 "양운 지지 강함", "음운 저항 약함".
 cloudCellText = isSupport ? cloudColorText + " " + f_srLabel("지지") : isResist ? cloudColorText + " " + f_srLabel("저항") : cloudPosText + "·" + cloudColorText
 cloudCellColor = isSupport ? f_srColor(true) : isResist ? f_srColor(false) : color.new(color.gray, 40)
