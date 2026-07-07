@@ -770,7 +770,9 @@ cloudCellColor = isSupport ? f_srColor(true) : isResist ? f_srColor(false) : clo
 // 괄호 숫자 = 마지막 이벤트(압축/분출) 발생 봉 종가 대비 현재 종가의 가격 변화 %.
 ribbonMovePct = not na(ribbonEventClose) and ribbonEventClose != 0 ? (close / ribbonEventClose - 1) * 100 : na
 ribbonBars = not na(ribbonEventBar) ? bar_index - ribbonEventBar + 1 : na   // 이벤트 봉=1봉째
-ribbonCellText = ribbonState + (na(ribbonMovePct) ? "" : " (" + (ribbonMovePct > 0 ? "+" : "") + str.tostring(ribbonMovePct, "0.0") + "%" + (na(ribbonBars) ? "" : " | " + str.tostring(ribbonBars) + "봉") + ")")
+// 표시 라벨만 매핑(내부값 ribbonState는 비교/색 로직에서 그대로 사용). "횡보"→"횡보 수축", "상승"→"상승 분출", "하락"→"하락 분출", 그 외("대기")는 유지.
+ribbonStateLabel = ribbonState == "상승" ? "상승 분출" : ribbonState == "하락" ? "하락 분출" : ribbonState == "횡보" ? "횡보 수축" : ribbonState
+ribbonCellText = ribbonStateLabel + (na(ribbonMovePct) ? "" : " (" + (ribbonMovePct > 0 ? "+" : "") + str.tostring(ribbonMovePct, "0.0") + "%" + (na(ribbonBars) ? "" : " | " + str.tostring(ribbonBars) + "봉") + ")")
 ribbonCellColor = ribbonState == "상승" ? color.new(color.blue, 30) : ribbonState == "하락" ? color.new(color.red, 30) : color.new(color.gray, 40)
 
 // 이격도(Disparity)·비정상 캔들 블록은 모멘텀 모드 즉시 반영을 위해 상단(멀티스케일 신호 앞)에서 계산한다.
