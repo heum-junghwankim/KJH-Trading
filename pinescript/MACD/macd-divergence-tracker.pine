@@ -14,7 +14,7 @@ is_falling_confirmed(src, bars) =>
     falling
 
 //Plot Inputs
-res           = input.timeframe("",  "Indicator TimeFrame")
+res           = input.timeframe("",  "Indicator TimeFrame", tooltip="상위 TF 지정 시 미확정봉에서 값이 변할 수 있음(리페인팅) — 교차검증은 확정봉 기준으로만 신뢰")
 fast_length   = input.int(title="Fast Length", defval=9)
 slow_length   = input.int(title="Slow Length", defval=20)
 src           = input.source(title="Source", defval=close)
@@ -49,7 +49,7 @@ price_ma_length = input.int(title="Price MA Length", defval=20, minval=1, group=
 hist_smoothing_length = input.int(title="Histogram TRIX Smoothing", defval=3, minval=1, group="Divergence")
 divergence_confirm_bars = input.int(title="Divergence Confirm Bars", defval=2, minval=1, group="Divergence")
 divergence_atr_length = input.int(title="Divergence ATR Length", defval=20, minval=1, group="Divergence")
-divergence_atr_filter = input.float(title="Divergence ATR Filter", defval=0.02, minval=0.0, step=0.01, group="Divergence")
+divergence_atr_filter = input.float(title="Divergence ATR Filter", defval=0.02, minval=0.005, step=0.01, group="Divergence")
 // Alerts T/F Inputs
 alert_Long    = input.bool(true, title = "MACD Cross Up", group = "Alerts", inline="Alert10")
 alert_Short   = input.bool(true, title = "MACD Cross Dn", group = "Alerts", inline="Alert10")
@@ -58,16 +58,16 @@ alert_Short_B = input.bool(false, title = "MACD Cross Dn & < 0", group = "Alerts
 
 indicator_tf = res == "" ? timeframe.period : res
 // Calculating
-fast_ma = request.security(syminfo.tickerid, indicator_tf, sma_source == "SMA" ? ta.sma(src, fast_length) : ta.ema(src, fast_length))
-slow_ma = request.security(syminfo.tickerid, indicator_tf, sma_source == "SMA" ? ta.sma(src, slow_length) : ta.ema(src, slow_length))
+fast_ma = request.security(syminfo.tickerid, indicator_tf, sma_source == "SMA" ? ta.sma(src, fast_length) : ta.ema(src, fast_length), lookahead=barmerge.lookahead_off)
+slow_ma = request.security(syminfo.tickerid, indicator_tf, sma_source == "SMA" ? ta.sma(src, slow_length) : ta.ema(src, slow_length), lookahead=barmerge.lookahead_off)
 macd = fast_ma - slow_ma
-signal = request.security(syminfo.tickerid, indicator_tf, sma_signal == "SMA" ? ta.sma(macd, signal_length) : ta.ema(macd, signal_length))
+signal = request.security(syminfo.tickerid, indicator_tf, sma_signal == "SMA" ? ta.sma(macd, signal_length) : ta.ema(macd, signal_length), lookahead=barmerge.lookahead_off)
 raw_hist = macd - signal
 // Triple-smooth the histogram to get a TRIX-like response without changing the MACD or signal lines.
 hist = ta.ema(ta.ema(ta.ema(raw_hist, hist_smoothing_length), hist_smoothing_length), hist_smoothing_length)
 // Keep the divergence slope basis aligned with the selected source and timeframe.
-price_ma = request.security(syminfo.tickerid, indicator_tf, ta.sma(src, price_ma_length))
-price_atr = request.security(syminfo.tickerid, indicator_tf, ta.atr(divergence_atr_length))
+price_ma = request.security(syminfo.tickerid, indicator_tf, ta.sma(src, price_ma_length), lookahead=barmerge.lookahead_off)
+price_atr = request.security(syminfo.tickerid, indicator_tf, ta.atr(divergence_atr_length), lookahead=barmerge.lookahead_off)
 // MACD Trend and Cross Up/Down conditions
 trend_up   = macd > signal
 trend_dn   = macd < signal
@@ -97,6 +97,7 @@ var bool histA_IsUp = false
 var bool histA_IsDown = false
 var bool histB_IsDown = false
 var bool histB_IsUp = false
+// 색상(시각) 전용 — cross/divergence 신호는 이 값을 참조하지 않음(신호 리페인팅 무관)
 histA_IsUp   := hist == hist[1] ? histA_IsUp[1] : hist > hist[1] and hist > 0
 histA_IsDown := hist == hist[1] ? histA_IsDown[1] : hist < hist[1] and hist > 0
 histB_IsDown := hist == hist[1] ? histB_IsDown[1] : hist < hist[1] and hist <= 0
