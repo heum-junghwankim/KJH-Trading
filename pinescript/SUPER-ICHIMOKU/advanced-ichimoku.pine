@@ -1,5 +1,7 @@
 //@version=6
-indicator(title="Advanced Ichimoku", shorttitle="Adv Ichimoku", overlay=true, max_bars_back=5000)
+// max_bars_back: 과거 트레일을 배열 기록 방식으로 바꿔(아래 스윕/청산 트레일 참조) 재귀 series의 깊은
+//   variable-offset 참조를 제거했다. 남은 history 참조는 이치모쿠 기간·ATR·slope(수십 봉)뿐이라 5000→500으로 축소(넉넉한 여유).
+indicator(title="Advanced Ichimoku", shorttitle="Adv Ichimoku", overlay=true, max_bars_back=500)
 
 donchian(len) =>
     math.avg(ta.lowest(len), ta.highest(len))
@@ -1043,23 +1045,46 @@ shortClear := useSweepPivot and not na(lastSweepPHigh) ? math.max(shortClear, la
 shortClear := math.min(shortClear, shortCE + sweepMaxGapMult * sweepAtr)
 
 // 스윕(점선)·청산(직선) 트레일 — plot이 아니라 polyline(선)으로 그려 점선/직선 스타일을 적용.
-f_trailLine(float src, int lb, color col, int w, string sty, bool show) =>
+// [성능 최적화] 과거값을 draw 시점의 variable-offset(src[i], 최대 trailLen)로 되짚지 않는다.
+//   대신 각 봉에서 그 봉의 값을 rolling 배열(크기 trailLen+1 상한)에 기록해 두고, islast에서 배열로 폴리라인을 만든다.
+//   → 재귀 series(longCE 등)에 대한 깊은 history 참조가 사라져 max_bars_back 압박 제거.
+//   → 결과 불변: 배열의 k번째 원소 = 그 봉에서 계산된 값 = 기존 src[lastBar-그봉]와 동일값·동일 bar_index.
+var iTrail  = array.new<int>()
+var lceTrail = array.new<float>()
+var sceTrail = array.new<float>()
+var lclrTrail = array.new<float>()
+var sclrTrail = array.new<float>()
+array.push(iTrail,   bar_index)
+array.push(lceTrail,  longCE)
+array.push(sceTrail,  shortCE)
+array.push(lclrTrail, longClear)
+array.push(sclrTrail, shortClear)
+// rolling 상한: 최근 trailLen+1개만 유지(기존 trailLb = min(bar_index, trailLen)와 동일 범위).
+if array.size(iTrail) > trailLen + 1
+    array.shift(iTrail)
+    array.shift(lceTrail)
+    array.shift(sceTrail)
+    array.shift(lclrTrail)
+    array.shift(sclrTrail)
+// idxArr(공유 bar_index 배열)과 valArr(값 배열)로 폴리라인 생성. 두 배열은 항상 같은 봉들을 기록 → 인덱스 정합.
+f_trailLine(array<int> idxArr, array<float> valArr, color col, int w, string sty, bool show) =>
     var polyline pl = na
     if barstate.islast
         polyline.delete(pl)
         pl := na
         if show
             pts = array.new<chart.point>()
-            for i = lb to 0
-                if not na(src[i])
-                    array.push(pts, chart.point.from_index(bar_index - i, src[i]))
+            n = array.size(valArr)
+            for k = 0 to n - 1
+                v = array.get(valArr, k)
+                if not na(v)
+                    array.push(pts, chart.point.from_index(array.get(idxArr, k), v))
             pl := array.size(pts) > 1 ? polyline.new(pts, curved=false, closed=false, line_color=col, line_width=w, line_style=sty) : na
     pl
-trailLb = math.min(bar_index, trailLen)
-f_trailLine(longCE,     trailLb, longExitLineColor,  sweepLineWidth, line.style_dotted, showExitLines)
-f_trailLine(shortCE,    trailLb, shortExitLineColor, sweepLineWidth, line.style_dotted, showExitLines)
-f_trailLine(longClear,  trailLb, longExitLineColor,  clearLineWidth, line.style_solid,  showExitLines)
-f_trailLine(shortClear, trailLb, shortExitLineColor, clearLineWidth, line.style_solid,  showExitLines)
+f_trailLine(iTrail, lceTrail,  longExitLineColor,  sweepLineWidth, line.style_dotted, showExitLines)
+f_trailLine(iTrail, sceTrail,  shortExitLineColor, sweepLineWidth, line.style_dotted, showExitLines)
+f_trailLine(iTrail, lclrTrail, longExitLineColor,  clearLineWidth, line.style_solid,  showExitLines)
+f_trailLine(iTrail, sclrTrail, shortExitLineColor, clearLineWidth, line.style_solid,  showExitLines)
 // 스윕/청산 수평선 4개 — var로 1회 생성 후 islast마다 좌표·색만 set 갱신(delete→new churn 제거).
 //  style은 생성 시 고정(dotted=스윕·solid=청산)이며 이후 불변이라 set 불필요. width=1도 불변.
 var line longSweepLine = na
