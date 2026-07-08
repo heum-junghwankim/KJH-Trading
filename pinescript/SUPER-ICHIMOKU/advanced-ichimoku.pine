@@ -21,6 +21,16 @@ showCloudFill = input.bool(true, title="Cloud Fill 표시", group="표시")
 showBuySignal = input.bool(true, title="매수 신호 표시", group="매수 신호")
 showSellSignal = input.bool(true, title="매도 신호 표시", group="매도 신호")
 
+// =========================
+// 캔들 색 표시 조건 (표시 전용 AND 게이트) — 캔들 상태(3) 7분류로 현재봉 캔들 바디를 방향색으로 칠하는(barcolor)
+//  동작을 "교차검증 정렬이 될 때만" 노출하도록 세 조건을 건다. 아래 세 조건을 모두 만족(AND)할 때만 캔들 바색 표시.
+//  ★ 표시 전용: 이 게이트는 캔들 7분류 판정·barcolor 색값·진입/청산/신호/전략 변수 어디에도 영향을 주지 않는다.
+//    캔들 색을 "칠할지 말지"만 결정하고, 색값·분류·테이블 셀 색은 그대로 유지한다. 혼조(방향 없음)는 기존대로 색 없음.
+//  방향 매핑: 캔들 상태 상승 계열(상승 진행·추세형 상승 예측·반전형 상승 예측)=상승 포지션, 하락 계열=하락 포지션(candleIsUp/candleIsDown 재사용).
+candleColorMinTrend = input.int(2, minval=0, maxval=3, title="캔들 색: 동일 방향 추세신호 최소 개수(0=무관)", group="캔들 색 표시 조건", tooltip="캔들 상태 방향(상승/하락 계열)과 같은 방향의 전환 신호(0.5×/1×/2×) 중 '추세 상태'인 개수가 이 값 이상일 때만 색 표시. 추세 상태 = 해당 스케일 dir이 그 방향(상승=dir==1·하락=dir==-1). 0이면 이 조건 무시(무관).")
+candleColorRibbon = input.string("포지션 방향 분출 or 횡보 압축", title="캔들 색: 리본 추세 조건", options=["포지션 방향 분출", "포지션 방향 분출 or 횡보 압축", "무관"], group="캔들 색 표시 조건", tooltip="캔들 방향과 리본 추세 정합. '포지션 방향 분출'=캔들 상승이면 리본 상승 분출·하락이면 하락 분출일 때만. '포지션 방향 분출 or 횡보 압축'=위 + 리본 횡보(압축/수축)도 허용. '무관'=조건 무시.")
+candleColorPullback = input.string("되돌림 확실 시 색 X", title="캔들 색: 되돌림 상태 조건", options=["되돌림 확실 시 색 X", "되돌림 주의/확실 시 색 X", "무관"], group="캔들 색 표시 조건", tooltip="이격도 되돌림 상태에 따라 색 표시 억제. '되돌림 확실 시 색 X'=되돌림 확실이면 색 X. '되돌림 주의/확실 시 색 X'=되돌림 주의 또는 확실이면 색 X. '무관'=조건 무시.")
+
 lineWidth = 1
 conversionLineColor = input.color(#FFEB3B, "컨버전 라인 색", group="색상")
 baseLineColor = input.color(#00FF00, "베이스 라인 색", group="색상")
@@ -1413,9 +1423,28 @@ f_candleStopCell() =>
 candleStopCellText = f_candleStopCell()
 // 셀 색: 캔들 상태(3)와 동일(같은 7분류 색). 혼조는 회색.
 candleStopCellColor = candleClsName == "혼조" ? color.new(color.gray, 40) : candleCellColor
+// =========================
+// 캔들 색 표시 조건 AND 게이트 (표시 전용) — 위 입력 3개(candleColorMinTrend·candleColorRibbon·candleColorPullback)로
+//  캔들 바색을 "교차검증 정렬 시에만" 노출. 세 조건 모두 만족(AND)할 때만 barcolor 색 표시, 하나라도 미충족이면 색 없음(원래 봉 색 유지).
+//  ★ 표시 전용: 게이트는 barcolor의 '표시 여부'만 결정한다. 캔들 7분류·candleBarColor 색값·테이블 셀 색(캔들 상태/손절라인 행)은 무변경.
+//  방향 매핑: candleIsUp=상승 계열(상승 진행·추세형/반전형 상승 예측)=상승 포지션, candleIsDown=하락 계열=하락 포지션. 혼조는 candleBarColor가 na라 애초에 색 없음.
+// -------------------------------------------------------------------------
+// 조건 1 — 정렬 추세 신호 최소 개수: 캔들 방향과 같은 방향의 전환 신호(0.5×/1×/2×) 중 '추세 상태'인 개수 ≥ candleColorMinTrend.
+//  추세 상태 = 해당 스케일 dir이 그 방향(상승=dir==1, 하락=dir==-1). dir05/dir10/dir20(=buyBlocked/sellBlocked 기반) 사용. 0이면 무관(항상 통과).
+candleTrendAlignCount = candleIsUp ? ((dir05 == 1 ? 1 : 0) + (dir10 == 1 ? 1 : 0) + (dir20 == 1 ? 1 : 0)) : candleIsDown ? ((dir05 == -1 ? 1 : 0) + (dir10 == -1 ? 1 : 0) + (dir20 == -1 ? 1 : 0)) : 0
+candleColorCond1 = candleColorMinTrend == 0 or candleTrendAlignCount >= candleColorMinTrend
+// 조건 2 — 리본 추세: 캔들 방향과 리본(ribbonState) 정합. '분출'=상승이면 ribbonState=="상승"·하락이면 "하락". '분출 or 횡보'는 "횡보"도 허용. '무관'은 통과.
+ribbonDirAligned = (candleIsUp and ribbonState == "상승") or (candleIsDown and ribbonState == "하락")
+candleColorCond2 = candleColorRibbon == "무관" or ribbonDirAligned or (candleColorRibbon == "포지션 방향 분출 or 횡보 압축" and ribbonState == "횡보")
+// 조건 3 — 되돌림 상태: 이격도 되돌림(disparityState) 국면에서 색 억제. '확실 시 X'=확실이면 차단. '주의/확실 시 X'=주의 또는 확실이면 차단. '무관'은 통과.
+candleColorCond3 = candleColorPullback == "무관" or (candleColorPullback == "되돌림 확실 시 색 X" and disparityState != "되돌림 확실") or (candleColorPullback == "되돌림 주의/확실 시 색 X" and disparityState == "중립")
+// AND 게이트: 세 조건 모두 통과해야 색 표시. 미통과면 na(원래 캔들 색 유지).
+candleColorGateOk = candleColorCond1 and candleColorCond2 and candleColorCond3
+candleBarColorGated = candleColorGateOk ? candleBarColor : na
+
 // 캔들 상태(3) 분류 결과로 현재봉 캔들 바디 색칠(파트 B #4). 방향 있는 6개 분류만 셀색과 동일 색으로 칠하고 혼조(na)면 원래 캔들 색 유지.
-//  실시간 모드(candleConfirmOnClose=false)면 봉 완성 전 색 변동(리페인팅) — 표시 전용이라 감수. 표시 토글(candleShowState) 연동.
-barcolor(candleShowState ? candleBarColor : na, title="캔들 상태 바색")
+//  실시간 모드(candleConfirmOnClose=false)면 봉 완성 전 색 변동(리페인팅) — 표시 전용이라 감수. 표시 토글(candleShowState) + 위 AND 게이트 연동.
+barcolor(candleShowState ? candleBarColorGated : na, title="캔들 상태 바색")
 
 // =========================
 // 손익비(RR) — 3종·5행으로 분리(CEO 지시): Cha(청산선)·VWAP(밴드2)·Ret(되돌림).
