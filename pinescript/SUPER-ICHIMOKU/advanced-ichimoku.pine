@@ -43,11 +43,16 @@ leadingSpanB = donchian(leadingSpanBPeriods)
 kumoUpper = math.max(leadingSpanA, leadingSpanB)
 kumoLower = math.min(leadingSpanA, leadingSpanB)
 
-// 신호 모드: 확정(원래 로직) / 예측(다음 봉 가정으로 1봉 빨리 포착). 기본 = 확정.
-signalMode = input.string("확정 모드", title="신호 모드", options=["확정 모드", "예측 모드"], group="신호 모드")
-isPredict = signalMode == "예측 모드"
-showVwSignals = input.bool(false, title="거래량 가중 신호 표시", group="거래량 가중 신호")
-vwTransp = input.int(50, minval=0, maxval=100, title="거래량 가중 투명도", group="거래량 가중 신호")
+// 추세 매수/매도 신호 4모드(택일) = 신호 소스(일반 도치안 vs 거래량 가중 VWMA) × 확정 방식(예측 vs 확정)의 2×2 통합.
+//  - "예측" 포함 → 다음 봉 가정으로 1봉 빨리 포착(예측 방식). 미포함 → 봉마감 확정 방식(원래 로직).
+//  - "거래량 가중" 포함 → VWMA 신호(vwBuy/vwSell)만 표시. 미포함 → 일반 도치안 신호(fBuy/fSell)만 표시.
+//  기본 = "일반 확정 모드"(구 기본: 확정 방식 + 일반 신호). 신호 계산식은 무변경 — 어느 소스/방식을 쓸지 택일만.
+signalMode = input.string("일반 확정 모드", title="추세 매수/매도 신호", options=["일반 예측 모드", "일반 확정 모드", "거래량 가중 예측 모드", "거래량 가중 확정 모드"], group="신호 모드")
+sigPredict = str.contains(signalMode, "예측")        // 구 signalMode=="예측 모드" 대체(예측/확정 분기)
+sigVw = str.contains(signalMode, "거래량 가중")      // 구 showVwSignals 대체(거래량 가중 신호 표시 여부)
+isPredict = sigPredict
+// 거래량 가중 투명도 — 거래량 가중 모드 삼각형 렌더에만 쓰인다. 4모드 통합으로 옵션 패널에서는 숨김(display.none).
+vwTransp = input.int(50, minval=0, maxval=100, title="거래량 가중 투명도", group="신호 모드", display=display.none)
 
 // =========================
 // 멀티스케일 신호 — 래깅 설정값의 0.5× / 1× / 2× 스케일로 동일 로직 계산
@@ -1466,18 +1471,20 @@ plotshape(series=ribbonBear, title="하락 분출", style=shape.cross, location=
 momBuyColor = momentum ? longExitLineColor : defaultBuyColor
 momSellColor = momentum ? shortExitLineColor : defaultSellColor
 // 신호 삼각형은 확정봉 발화(fBuyXX/fSellXX) 기준 — 트리거 봉이 아니라 다음 봉 확정 시 그 봉에 찍힌다(1봉 지연·휩쏘 필터).
-plotshape(showBuySignal and fBuy05, title="매수 0.5×", style=shape.triangleup, location=location.belowbar, color=momBuyColor, size=size.tiny)
-plotshape(showBuySignal and fBuy10, title="매수 1×", style=shape.triangleup, location=location.belowbar, color=momBuyColor, size=size.small)
-plotshape(showBuySignal and fBuy20, title="매수 2×", style=shape.triangleup, location=location.belowbar, color=momBuyColor, size=size.normal)
-plotshape(showSellSignal and fSell05, title="매도 0.5×", style=shape.triangledown, location=location.abovebar, color=momSellColor, size=size.tiny)
-plotshape(showSellSignal and fSell10, title="매도 1×", style=shape.triangledown, location=location.abovebar, color=momSellColor, size=size.small)
-plotshape(showSellSignal and fSell20, title="매도 2×", style=shape.triangledown, location=location.abovebar, color=momSellColor, size=size.normal)
-plotshape(showVwSignals and vwBuy05, title="매수 0.5× (거래량)", style=shape.triangleup, location=location.belowbar, color=color.new(momBuyColor, vwTransp), size=size.tiny)
-plotshape(showVwSignals and vwBuy10, title="매수 1× (거래량)", style=shape.triangleup, location=location.belowbar, color=color.new(momBuyColor, vwTransp), size=size.small)
-plotshape(showVwSignals and vwBuy20, title="매수 2× (거래량)", style=shape.triangleup, location=location.belowbar, color=color.new(momBuyColor, vwTransp), size=size.normal)
-plotshape(showVwSignals and vwSell05, title="매도 0.5× (거래량)", style=shape.triangledown, location=location.abovebar, color=color.new(momSellColor, vwTransp), size=size.tiny)
-plotshape(showVwSignals and vwSell10, title="매도 1× (거래량)", style=shape.triangledown, location=location.abovebar, color=color.new(momSellColor, vwTransp), size=size.small)
-plotshape(showVwSignals and vwSell20, title="매도 2× (거래량)", style=shape.triangledown, location=location.abovebar, color=color.new(momSellColor, vwTransp), size=size.normal)
+// 4모드 택일(sigVw): 일반 모드(not sigVw)=일반 도치안 신호(fBuyXX/fSellXX)만, 거래량 가중 모드(sigVw)=VWMA 신호(vwBuyXX/vwSellXX)만.
+//  예측/확정 방식은 sigPredict(=isPredict)가 신호 계산 단계에서 이미 반영 — 여기선 소스 택일만. 계산식·파이프라인 무변경.
+plotshape(showBuySignal and not sigVw and fBuy05, title="매수 0.5×", style=shape.triangleup, location=location.belowbar, color=momBuyColor, size=size.tiny)
+plotshape(showBuySignal and not sigVw and fBuy10, title="매수 1×", style=shape.triangleup, location=location.belowbar, color=momBuyColor, size=size.small)
+plotshape(showBuySignal and not sigVw and fBuy20, title="매수 2×", style=shape.triangleup, location=location.belowbar, color=momBuyColor, size=size.normal)
+plotshape(showSellSignal and not sigVw and fSell05, title="매도 0.5×", style=shape.triangledown, location=location.abovebar, color=momSellColor, size=size.tiny)
+plotshape(showSellSignal and not sigVw and fSell10, title="매도 1×", style=shape.triangledown, location=location.abovebar, color=momSellColor, size=size.small)
+plotshape(showSellSignal and not sigVw and fSell20, title="매도 2×", style=shape.triangledown, location=location.abovebar, color=momSellColor, size=size.normal)
+plotshape(showBuySignal and sigVw and vwBuy05, title="매수 0.5× (거래량)", style=shape.triangleup, location=location.belowbar, color=color.new(momBuyColor, vwTransp), size=size.tiny)
+plotshape(showBuySignal and sigVw and vwBuy10, title="매수 1× (거래량)", style=shape.triangleup, location=location.belowbar, color=color.new(momBuyColor, vwTransp), size=size.small)
+plotshape(showBuySignal and sigVw and vwBuy20, title="매수 2× (거래량)", style=shape.triangleup, location=location.belowbar, color=color.new(momBuyColor, vwTransp), size=size.normal)
+plotshape(showSellSignal and sigVw and vwSell05, title="매도 0.5× (거래량)", style=shape.triangledown, location=location.abovebar, color=color.new(momSellColor, vwTransp), size=size.tiny)
+plotshape(showSellSignal and sigVw and vwSell10, title="매도 1× (거래량)", style=shape.triangledown, location=location.abovebar, color=color.new(momSellColor, vwTransp), size=size.small)
+plotshape(showSellSignal and sigVw and vwSell20, title="매도 2× (거래량)", style=shape.triangledown, location=location.abovebar, color=color.new(momSellColor, vwTransp), size=size.normal)
 
 alertcondition(ribbonChop, title="횡보 압축", message="Ribbon compressed (chop) — Ichimoku signals unreliable.")
 alertcondition(ribbonBull, title="상승 분출", message="Ribbon bullish expansion after compression.")
