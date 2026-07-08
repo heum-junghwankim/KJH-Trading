@@ -1,7 +1,13 @@
 //@version=6
-// max_bars_back: 과거 트레일을 배열 기록 방식으로 바꿔(아래 스윕/청산 트레일 참조) 재귀 series의 깊은
-//   variable-offset 참조를 제거했다. 남은 history 참조는 이치모쿠 기간·ATR·slope(수십 봉)뿐이라 5000→500으로 축소(넉넉한 여유).
-indicator(title="Advanced Ichimoku", shorttitle="Adv Ichimoku", overlay=true, max_bars_back=500)
+// max_bars_back: 샹들리에 트레일은 배열 기록 방식으로 바꿔(아래 스윕/청산 트레일 참조) 재귀 series(longCE 등)의
+//   깊은 variable-offset 참조를 제거했다. 다만 파일 다른 곳에 그보다 깊거나 가변적인 history 참조가 남아 있어
+//   500으로는 부족했다(런타임 "referenced too many bars back" → 지표 전체 미표시):
+//     · ltMa2 = ta.vwma(close, 200) 에 다시 [ltTrendLook](기본 5) offset → 고정 최대 약 205봉.
+//     · ta.barssince(장기 200선 골든/데드 크로스) → 크로스 간격만큼 룩백이 가변·심하면 수백~수천 봉(무제한적).
+//   barssince 룩백은 심볼·타임프레임에 따라 크게 달라져 205봉+마진으로도 특정 상황에서 재크래시할 수 있으므로,
+//   안전 우선으로 이전 안정값 5000으로 복구한다. 샹들리에 배열 최적화(트레일 자기참조 제거)는 그대로 유지되며,
+//   여기서는 max_bars_back만 되돌린다(신호·계산·표시 로직 무변경).
+indicator(title="Advanced Ichimoku", shorttitle="Adv Ichimoku", overlay=true, max_bars_back=5000)
 
 donchian(len) =>
     math.avg(ta.lowest(len), ta.highest(len))
