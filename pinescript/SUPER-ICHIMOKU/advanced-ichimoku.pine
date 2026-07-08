@@ -1,5 +1,5 @@
 //@version=6
-indicator(title="Advanced Ichimoku", shorttitle="Adv Ichimoku", overlay=true, max_bars_back=5000)
+indicator(title="Advanced Ichimoku", shorttitle="Adv Ichimoku", overlay=true, max_bars_back=5000, max_labels_count=500)
 
 donchian(len) =>
     math.avg(ta.lowest(len), ta.highest(len))
@@ -1653,3 +1653,87 @@ plotshape(showSellSignal and sigVw and vwSell20, title="매도 2× (거래량)",
 alertcondition(ribbonChop, title="횡보 압축", message="Ribbon compressed (chop) — Ichimoku signals unreliable.")
 alertcondition(ribbonBull, title="상승 분출", message="Ribbon bullish expansion after compression.")
 alertcondition(ribbonBear, title="하락 분출", message="Ribbon bearish expansion after compression.")
+
+// =========================
+// 롱숏 포지션 진입/청산 라벨 (RR 게이트 기반 실매매 규칙) — label.new 전용, plot count 무소비.
+//  ⚠️ 크래시 재발 방지: 여기서는 label.new만 쓴다(plot/plotshape 신규 0). indicator(max_labels_count=500).
+//  진입 트리거 = 확정 발화(sBuy10/sSell10, 이미 다음봉 확정 파이프라인). 손절=청산선(longClear/shortClear).
+//   진입가·손절·목표는 진입 시점 var 래치로 고정 → 리페인팅 방지. 상태 전이는 확정봉 신호로만.
+//  롱/숏 완전 독립(동시 보유 가능), 같은 방향은 flat일 때만 진입(중복 금지). 엣지 미검증(백테스트 필요).
+// =========================
+posRrMin = input.float(1.5, minval=1.0, step=0.1, title="포지션 진입 RR 하한", group="롱숏 포지션 라벨", tooltip="진입 게이트: Cha 손익비(chaLongRR/chaShortRR)가 이 값 이상일 때만 진입. 잠정치 — 백테스트 확정 대상.")
+posRMult = input.float(2.0, minval=1.0, step=0.5, title="포지션 익절 R 배수", group="롱숏 포지션 라벨", tooltip="익절 목표 = max(반대편 청산선, 진입가 ± R배수×위험폭). 위험폭=|진입가−손절|. 잠정치 — 백테스트 확정 대상.")
+posUse05 = input.bool(true, title="0.5× 스케일도 진입 허용(빈도 보호)", group="롱숏 포지션 라벨", tooltip="켜면 1×(sBuy10/sSell10)에 더해 0.5×(sBuy05/sSell05) 신호도 진입 방향신호로 OR 포함. 1× 단독이 너무 드물 때 빈도 보호용.")
+showPosLabels = input.bool(true, title="롱숏 포지션 라벨 표시", group="롱숏 포지션 라벨")
+
+// 방향 신호(빈도 보호 옵션 반영): 롱=sBuy10 (posUse05면 or sBuy05), 숏=sSell10 (or sSell05).
+posBuySig  = posUse05 ? (sBuy10 or sBuy05)  : sBuy10
+posSellSig = posUse05 ? (sSell10 or sSell05) : sSell10
+
+// 상태머신(롱/숏 독립·중복금지·동시허용). 0=flat, 1=보유.
+var int longPosState = 0
+var int shortPosState = 0
+var float longPosEntry = na
+var float longPosStop = na
+var float longPosTarget = na
+var float shortPosEntry = na
+var float shortPosStop = na
+var float shortPosTarget = na
+
+// 진입 신호 = 방향신호 + 장기추세 정렬 + 청산선 유효(chaValid) + Cha RR ≥ 하한 + flat.
+longPosEntrySig  = posBuySig  and ltUp        and chaValid and not na(chaLongRR)  and chaLongRR  >= posRrMin and longPosState  == 0
+shortPosEntrySig = posSellSig and (not ltUp)  and chaValid and not na(chaShortRR) and chaShortRR >= posRrMin and shortPosState == 0
+
+// 롱 진입: 손절=롱 청산선(longClear), 목표=max(숏 청산선, 진입가 + R배수×위험폭). var 래치로 고정.
+if longPosEntrySig
+    longPosState := 1
+    longPosEntry := close
+    longPosStop := longClear
+    longRisk = longPosEntry - longPosStop
+    longPosTarget := math.max(shortClear, longPosEntry + posRMult * longRisk)
+    if showPosLabels
+        stopPct = not na(longPosStop) and longPosEntry != 0 ? (longPosStop / longPosEntry - 1) * 100 : na
+        label.new(bar_index, low, "L 포지션 진입 (손절 " + (na(stopPct) ? "-" : str.tostring(stopPct, "0.0") + "%") + ")", yloc=yloc.belowbar, style=label.style_label_up, color=color.new(#00ACC1, 0), textcolor=color.white, size=size.small)
+
+// 숏 진입: 손절=숏 청산선(shortClear), 목표=min(롱 청산선, 진입가 − R배수×위험폭). var 래치로 고정.
+if shortPosEntrySig
+    shortPosState := 1
+    shortPosEntry := close
+    shortPosStop := shortClear
+    shortRisk = shortPosStop - shortPosEntry
+    shortPosTarget := math.min(longClear, shortPosEntry - posRMult * shortRisk)
+    if showPosLabels
+        stopPct = not na(shortPosStop) and shortPosEntry != 0 ? (shortPosStop / shortPosEntry - 1) * 100 : na
+        label.new(bar_index, high, "S 포지션 진입 (손절 " + (na(stopPct) ? "-" : "+" + str.tostring(stopPct, "0.0") + "%") + ")", yloc=yloc.abovebar, style=label.style_label_down, color=color.new(#FF5FA2, 0), textcolor=color.white, size=size.small)
+
+// 롱 청산(보유 중): 손절도달(low<=손절)·익절도달(high>=목표)·추세이탈(sSell10 or not ltUp). 손절/익절 도달가로 수익률 산출.
+if longPosState == 1
+    longStopHit = not na(longPosStop) and low <= longPosStop
+    longTgtHit = not na(longPosTarget) and high >= longPosTarget
+    longTrendExit = sSell10 or (not ltUp)
+    if longStopHit or longTgtHit or longTrendExit
+        exitPrice = longStopHit ? longPosStop : longTgtHit ? longPosTarget : close
+        reason = longStopHit ? "손절" : longTgtHit ? "익절" : "추세이탈"
+        retPct = longPosEntry != 0 ? (exitPrice / longPosEntry - 1) * 100 : na
+        if showPosLabels
+            label.new(bar_index, high, "L 포지션 청산 (" + reason + " " + (na(retPct) ? "-" : (retPct >= 0 ? "+" : "") + str.tostring(retPct, "0.0") + "%") + ")", yloc=yloc.abovebar, style=label.style_label_down, color=color.new(#455A64, 0), textcolor=color.white, size=size.small)
+        longPosState := 0
+        longPosEntry := na
+        longPosStop := na
+        longPosTarget := na
+
+// 숏 청산(보유 중): 손절도달(high>=손절)·익절도달(low<=목표)·추세이탈(sBuy10 or ltUp). 부호 반전 수익률.
+if shortPosState == 1
+    shortStopHit = not na(shortPosStop) and high >= shortPosStop
+    shortTgtHit = not na(shortPosTarget) and low <= shortPosTarget
+    shortTrendExit = sBuy10 or ltUp
+    if shortStopHit or shortTgtHit or shortTrendExit
+        exitPrice = shortStopHit ? shortPosStop : shortTgtHit ? shortPosTarget : close
+        reason = shortStopHit ? "손절" : shortTgtHit ? "익절" : "추세이탈"
+        retPct = shortPosEntry != 0 ? (shortPosEntry / exitPrice - 1) * 100 : na
+        if showPosLabels
+            label.new(bar_index, low, "S 포지션 청산 (" + reason + " " + (na(retPct) ? "-" : (retPct >= 0 ? "+" : "") + str.tostring(retPct, "0.0") + "%") + ")", yloc=yloc.belowbar, style=label.style_label_up, color=color.new(#795548, 0), textcolor=color.white, size=size.small)
+        shortPosState := 0
+        shortPosEntry := na
+        shortPosStop := na
+        shortPosTarget := na
