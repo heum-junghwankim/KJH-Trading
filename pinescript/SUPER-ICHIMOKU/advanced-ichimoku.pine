@@ -22,14 +22,44 @@ showBuySignal = input.bool(true, title="매수 신호 표시", group="매수 신
 showSellSignal = input.bool(true, title="매도 신호 표시", group="매도 신호")
 
 // =========================
+// 매매 신호 방식 6모드(택일) = 신호 소스(일반 도치안 / 거래량 가중 VWMA / 혼합) × 확정 방식(예측 vs 확정).
+//  - "예측" 포함 → 다음 봉 가정으로 1봉 빨리 포착(예측 방식). 미포함 → 봉마감 확정 방식(원래 로직).
+//  - "거래량 가중" 포함 → VWMA 신호(vwBuy/vwSell)만 표시. 미포함 → 일반 도치안 신호(fBuy/fSell)만 표시.
+//  - "혼합" 포함 → 봉별 소스 스위칭: 그 봉이 비정상 거래량이면 VWMA 원시신호, 아니면 일반 원시신호로 계산.
+//      혼합 소스는 일반 신호와 **동일한 게이트→pending→다음봉 확정→dir 파이프라인**을 그대로 경유한다(우회 없음).
+//      → 차트 삼각형(fBuyXX)·테이블 추세(dirXX)가 혼합 파이프라인 하나만 참조해 정합. plotshape은 일반과 같은 경로.
+//      목적: 장초·뉴스發 비정상 거래량 봉에서 거래량 가중 관점으로 추세 변화를 빠르게 캐치.
+//      "혼합 일반 모드"=혼합+예측(모멘텀), "혼합 확정 모드"=혼합+확정(확정봉 기준). 예측/확정 축은 기존 isPredict가 처리.
+//  기본 = "일반 확정 모드"(구 기본: 확정 방식 + 일반 신호). 신호 계산식은 무변경 — 어느 소스/방식을 쓸지 택일만.
+//  ★ 입력 선언은 여기(신호 모드 그룹) → 캔들 색 표시 조건 2세트 순. Pine은 선언 순서로 옵션 패널을 그리므로 이 순서가 패널 배치.
+signalMode = input.string("일반 확정 모드", title="추세 진입 신호 방식", options=["일반 예측 모드", "일반 확정 모드", "거래량 가중 예측 모드", "거래량 가중 확정 모드", "혼합 일반 모드", "혼합 확정 모드"], group="매매 신호 방식", tooltip="혼합 일반 모드 = 혼합+예측(모멘텀). 혼합 확정 모드 = 혼합+확정(확정봉 기준). 혼합은 그 봉이 '비정상 거래량'이면 거래량 가중(VWMA) 원시신호, 아니면 일반 원시신호로 봉별 계산하되, 게이트·확정 파이프라인은 일반과 동일하게 경유합니다. 예측 계열(일반/혼합 일반)은 실시간 리페인팅 노출, 확정 계열은 확정봉 기준(리페인팅 없음).")
+sigPredict = str.contains(signalMode, "예측") or str.contains(signalMode, "혼합 일반")   // 예측/확정 분기: 예측 계열 + 혼합 일반(=혼합 예측)
+sigVw = str.contains(signalMode, "거래량 가중")      // 거래량 가중 전용 모드(VWMA 신호만, 파이프라인 우회). 혼합은 여기 포함 안 됨.
+sigHybrid = str.contains(signalMode, "혼합")         // 혼합 모드(봉별 소스 스위칭 + 일반 파이프라인 경유)
+isPredict = sigPredict
+
+// =========================
 // 캔들 색 표시 조건 (표시 전용 AND 게이트) — 캔들 상태(3) 7분류로 현재봉 캔들 바디를 방향색으로 칠하는(barcolor)
 //  동작을 "교차검증 정렬이 될 때만" 노출하도록 세 조건을 건다. 아래 세 조건을 모두 만족(AND)할 때만 캔들 바색 표시.
 //  ★ 표시 전용: 이 게이트는 캔들 7분류 판정·barcolor 색값·진입/청산/신호/전략 변수 어디에도 영향을 주지 않는다.
 //    캔들 색을 "칠할지 말지"만 결정하고, 색값·분류·테이블 셀 색은 그대로 유지한다. 혼조(방향 없음)는 기존대로 색 없음.
 //  방향 매핑: 캔들 상태 상승 계열(상승 진행·추세형 상승 예측·반전형 상승 예측)=상승 포지션, 하락 계열=하락 포지션(candleIsUp/candleIsDown 재사용).
-candleColorMinTrend = input.int(2, minval=0, maxval=3, title="캔들 색: 동일 방향 추세신호 최소 개수(0=무관)", group="캔들 색 표시 조건", tooltip="캔들 상태 방향(상승/하락 계열)과 같은 방향의 전환 신호(0.5×/1×/2×) 중 '추세 상태'인 개수가 이 값 이상일 때만 색 표시. 추세 상태 = 해당 스케일 dir이 그 방향(상승=dir==1·하락=dir==-1). 0이면 이 조건 무시(무관).")
-candleColorRibbon = input.string("무관", title="캔들 색: 리본 추세 조건", options=["포지션 방향 분출", "포지션 방향 분출 or 횡보 압축", "무관"], group="캔들 색 표시 조건", tooltip="캔들 방향과 리본 추세 정합. '포지션 방향 분출'=캔들 상승이면 리본 상승 분출·하락이면 하락 분출일 때만. '포지션 방향 분출 or 횡보 압축'=위 + 리본 횡보(압축/수축)도 허용. '무관'=조건 무시.")
-candleColorPullback = input.string("무관", title="캔들 색: 되돌림 상태 조건", options=["되돌림 확실이면 색 숨김", "되돌림 주의·확실이면 색 숨김", "무관"], group="캔들 색 표시 조건", tooltip="이격도 되돌림 상태에 따라 색 표시 억제. '되돌림 확실이면 색 숨김'=되돌림 확실이면 색을 숨김. '되돌림 주의·확실이면 색 숨김'=되돌림 주의 또는 확실이면 색을 숨김. '무관'=조건 무시(항상 표시).")
+//  ★ TF별 2세트: 차트 타임프레임에 따라 세트가 자동 선택된다. 1D 미만(인트라데이)=엄격 세트, 1D 이상(스윙)=완화 세트.
+//    판정 = timeframe.in_seconds() < 86400(1일=86400초). 차트 TF는 컴파일 시점 상수라 룩어헤드·리페인팅·na 이슈 없음.
+//    게이트(아래)에서 isIntraday로 세트 값을 골라 cond1/cond2/cond3을 판정한다. 문자열 옵션은 두 세트가 동일 리터럴.
+isIntraday = timeframe.in_seconds() < 86400   // 1D 미만(인트라데이)이면 true, 1D 이상(스윙)이면 false
+// --- 1D 미만(인트라데이) 세트: 잦은 노이즈 → 엄격(추세 정렬 2·리본 추세 분출 또는 횡보 수축·되돌림 확실 시 숨김) ---
+candleColorMinTrendLo = input.int(2, minval=0, maxval=3, title="추세 정렬 최소 신호 수 (0=무관)", group="캔들 색 표시 조건 (1D 미만)", tooltip="캔들 상태 방향(상승/하락 계열)과 같은 방향의 전환 신호(0.5×/1×/2×) 중 '추세 상태'인 개수가 이 값 이상일 때만 색 표시. 추세 상태 = 해당 스케일 dir이 그 방향(상승=dir==1·하락=dir==-1). 0이면 이 조건 무시(무관). [1D 미만 차트에 자동 적용]")
+candleColorRibbonLo = input.string("추세 분출 또는 횡보 수축", title="리본 국면 조건", options=["포지션 방향 분출", "추세 분출 또는 횡보 수축", "무관"], group="캔들 색 표시 조건 (1D 미만)", tooltip="캔들 방향과 리본 추세 정합. '포지션 방향 분출'=캔들 상승이면 리본 상승 분출·하락이면 하락 분출일 때만. '추세 분출 또는 횡보 수축'=위 + 리본 횡보(수축)도 허용. '무관'=조건 무시. [1D 미만 차트에 자동 적용]")
+candleColorPullbackLo = input.string("되돌림 확실 시 색 숨김", title="되돌림 구간 처리", options=["되돌림 확실 시 색 숨김", "되돌림 주의·확실 시 색 숨김", "무관"], group="캔들 색 표시 조건 (1D 미만)", tooltip="이격도 되돌림 상태에 따라 색 표시 억제. '되돌림 확실 시 색 숨김'=되돌림 확실이면 색을 숨김. '되돌림 주의·확실 시 색 숨김'=되돌림 주의 또는 확실이면 색을 숨김. '무관'=조건 무시(항상 표시). [1D 미만 차트에 자동 적용]")
+// --- 1D 이상(스윙) 세트: 봉당 정보량↑·노이즈↓ → 완화(추세 정렬 1·리본 무관·되돌림 무관) ---
+candleColorMinTrendHi = input.int(1, minval=0, maxval=3, title="추세 정렬 최소 신호 수 (0=무관)", group="캔들 색 표시 조건 (1D 이상)", tooltip="캔들 상태 방향(상승/하락 계열)과 같은 방향의 전환 신호(0.5×/1×/2×) 중 '추세 상태'인 개수가 이 값 이상일 때만 색 표시. 추세 상태 = 해당 스케일 dir이 그 방향(상승=dir==1·하락=dir==-1). 0이면 이 조건 무시(무관). [1D 이상 차트에 자동 적용]")
+candleColorRibbonHi = input.string("무관", title="리본 국면 조건", options=["포지션 방향 분출", "추세 분출 또는 횡보 수축", "무관"], group="캔들 색 표시 조건 (1D 이상)", tooltip="캔들 방향과 리본 추세 정합. '포지션 방향 분출'=캔들 상승이면 리본 상승 분출·하락이면 하락 분출일 때만. '추세 분출 또는 횡보 수축'=위 + 리본 횡보(수축)도 허용. '무관'=조건 무시. [1D 이상 차트에 자동 적용]")
+candleColorPullbackHi = input.string("무관", title="되돌림 구간 처리", options=["되돌림 확실 시 색 숨김", "되돌림 주의·확실 시 색 숨김", "무관"], group="캔들 색 표시 조건 (1D 이상)", tooltip="이격도 되돌림 상태에 따라 색 표시 억제. '되돌림 확실 시 색 숨김'=되돌림 확실이면 색을 숨김. '되돌림 주의·확실 시 색 숨김'=되돌림 주의 또는 확실이면 색을 숨김. '무관'=조건 무시(항상 표시). [1D 이상 차트에 자동 적용]")
+// 차트 TF에 따라 세트 자동 선택 — 이후 게이트는 아래 3개 변수만 참조(문자열 리터럴은 두 세트 옵션과 동일).
+candleColorMinTrend = isIntraday ? candleColorMinTrendLo : candleColorMinTrendHi
+candleColorRibbon = isIntraday ? candleColorRibbonLo : candleColorRibbonHi
+candleColorPullback = isIntraday ? candleColorPullbackLo : candleColorPullbackHi
 
 lineWidth = 1
 conversionLineColor = input.color(#FFEB3B, "컨버전 라인 색", group="색상")
@@ -53,28 +83,13 @@ leadingSpanB = donchian(leadingSpanBPeriods)
 kumoUpper = math.max(leadingSpanA, leadingSpanB)
 kumoLower = math.min(leadingSpanA, leadingSpanB)
 
-// 추세 매수/매도 신호 6모드(택일) = 신호 소스(일반 도치안 / 거래량 가중 VWMA / 혼합) × 확정 방식(예측 vs 확정).
-//  - "예측" 포함 → 다음 봉 가정으로 1봉 빨리 포착(예측 방식). 미포함 → 봉마감 확정 방식(원래 로직).
-//  - "거래량 가중" 포함 → VWMA 신호(vwBuy/vwSell)만 표시. 미포함 → 일반 도치안 신호(fBuy/fSell)만 표시.
-//  - "혼합" 포함(신규 2모드) → 봉별 소스 스위칭: 그 봉이 비정상 거래량이면 VWMA 원시신호, 아니면 일반 원시신호로 계산.
-//      혼합 소스는 일반 신호와 **동일한 게이트→pending→다음봉 확정→dir 파이프라인**을 그대로 경유한다(우회 없음).
-//      → 차트 삼각형(fBuyXX)·테이블 추세(dirXX)가 혼합 파이프라인 하나만 참조해 정합. plotshape은 일반과 같은 경로.
-//      목적: 장초·뉴스發 비정상 거래량 봉에서 거래량 가중 관점으로 추세 변화를 빠르게 캐치.
-//      "혼합 일반 모드"=혼합+예측(모멘텀), "혼합 확정 모드"=혼합+확정(확정봉 기준). 예측/확정 축은 기존 isPredict가 처리.
-//  기본 = "일반 확정 모드"(구 기본: 확정 방식 + 일반 신호). 신호 계산식은 무변경 — 어느 소스/방식을 쓸지 택일만.
-signalMode = input.string("일반 확정 모드", title="추세 매수/매도 신호", options=["일반 예측 모드", "일반 확정 모드", "거래량 가중 예측 모드", "거래량 가중 확정 모드", "혼합 일반 모드", "혼합 확정 모드"], group="신호 모드", tooltip="혼합 일반 모드 = 혼합+예측(모멘텀). 혼합 확정 모드 = 혼합+확정(확정봉 기준). 혼합은 그 봉이 '비정상 거래량'이면 거래량 가중(VWMA) 원시신호, 아니면 일반 원시신호로 봉별 계산하되, 게이트·확정 파이프라인은 일반과 동일하게 경유합니다. 예측 계열(일반/혼합 일반)은 실시간 리페인팅 노출, 확정 계열은 확정봉 기준(리페인팅 없음).")
-sigPredict = str.contains(signalMode, "예측") or str.contains(signalMode, "혼합 일반")   // 예측/확정 분기: 예측 계열 + 혼합 일반(=혼합 예측)
-sigVw = str.contains(signalMode, "거래량 가중")      // 거래량 가중 전용 모드(VWMA 신호만, 파이프라인 우회). 혼합은 여기 포함 안 됨.
-sigHybrid = str.contains(signalMode, "혼합")         // 혼합 모드(봉별 소스 스위칭 + 일반 파이프라인 경유)
-isPredict = sigPredict
-
 // 비정상 거래량 판정(⚠️ 전략 파라미터) — 혼합 모드에서 봉별 소스 스위칭 기준.
 //  펀드 표준 정의 재사용: VOLUME-PRESSURE 지표(volume-pressure-tracker.pine)와 동일한 정의로 통일한다.
 //   abnVolume = volume > ta.sma(volume, N) * (1 + mult)   (N=비교 캔들 수, mult=비정상 배수)
 //  기본값 N=20 · mult=1.0 → 최근 20봉 평균 거래량의 2배 초과 시 '비정상'. (VOLUME-PRESSURE 기본값과 동일)
 //  혼합 예측(혼합 일반)에서 '다음봉이 비정상'은 미래를 모르므로 현재봉 거래량으로 근사(예측 모드 관례) — 미래참조 아님(현재봉 volume 재사용).
-abnVolLen = input.int(20, minval=1, title="비정상 거래량 비교 봉수(N)", group="신호 모드", tooltip="혼합 모드 전용. 비정상 거래량 판정 = volume > SMA(volume, N) × (1 + 배수). VOLUME-PRESSURE 지표와 동일한 펀드 표준 정의. 전략 파라미터(수학자 리뷰 대상).")
-abnVolMult = input.float(1.0, minval=0.0, step=0.1, title="비정상 거래량 배수(mult)", group="신호 모드", tooltip="혼합 모드 전용. mult=1.0이면 평균의 2배 초과가 비정상. 값이 클수록 더 극단적인 거래량만 비정상으로 판정. 전략 파라미터(수학자 리뷰 대상).")
+abnVolLen = input.int(20, minval=1, title="비정상 거래량 비교 봉수(N)", group="매매 신호 방식", tooltip="혼합 모드 전용. 비정상 거래량 판정 = volume > SMA(volume, N) × (1 + 배수). VOLUME-PRESSURE 지표와 동일한 펀드 표준 정의. 전략 파라미터(수학자 리뷰 대상).")
+abnVolMult = input.float(1.0, minval=0.0, step=0.1, title="비정상 거래량 배수(mult)", group="매매 신호 방식", tooltip="혼합 모드 전용. mult=1.0이면 평균의 2배 초과가 비정상. 값이 클수록 더 극단적인 거래량만 비정상으로 판정. 전략 파라미터(수학자 리뷰 대상).")
 abnVolAvg = ta.sma(volume, abnVolLen)
 // [D-1] abnVolume은 진행 중 현재봉 volume을 쓰므로 봉 완성 전까지 비정상 여부가 봉 내에서 토글될 수 있다(→ 소스 스위칭·pending 등록도 봉 내 변동 가능).
 //  이는 예측(혼합 일반) 모드의 실시간 '빠른 캐치' 취지에 부합하는 의도된 동작이라 barstate.isconfirmed 가드를 일부러 걸지 않는다.
@@ -1424,8 +1439,9 @@ candleStopCellText = f_candleStopCell()
 // 셀 색: 캔들 상태(3)와 동일(같은 7분류 색). 혼조는 회색.
 candleStopCellColor = candleClsName == "혼조" ? color.new(color.gray, 40) : candleCellColor
 // =========================
-// 캔들 색 표시 조건 AND 게이트 (표시 전용) — 위 입력 3개(candleColorMinTrend·candleColorRibbon·candleColorPullback)로
-//  캔들 바색을 "교차검증 정렬 시에만" 노출. 세 조건 모두 만족(AND)할 때만 barcolor 색 표시, 하나라도 미충족이면 색 없음(원래 봉 색 유지).
+// 캔들 색 표시 조건 AND 게이트 (표시 전용) — 세트 자동선택 결과 3개(candleColorMinTrend·candleColorRibbon·candleColorPullback)로
+//  캔들 바색을 "교차검증 정렬 시에만" 노출. 세트는 상단에서 isIntraday(=timeframe.in_seconds()<86400)로 1D 미만/이상 세트를 골라둔 값.
+//  세 조건 모두 만족(AND)할 때만 barcolor 색 표시, 하나라도 미충족이면 색 없음(원래 봉 색 유지).
 //  ★ 표시 전용: 게이트는 barcolor의 '표시 여부'만 결정한다. 캔들 7분류·candleBarColor 색값·테이블 셀 색(캔들 상태/손절라인 행)은 무변경.
 //  방향 매핑: candleIsUp=상승 계열(상승 진행·추세형/반전형 상승 예측)=상승 포지션, candleIsDown=하락 계열=하락 포지션. 혼조는 candleBarColor가 na라 애초에 색 없음.
 // -------------------------------------------------------------------------
@@ -1433,11 +1449,11 @@ candleStopCellColor = candleClsName == "혼조" ? color.new(color.gray, 40) : ca
 //  추세 상태 = 해당 스케일 dir이 그 방향(상승=dir==1, 하락=dir==-1). dir05/dir10/dir20(=buyBlocked/sellBlocked 기반) 사용. 0이면 무관(항상 통과).
 candleTrendAlignCount = candleIsUp ? ((dir05 == 1 ? 1 : 0) + (dir10 == 1 ? 1 : 0) + (dir20 == 1 ? 1 : 0)) : candleIsDown ? ((dir05 == -1 ? 1 : 0) + (dir10 == -1 ? 1 : 0) + (dir20 == -1 ? 1 : 0)) : 0
 candleColorCond1 = candleColorMinTrend == 0 or candleTrendAlignCount >= candleColorMinTrend
-// 조건 2 — 리본 추세: 캔들 방향과 리본(ribbonState) 정합. '분출'=상승이면 ribbonState=="상승"·하락이면 "하락". '분출 or 횡보'는 "횡보"도 허용. '무관'은 통과.
+// 조건 2 — 리본 국면: 캔들 방향과 리본(ribbonState) 정합. '분출'=상승이면 ribbonState=="상승"·하락이면 "하락". '분출 또는 횡보 수축'은 "횡보"도 허용. '무관'은 통과.
 ribbonDirAligned = (candleIsUp and ribbonState == "상승") or (candleIsDown and ribbonState == "하락")
-candleColorCond2 = candleColorRibbon == "무관" or ribbonDirAligned or (candleColorRibbon == "포지션 방향 분출 or 횡보 압축" and ribbonState == "횡보")
-// 조건 3 — 되돌림 상태: 이격도 되돌림(disparityState) 국면에서 색 억제. '확실이면 숨김'=확실이면 차단. '주의·확실이면 숨김'=주의 또는 확실이면 차단. '무관'은 통과(기본값).
-candleColorCond3 = candleColorPullback == "무관" or (candleColorPullback == "되돌림 확실이면 색 숨김" and disparityState != "되돌림 확실") or (candleColorPullback == "되돌림 주의·확실이면 색 숨김" and disparityState == "중립")
+candleColorCond2 = candleColorRibbon == "무관" or ribbonDirAligned or (candleColorRibbon == "추세 분출 또는 횡보 수축" and ribbonState == "횡보")
+// 조건 3 — 되돌림 구간: 이격도 되돌림(disparityState) 국면에서 색 억제. '확실 시 숨김'=확실이면 차단. '주의·확실 시 숨김'=주의 또는 확실이면 차단. '무관'은 통과.
+candleColorCond3 = candleColorPullback == "무관" or (candleColorPullback == "되돌림 확실 시 색 숨김" and disparityState != "되돌림 확실") or (candleColorPullback == "되돌림 주의·확실 시 색 숨김" and disparityState == "중립")
 // AND 게이트: 세 조건 모두 통과해야 색 표시. 미통과면 na(원래 캔들 색 유지).
 candleColorGateOk = candleColorCond1 and candleColorCond2 and candleColorCond3
 candleBarColorGated = candleColorGateOk ? candleBarColor : na
