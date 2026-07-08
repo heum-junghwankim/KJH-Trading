@@ -1194,6 +1194,10 @@ f_candleState(int off) =>
     // 진행 성립 여부 및 근거 패턴명(적삼병/흑삼병 = 3봉 동일방향 계단, 그 외 "진행")
     upProgress = ((HH and HL) and upCount >= 2 and netBody >= candleNetBodyMin) or ((HH or HL) and upCount == 3 and netBody >= candleNetBodyStrong)
     dnProgress = ((LL and LH) and dnCount >= 2 and netBody <= -candleNetBodyMin) or ((LL or LH) and dnCount == 3 and netBody <= -candleNetBodyStrong)
+    // 강몸통 방향 폴백(순위 최하단, else 혼조 직전) — 2봉극점 미돌파·3봉계단 미충족으로 새던 명백한 강방향봉 흡수.
+    //  단일 현재봉(b0)의 방향(dir0)·강몸통(br0>=strongBody)·3봉 순몸통 뚜렷(netBody)만 본다. dir0 부호 배타로 up/dn 동시참 불가.
+    bodyFallbackDn = dir0 == -1 and br0 >= candleStrongBodyRatio and netBody <= -candleNetBodyMin
+    bodyFallbackUp = dir0 == 1 and br0 >= candleStrongBodyRatio and netBody >= candleNetBodyMin
 
     // 판정 (상호배타, 첫 매칭 확정 — 반전형 예측 → 진행 → 추세형 예측 순)
     string clsName = na
@@ -1218,6 +1222,12 @@ f_candleState(int off) =>
     else if trendDn
         clsName := "추세형 하락 예측"
         clsPat := "2봉저점돌파"
+    else if bodyFallbackUp
+        clsName := "추세형 상승 예측"
+        clsPat := "강몸통"
+    else if bodyFallbackDn
+        clsName := "추세형 하락 예측"
+        clsPat := "강몸통"
     else
         clsName := "혼조"
     // 셀 배경색 (7분류) — 상승 진행/추세형 상승/반전형 상승/혼조/반전형 하락/추세형 하락/하락 진행
