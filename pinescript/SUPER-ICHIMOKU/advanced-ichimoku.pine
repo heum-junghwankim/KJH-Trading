@@ -21,6 +21,9 @@ showCloudFill = input.bool(true, title="Cloud Fill 표시", group="표시")
 showBuySignal = input.bool(true, title="매수 신호 표시", group="매수 신호")
 showSellSignal = input.bool(true, title="매도 신호 표시", group="매도 신호")
 
+// 장기추세 정합 롱숏 포지션 진입/청산 플래그(상태머신). 기본 on. 상세 조건은 파일 하단 상태머신 참조.
+showPositionFlags = input.bool(true, title="롱숏 포지션 플래그 표시", group="롱숏 포지션 플래그", tooltip="장기추세 정합 롱숏 진입/청산 플래그. 진입=봉 위 플래그(롱 녹색·숏 빨강), 청산=봉 아래 플래그. 상태머신으로 중복 진입을 막고, 청산 후에만 재진입합니다. ★ 리페인팅 방지를 위해 확정봉에서만 상태가 전이됩니다(진입 플래그는 봉 완성 시 확정 표시).")
+
 // =========================
 // 매매 신호 방식 6모드(택일) = 신호 소스(일반 도치안 / 거래량 가중 VWMA / 혼합) × 확정 방식(예측 vs 확정).
 //  - "예측" 포함 → 다음 봉 가정으로 1봉 빨리 포착(예측 방식). 미포함 → 봉마감 확정 방식(원래 로직).
@@ -1691,6 +1694,61 @@ plotshape(showBuySignal and sigVw and vwBuy20, title="매수 2× (거래량)", s
 plotshape(showSellSignal and sigVw and vwSell05, title="매도 0.5× (거래량)", style=shape.triangledown, location=location.abovebar, color=color.new(momSellColor, 0), size=size.tiny)
 plotshape(showSellSignal and sigVw and vwSell10, title="매도 1× (거래량)", style=shape.triangledown, location=location.abovebar, color=color.new(momSellColor, 0), size=size.small)
 plotshape(showSellSignal and sigVw and vwSell20, title="매도 2× (거래량)", style=shape.triangledown, location=location.abovebar, color=color.new(momSellColor, 0), size=size.normal)
+
+// =========================
+// 장기추세 정합 롱숏 포지션 진입/청산 상태머신 (실제 매매 규칙 — 리페인팅 방지 최우선)
+// -------------------------------------------------------------------------
+//  진입/청산 정의(본부 확정):
+//   [롱] 진입(flat일 때만): 캔들 매수색(candleColorGateOk AND candleIsUp) AND 장기추세 상승(ltUp) AND chaValid(종가가 롱·숏 청산선 사이).
+//        청산(롱 보유 중): 확정봉 종가가 롱 청산선 하향 이탈 → close < longClear.
+//   [숏] 진입(flat): 캔들 매도색(candleColorGateOk AND candleIsDown) AND 장기추세 하락(not ltUp) AND chaValid.
+//        청산(숏 보유 중): 확정봉 종가가 숏 청산선 상향 이탈 → close > shortClear.
+//  상태(posState): 0=무포지션(flat), 1=롱 보유, -1=숏 보유.
+//   flat일 때만 신규 진입 판정, 보유 중엔 해당 청산만 판정. 청산되면 그 봉은 flat 전환만 하고 재진입은 다음 판정부터(같은 봉 청산+즉시재진입 금지).
+//  ★ 리페인팅 방지: 진입 원천 신호(candleColorGateOk·candleIsUp/Down·chaValid)는 실시간 모드(candleConfirmOnClose=false)에서 형성 중 봉 값이라 변동한다.
+//    그 변동이 상태머신 var(posState)를 오염시키지 않도록 상태 전이를 barstate.isconfirmed(확정봉)에서만 수행한다.
+//    → 진입/청산 모두 확정봉 기준으로 확정 표시(리페인팅 없음). 진입 플래그는 봉 완성 시점에 나타나며, 기존 신호 삼각형(fBuyXX, 1봉 지연 확정)의 휩쏘 필터 철학과 정합.
+//  ★ 미래참조 없음: 모든 조건은 현재 확정봉의 값만 사용(offset·request.security 미사용). 기존 계산·신호·테이블은 읽기만 하고 무변경.
+// =========================
+var int posState = 0
+// 진입/청산 발화 플래그(이 봉에서 전이가 일어났는지). plotshape 소스로만 사용.
+bool longEntryFire = false
+bool shortEntryFire = false
+bool longExitFire = false
+bool shortExitFire = false
+// 진입 조건(현재 확정봉 값 기준). 롱/숏은 장기추세 방향이 배타(ltUp)라 동시 성립 불가하나, 아래 전이 로직에서 롱을 우선 판정해 배타 보장.
+longEntryCond = candleColorGateOk and candleIsUp and ltUp and chaValid
+shortEntryCond = candleColorGateOk and candleIsDown and (not ltUp) and chaValid
+// 청산 조건(확정봉 종가 이탈).
+longExitCond = close < longClear
+shortExitCond = close > shortClear
+// 상태 전이는 확정봉에서만(리페인팅으로 인한 var 오염 방지).
+if barstate.isconfirmed
+    if posState == 0
+        // flat: 신규 진입 판정(롱 우선 → 배타). 청산 없음.
+        if longEntryCond
+            posState := 1
+            longEntryFire := true
+        else if shortEntryCond
+            posState := -1
+            shortEntryFire := true
+    else if posState == 1
+        // 롱 보유: 청산만 판정. 청산되면 flat 전환만(같은 봉 재진입 금지).
+        if longExitCond
+            posState := 0
+            longExitFire := true
+    else if posState == -1
+        // 숏 보유: 청산만 판정.
+        if shortExitCond
+            posState := 0
+            shortExitFire := true
+
+// 진입 플래그(봉 위) — 롱=녹색 계열·숏=빨강 계열. 확정봉 전이라 리페인팅 없음.
+plotshape(showPositionFlags and longEntryFire,  title="롱 포지션 진입",  style=shape.flag, location=location.abovebar, color=color.new(color.green, 0), textcolor=color.white, text="롱 포지션 진입",  size=size.small)
+plotshape(showPositionFlags and shortEntryFire, title="숏 포지션 진입", style=shape.flag, location=location.abovebar, color=color.new(color.red, 0),   textcolor=color.white, text="숏 포지션 진입", size=size.small)
+// 청산 플래그(봉 아래, 진입과 위치 구분) — 롱 청산=진입 대비 옅은 톤, 숏 청산=옅은 톤. 가독성 위해 abovebar(진입)와 belowbar(청산)로 분리.
+plotshape(showPositionFlags and longExitFire,  title="롱 포지션 청산",  style=shape.flag, location=location.belowbar, color=color.new(color.green, 40), textcolor=color.white, text="롱 포지션 청산",  size=size.small)
+plotshape(showPositionFlags and shortExitFire, title="숏 포지션 청산", style=shape.flag, location=location.belowbar, color=color.new(color.red, 40),   textcolor=color.white, text="숏 포지션 청산", size=size.small)
 
 alertcondition(ribbonChop, title="횡보 압축", message="Ribbon compressed (chop) — Ichimoku signals unreliable.")
 alertcondition(ribbonBull, title="상승 분출", message="Ribbon bullish expansion after compression.")
