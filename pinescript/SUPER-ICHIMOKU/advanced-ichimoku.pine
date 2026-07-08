@@ -48,13 +48,13 @@ isPredict = sigPredict
 //    판정 = timeframe.in_seconds() < 86400(1일=86400초). 차트 TF는 컴파일 시점 상수라 룩어헤드·리페인팅·na 이슈 없음.
 //    게이트(아래)에서 isIntraday로 세트 값을 골라 cond1/cond2/cond3을 판정한다. 문자열 옵션은 두 세트가 동일 리터럴.
 isIntraday = timeframe.in_seconds() < 86400   // 1D 미만(인트라데이)이면 true, 1D 이상(스윙)이면 false
-// --- 1D 미만(인트라데이) 세트: 잦은 노이즈 → 엄격(추세 정렬 2·리본 추세 분출 또는 횡보 수축·되돌림 확실 시 숨김) ---
+// --- 1D 미만(인트라데이) 세트: 잦은 노이즈 → 엄격(추세 정렬 2·리본 반대 포지션 방향 분출 1% 이하 이상·되돌림 확실 시 숨김) ---
 candleColorMinTrendLo = input.int(2, minval=0, maxval=3, title="추세 정렬 최소 신호 수 (0=무관)", group="캔들 색 표시 조건 (1D 미만)", tooltip="캔들 상태 방향(상승/하락 계열)과 같은 방향의 전환 신호(0.5×/1×/2×) 중 '추세 상태'인 개수가 이 값 이상일 때만 색 표시. 추세 상태 = 해당 스케일 dir이 그 방향(상승=dir==1·하락=dir==-1). 0이면 이 조건 무시(무관). [1D 미만 차트에 자동 적용]")
-candleColorRibbonLo = input.string("추세 분출 또는 횡보 수축", title="리본 국면 조건", options=["포지션 방향 분출", "추세 분출 또는 횡보 수축", "무관"], group="캔들 색 표시 조건 (1D 미만)", tooltip="캔들 방향과 리본 추세 정합. '포지션 방향 분출'=캔들 상승이면 리본 상승 분출·하락이면 하락 분출일 때만. '추세 분출 또는 횡보 수축'=위 + 리본 횡보(수축)도 허용. '무관'=조건 무시. [1D 미만 차트에 자동 적용]")
+candleColorRibbonLo = input.string("반대 포지션 방향 분출 1% 이하 이상", title="리본 국면 조건", options=["포지션 방향 분출 이상", "횡보 압축 이상", "반대 포지션 방향 분출 1% 이하 이상", "무관"], group="캔들 색 표시 조건 (1D 미만)", tooltip="캔들 방향과 리본 국면 정합. 강도 순 '이상'(그 강도부터 더 정합한 쪽 모두 허용). '포지션 방향 분출 이상'=캔들 상승이면 리본 상승 분출·하락이면 하락 분출(정합 분출)일 때만. '횡보 압축 이상'=정합 분출 + 리본 횡보(압축)도 허용. '반대 포지션 방향 분출 1% 이하 이상'=위 + 반대 방향 분출이더라도 리본 이동% 절대값이 1% 이하(약한 반대 분출)면 허용. '무관'=조건 무시. '대기' 상태는 무관 외엔 미통과. [1D 미만 차트에 자동 적용]")
 candleColorPullbackLo = input.string("되돌림 확실 시 색 숨김", title="되돌림 구간 처리", options=["되돌림 확실 시 색 숨김", "되돌림 주의·확실 시 색 숨김", "무관"], group="캔들 색 표시 조건 (1D 미만)", tooltip="이격도 되돌림 상태에 따라 색 표시 억제. '되돌림 확실 시 색 숨김'=되돌림 확실이면 색을 숨김. '되돌림 주의·확실 시 색 숨김'=되돌림 주의 또는 확실이면 색을 숨김. '무관'=조건 무시(항상 표시). [1D 미만 차트에 자동 적용]")
-// --- 1D 이상(스윙) 세트: 봉당 정보량↑·노이즈↓ → 완화(추세 정렬 1·리본 무관·되돌림 무관) ---
+// --- 1D 이상(스윙) 세트: 봉당 정보량↑·노이즈↓ → 완화(추세 정렬 1·리본 반대 포지션 방향 분출 1% 이하 이상·되돌림 무관) ---
 candleColorMinTrendHi = input.int(1, minval=0, maxval=3, title="추세 정렬 최소 신호 수 (0=무관)", group="캔들 색 표시 조건 (1D 이상)", tooltip="캔들 상태 방향(상승/하락 계열)과 같은 방향의 전환 신호(0.5×/1×/2×) 중 '추세 상태'인 개수가 이 값 이상일 때만 색 표시. 추세 상태 = 해당 스케일 dir이 그 방향(상승=dir==1·하락=dir==-1). 0이면 이 조건 무시(무관). [1D 이상 차트에 자동 적용]")
-candleColorRibbonHi = input.string("무관", title="리본 국면 조건", options=["포지션 방향 분출", "추세 분출 또는 횡보 수축", "무관"], group="캔들 색 표시 조건 (1D 이상)", tooltip="캔들 방향과 리본 추세 정합. '포지션 방향 분출'=캔들 상승이면 리본 상승 분출·하락이면 하락 분출일 때만. '추세 분출 또는 횡보 수축'=위 + 리본 횡보(수축)도 허용. '무관'=조건 무시. [1D 이상 차트에 자동 적용]")
+candleColorRibbonHi = input.string("반대 포지션 방향 분출 1% 이하 이상", title="리본 국면 조건", options=["포지션 방향 분출 이상", "횡보 압축 이상", "반대 포지션 방향 분출 1% 이하 이상", "무관"], group="캔들 색 표시 조건 (1D 이상)", tooltip="캔들 방향과 리본 국면 정합. 강도 순 '이상'(그 강도부터 더 정합한 쪽 모두 허용). '포지션 방향 분출 이상'=캔들 상승이면 리본 상승 분출·하락이면 하락 분출(정합 분출)일 때만. '횡보 압축 이상'=정합 분출 + 리본 횡보(압축)도 허용. '반대 포지션 방향 분출 1% 이하 이상'=위 + 반대 방향 분출이더라도 리본 이동% 절대값이 1% 이하(약한 반대 분출)면 허용. '무관'=조건 무시. '대기' 상태는 무관 외엔 미통과. [1D 이상 차트에 자동 적용]")
 candleColorPullbackHi = input.string("무관", title="되돌림 구간 처리", options=["되돌림 확실 시 색 숨김", "되돌림 주의·확실 시 색 숨김", "무관"], group="캔들 색 표시 조건 (1D 이상)", tooltip="이격도 되돌림 상태에 따라 색 표시 억제. '되돌림 확실 시 색 숨김'=되돌림 확실이면 색을 숨김. '되돌림 주의·확실 시 색 숨김'=되돌림 주의 또는 확실이면 색을 숨김. '무관'=조건 무시(항상 표시). [1D 이상 차트에 자동 적용]")
 // 차트 TF에 따라 세트 자동 선택 — 이후 게이트는 아래 3개 변수만 참조(문자열 리터럴은 두 세트 옵션과 동일).
 candleColorMinTrend = isIntraday ? candleColorMinTrendLo : candleColorMinTrendHi
@@ -1449,9 +1449,15 @@ candleStopCellColor = candleClsName == "혼조" ? color.new(color.gray, 40) : ca
 //  추세 상태 = 해당 스케일 dir이 그 방향(상승=dir==1, 하락=dir==-1). dir05/dir10/dir20(=buyBlocked/sellBlocked 기반) 사용. 0이면 무관(항상 통과).
 candleTrendAlignCount = candleIsUp ? ((dir05 == 1 ? 1 : 0) + (dir10 == 1 ? 1 : 0) + (dir20 == 1 ? 1 : 0)) : candleIsDown ? ((dir05 == -1 ? 1 : 0) + (dir10 == -1 ? 1 : 0) + (dir20 == -1 ? 1 : 0)) : 0
 candleColorCond1 = candleColorMinTrend == 0 or candleTrendAlignCount >= candleColorMinTrend
-// 조건 2 — 리본 국면: 캔들 방향과 리본(ribbonState) 정합. '분출'=상승이면 ribbonState=="상승"·하락이면 "하락". '분출 또는 횡보 수축'은 "횡보"도 허용. '무관'은 통과.
-ribbonDirAligned = (candleIsUp and ribbonState == "상승") or (candleIsDown and ribbonState == "하락")
-candleColorCond2 = candleColorRibbon == "무관" or ribbonDirAligned or (candleColorRibbon == "추세 분출 또는 횡보 수축" and ribbonState == "횡보")
+// 조건 2 — 리본 국면(4옵션, 강도 순 '이상' = 그 강도부터 더 정합한 쪽 모두 허용). 캔들 포지션 방향(candleIsUp/candleIsDown) 기준.
+//  posFlare(정합 분출)=캔들 상승&리본 "상승" 또는 캔들 하락&리본 "하락". oppFlare(반대 분출)=캔들 상승&리본 "하락" 또는 캔들 하락&리본 "상승".
+//  chop(횡보)=ribbonState=="횡보". oppWeak(반대 약분출)=oppFlare & |ribbonMovePct|<=1.0. ribbonMovePct는 na 가능 → na면 oppWeak false(안전).
+//  '대기'(ribbonState=="대기")는 posFlare/oppFlare/chop 어디에도 성립 안 함 → '무관' 외엔 미통과(현행 동작 유지).
+posFlare = (candleIsUp and ribbonState == "상승") or (candleIsDown and ribbonState == "하락")
+oppFlare = (candleIsUp and ribbonState == "하락") or (candleIsDown and ribbonState == "상승")
+ribbonChopState = ribbonState == "횡보"
+oppWeak = oppFlare and not na(ribbonMovePct) and math.abs(ribbonMovePct) <= 1.0
+candleColorCond2 = candleColorRibbon == "무관" or posFlare or (candleColorRibbon == "횡보 압축 이상" and ribbonChopState) or (candleColorRibbon == "반대 포지션 방향 분출 1% 이하 이상" and (ribbonChopState or oppWeak))
 // 조건 3 — 되돌림 구간: 이격도 되돌림(disparityState) 국면에서 색 억제. '확실 시 숨김'=확실이면 차단. '주의·확실 시 숨김'=주의 또는 확실이면 차단. '무관'은 통과.
 candleColorCond3 = candleColorPullback == "무관" or (candleColorPullback == "되돌림 확실 시 색 숨김" and disparityState != "되돌림 확실") or (candleColorPullback == "되돌림 주의·확실 시 색 숨김" and disparityState == "중립")
 // AND 게이트: 세 조건 모두 통과해야 색 표시. 미통과면 na(원래 캔들 색 유지).
