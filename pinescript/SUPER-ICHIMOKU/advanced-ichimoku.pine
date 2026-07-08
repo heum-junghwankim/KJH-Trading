@@ -1,5 +1,5 @@
 //@version=6
-indicator(title="Advanced Ichimoku", shorttitle="Adv Ichimoku", overlay=true, max_bars_back=5000, max_labels_count=500)
+indicator(title="Advanced Ichimoku", shorttitle="Adv Ichimoku", overlay=true, max_bars_back=5000)
 
 donchian(len) =>
     math.avg(ta.lowest(len), ta.highest(len))
@@ -20,10 +20,6 @@ showCloudFill = input.bool(true, title="Cloud Fill 표시", group="표시")
 
 showBuySignal = input.bool(true, title="매수 신호 표시", group="매수 신호")
 showSellSignal = input.bool(true, title="매도 신호 표시", group="매도 신호")
-
-// 장기추세 정합 롱숏 포지션 진입/청산 라벨(label 기반, plot count 무소비). 기본 on. 상세 조건은 파일 하단 상태머신 참조.
-//  ★ label.new로만 구현 → plot/plotshape 신규 추가 없음(plot count 불변). max_labels_count=500이라 최근 500 진입/청산 이벤트 label만 유지(오래된 것 자동 삭제).
-showPositionLabels = input.bool(true, title="롱숏 포지션 라벨 표시", group="롱숏 포지션 라벨", tooltip="장기추세 정합 롱숏 진입/청산 라벨. 진입=봉 위 라벨(롱 녹색·숏 빨강), 청산=봉 아래 라벨. 상태머신으로 중복 진입을 막고, 청산 후에만 재진입합니다. ★ 리페인팅 방지를 위해 확정봉에서만 상태가 전이됩니다(라벨은 봉 완성 시 확정 표시). label 기반이라 plot count를 소비하지 않습니다.")
 
 // =========================
 // 매매 신호 방식 6모드(택일) = 신호 소스(일반 도치안 / 거래량 가중 VWMA / 혼합) × 확정 방식(예측 vs 확정).
@@ -1699,66 +1695,3 @@ plotshape(showSellSignal and sigVw and vwSell20, title="매도 2× (거래량)",
 alertcondition(ribbonChop, title="횡보 압축", message="Ribbon compressed (chop) — Ichimoku signals unreliable.")
 alertcondition(ribbonBull, title="상승 분출", message="Ribbon bullish expansion after compression.")
 alertcondition(ribbonBear, title="하락 분출", message="Ribbon bearish expansion after compression.")
-
-// =========================
-// 장기추세 정합 롱숏 포지션 진입/청산 라벨 상태머신 (실제 매매 규칙 — 리페인팅 방지 최우선)
-// -------------------------------------------------------------------------
-//  ★ label 기반 표시(plot count 무소비): 이전 롱숏 로직(feat/longshort-position-flags)은 4개 plotshape로 표시해 plot count를 4 소비했으나,
-//    plot count 64 상한 초과로 지표 전면 미표시 크래시가 났다. 이번엔 label.new로만 표시 → plot/plotshape 신규 추가 0(plot count 불변).
-//    label은 진입/청산 이벤트 봉에서만 생성되므로 수가 적고, indicator(max_labels_count=500)이라 최근 500 이벤트 label만 유지(오래된 것 자동 삭제).
-//  진입/청산 정의(본부 확정 — 상태머신 로직은 이전 롱숏 로직과 동일, 표시만 label):
-//   [롱] 진입(flat일 때만): 캔들 매수색(candleColorGateOk AND candleIsUp) AND 장기추세 상승(ltUp) AND chaValid(종가가 롱·숏 청산선 사이).
-//        청산(롱 보유 중): 확정봉 종가가 롱 청산선 하향 이탈 → close < longClear.
-//   [숏] 진입(flat): 캔들 매도색(candleColorGateOk AND candleIsDown) AND 장기추세 하락(not ltUp) AND chaValid.
-//        청산(숏 보유 중): 확정봉 종가가 숏 청산선 상향 이탈 → close > shortClear.
-//  상태(posState): 0=무포지션(flat), 1=롱 보유, -1=숏 보유.
-//   flat일 때만 신규 진입 판정, 보유 중엔 해당 청산만 판정. 청산되면 그 봉은 flat 전환만 하고 재진입은 다음 판정부터(같은 봉 청산+즉시재진입 금지).
-//  ★ 리페인팅 방지: 진입 원천 신호(candleColorGateOk·candleIsUp/Down·chaValid)는 실시간 모드(candleConfirmOnClose=false)에서 형성 중 봉 값이라 변동한다.
-//    그 변동이 상태머신 var(posState)를 오염시키지 않도록 상태 전이를 barstate.isconfirmed(확정봉)에서만 수행한다. label도 확정봉에서만 생성.
-//    → 진입/청산 모두 확정봉 기준으로 확정 표시(리페인팅 없음). 진입 라벨은 봉 완성 시점에 나타나며, 기존 신호 삼각형(fBuyXX, 1봉 지연 확정)의 휩쏘 필터 철학과 정합.
-//  ★ 미래참조 없음: 모든 조건은 현재 확정봉의 값만 사용(offset·request.security 미사용). 기존 계산·신호·테이블·캔들색·청산선은 읽기만 하고 무변경.
-// =========================
-var int posState = 0
-// 진입/청산 발화 플래그(이 봉에서 전이가 일어났는지). label 생성 트리거로만 사용.
-bool longEntryFire = false
-bool shortEntryFire = false
-bool longExitFire = false
-bool shortExitFire = false
-// 진입 조건(현재 확정봉 값 기준). 롱/숏은 장기추세 방향이 배타(ltUp)라 동시 성립 불가하나, 아래 전이 로직에서 롱을 우선 판정해 배타 보장.
-longEntryCond = candleColorGateOk and candleIsUp and ltUp and chaValid
-shortEntryCond = candleColorGateOk and candleIsDown and (not ltUp) and chaValid
-// 청산 조건(확정봉 종가 이탈).
-longExitCond = close < longClear
-shortExitCond = close > shortClear
-// 상태 전이는 확정봉에서만(리페인팅으로 인한 var 오염 방지).
-if barstate.isconfirmed
-    if posState == 0
-        // flat: 신규 진입 판정(롱 우선 → 배타). 청산 없음.
-        if longEntryCond
-            posState := 1
-            longEntryFire := true
-        else if shortEntryCond
-            posState := -1
-            shortEntryFire := true
-    else if posState == 1
-        // 롱 보유: 청산만 판정. 청산되면 flat 전환만(같은 봉 재진입 금지).
-        if longExitCond
-            posState := 0
-            longExitFire := true
-    else if posState == -1
-        // 숏 보유: 청산만 판정.
-        if shortExitCond
-            posState := 0
-            shortExitFire := true
-
-// label 표시 — 진입/청산 이벤트 봉에서만 label.new 생성(plot count 무소비). 확정봉 전이라 리페인팅 없음.
-//  진입=봉 위(yloc.abovebar) style_label_down(봉 위에서 아래 화살표), 롱=녹색·숏=빨강. 청산=봉 아래(yloc.belowbar) style_label_up, 옅은 톤으로 구분.
-//  텍스트: "롱 포지션 진입"/"숏 포지션 진입"/"롱 포지션 청산"/"숏 포지션 청산". 표시 토글(showPositionLabels) 연동.
-if showPositionLabels and longEntryFire
-    label.new(bar_index, high, text="롱 포지션 진입", yloc=yloc.abovebar, style=label.style_label_down, color=color.new(color.green, 0), textcolor=color.white, size=size.small)
-if showPositionLabels and shortEntryFire
-    label.new(bar_index, high, text="숏 포지션 진입", yloc=yloc.abovebar, style=label.style_label_down, color=color.new(color.red, 0), textcolor=color.white, size=size.small)
-if showPositionLabels and longExitFire
-    label.new(bar_index, low, text="롱 포지션 청산", yloc=yloc.belowbar, style=label.style_label_up, color=color.new(color.green, 40), textcolor=color.white, size=size.small)
-if showPositionLabels and shortExitFire
-    label.new(bar_index, low, text="숏 포지션 청산", yloc=yloc.belowbar, style=label.style_label_up, color=color.new(color.red, 40), textcolor=color.white, size=size.small)
