@@ -1655,36 +1655,44 @@ alertcondition(ribbonBull, title="상승 분출", message="Ribbon bullish expans
 alertcondition(ribbonBear, title="하락 분출", message="Ribbon bearish expansion after compression.")
 
 // =========================
-// 롱숏 포지션 진입/청산 라벨 (느슨한 OR 방향 게이트 · 실시간) — label.new 전용, plot count 무소비.
+// 롱숏 포지션 진입/청산 라벨 (4근거 중 3↑ 방향 게이트 · 실시간) — label.new 전용, plot count 무소비.
 //  ⚠️ 크래시 재발 방지: 여기서는 label.new만 쓴다(plot/plotshape 신규 0). indicator(max_labels_count=500).
-//  [CEO 지시: 진입 허들 대폭 완화 + 실시간 표시]
-//   진입 방향 = 아래 근거 중 '하나 이상'이면 성립(OR): (1) 추세 발화 sBuy/sSell(0.5×/1×/2×) (2) dir 추세 상태(dir05/10/20)
-//    (3) 캔들 상태 상승/하락 계열(candleIsUp/candleIsDown) (4) VWAP 밴드 수축 + 방향(vwBwContracting & vwSlopeUp/Down).
-//   RR 게이트(posRrMin)·ltUp·chaValid는 진입 필수조건에서 제외 → 방향 하나만 떠도 진입. RR은 라벨에 '표시만'.
-//  실시간: barstate.isconfirmed 미사용 + 방향 근거가 형성 중 봉(candle/dir/VWAP) 값을 참조 → 매 봉 실시간 판정.
-//   봉 완성 전 라벨 변동(리페인팅)은 CEO 감수 사항. 룩어헤드(미래참조)는 없음(현재봉까지의 값만 사용).
-//  진입가·손절·목표는 진입 시점 var 래치로 고정. 롱/숏 완전 독립(동시 보유 가능), 같은 방향은 flat일 때만 진입(중복 금지). 엣지 미검증(백테스트 필요).
+//  [CEO 지시: 4개 근거 중 3개 이상 같은 방향이면 진입 — 선별적이라 라벨 과다하지 않음]
+//   진입 방향 근거 4개(각 bool):
+//    ① 리본 방향: ribbonState=="상승"(상승 분출) / "하락"(하락 분출)
+//    ② 추세 신호: 전환 발화(sBuy/sSell 0.5×/1×/2×) or dir 추세(dir05/10/20==방향) 중 하나라도
+//    ③ 비정상 방향 주문량: abnVolume(이치모쿠 내 비정상 거래량) AND 그 봉 방향(양봉 close>open / 음봉 close<open)
+//    ④ 캔들 상태 방향: candleIsUp / candleIsDown
+//   → 롱 진입 = (4개 중 true 개수) ≥ 3 AND 롱 flat. 숏은 대칭. RR 게이트·ltUp·chaValid 필수조건 없음(3/4가 진입 기준).
+//  청산: 손절=청산선(방향 정합 시)·반대편이면 ATR(14)×배수 폴백. 익절=max/min(반대편 청산선, 진입가 ± R배수×위험폭).
+//   방향 전환(CEO 강조): 롱/숏 독립 상태머신(동시 보유 가능). 같은 방향은 flat일 때만 진입(중복 금지). 청산 즉시 flat 복귀 →
+//   롱 청산과 무관하게 숏 조건 충족 시 숏 진입 허용(방향 전환 미차단).
+//  실시간: barstate.isconfirmed 미사용 + 근거가 형성 중 봉(candle/dir/ribbon/abnVolume) 값 참조 → 매 봉 실시간 판정.
+//   봉 완성 전 라벨 변동(리페인팅)은 CEO 감수 사항. 룩어헤드(미래참조) 없음(현재봉까지의 값만). 엣지 미검증(백테스트 필요).
 // =========================
-posRrMin = input.float(1.0, minval=0.0, step=0.1, title="포지션 RR 표시 하한(진입 차단 안 함)", group="롱숏 포지션 라벨", tooltip="[완화] RR은 라벨 표시용 참고치일 뿐 진입을 차단하지 않습니다. 이 값은 하위호환 입력으로만 남겨둡니다. 잠정치 — 백테스트 확정 대상.")
-posRMult = input.float(2.0, minval=1.0, step=0.5, title="포지션 익절 R 배수", group="롱숏 포지션 라벨", tooltip="익절 목표 = max(반대편 청산선, 진입가 ± R배수×위험폭). 위험폭=|진입가−손절|. 잠정치 — 백테스트 확정 대상.")
-posStopAtrMult = input.float(1.5, minval=0.1, step=0.1, title="폴백 손절 ATR 배수", group="롱숏 포지션 라벨", tooltip="청산선이 진입가 반대편이라 방향 정합 손절로 못 쓸 때 폴백. 손절 = 진입가 ∓ ATR(14)×배수(방향 정합 보장). 캔들 손절라인(3봉 극점)과 함께 더 보수적인 쪽을 채택.")
-posUseTrend = input.bool(true, title="진입 근거: 추세 발화·dir 추세 상태", group="롱숏 포지션 라벨", tooltip="추세 발화 신호(sBuy/sSell 0.5×/1×/2×) 또는 dir 추세 상태(dir05/10/20)가 방향이면 진입 근거로 인정.")
-posUseCandle = input.bool(true, title="진입 근거: 캔들 상태 방향", group="롱숏 포지션 라벨", tooltip="캔들 상태(3) 상승 계열(candleIsUp)/하락 계열(candleIsDown)이면 진입 근거로 인정.")
-posUseVwap = input.bool(true, title="진입 근거: VWAP 수축 + 방향", group="롱숏 포지션 라벨", tooltip="VWAP 밴드 수축(vwBwContracting)이면서 VWAP 기울기 상승/하락(vwSlopeUp/vwSlopeDown)이면 진입 근거로 인정.")
+posRMult = input.float(2.0, minval=1.0, step=0.5, title="포지션 익절 R 배수", group="롱숏 포지션 라벨", tooltip="익절 목표 = max/min(반대편 청산선, 진입가 ± R배수×위험폭). 위험폭=|진입가−손절|. 가성비 RR 잠정치 — 백테스트 확정 대상.")
+posStopAtrMult = input.float(1.5, minval=0.1, step=0.1, title="폴백 손절 ATR 배수", group="롱숏 포지션 라벨", tooltip="청산선이 진입가 반대편이라 방향 정합 손절로 못 쓸 때 폴백. 손절 = 진입가 ∓ ATR(14)×배수(방향 정합 보장).")
 showPosLabels = input.bool(true, title="롱숏 포지션 라벨 표시", group="롱숏 포지션 라벨")
 
-// ── 느슨한 OR 방향 게이트(허들 대폭 완화). 아래 근거 중 하나라도 참이면 그 방향 후보 성립.
-//  (1) 추세: 발화 신호(sBuy/sSell 전 스케일) or dir 추세 상태(dir05/10/20 == 방향)
-//  (2) 캔들: candleIsUp / candleIsDown (캔들 상태 3 방향 계열)
-//  (3) VWAP: 밴드 수축(vwBwContracting) + 기울기 방향(vwSlopeUp/vwSlopeDown)
-posTrendUp   = posUseTrend  and (sBuy05 or sBuy10 or sBuy20 or dir05 == 1 or dir10 == 1 or dir20 == 1)
-posTrendDown = posUseTrend  and (sSell05 or sSell10 or sSell20 or dir05 == -1 or dir10 == -1 or dir20 == -1)
-posCandleUp  = posUseCandle and candleIsUp
-posCandleDn  = posUseCandle and candleIsDown
-posVwapUp    = posUseVwap   and vwBwContracting and vwSlopeUp
-posVwapDn    = posUseVwap   and vwBwContracting and vwSlopeDown
-posBuySig  = posTrendUp   or posCandleUp or posVwapUp
-posSellSig = posTrendDown or posCandleDn or posVwapDn
+// ── 4근거 방향 판정 (각 bool). 3개 이상 같은 방향이면 진입.
+//  ① 리본 방향
+posRibbonUp = ribbonState == "상승"
+posRibbonDn = ribbonState == "하락"
+//  ② 추세 신호(발화 or dir 추세)
+posTrendUp   = sBuy05  or sBuy10  or sBuy20  or dir05 ==  1 or dir10 ==  1 or dir20 ==  1
+posTrendDown = sSell05 or sSell10 or sSell20 or dir05 == -1 or dir10 == -1 or dir20 == -1
+//  ③ 비정상 방향 주문량: 이치모쿠 내 비정상 거래량 + 그 봉 방향(양/음봉)
+posAbnUp = abnVolume and close > open
+posAbnDn = abnVolume and close < open
+//  ④ 캔들 상태 방향
+posCandleUp = candleIsUp
+posCandleDn = candleIsDown
+
+// 같은 방향 참 개수(4개 중). int로 합산.
+posLongCount  = (posRibbonUp ? 1 : 0) + (posTrendUp   ? 1 : 0) + (posAbnUp ? 1 : 0) + (posCandleUp ? 1 : 0)
+posShortCount = (posRibbonDn ? 1 : 0) + (posTrendDown ? 1 : 0) + (posAbnDn ? 1 : 0) + (posCandleDn ? 1 : 0)
+posBuySig  = posLongCount  >= 3
+posSellSig = posShortCount >= 3
 
 // 상태머신(롱/숏 독립·중복금지·동시허용). 0=flat, 1=보유.
 var int longPosState = 0
@@ -1692,83 +1700,71 @@ var int shortPosState = 0
 var float longPosEntry = na
 var float longPosStop = na
 var float longPosTarget = na
-var int longPosBar = na       // 롱 진입 봉 인덱스(진입 봉 당일 반대신호 청산 방지용)
+var int longPosBar = na       // 롱 진입 봉 인덱스(진입 봉 동일봉 청산 방지 — 룩백 왜곡 차단)
 var float shortPosEntry = na
 var float shortPosStop = na
 var float shortPosTarget = na
 var int shortPosBar = na      // 숏 진입 봉 인덱스(동일 취지)
 
-// 진입 신호(허들 완화) = 느슨한 OR 방향신호 + flat 뿐. ltUp·chaValid·chaRR 게이트 제거(RR은 라벨 표시만).
+// 진입 신호 = 3/4 방향신호 + 같은 방향 flat 뿐(중복 금지). 롱/숏 독립 → 방향 전환 미차단.
 longPosEntrySig  = posBuySig  and longPosState  == 0
 shortPosEntrySig = posSellSig and shortPosState == 0
 
-// 롱 진입: 손절=롱 청산선(방향 정합 시), 반대편이면 폴백(캔들 3봉 저점 / ATR). 목표=max(숏 청산선, 진입가 + R배수×위험폭). var 래치로 고정.
-//  청산선 정합: 롱 손절은 진입가 '아래'여야 함(longClear < entry). 아니면 방향 정합 폴백으로 대체.
+// 롱 진입: 손절=롱 청산선(정합 시 longClear<진입가), 반대편이면 ATR 폴백(진입가−ATR×배수, 항상 아래). 목표=max(숏 청산선, 진입가+R배수×위험폭). var 래치.
 if longPosEntrySig
     longPosState := 1
     longPosBar := bar_index
     longPosEntry := close
     longStopClear = (not na(longClear) and longClear < longPosEntry) ? longClear : na   // 정합될 때만 청산선 사용
-    longStopAtr = longPosEntry - posStopAtrMult * ltAtr                                  // ATR 폴백(항상 진입가 아래)
-    longStopCandle = (not na(candleStopLow3) and candleStopLow3 < longPosEntry) ? candleStopLow3 : na
-    // 폴백 = 캔들 저점(정합 시)과 ATR 손절 중 더 보수적(가까운=높은) 쪽. 청산선 정합이면 그대로, 아니면 폴백.
-    longStopFallback = na(longStopCandle) ? longStopAtr : math.max(longStopCandle, longStopAtr)
-    longPosStop := na(longStopClear) ? longStopFallback : longStopClear
+    longStopAtr = longPosEntry - posStopAtrMult * ltAtr                                  // ATR 폴백(항상 진입가 아래·방향 정합)
+    longPosStop := na(longStopClear) ? longStopAtr : longStopClear
     longRisk = longPosEntry - longPosStop
-    longPosTarget := math.max(nz(shortClear, longPosEntry + posRMult * longRisk), longPosEntry + posRMult * longRisk)
+    longPosTarget := longRisk > 0 ? math.max(nz(shortClear, longPosEntry + posRMult * longRisk), longPosEntry + posRMult * longRisk) : na
     if showPosLabels
         stopPct = not na(longPosStop) and longPosEntry != 0 ? (longPosStop / longPosEntry - 1) * 100 : na
-        rrTxt = not na(chaLongRR) ? " RR " + str.tostring(chaLongRR, "0.0") : ""
-        label.new(bar_index, low, "L 포지션 진입 (손절 " + (na(stopPct) ? "-" : str.tostring(stopPct, "0.0") + "%") + rrTxt + ")", yloc=yloc.belowbar, style=label.style_label_up, color=color.new(#00ACC1, 0), textcolor=color.white, size=size.small)
+        label.new(bar_index, low, "L/S 포지션 진입 (손절 " + (na(stopPct) ? "-" : str.tostring(stopPct, "0.0") + "%") + ")", yloc=yloc.belowbar, style=label.style_label_up, color=color.new(#00ACC1, 0), textcolor=color.white, size=size.small)
 
-// 숏 진입: 손절=숏 청산선(방향 정합 시), 반대편이면 폴백(캔들 3봉 고점 / ATR). 목표=min(롱 청산선, 진입가 − R배수×위험폭). var 래치로 고정.
-//  청산선 정합: 숏 손절은 진입가 '위'여야 함(shortClear > entry). 아니면 방향 정합 폴백으로 대체.
+// 숏 진입: 손절=숏 청산선(정합 시 shortClear>진입가), 반대편이면 ATR 폴백(진입가+ATR×배수, 항상 위). 목표=min(롱 청산선, 진입가−R배수×위험폭). var 래치.
 if shortPosEntrySig
     shortPosState := 1
     shortPosBar := bar_index
     shortPosEntry := close
     shortStopClear = (not na(shortClear) and shortClear > shortPosEntry) ? shortClear : na   // 정합될 때만 청산선 사용
-    shortStopAtr = shortPosEntry + posStopAtrMult * ltAtr                                     // ATR 폴백(항상 진입가 위)
-    shortStopCandle = (not na(candleStopHigh3) and candleStopHigh3 > shortPosEntry) ? candleStopHigh3 : na
-    // 폴백 = 캔들 고점(정합 시)과 ATR 손절 중 더 보수적(가까운=낮은) 쪽.
-    shortStopFallback = na(shortStopCandle) ? shortStopAtr : math.min(shortStopCandle, shortStopAtr)
-    shortPosStop := na(shortStopClear) ? shortStopFallback : shortStopClear
+    shortStopAtr = shortPosEntry + posStopAtrMult * ltAtr                                     // ATR 폴백(항상 진입가 위·방향 정합)
+    shortPosStop := na(shortStopClear) ? shortStopAtr : shortStopClear
     shortRisk = shortPosStop - shortPosEntry
-    shortPosTarget := math.min(nz(longClear, shortPosEntry - posRMult * shortRisk), shortPosEntry - posRMult * shortRisk)
+    shortPosTarget := shortRisk > 0 ? math.min(nz(longClear, shortPosEntry - posRMult * shortRisk), shortPosEntry - posRMult * shortRisk) : na
     if showPosLabels
         stopPct = not na(shortPosStop) and shortPosEntry != 0 ? (shortPosStop / shortPosEntry - 1) * 100 : na
-        rrTxt = not na(chaShortRR) ? " RR " + str.tostring(chaShortRR, "0.0") : ""
-        label.new(bar_index, high, "S 포지션 진입 (손절 " + (na(stopPct) ? "-" : "+" + str.tostring(stopPct, "0.0") + "%") + rrTxt + ")", yloc=yloc.abovebar, style=label.style_label_down, color=color.new(#FF5FA2, 0), textcolor=color.white, size=size.small)
+        label.new(bar_index, high, "L/S 포지션 진입 (손절 " + (na(stopPct) ? "-" : "+" + str.tostring(stopPct, "0.0") + "%") + ")", yloc=yloc.abovebar, style=label.style_label_down, color=color.new(#FF5FA2, 0), textcolor=color.white, size=size.small)
 
-// 롱 청산(보유 중): 손절도달(low<=손절)·익절도달(high>=목표)·반대방향(느슨한 숏 방향 posSellSig). 손절/익절 도달가로 수익률 산출.
-//  [완화 정합] 진입이 느슨한 OR이므로 청산의 '추세이탈'도 반대편 느슨한 방향(posSellSig)로 대칭화(ltUp 게이트 제거).
-if longPosState == 1
+// 롱 청산(보유 중): 손절도달(low<=손절)·익절도달(high>=목표). 방향 전환은 독립 숏 진입이 대체 → 여기서 반대신호 청산 안 함(청산 즉시 flat).
+//  진입 봉 동일봉 청산 금지(bar_index != longPosBar): 진입가=close인데 그 봉의 이미 지나간 low/high로 손절/익절 판정하면 룩백 왜곡 → 다음 봉부터 검사.
+if longPosState == 1 and bar_index != longPosBar
     longStopHit = not na(longPosStop) and low <= longPosStop
     longTgtHit = not na(longPosTarget) and high >= longPosTarget
-    longTrendExit = posSellSig and bar_index != longPosBar   // 진입 봉 당일 반대신호 청산 방지(가격 손절/익절은 허용)
-    if longStopHit or longTgtHit or longTrendExit
-        exitPrice = longStopHit ? longPosStop : longTgtHit ? longPosTarget : close
-        reason = longStopHit ? "손절" : longTgtHit ? "익절" : "반대신호"
+    if longStopHit or longTgtHit
+        exitPrice = longStopHit ? longPosStop : longPosTarget
+        reason = longStopHit ? "손절" : "익절"
         retPct = longPosEntry != 0 ? (exitPrice / longPosEntry - 1) * 100 : na
         if showPosLabels
-            label.new(bar_index, high, "L 포지션 청산 (" + reason + " " + (na(retPct) ? "-" : (retPct >= 0 ? "+" : "") + str.tostring(retPct, "0.0") + "%") + ")", yloc=yloc.abovebar, style=label.style_label_down, color=color.new(#455A64, 0), textcolor=color.white, size=size.small)
+            label.new(bar_index, high, "L/S 포지션 청산 (" + reason + " " + (na(retPct) ? "-" : (retPct >= 0 ? "+" : "") + str.tostring(retPct, "0.0") + "%") + ")", yloc=yloc.abovebar, style=label.style_label_down, color=color.new(#455A64, 0), textcolor=color.white, size=size.small)
         longPosState := 0
         longPosEntry := na
         longPosStop := na
         longPosTarget := na
 
-// 숏 청산(보유 중): 손절도달(high>=손절)·익절도달(low<=목표)·반대방향(느슨한 롱 방향 posBuySig). 부호 반전 수익률.
-//  [완화 정합] 청산의 '추세이탈'도 반대편 느슨한 방향(posBuySig)로 대칭화(ltUp 게이트 제거).
-if shortPosState == 1
+// 숏 청산(보유 중): 손절도달(high>=손절)·익절도달(low<=목표). 부호 반전 수익률. 방향 전환은 독립 롱 진입이 대체.
+//  진입 봉 동일봉 청산 금지(bar_index != shortPosBar): 룩백 왜곡 차단 — 다음 봉부터 검사.
+if shortPosState == 1 and bar_index != shortPosBar
     shortStopHit = not na(shortPosStop) and high >= shortPosStop
     shortTgtHit = not na(shortPosTarget) and low <= shortPosTarget
-    shortTrendExit = posBuySig and bar_index != shortPosBar   // 진입 봉 당일 반대신호 청산 방지(가격 손절/익절은 허용)
-    if shortStopHit or shortTgtHit or shortTrendExit
-        exitPrice = shortStopHit ? shortPosStop : shortTgtHit ? shortPosTarget : close
-        reason = shortStopHit ? "손절" : shortTgtHit ? "익절" : "반대신호"
+    if shortStopHit or shortTgtHit
+        exitPrice = shortStopHit ? shortPosStop : shortPosTarget
+        reason = shortStopHit ? "손절" : "익절"
         retPct = shortPosEntry != 0 ? (shortPosEntry / exitPrice - 1) * 100 : na
         if showPosLabels
-            label.new(bar_index, low, "S 포지션 청산 (" + reason + " " + (na(retPct) ? "-" : (retPct >= 0 ? "+" : "") + str.tostring(retPct, "0.0") + "%") + ")", yloc=yloc.belowbar, style=label.style_label_up, color=color.new(#795548, 0), textcolor=color.white, size=size.small)
+            label.new(bar_index, low, "L/S 포지션 청산 (" + reason + " " + (na(retPct) ? "-" : (retPct >= 0 ? "+" : "") + str.tostring(retPct, "0.0") + "%") + ")", yloc=yloc.belowbar, style=label.style_label_up, color=color.new(#795548, 0), textcolor=color.white, size=size.small)
         shortPosState := 0
         shortPosEntry := na
         shortPosStop := na
