@@ -48,13 +48,15 @@ isPredict = sigPredict
 //    판정 = timeframe.in_seconds() < 86400(1일=86400초). 차트 TF는 컴파일 시점 상수라 룩어헤드·리페인팅·na 이슈 없음.
 //    게이트(아래)에서 isIntraday로 세트 값을 골라 cond1/cond2/cond3을 판정한다. 문자열 옵션은 두 세트가 동일 리터럴.
 isIntraday = timeframe.in_seconds() < 86400   // 1D 미만(인트라데이)이면 true, 1D 이상(스윙)이면 false
-// --- 1D 미만(인트라데이) 세트: 잦은 노이즈 → 엄격(추세 정렬 2·리본 반대 포지션 방향 분출 1% 이하 이상·되돌림 확실 시 숨김) ---
+// --- 1D 미만(인트라데이) 세트: 잦은 노이즈 → 엄격(추세 정렬 2·리본 반대 포지션 방향 약분출 이상[허용 임계 1.0%]·되돌림 확실 시 숨김) ---
 candleColorMinTrendLo = input.int(2, minval=0, maxval=3, title="추세 정렬 최소 신호 수 (0=무관)", group="캔들 색 표시 조건 (1D 미만)", tooltip="캔들 상태 방향(상승/하락 계열)과 같은 방향의 전환 신호(0.5×/1×/2×) 중 '추세 상태'인 개수가 이 값 이상일 때만 색 표시. 추세 상태 = 해당 스케일 dir이 그 방향(상승=dir==1·하락=dir==-1). 0이면 이 조건 무시(무관). [1D 미만 차트에 자동 적용]")
-candleColorRibbonLo = input.string("반대 포지션 방향 분출 1% 이하 이상", title="리본 국면 조건", options=["포지션 방향 분출 이상", "횡보 압축 이상", "반대 포지션 방향 분출 1% 이하 이상", "무관"], group="캔들 색 표시 조건 (1D 미만)", tooltip="캔들 방향과 리본 국면 정합. 강도 순 '이상'(그 강도부터 더 정합한 쪽 모두 허용). '포지션 방향 분출 이상'=캔들 상승이면 리본 상승 분출·하락이면 하락 분출(정합 분출)일 때만. '횡보 압축 이상'=정합 분출 + 리본 횡보(압축)도 허용. '반대 포지션 방향 분출 1% 이하 이상'=위 + 반대 방향 분출이더라도 리본 이동% 절대값이 1% 이하(약한 반대 분출)면 허용. '무관'=조건 무시. '대기' 상태는 무관 외엔 미통과. [1D 미만 차트에 자동 적용]")
+candleColorRibbonLo = input.string("반대 포지션 방향 약분출 이상", title="리본 국면 조건", options=["포지션 방향 분출 이상", "횡보 압축 이상", "반대 포지션 방향 약분출 이상", "무관"], group="캔들 색 표시 조건 (1D 미만)", tooltip="캔들 방향과 리본 국면 정합. 강도 순 '이상'(그 강도부터 더 정합한 쪽 모두 허용). '포지션 방향 분출 이상'=캔들 상승이면 리본 상승 분출·하락이면 하락 분출(정합 분출)일 때만. '횡보 압축 이상'=정합 분출 + 리본 횡보(압축)도 허용. '반대 포지션 방향 약분출 이상'=위 + 반대 방향 분출이더라도 리본 이동% 절대값이 아래 '반대 분출 허용 임계%(약분출)' 이하(약한 반대 분출)면 허용. '무관'=조건 무시. '대기' 상태는 무관 외엔 미통과. [1D 미만 차트에 자동 적용]")
+candleColorRibbonPctLo = input.float(1.0, minval=0.0, step=0.1, title="반대 분출 허용 임계% (약분출)", group="캔들 색 표시 조건 (1D 미만)", tooltip="'반대 포지션 방향 약분출 이상' 옵션에서 반대 방향 리본 분출을 '약분출'로 허용할 상한. 리본 이동% 절대값이 이 값 이하면 약한 반대 분출로 보고 캔들 색을 허용합니다. [1D 미만 차트에 자동 적용]")
 candleColorPullbackLo = input.string("되돌림 확실 시 색 숨김", title="되돌림 구간 처리", options=["되돌림 확실 시 색 숨김", "되돌림 주의·확실 시 색 숨김", "무관"], group="캔들 색 표시 조건 (1D 미만)", tooltip="이격도 되돌림 상태에 따라 색 표시 억제. '되돌림 확실 시 색 숨김'=되돌림 확실이면 색을 숨김. '되돌림 주의·확실 시 색 숨김'=되돌림 주의 또는 확실이면 색을 숨김. '무관'=조건 무시(항상 표시). [1D 미만 차트에 자동 적용]")
-// --- 1D 이상(스윙) 세트: 봉당 정보량↑·노이즈↓ → 완화(추세 정렬 1·리본 반대 포지션 방향 분출 1% 이하 이상·되돌림 무관) ---
+// --- 1D 이상(스윙) 세트: 봉당 정보량↑·노이즈↓ → 완화(추세 정렬 1·리본 반대 포지션 방향 약분출 이상[허용 임계 2.0%]·되돌림 무관) ---
 candleColorMinTrendHi = input.int(1, minval=0, maxval=3, title="추세 정렬 최소 신호 수 (0=무관)", group="캔들 색 표시 조건 (1D 이상)", tooltip="캔들 상태 방향(상승/하락 계열)과 같은 방향의 전환 신호(0.5×/1×/2×) 중 '추세 상태'인 개수가 이 값 이상일 때만 색 표시. 추세 상태 = 해당 스케일 dir이 그 방향(상승=dir==1·하락=dir==-1). 0이면 이 조건 무시(무관). [1D 이상 차트에 자동 적용]")
-candleColorRibbonHi = input.string("반대 포지션 방향 분출 1% 이하 이상", title="리본 국면 조건", options=["포지션 방향 분출 이상", "횡보 압축 이상", "반대 포지션 방향 분출 1% 이하 이상", "무관"], group="캔들 색 표시 조건 (1D 이상)", tooltip="캔들 방향과 리본 국면 정합. 강도 순 '이상'(그 강도부터 더 정합한 쪽 모두 허용). '포지션 방향 분출 이상'=캔들 상승이면 리본 상승 분출·하락이면 하락 분출(정합 분출)일 때만. '횡보 압축 이상'=정합 분출 + 리본 횡보(압축)도 허용. '반대 포지션 방향 분출 1% 이하 이상'=위 + 반대 방향 분출이더라도 리본 이동% 절대값이 1% 이하(약한 반대 분출)면 허용. '무관'=조건 무시. '대기' 상태는 무관 외엔 미통과. [1D 이상 차트에 자동 적용]")
+candleColorRibbonHi = input.string("반대 포지션 방향 약분출 이상", title="리본 국면 조건", options=["포지션 방향 분출 이상", "횡보 압축 이상", "반대 포지션 방향 약분출 이상", "무관"], group="캔들 색 표시 조건 (1D 이상)", tooltip="캔들 방향과 리본 국면 정합. 강도 순 '이상'(그 강도부터 더 정합한 쪽 모두 허용). '포지션 방향 분출 이상'=캔들 상승이면 리본 상승 분출·하락이면 하락 분출(정합 분출)일 때만. '횡보 압축 이상'=정합 분출 + 리본 횡보(압축)도 허용. '반대 포지션 방향 약분출 이상'=위 + 반대 방향 분출이더라도 리본 이동% 절대값이 아래 '반대 분출 허용 임계%(약분출)' 이하(약한 반대 분출)면 허용. '무관'=조건 무시. '대기' 상태는 무관 외엔 미통과. [1D 이상 차트에 자동 적용]")
+candleColorRibbonPctHi = input.float(2.0, minval=0.0, step=0.1, title="반대 분출 허용 임계% (약분출)", group="캔들 색 표시 조건 (1D 이상)", tooltip="'반대 포지션 방향 약분출 이상' 옵션에서 반대 방향 리본 분출을 '약분출'로 허용할 상한. 리본 이동% 절대값이 이 값 이하면 약한 반대 분출로 보고 캔들 색을 허용합니다. [1D 이상 차트에 자동 적용]")
 candleColorPullbackHi = input.string("무관", title="되돌림 구간 처리", options=["되돌림 확실 시 색 숨김", "되돌림 주의·확실 시 색 숨김", "무관"], group="캔들 색 표시 조건 (1D 이상)", tooltip="이격도 되돌림 상태에 따라 색 표시 억제. '되돌림 확실 시 색 숨김'=되돌림 확실이면 색을 숨김. '되돌림 주의·확실 시 색 숨김'=되돌림 주의 또는 확실이면 색을 숨김. '무관'=조건 무시(항상 표시). [1D 이상 차트에 자동 적용]")
 // 차트 TF에 따라 세트 자동 선택 — 이후 게이트는 아래 3개 변수만 참조(문자열 리터럴은 두 세트 옵션과 동일).
 candleColorMinTrend = isIntraday ? candleColorMinTrendLo : candleColorMinTrendHi
@@ -95,6 +97,19 @@ abnVolAvg = ta.sma(volume, abnVolLen)
 //  이는 예측(혼합 일반) 모드의 실시간 '빠른 캐치' 취지에 부합하는 의도된 동작이라 barstate.isconfirmed 가드를 일부러 걸지 않는다.
 //  확정 발화 자체는 다음 봉 종가에서 확정되므로 발화 신호는 리페인팅되지 않음(대기 등록 단계의 진행봉 변동만 존재). 완전 무변동을 원하면 '혼합 확정' 모드 사용.
 abnVolume = not na(abnVolAvg) and volume > abnVolAvg * (1 + abnVolMult)
+
+// =========================
+// [옵션 패널 재배치] 리본 추세(수축·분출) input 선언 — 테이블 섹션1(추세 확인)에 맞춰 여기로 이동(선언만).
+//  ★ 실제 리본 계산 로직은 원위치 그대로다(하단 "이평 수축/확장 판정" 블록). 여기는 input 선언만 있어 패널 순서를 섹션1에 위치시킨다.
+// =========================
+ribbonMode = input.string("리본+구름", title="수축/확장 판정 모드", options=["이평 리본", "구름 두께", "리본+구름"], group="리본 추세(수축·분출)")
+ribbonMaType = input.string("SMA", title="리본 이동평균 종류(A)", options=["SMA", "EMA", "WMA", "VWMA"], group="리본 추세(수축·분출)")
+showChopWarn = input.bool(true, title="횡보 압축(수축) 표시", group="리본 추세(수축·분출)")
+showExpansion = input.bool(true, title="분출(상승/하락 확장) 표시", group="리본 추세(수축·분출)")
+ribbonConfirmOnClose = input.bool(false, title="봉마감 후 확정(끄면 현재봉 실시간)", group="리본 추세(수축·분출)")
+ribbonAtrLength = input.int(14, minval=1, title="폭 ATR 기준", group="리본 추세(수축·분출)")
+ribbonCompressAtrMult = input.float(0.8, minval=0.1, step=0.1, title="수축 판정 ATR 배수", group="리본 추세(수축·분출)")
+ribbonExpandBars = input.int(1, minval=1, title="확장 판정 폭 증가 봉수(작을수록 빠름)", group="리본 추세(수축·분출)")
 
 // =========================
 // 멀티스케일 신호 — 래깅 설정값의 0.5× / 1× / 2× 스케일로 동일 로직 계산
@@ -198,6 +213,21 @@ bCe = sigHybrid ? bCh : bC
 sCe = sigHybrid ? sCh : sC
 bDe = sigHybrid ? bDh : bD
 sDe = sigHybrid ? sDh : sD
+
+// =========================
+// [옵션 패널 재배치] 캔들 상태 input 선언 — 테이블 섹션2(캔들 및 되돌림 확인) 맨 앞에 맞춰 여기로 이동(선언만).
+//  ★ 실제 캔들 상태(3) 7분류 계산 로직은 원위치 그대로다(하단 "캔들 상태 (3)" 블록). 여기는 input 선언만 있어 패널 순서를 섹션2에 위치시킨다.
+// =========================
+candleShowState = input.bool(true, title="캔들 상태 (3) 표시", group="캔들 상태")
+candleConfirmOnClose = input.bool(false, title="확정봉 기준(끄면 현재봉 실시간)", group="캔들 상태", tooltip="기본=실시간(리페인팅 있음). 켜면 마지막으로 완성된 봉을 현재봉(b0)으로 보고 계산해 리페인팅을 막습니다. 끄면(기본) 형성 중인 봉을 b0으로 써서 실시간 반영되지만 봉 완성 전까지 값이 바뀔 수 있습니다.")
+candleAtrLen = input.int(14, minval=1, title="캔들 ATR 길이(정규화)", group="캔들 상태")
+candleNetBodyMin = input.float(0.8, minval=0.0, step=0.1, title="순몸통 최소(진행 판정)", group="캔들 상태", tooltip="3봉 순몸통 합(body 합)을 ATR로 나눈 값의 최소 임계. 진행(추세지속) 판정의 유일한 핵심 튜닝 노브입니다. 높일수록 진행 판정이 보수적.")
+candleNetBodyStrong = input.float(1.5, minval=0.0, step=0.1, title="순몸통 강(계단 하나만 만족)", group="캔들 상태", tooltip="HH·HL(또는 LL·LH) 중 하나만 성립하고 3봉 방향이 모두 같을 때 요구하는 더 강한 순몸통 임계.")
+candleMinRange3Atr = input.float(1.0, minval=0.0, step=0.1, title="3봉 총폭 최소 ATR 배수(혼조 판정)", group="캔들 상태", tooltip="최근 3봉 전체 고저폭을 ATR로 나눈 값이 이 미만이면 변동성 부족으로 혼조 처리합니다.")
+candleStrongBodyRatio = input.float(0.55, minval=0.0, step=0.05, title="강한 몸통 비율 한계", group="캔들 상태", tooltip="샛별/석별의 첫 봉(b2) 강봉 판정 기준(범위 대비 몸통비율).")
+candleLongWickRatio = input.float(0.55, minval=0.0, step=0.05, title="긴 꼬리 비율 한계", group="캔들 상태", tooltip="망치/유성의 긴 꼬리 판정 기준(범위 대비 꼬리비율).")
+candleSmallBodyRatio = input.float(0.35, minval=0.0, step=0.05, title="작은 몸통 비율 한계", group="캔들 상태", tooltip="샛별/석별 가운데 봉(b1)·망치/유성 몸통(b0)의 작은 몸통 판정 기준.")
+candleShortWickRatio = input.float(0.25, minval=0.0, maxval=1.0, step=0.05, title="극점돌파형 반대꼬리 짧음 한계", group="캔들 상태", tooltip="2봉 극점 돌파형 반전에서 반대쪽(하락=아래, 상승=위) 꼬리가 range 대비 이 비율 이하일 때 '강한 마감'으로 인정. 신규 튜닝 노브.")
 
 // =========================
 // 이격도 (Disparity) — 종가가 선택한 이평선에서 몇 %인지. 기준선 100, 임계 ±N%면 되돌림 주의.
@@ -761,15 +791,7 @@ alertcondition(sSell10, title="Advanced Ichimoku Sell Signal", message="Advanced
 // A(이평 리본): 입력값 기반 리본(전환선~리딩B 길이)의 폭이 ATR 대비 좁으면 수축, 다시 벌어지는 첫 봉에 빠른선 vs 느린선 방향으로 확장.
 // B(구름 두께): 선행스팬 A·B 간격(구름 두께)이 ATR 대비 좁으면 수축, 벌어지는 첫 봉에 구름 색(양운/음운) 방향으로 확장.
 // A and B(기본): 두 기준이 모두 수축/확장(방향 일치)할 때만. 압축 → 분출 → 압축 … 순서.
-ribbonMode = input.string("리본+구름", title="수축/확장 판정 모드", options=["이평 리본", "구름 두께", "리본+구름"], group="리본 추세(수축·분출)")
-ribbonMaType = input.string("SMA", title="리본 이동평균 종류(A)", options=["SMA", "EMA", "WMA", "VWMA"], group="리본 추세(수축·분출)")
-showChopWarn = input.bool(true, title="횡보 압축(수축) 표시", group="리본 추세(수축·분출)")
-showExpansion = input.bool(true, title="분출(상승/하락 확장) 표시", group="리본 추세(수축·분출)")
-ribbonConfirmOnClose = input.bool(false, title="봉마감 후 확정(끄면 현재봉 실시간)", group="리본 추세(수축·분출)")
-ribbonAtrLength = input.int(14, minval=1, title="폭 ATR 기준", group="리본 추세(수축·분출)")
-ribbonCompressAtrMult = input.float(0.8, minval=0.1, step=0.1, title="수축 판정 ATR 배수", group="리본 추세(수축·분출)")
-ribbonExpandBars = input.int(1, minval=1, title="확장 판정 폭 증가 봉수(작을수록 빠름)", group="리본 추세(수축·분출)")
-
+// [옵션 패널 재배치] 리본 추세 input 선언은 상단(멀티스케일 신호 앞, 섹션1 추세)으로 이동했다. 아래는 그 input을 쓰는 계산 로직(원위치 유지).
 ribbonMa(length) =>
     switch ribbonMaType
         "SMA" => ta.sma(close, length)
@@ -1253,16 +1275,7 @@ vwBandColor = not vwHasVwap ? color.new(color.gray, 40) : vwSlopeUp ? ((vwUpperW
 //  b0=현재확정봉, b1=직전, b2=2봉전. candleConfirmOnClose=true면 확정봉 기준(리페인팅 방지),
 //  false면 현재 진행봉 기준(실시간, 봉 완성 전 변동 가능).
 // =========================
-candleShowState = input.bool(true, title="캔들 상태 (3) 표시", group="캔들 상태")
-candleConfirmOnClose = input.bool(false, title="확정봉 기준(끄면 현재봉 실시간)", group="캔들 상태", tooltip="기본=실시간(리페인팅 있음). 켜면 마지막으로 완성된 봉을 현재봉(b0)으로 보고 계산해 리페인팅을 막습니다. 끄면(기본) 형성 중인 봉을 b0으로 써서 실시간 반영되지만 봉 완성 전까지 값이 바뀔 수 있습니다.")
-candleAtrLen = input.int(14, minval=1, title="캔들 ATR 길이(정규화)", group="캔들 상태")
-candleNetBodyMin = input.float(0.8, minval=0.0, step=0.1, title="순몸통 최소(진행 판정)", group="캔들 상태", tooltip="3봉 순몸통 합(body 합)을 ATR로 나눈 값의 최소 임계. 진행(추세지속) 판정의 유일한 핵심 튜닝 노브입니다. 높일수록 진행 판정이 보수적.")
-candleNetBodyStrong = input.float(1.5, minval=0.0, step=0.1, title="순몸통 강(계단 하나만 만족)", group="캔들 상태", tooltip="HH·HL(또는 LL·LH) 중 하나만 성립하고 3봉 방향이 모두 같을 때 요구하는 더 강한 순몸통 임계.")
-candleMinRange3Atr = input.float(1.0, minval=0.0, step=0.1, title="3봉 총폭 최소 ATR 배수(혼조 판정)", group="캔들 상태", tooltip="최근 3봉 전체 고저폭을 ATR로 나눈 값이 이 미만이면 변동성 부족으로 혼조 처리합니다.")
-candleStrongBodyRatio = input.float(0.55, minval=0.0, step=0.05, title="강한 몸통 비율 한계", group="캔들 상태", tooltip="샛별/석별의 첫 봉(b2) 강봉 판정 기준(범위 대비 몸통비율).")
-candleLongWickRatio = input.float(0.55, minval=0.0, step=0.05, title="긴 꼬리 비율 한계", group="캔들 상태", tooltip="망치/유성의 긴 꼬리 판정 기준(범위 대비 꼬리비율).")
-candleSmallBodyRatio = input.float(0.35, minval=0.0, step=0.05, title="작은 몸통 비율 한계", group="캔들 상태", tooltip="샛별/석별 가운데 봉(b1)·망치/유성 몸통(b0)의 작은 몸통 판정 기준.")
-candleShortWickRatio = input.float(0.25, minval=0.0, maxval=1.0, step=0.05, title="극점돌파형 반대꼬리 짧음 한계", group="캔들 상태", tooltip="2봉 극점 돌파형 반전에서 반대쪽(하락=아래, 상승=위) 꼬리가 range 대비 이 비율 이하일 때 '강한 마감'으로 인정. 신규 튜닝 노브.")
+// [옵션 패널 재배치] 캔들 상태 input 선언은 상단(이격도 앞, 섹션2 캔들·되돌림)으로 이동했다. 아래는 그 input을 쓰는 계산 로직(원위치 유지).
 
 // candleAtrLen 전용 ATR — 기존 ta.atr(14=ltAtr)는 길이 고정이라 사용자 입력(candleAtrLen)을 못 따라간다. 정규화 기준을 입력에 맞추려 별도 인스턴스 사용.
 candleAtrN = ta.atr(candleAtrLen)
@@ -1451,13 +1464,13 @@ candleTrendAlignCount = candleIsUp ? ((dir05 == 1 ? 1 : 0) + (dir10 == 1 ? 1 : 0
 candleColorCond1 = candleColorMinTrend == 0 or candleTrendAlignCount >= candleColorMinTrend
 // 조건 2 — 리본 국면(4옵션, 강도 순 '이상' = 그 강도부터 더 정합한 쪽 모두 허용). 캔들 포지션 방향(candleIsUp/candleIsDown) 기준.
 //  posFlare(정합 분출)=캔들 상승&리본 "상승" 또는 캔들 하락&리본 "하락". oppFlare(반대 분출)=캔들 상승&리본 "하락" 또는 캔들 하락&리본 "상승".
-//  chop(횡보)=ribbonState=="횡보". oppWeak(반대 약분출)=oppFlare & |ribbonMovePct|<=1.0. ribbonMovePct는 na 가능 → na면 oppWeak false(안전).
+//  chop(횡보)=ribbonState=="횡보". oppWeak(반대 약분출)=oppFlare & |ribbonMovePct|<=임계%(세트별 입력, 1D미만=candleColorRibbonPctLo·1D이상=candleColorRibbonPctHi). ribbonMovePct는 na 가능 → na면 oppWeak false(안전).
 //  '대기'(ribbonState=="대기")는 posFlare/oppFlare/chop 어디에도 성립 안 함 → '무관' 외엔 미통과(현행 동작 유지).
 posFlare = (candleIsUp and ribbonState == "상승") or (candleIsDown and ribbonState == "하락")
 oppFlare = (candleIsUp and ribbonState == "하락") or (candleIsDown and ribbonState == "상승")
 ribbonChopState = ribbonState == "횡보"
-oppWeak = oppFlare and not na(ribbonMovePct) and math.abs(ribbonMovePct) <= 1.0
-candleColorCond2 = candleColorRibbon == "무관" or posFlare or (candleColorRibbon == "횡보 압축 이상" and ribbonChopState) or (candleColorRibbon == "반대 포지션 방향 분출 1% 이하 이상" and (ribbonChopState or oppWeak))
+oppWeak = oppFlare and not na(ribbonMovePct) and math.abs(ribbonMovePct) <= (isIntraday ? candleColorRibbonPctLo : candleColorRibbonPctHi)
+candleColorCond2 = candleColorRibbon == "무관" or posFlare or (candleColorRibbon == "횡보 압축 이상" and ribbonChopState) or (candleColorRibbon == "반대 포지션 방향 약분출 이상" and (ribbonChopState or oppWeak))
 // 조건 3 — 되돌림 구간: 이격도 되돌림(disparityState) 국면에서 색 억제. '확실 시 숨김'=확실이면 차단. '주의·확실 시 숨김'=주의 또는 확실이면 차단. '무관'은 통과.
 candleColorCond3 = candleColorPullback == "무관" or (candleColorPullback == "되돌림 확실 시 색 숨김" and disparityState != "되돌림 확실") or (candleColorPullback == "되돌림 주의·확실 시 색 숨김" and disparityState == "중립")
 // AND 게이트: 세 조건 모두 통과해야 색 표시. 미통과면 na(원래 캔들 색 유지).
