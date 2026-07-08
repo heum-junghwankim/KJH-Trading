@@ -66,6 +66,9 @@ isPredict = sigPredict
 abnVolLen = input.int(20, minval=1, title="비정상 거래량 비교 봉수(N)", group="신호 모드", tooltip="혼합 모드 전용. 비정상 거래량 판정 = volume > SMA(volume, N) × (1 + 배수). VOLUME-PRESSURE 지표와 동일한 펀드 표준 정의. 전략 파라미터(수학자 리뷰 대상).")
 abnVolMult = input.float(1.0, minval=0.0, step=0.1, title="비정상 거래량 배수(mult)", group="신호 모드", tooltip="혼합 모드 전용. mult=1.0이면 평균의 2배 초과가 비정상. 값이 클수록 더 극단적인 거래량만 비정상으로 판정. 전략 파라미터(수학자 리뷰 대상).")
 abnVolAvg = ta.sma(volume, abnVolLen)
+// [D-1] abnVolume은 진행 중 현재봉 volume을 쓰므로 봉 완성 전까지 비정상 여부가 봉 내에서 토글될 수 있다(→ 소스 스위칭·pending 등록도 봉 내 변동 가능).
+//  이는 예측(혼합 일반) 모드의 실시간 '빠른 캐치' 취지에 부합하는 의도된 동작이라 barstate.isconfirmed 가드를 일부러 걸지 않는다.
+//  확정 발화 자체는 다음 봉 종가에서 확정되므로 발화 신호는 리페인팅되지 않음(대기 등록 단계의 진행봉 변동만 존재). 완전 무변동을 원하면 '혼합 확정' 모드 사용.
 abnVolume = not na(abnVolAvg) and volume > abnVolAvg * (1 + abnVolMult)
 
 // =========================
@@ -392,16 +395,53 @@ f_trigger(float conv, float base, int convP, int baseP, int dispP) =>
     bTrig = cBull ? lagBaseTrig : math.max(lagBaseTrig, cBuyP)
     sTrig = cBear ? lagBaseTrig : math.min(lagBaseTrig, cSellP)
     [bTrig, sTrig]
+// [C-1] VWMA 트리거 — 혼합 모드에서 abnVolume 봉이 VWMA 원시신호(vrbX/vrsX)를 쓸 때, 트리거·확정 관문도
+//  같은 VWMA 소스로 정합시키기 위한 경로. VWMA 신호(f_scaleSignals의 VWMA 경로)와 동일한 vBase(=ta.vwma(close,baseP))를
+//  재계산해 트리거 가격을 산출한다 → 게이트(신호)·pending·확정이 모두 같은 소스.
+//   · 트리거 = vBase[refIdx](VWMA 기준선의 후행 관문가). 일반 f_trigger의 lagBaseTrig=base[refIdx]를 VWMA 선으로 치환한 것과 대칭.
+//     이는 VWMA 신호의 후행스팬 조건 기준가(예측 경로 vLagRefN=vBase[refIdx])와 정확히 동일하다.
+//   · VWMA 게이트 방향(vConv vs vBase)은 신호(gate) 단계에서 이미 판정되어 pending 등록 시점에 반영되므로,
+//     트리거 함수는 후행스팬 관문가만 산출하면 정합에 충분하다(일반 f_trigger의 극값 폴백 cBuyP/cSellP는 VWMA에 직접
+//     대응물이 없어 도입하지 않음 — 게이트가 관문에 이미 반영됨). 미래참조/리페인팅 없음(과거·현재봉 vBase만).
+//  매수·매도 트리거 값이 동일(vBase[refIdx])하나, 파이프라인 대칭(buyTrig/sellTrig 별도 래치)을 위해 둘로 반환한다.
+f_triggerVw(int convP, int baseP, int dispP) =>
+    vBase = ta.vwma(close, baseP)
+    lagOff = math.max(dispP - 1, 0)
+    refIdx = math.max(lagOff - 1, 0)
+    lagBaseTrig = vBase[refIdx]
+    [lagBaseTrig, lagBaseTrig]
 [btA, stA] = f_trigger(donC025, donB025, c025, b025, d025)
 [btB, stB] = f_trigger(donC05, donB05, c05, b05, d05)
 [btC, stC] = f_trigger(conversionLine, baseLine, conversionPeriods, basePeriods, displacement)
 [btD, stD] = f_trigger(donC20, donB20, c20, b20, d20)
-buyTrig05 = momentum ? btA : btB
-sellTrig05 = momentum ? stA : stB
-buyTrig10 = momentum ? btB : btC
-sellTrig10 = momentum ? stB : stC
-buyTrig20 = momentum ? btC : btD
-sellTrig20 = momentum ? stC : stD
+// VWMA 트리거 4세트(혼합 소스용). 매수·매도 트리거 값(래깅 관문가)은 동일하나 파이프라인 대칭을 위해 둘로 받는다.
+[vbtA, vstA] = f_triggerVw(c025, b025, d025)
+[vbtB, vstB] = f_triggerVw(c05, b05, d05)
+[vbtC, vstC] = f_triggerVw(conversionPeriods, basePeriods, displacement)
+[vbtD, vstD] = f_triggerVw(c20, b20, d20)
+// 봉별 소스 스위칭 — 혼합 모드(sigHybrid)이고 이 봉이 비정상 거래량(abnVolume)이면 VWMA 트리거, 아니면 일반 트리거.
+//  ⚠️ 정합 핵심: 신호 소스(bXe/sXe = abnVolume ? VWMA : 일반)와 완전히 같은 조건(sigHybrid and abnVolume)으로 스위칭 →
+//   그 봉에 VWMA 신호가 났으면 트리거·확정도 VWMA 기준. 정상 봉·비혼합 모드는 일반 트리거(기존 4모드 동작 무변경).
+useVwTrig = sigHybrid and abnVolume
+btAe = useVwTrig ? vbtA : btA
+stAe = useVwTrig ? vstA : stA
+btBe = useVwTrig ? vbtB : btB
+stBe = useVwTrig ? vstB : stB
+btCe = useVwTrig ? vbtC : btC
+stCe = useVwTrig ? vstC : stC
+btDe = useVwTrig ? vbtD : btD
+stDe = useVwTrig ? vstD : stD
+buyTrig05 = momentum ? btAe : btBe
+sellTrig05 = momentum ? stAe : stBe
+buyTrig10 = momentum ? btBe : btCe
+sellTrig10 = momentum ? stBe : stCe
+buyTrig20 = momentum ? btCe : btDe
+sellTrig20 = momentum ? stCe : stDe
+// 트리거 소스 플래그(테이블 'V' 접두 표시용) — 이 봉의 각 스케일 트리거가 VWMA 소스인지. 모멘텀 시프트와 동일 매핑.
+//  useVwTrig는 봉 단위(스케일 무관 동일 조건)라 스케일별 값이 같지만, 표시 스케일 시프트와 형태를 맞춰 개별 유지.
+vwTrig05 = useVwTrig
+vwTrig10 = useVwTrig
+vwTrig20 = useVwTrig
 
 // =========================
 // 시간 조정(N봉) 투영 — 트리거 셀 보조표기. "현재 종가가 유지된다고 가정할 때 몇 봉 더 지나야
@@ -473,6 +513,8 @@ var int dir10 = 0
 var int dir20 = 0
 // 스킵: 상위 배수의 트리거가 이미 현재 봉에서 충족(매수=종가≥트리거, 매도=종가≤트리거)되면 원시 신호를 기다리지 않고 바로 표시.
 // '하위 배수가 같은 방향 추세 상태'는 dir(전 봉까지)로 판정 — 반대 신호가 나면 dir 부호가 뒤집혀 상위 전제가 풀리므로 모멘텀/정상 무관하게 순차성 강제(중복 방지).
+// [C-2 정합] skip은 buyTrig*/sellTrig*(=혼합 소스 반영된 btXe/stXe)를 참조하므로, 혼합 모드 abnVolume 봉에선 skip도 VWMA 트리거 기준으로
+//  자동 정합된다(신호·gate·pending·확정·skip 전부 동일 소스). 별도 분기 불필요 — 트리거 변수를 공유하므로 정합이 구조적으로 보장됨.
 buySkip10 = dir05 == 1 and close >= buyTrig10
 buySkip20 = dir05 == 1 and dir10 == 1 and close >= buyTrig20
 sellSkip10 = dir05 == -1 and close <= sellTrig10
@@ -966,7 +1008,9 @@ plot(showExitLines ? shortClear : na, title="숏 청산가 라벨", color=shortE
 // mom=모멘텀 모드면 트리거 가격/추세 텍스트 앞에 "M " 표기.
 // nbars = 시간 조정 투영 봉수(na면 horizon 안 성립 안 함 = "-"). blocked(추세 진행 중)이면 N봉 미표기(기존 텍스트 유지).
 //  트리거 가격 표시 케이스에만 "{기존값} | N봉"(성립) 또는 "{기존값} | -"(계산 불가)로 부착.
-f_trigCell(blocked, p, isBuy, baseRef, mom, nbars) => (mom ? "M " : "") + (blocked ? (isBuy ? "상승 추세" : "하락 추세") + (na(baseRef) or baseRef == 0 ? "" : " (" + str.tostring(close / baseRef * 100, "0.0") + ")") : f_arrow(p) + f_price(p) + " (" + f_pct(p) + ")" + " | " + (na(nbars) ? "-" : str.tostring(nbars) + "봉"))
+// vwSrc=true면(혼합 모드에서 이 봉 트리거가 VWMA 소스) 셀 텍스트 맨 앞에 "V " 접두를 붙여 사용자가 소스를 식별.
+//  접두 순서: "V " → "M "(모멘텀) → 본문. 추세 진행(blocked) 케이스에도 트리거 소스 표시 의미가 있어 동일하게 부착.
+f_trigCell(blocked, p, isBuy, baseRef, mom, nbars, vwSrc) => (vwSrc ? "V " : "") + (mom ? "M " : "") + (blocked ? (isBuy ? "상승 추세" : "하락 추세") + (na(baseRef) or baseRef == 0 ? "" : " (" + str.tostring(close / baseRef * 100, "0.0") + ")") : f_arrow(p) + f_price(p) + " (" + f_pct(p) + ")" + " | " + (na(nbars) ? "-" : str.tostring(nbars) + "봉"))
 // 셀 강조: 방향 기준. 매수는 트리거가 현재가의 +nearPct% 이내(또는 이미 아래=조건 충족→확정),
 // 매도는 트리거가 −nearPct% 이내(또는 이미 위=충족)면 포지션 색(상승=녹/하락=빨)으로 칠한다.
 // 진행 중(상승/하락 추세)이면 구름대 셀과 같은 채도(투명도 30)의 포지션 색.
@@ -1432,18 +1476,18 @@ if barstate.islast
     var float[] nbPLo = array.new_float(0)
     f_buildPrefixExtremes(nbLen, nbPHi, nbPLo)
     table.cell(triggerTable, 0, 1, "상승 전환(0.5×)", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 1, f_trigCell(buyBlocked05, buyTrig05, true, donB05, momentum, f_nbarsToCross(nbConv05, nbBase05, true, nbPHi, nbPLo)), text_color=color.white, bgcolor=f_trigBg(buyBlocked05, buyTrig05, true), text_size=size.small)
+    table.cell(triggerTable, 1, 1, f_trigCell(buyBlocked05, buyTrig05, true, donB05, momentum, f_nbarsToCross(nbConv05, nbBase05, true, nbPHi, nbPLo), vwTrig05), text_color=color.white, bgcolor=f_trigBg(buyBlocked05, buyTrig05, true), text_size=size.small)
     table.cell(triggerTable, 0, 2, "상승 전환(1×)", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 2, f_trigCell(buyBlocked10, buyTrig10, true, baseLine, momentum, f_nbarsToCross(nbConv10, nbBase10, true, nbPHi, nbPLo)), text_color=color.white, bgcolor=f_trigBg(buyBlocked10, buyTrig10, true), text_size=size.small)
+    table.cell(triggerTable, 1, 2, f_trigCell(buyBlocked10, buyTrig10, true, baseLine, momentum, f_nbarsToCross(nbConv10, nbBase10, true, nbPHi, nbPLo), vwTrig10), text_color=color.white, bgcolor=f_trigBg(buyBlocked10, buyTrig10, true), text_size=size.small)
     table.cell(triggerTable, 0, 3, "상승 전환(2×)", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 3, f_trigCell(buyBlocked20, buyTrig20, true, donB20, momentum, f_nbarsToCross(nbConv20, nbBase20, true, nbPHi, nbPLo)), text_color=color.white, bgcolor=f_trigBg(buyBlocked20, buyTrig20, true), text_size=size.small)
+    table.cell(triggerTable, 1, 3, f_trigCell(buyBlocked20, buyTrig20, true, donB20, momentum, f_nbarsToCross(nbConv20, nbBase20, true, nbPHi, nbPLo), vwTrig20), text_color=color.white, bgcolor=f_trigBg(buyBlocked20, buyTrig20, true), text_size=size.small)
 
     table.cell(triggerTable, 0, 4, "하락 전환(0.5×)", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 4, f_trigCell(sellBlocked05, sellTrig05, false, donB05, momentum, f_nbarsToCross(nbConv05, nbBase05, false, nbPHi, nbPLo)), text_color=color.white, bgcolor=f_trigBg(sellBlocked05, sellTrig05, false), text_size=size.small)
+    table.cell(triggerTable, 1, 4, f_trigCell(sellBlocked05, sellTrig05, false, donB05, momentum, f_nbarsToCross(nbConv05, nbBase05, false, nbPHi, nbPLo), vwTrig05), text_color=color.white, bgcolor=f_trigBg(sellBlocked05, sellTrig05, false), text_size=size.small)
     table.cell(triggerTable, 0, 5, "하락 전환(1×)", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 5, f_trigCell(sellBlocked10, sellTrig10, false, baseLine, momentum, f_nbarsToCross(nbConv10, nbBase10, false, nbPHi, nbPLo)), text_color=color.white, bgcolor=f_trigBg(sellBlocked10, sellTrig10, false), text_size=size.small)
+    table.cell(triggerTable, 1, 5, f_trigCell(sellBlocked10, sellTrig10, false, baseLine, momentum, f_nbarsToCross(nbConv10, nbBase10, false, nbPHi, nbPLo), vwTrig10), text_color=color.white, bgcolor=f_trigBg(sellBlocked10, sellTrig10, false), text_size=size.small)
     table.cell(triggerTable, 0, 6, "하락 전환(2×)", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 6, f_trigCell(sellBlocked20, sellTrig20, false, donB20, momentum, f_nbarsToCross(nbConv20, nbBase20, false, nbPHi, nbPLo)), text_color=color.white, bgcolor=f_trigBg(sellBlocked20, sellTrig20, false), text_size=size.small)
+    table.cell(triggerTable, 1, 6, f_trigCell(sellBlocked20, sellTrig20, false, donB20, momentum, f_nbarsToCross(nbConv20, nbBase20, false, nbPHi, nbPLo), vwTrig20), text_color=color.white, bgcolor=f_trigBg(sellBlocked20, sellTrig20, false), text_size=size.small)
 
     table.cell(triggerTable, 0, 7, "리본 추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
     table.cell(triggerTable, 1, 7, ribbonCellText, text_color=color.white, bgcolor=ribbonCellColor, text_size=size.small)
