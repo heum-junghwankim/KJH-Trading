@@ -43,14 +43,30 @@ leadingSpanB = donchian(leadingSpanBPeriods)
 kumoUpper = math.max(leadingSpanA, leadingSpanB)
 kumoLower = math.min(leadingSpanA, leadingSpanB)
 
-// 추세 매수/매도 신호 4모드(택일) = 신호 소스(일반 도치안 vs 거래량 가중 VWMA) × 확정 방식(예측 vs 확정)의 2×2 통합.
+// 추세 매수/매도 신호 6모드(택일) = 신호 소스(일반 도치안 / 거래량 가중 VWMA / 혼합) × 확정 방식(예측 vs 확정).
 //  - "예측" 포함 → 다음 봉 가정으로 1봉 빨리 포착(예측 방식). 미포함 → 봉마감 확정 방식(원래 로직).
 //  - "거래량 가중" 포함 → VWMA 신호(vwBuy/vwSell)만 표시. 미포함 → 일반 도치안 신호(fBuy/fSell)만 표시.
+//  - "혼합" 포함(신규 2모드) → 봉별 소스 스위칭: 그 봉이 비정상 거래량이면 VWMA 원시신호, 아니면 일반 원시신호로 계산.
+//      혼합 소스는 일반 신호와 **동일한 게이트→pending→다음봉 확정→dir 파이프라인**을 그대로 경유한다(우회 없음).
+//      → 차트 삼각형(fBuyXX)·테이블 추세(dirXX)가 혼합 파이프라인 하나만 참조해 정합. plotshape은 일반과 같은 경로.
+//      목적: 장초·뉴스發 비정상 거래량 봉에서 거래량 가중 관점으로 추세 변화를 빠르게 캐치.
+//      "혼합 일반 모드"=혼합+예측(모멘텀), "혼합 확정 모드"=혼합+확정(확정봉 기준). 예측/확정 축은 기존 isPredict가 처리.
 //  기본 = "일반 확정 모드"(구 기본: 확정 방식 + 일반 신호). 신호 계산식은 무변경 — 어느 소스/방식을 쓸지 택일만.
-signalMode = input.string("일반 확정 모드", title="추세 매수/매도 신호", options=["일반 예측 모드", "일반 확정 모드", "거래량 가중 예측 모드", "거래량 가중 확정 모드"], group="신호 모드")
-sigPredict = str.contains(signalMode, "예측")        // 구 signalMode=="예측 모드" 대체(예측/확정 분기)
-sigVw = str.contains(signalMode, "거래량 가중")      // 구 showVwSignals 대체(거래량 가중 신호 표시 여부)
+signalMode = input.string("일반 확정 모드", title="추세 매수/매도 신호", options=["일반 예측 모드", "일반 확정 모드", "거래량 가중 예측 모드", "거래량 가중 확정 모드", "혼합 일반 모드", "혼합 확정 모드"], group="신호 모드", tooltip="혼합 일반 모드 = 혼합+예측(모멘텀). 혼합 확정 모드 = 혼합+확정(확정봉 기준). 혼합은 그 봉이 '비정상 거래량'이면 거래량 가중(VWMA) 원시신호, 아니면 일반 원시신호로 봉별 계산하되, 게이트·확정 파이프라인은 일반과 동일하게 경유합니다. 예측 계열(일반/혼합 일반)은 실시간 리페인팅 노출, 확정 계열은 확정봉 기준(리페인팅 없음).")
+sigPredict = str.contains(signalMode, "예측") or str.contains(signalMode, "혼합 일반")   // 예측/확정 분기: 예측 계열 + 혼합 일반(=혼합 예측)
+sigVw = str.contains(signalMode, "거래량 가중")      // 거래량 가중 전용 모드(VWMA 신호만, 파이프라인 우회). 혼합은 여기 포함 안 됨.
+sigHybrid = str.contains(signalMode, "혼합")         // 혼합 모드(봉별 소스 스위칭 + 일반 파이프라인 경유)
 isPredict = sigPredict
+
+// 비정상 거래량 판정(⚠️ 전략 파라미터) — 혼합 모드에서 봉별 소스 스위칭 기준.
+//  펀드 표준 정의 재사용: VOLUME-PRESSURE 지표(volume-pressure-tracker.pine)와 동일한 정의로 통일한다.
+//   abnVolume = volume > ta.sma(volume, N) * (1 + mult)   (N=비교 캔들 수, mult=비정상 배수)
+//  기본값 N=20 · mult=1.0 → 최근 20봉 평균 거래량의 2배 초과 시 '비정상'. (VOLUME-PRESSURE 기본값과 동일)
+//  혼합 예측(혼합 일반)에서 '다음봉이 비정상'은 미래를 모르므로 현재봉 거래량으로 근사(예측 모드 관례) — 미래참조 아님(현재봉 volume 재사용).
+abnVolLen = input.int(20, minval=1, title="비정상 거래량 비교 봉수(N)", group="신호 모드", tooltip="혼합 모드 전용. 비정상 거래량 판정 = volume > SMA(volume, N) × (1 + 배수). VOLUME-PRESSURE 지표와 동일한 펀드 표준 정의. 전략 파라미터(수학자 리뷰 대상).")
+abnVolMult = input.float(1.0, minval=0.0, step=0.1, title="비정상 거래량 배수(mult)", group="신호 모드", tooltip="혼합 모드 전용. mult=1.0이면 평균의 2배 초과가 비정상. 값이 클수록 더 극단적인 거래량만 비정상으로 판정. 전략 파라미터(수학자 리뷰 대상).")
+abnVolAvg = ta.sma(volume, abnVolLen)
+abnVolume = not na(abnVolAvg) and volume > abnVolAvg * (1 + abnVolMult)
 
 // =========================
 // 멀티스케일 신호 — 래깅 설정값의 0.5× / 1× / 2× 스케일로 동일 로직 계산
@@ -107,7 +123,10 @@ f_scaleSignals(float conv, float base, int convP, int baseP, int dispP) =>
         vLastDir := 1
     else if vsSig
         vLastDir := -1
-    [bSig, sSig, vbSig, vsSig]
+    // vRbEff/vRsEff = VWMA '원시' 신호(내부 vLastDir 래치 이전). 혼합 모드가 일반 파이프라인(게이트→pending→확정)에
+    //  정합적으로 편입되려면 vbSig/vsSig(자체 래치 우회 경로)가 아니라 이 원시 신호를 소스로 써야 한다.
+    //  (거래량 가중 전용 모드는 vbSig/vsSig를 계속 쓴다 — 기존 동작 무변경.)
+    [bSig, sSig, vbSig, vsSig, vRbEff, vRsEff]
 
 // 스케일 기간·donchian — 정상 0.25/0.5/1/2× (1×=전역 재사용). 모멘텀 모드는 표시 스케일을 한 단계 빠른 기간으로 시프트.
 c025 = f_scale(conversionPeriods, 0.25)
@@ -125,11 +144,32 @@ donC05 = donchian(c05)
 donB05 = donchian(b05)
 donC20 = donchian(c20)
 donB20 = donchian(b20)
-// 원시 신호 세트(정상 로직): A=0.25× B=0.5× C=1× D=2×
-[bA, sA, vbA, vsA] = f_scaleSignals(donC025, donB025, c025, b025, d025)
-[bB, sB, vbB, vsB] = f_scaleSignals(donC05, donB05, c05, b05, d05)
-[bC, sC, vbC, vsC] = f_scaleSignals(conversionLine, baseLine, conversionPeriods, basePeriods, displacement)
-[bD, sD, vbD, vsD] = f_scaleSignals(donC20, donB20, c20, b20, d20)
+// 원시 신호 세트(정상 로직): A=0.25× B=0.5× C=1× D=2×. vrbX/vrsX = VWMA 원시신호(혼합 소스용).
+[bA, sA, vbA, vsA, vrbA, vrsA] = f_scaleSignals(donC025, donB025, c025, b025, d025)
+[bB, sB, vbB, vsB, vrbB, vrsB] = f_scaleSignals(donC05, donB05, c05, b05, d05)
+[bC, sC, vbC, vsC, vrbC, vrsC] = f_scaleSignals(conversionLine, baseLine, conversionPeriods, basePeriods, displacement)
+[bD, sD, vbD, vsD, vrbD, vrsD] = f_scaleSignals(donC20, donB20, c20, b20, d20)
+
+// 혼합 원시신호(봉별 소스 스위칭) — 이 봉이 비정상 거래량이면 VWMA 원시(vrbX/vrsX), 아니면 일반 원시(bX/sX).
+//  혼합 모드(sigHybrid)일 때만 아래 파이프라인 입력(buy05 등)이 이 값을 참조한다. 예측/확정은 각 소스가 이미 isPredict 반영.
+//  ⚠️ 정합성 핵심: 여기서 소스만 봉별로 바꾸고, 이후 게이트/pending/확정/dir 파이프라인은 일반과 완전히 공통이다.
+bAh = abnVolume ? vrbA : bA
+sAh = abnVolume ? vrsA : sA
+bBh = abnVolume ? vrbB : bB
+sBh = abnVolume ? vrsB : sB
+bCh = abnVolume ? vrbC : bC
+sCh = abnVolume ? vrsC : sC
+bDh = abnVolume ? vrbD : bD
+sDh = abnVolume ? vrsD : sD
+// 파이프라인이 실제 소비할 스케일별 원시신호 — 혼합이면 혼합 소스, 아니면 일반 소스(기존 4모드 동작 무변경).
+bAe = sigHybrid ? bAh : bA
+sAe = sigHybrid ? sAh : sA
+bBe = sigHybrid ? bBh : bB
+sBe = sigHybrid ? sBh : sB
+bCe = sigHybrid ? bCh : bC
+sCe = sigHybrid ? sCh : sC
+bDe = sigHybrid ? bDh : bD
+sDe = sigHybrid ? sDh : sD
 
 // =========================
 // 이격도 (Disparity) — 종가가 선택한 이평선에서 몇 %인지. 기준선 100, 임계 ±N%면 되돌림 주의.
@@ -317,12 +357,13 @@ if buyCtxStart or sellCtxStart
 if abnDirSig == 0
     momentum := false
 // 표시 신호: 모멘텀이면 한 단계 빠른 기간(0.5×→A, 1×→B, 2×→C), 아니면 정상(0.5×→B, 1×→C, 2×→D)
-buy05 = momentum ? bA : bB
-sell05 = momentum ? sA : sB
-buy10 = momentum ? bB : bC
-sell10 = momentum ? sB : sC
-buy20 = momentum ? bC : bD
-sell20 = momentum ? sC : sD
+//  bXe/sXe = 파이프라인 소비 원시신호(혼합이면 봉별 스위칭된 소스, 아니면 일반). 게이트/확정 파이프라인은 이후 공통.
+buy05 = momentum ? bAe : bBe
+sell05 = momentum ? sAe : sBe
+buy10 = momentum ? bBe : bCe
+sell10 = momentum ? sBe : sCe
+buy20 = momentum ? bCe : bDe
+sell20 = momentum ? sCe : sDe
 vwBuy05 = momentum ? vbA : vbB
 vwSell05 = momentum ? vsA : vsB
 vwBuy10 = momentum ? vbB : vbC
@@ -1479,7 +1520,9 @@ plotshape(series=ribbonBear, title="하락 분출", style=shape.cross, location=
 momBuyColor = momentum ? longExitLineColor : defaultBuyColor
 momSellColor = momentum ? shortExitLineColor : defaultSellColor
 // 신호 삼각형은 확정봉 발화(fBuyXX/fSellXX) 기준 — 트리거 봉이 아니라 다음 봉 확정 시 그 봉에 찍힌다(1봉 지연·휩쏘 필터).
-// 4모드 택일(sigVw): 일반 모드(not sigVw)=일반 도치안 신호(fBuyXX/fSellXX)만, 거래량 가중 모드(sigVw)=VWMA 신호(vwBuyXX/vwSellXX)만.
+// 소스 택일(sigVw): 거래량 가중 전용 모드(sigVw)=VWMA 신호(vwBuyXX/vwSellXX, 파이프라인 우회)만. 그 외(not sigVw)=일반 파이프라인 신호(fBuyXX/fSellXX)만.
+//  혼합 모드(sigHybrid)는 sigVw=false라 여기서 not sigVw 경로로 fBuyXX/fSellXX 삼각형을 그린다. fBuyXX는 혼합 파이프라인 dir을 반영하므로
+//  차트 삼각형과 테이블 추세(dirXX)가 같은 혼합 소스를 참조 → 정합(거래량 가중 전용 모드의 차트-테이블 불일치 문제 없음).
 //  예측/확정 방식은 sigPredict(=isPredict)가 신호 계산 단계에서 이미 반영 — 여기선 소스 택일만. 계산식·파이프라인 무변경.
 plotshape(showBuySignal and not sigVw and fBuy05, title="매수 0.5×", style=shape.triangleup, location=location.belowbar, color=momBuyColor, size=size.tiny)
 plotshape(showBuySignal and not sigVw and fBuy10, title="매수 1×", style=shape.triangleup, location=location.belowbar, color=momBuyColor, size=size.small)
