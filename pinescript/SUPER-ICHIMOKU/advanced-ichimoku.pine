@@ -741,18 +741,20 @@ ltDownColor = #C2185B // 하락계열 = 보라기+빨강기 혼합 자홍(crimso
 ltCellTransp = not ltEstablished ? 30 : (ltNearCross or ltNarrowing) ? 55 : ltWidening ? 0 : 30
 ltCellColor = ltGoldCross ? color.new(ltUpColor, 0) : ltDeadCross ? color.new(ltDownColor, 0) : ltUp ? color.new(ltUpColor, ltCellTransp) : color.new(ltDownColor, ltCellTransp)
 
-// 장기 지지/저항 — 종가가 MA100/MA200 위=지지·아래=저항. 글자는 흰색, 셀 배경색으로 상태 구분.
+// 장기 지지/저항 — 각 장기선(MA100·MA200) 대비 현재가 이격도를 표기. 글자는 흰색, 셀 배경색으로 지지/저항 상태 구분.
 //  200선(장기) 기준 지지=파랑·저항=빨강, 100선이 일치하면 선명·엇갈리면 둔탁.
 //  둘 다 지지=파랑 / 둘 다 저항=빨강 / 100저항·200지지=둔탁 파랑 / 100지지·200저항=둔탁 빨강.
-// 몸통(min/max(open,close))이 선을 완전히 이탈한 경우만 지지(+1)/저항(-1), 걸치면 중립(0).
+// ★ 셀 색 판정용 상태(ltM1St/ltM2St)는 무변경 — 몸통(min/max(open,close))이 선을 완전히 이탈한 경우만 지지(+1)/저항(-1), 걸치면 중립(0).
+//   텍스트만 지지/저항 단어 대신 이격도 값으로 표기: 이격도 = 종가 ÷ 해당선 × 100(기준 100). 100 초과=현재가가 그 선 위(지지 성격)·미만=아래(저항 성격). 소수점 1자리.
+//   ⚠️ 별도 '이격도 (N)' 행(disparity, 기본 MA20)과 무관 — 여기는 장기선(ltMa1=100·ltMa2=200) 기준. 장기추세 소스(ltMa1/ltMa2)를 그대로 재사용(새 MA 생성 없음).
 ltBodyHi = math.max(open, close)
 ltBodyLo = math.min(open, close)
 ltM1St = na(ltMa1) ? 0 : (ltBodyLo > ltMa1 ? 1 : ltBodyHi < ltMa1 ? -1 : 0)
 ltM2St = na(ltMa2) ? 0 : (ltBodyLo > ltMa2 ? 1 : ltBodyHi < ltMa2 ? -1 : 0)
-ltM1Txt = ltM1St == 1 ? "지지" : ltM1St == -1 ? "저항" : "중립"
-ltM2Txt = ltM2St == 1 ? "지지" : ltM2St == -1 ? "저항" : "중립"
-ltSrText = (na(ltMa1) or na(ltMa2)) ? "-" : "100선 " + ltM1Txt + " | 200선 " + ltM2Txt
-// 색: 200선 기준 지지=파랑·저항=빨강·중립=회색, 100선 일치=선명·엇갈림=둔탁.
+ltM1Disp = (na(ltMa1) or ltMa1 == 0) ? na : close / ltMa1 * 100   // 100선 이격도(=종가÷MA100×100)
+ltM2Disp = (na(ltMa2) or ltMa2 == 0) ? na : close / ltMa2 * 100   // 200선 이격도(=종가÷MA200×100)
+ltSrText = (na(ltM1Disp) or na(ltM2Disp)) ? "-" : "100선 (" + str.tostring(ltM1Disp, "0") + ") | 200선 (" + str.tostring(ltM2Disp, "0") + ")"
+// 색: 200선 기준 지지=파랑·저항=빨강·중립=회색, 100선 일치=선명·엇갈림=둔탁. (지지/저항 판정 ltM1St/ltM2St 기반 — 텍스트를 이격도로 바꿔도 색 규칙 무변경)
 ltSrColor = (na(ltMa1) or na(ltMa2)) ? color.new(color.gray, 40) : ltM2St == 1 ? (ltM1St == 1 ? color.new(#2979FF, 0) : color.new(#6E7E9F, 0)) : ltM2St == -1 ? (ltM1St == -1 ? color.new(color.red, 30) : color.new(#A57A7A, 0)) : color.new(color.gray, 40)
 
 // 신호 삼각형은 리본 압축/분출 다이아몬드보다 **뒤(코드상 나중)** 에 그려 삼각형이 위 레이어에 오도록
