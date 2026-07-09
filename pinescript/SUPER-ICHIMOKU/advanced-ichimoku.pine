@@ -1105,13 +1105,6 @@ vwapSrc = input(title="소스", defval=hlc3, group="Auto VWAP")
 vwapCalcMode = input.string("Log Standard Deviation", "밴드 계산 모드", options=["Log Standard Deviation", "Absolute Standard Deviation"], group="Auto VWAP", display=display.none)
 vwapBandMult1 = input.float(1.0, title="밴드 배수 #1", group="Auto VWAP", step=0.5, minval=0, display=display.none)
 vwapBandMult2 = input.float(2.0, title="밴드 배수 #2", group="Auto VWAP", step=0.5, minval=0, display=display.none)
-// [차트 페인팅] auto-vwap 이식 — VWAP 선·밴드#1/#2·fill 표시(계산 로직은 위 vwapValue/vwUpper1·2/vwLower1·2 재사용).
-vwapShowLine = input.bool(true, title="VWAP 선 표시", group="Auto VWAP")
-vwapShowBand1 = input.bool(true, title="밴드 #1 표시(±배수1, 점선)", group="Auto VWAP")
-vwapShowBand2 = input.bool(true, title="밴드 #2 표시(±배수2, 파선)", group="Auto VWAP")
-vwapOffset = input.int(0, title="오프셋", group="Auto VWAP", display=display.none)
-vwapDynColor = input.bool(true, title="동적 선색(밴드2 이탈 방향)", group="Auto VWAP", display=display.none)
-vwapLineColor = input.color(#FFFFFF, title="VWAP 기본 선색", group="Auto VWAP", display=display.none)
 
 vwapNewSession = barstate.isfirst or timeframe.change("D")
 vwapSessTime = time("D")
@@ -1241,39 +1234,6 @@ vwBandState = vwLowerWalk ? "하단 밴드워킹" : vwUpperWalk ? "상단 밴드
 //  평탄(중심) → 밴드 상태별: 상단 밴드워킹·하단 지지=둔탁 녹, 하단 밴드워킹·상단 저항=둔탁 빨강, 중앙(공방)=회색. VWAP 없음=회색.
 vwBandStateShort = (vwUpperWalk or vwLowerWalk) ? "밴드워킹" : vwBandState
 vwBandColor = not vwHasVwap ? color.new(color.gray, 40) : vwSlopeUp ? ((vwUpperWalk or vwLowerWalk) ? color.new(color.green, 0) : color.new(#6E8F72, 0)) : vwSlopeDown ? ((vwUpperWalk or vwLowerWalk) ? color.new(color.red, 0) : color.new(#A57A7A, 0)) : vwUpperWalk ? color.new(#6E8F72, 0) : vwLowerWalk ? color.new(#A57A7A, 0) : vwSupport ? color.new(#6E8F72, 0) : vwResistance ? color.new(#A57A7A, 0) : color.new(color.gray, 30)
-
-// =========================
-// [차트 페인팅] Auto VWAP 선·밴드·fill — auto-vwap.pine에서 이식(테이블 제외, 계산 로직은 위 vwapValue/vwUpper1·2/vwLower1·2 재사용).
-//  · 동적 선색(auto-vwap의 enableDynamicLineColor): 밴드2를 종가 방향으로 이탈하면 상단=빨강·하단=초록, 아니면 기본 흰색.
-//    (auto-vwap 원본과 동일 로직 — isUpperBand2Break/isLowerBand2Break. 신규 룩어헤드/request.security 없음, 현재봉 high/low/close만.)
-//  · offset: auto-vwap과 동일하게 plot을 좌우로 이동(리페인팅 아님 — 과거 계산값을 화면상 이동해 표시할 뿐). 기본 0.
-// =========================
-vwLower2Break = vwShouldCalc and vwapShowBand2 and not na(vwLower2) and low < vwLower2
-vwUpper2Break = vwShouldCalc and vwapShowBand2 and not na(vwUpper2) and high > vwUpper2
-color vwBreakColor = #FFFFFF
-if vwLower2Break and not vwUpper2Break
-    vwBreakColor := #00FF00
-else if vwUpper2Break and not vwLower2Break
-    vwBreakColor := #FF0000
-else if vwLower2Break and vwUpper2Break
-    vwBreakColor := close <= vwapValue ? #00FF00 : #FF0000
-color vwActiveLineColor = vwapDynColor ? vwBreakColor : vwapLineColor
-color vwActiveFillColor = color.new(vwActiveLineColor, 92)
-
-// VWAP 선(2px 실선) — 표시 토글 vwapShowLine, 가격축 라벨은 이 선만(display 기본 all).
-plot(vwapShowLine ? vwapValue : na, title="VWAP 선", color=vwActiveLineColor, offset=vwapOffset, linewidth=2, editable=true, linestyle=plot.linestyle_solid)
-
-// 밴드 #1(±배수1, 점선) + fill
-vwDisplayBand1 = vwapShowBand1 ? display.all - display.price_scale : display.none
-vwUpper1Plot = plot(vwUpper1, title="Upper Band #1", color=vwActiveLineColor, offset=vwapOffset, display=vwDisplayBand1, editable=true, linestyle=plot.linestyle_dotted)
-vwLower1Plot = plot(vwLower1, title="Lower Band #1", color=vwActiveLineColor, offset=vwapOffset, display=vwDisplayBand1, editable=true, linestyle=plot.linestyle_dotted)
-fill(vwUpper1Plot, vwLower1Plot, title="Bands Fill #1", color=vwapShowBand1 ? vwActiveFillColor : na, display=display.none, editable=true)
-
-// 밴드 #2(±배수2, 파선) + fill
-vwDisplayBand2 = vwapShowBand2 ? display.all - display.price_scale : display.none
-vwUpper2Plot = plot(vwUpper2, title="Upper Band #2", color=vwActiveLineColor, offset=vwapOffset, display=vwDisplayBand2, editable=true, linestyle=plot.linestyle_dashed)
-vwLower2Plot = plot(vwLower2, title="Lower Band #2", color=vwActiveLineColor, offset=vwapOffset, display=vwDisplayBand2, editable=true, linestyle=plot.linestyle_dashed)
-fill(vwUpper2Plot, vwLower2Plot, title="Bands Fill #2", color=vwapShowBand2 ? vwActiveFillColor : na, display=display.none, editable=true)
 
 // =========================
 // 비정상 캔들 상태/색/텍스트는 상단(멀티스케일 신호 앞)에서 이미 계산했다(모멘텀 즉시 반영). 여기선 생략.
