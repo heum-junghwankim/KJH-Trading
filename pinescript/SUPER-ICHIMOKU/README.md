@@ -248,11 +248,12 @@
 | `netBody` | `(body0+body1+body2) / ATR` — 3봉 순몸통(방향·강도, ATR 정규화·0 방어) |
 | `upCount` / `dnCount` | 3봉 중 양봉 수 / 음봉 수 |
 | `range3` | `(max(h0,h1,h2) − min(l0,l1,l2)) / ATR` — 3봉 총폭 |
-| `priorDownX` / `priorUpX` | `(c1<c2) or (l1<l2)` / `(c1>c2) or (h1>h2)` — 직전 흐름(종가 **또는** 저점/고점 시도까지 병용) |
+| `priorDownX` / `priorUpX` | `(c1<c2) or (l1<l2)` / `(c1>c2) or (h1>h2)` — 직전 흐름(종가 **또는** 저점/고점 시도까지 병용). **추세형 예측(2봉 돌파)에만 사용** |
+| `priorDownExcl` / `priorUpExcl` | **반전형 전용 배타 게이트**. `priorNet = ((c1>c2)+(h1>h2)) − ((c1<c2)+(l1<l2))`의 부호로 선행추세 방향을 **하나로 확정** — `priorUpExcl = priorNet>0`, `priorDownExcl = priorNet<0`(동점 0=불명확→반전형 안 뜸). 아래 [반전형 게이트 배타화(버그 수정)](#반전형-게이트-배타화-반전형-하락-예측-미발화-버그-수정) 참조 |
 
 **긴 꼬리 파생**: `longLowerWick = (아래꼬리/range)≥candleLongWickRatio and (윗꼬리/range)≤(1−candleLongWickRatio)` · `longUpperWick`은 위/아래 대칭. 망치·역망치·교수형·유성 공통 부품.
 
-**반전형 패턴**(반전형 예측 근거): 상승장악 `dir1==-1 and dir0==1 and c0≥o1 and o0≤c1`(하락장악 대칭) · **망치** `priorDownX and 작은몸통 + longLowerWick`(강세) · **역망치** `priorDownX and 작은몸통 + longUpperWick`(강세) · **교수형** `priorUpX and 작은몸통 + longLowerWick`(약세) · **유성** `priorUpX and 작은몸통 + longUpperWick`(약세) · 샛별 `dir2==-1 and b2강봉 and b1작은몸통 and dir0==1 and c0≥mid2`(석별 대칭) · **반전강봉(하락)** `priorUpX and dir0==-1 and br0≥candleRevBodyRatio and c0<l1`(반전강봉(상승) 대칭: `priorDownX and dir0==1 and br0≥candleRevBodyRatio and c0>h1`) — 중간몸통 반전, 직전 봉 극점 하회/상회 마감으로 방향 확증(장악형보다 완화).
+**반전형 패턴**(반전형 예측 근거): 상승장악 `dir1==-1 and dir0==1 and c0≥o1 and o0≤c1`(하락장악 대칭) · **망치** `priorDownExcl and 작은몸통 + longLowerWick`(강세) · **역망치** `priorDownExcl and 작은몸통 + longUpperWick`(강세) · **교수형** `priorUpExcl and 작은몸통 + longLowerWick`(약세) · **유성** `priorUpExcl and 작은몸통 + longUpperWick`(약세) · 샛별 `dir2==-1 and b2강봉 and b1작은몸통 and dir0==1 and c0≥mid2`(석별 대칭) · **반전강봉(하락)** `priorUpExcl and dir0==-1 and br0≥candleRevBodyRatio and c0<l1`(반전강봉(상승) 대칭: `priorDownExcl and dir0==1 and br0≥candleRevBodyRatio and c0>h1`) — 중간몸통 반전, 직전 봉 극점 하회/상회 마감으로 방향 확증(장악형보다 완화). **반전형은 모두 배타 게이트(`priorUpExcl`/`priorDownExcl`)로 방향을 확정**해, 위꼬리 반전형(유성/역망치)·아래꼬리 반전형(망치/교수형)이 동시에 켜지지 않게 한다(아래 버그 수정 참조).
 
 **추세형 패턴**(추세형 예측 근거): **2봉 고점돌파** `dir0==1 and h0>h1 and h0>h2 and (윗꼬리/range)≤candleShortWickRatio and b0강몸통`(2봉 저점돌파 대칭: `dir0==-1 and l0<l1 and l0<l2 and (아래꼬리/range)≤candleShortWickRatio and b0강몸통`).
 
@@ -265,8 +266,8 @@
 | 순서 | 조건 | 분류 |
 | --- | --- | --- |
 | 1 | `not ready` **또는** `range3 < candleMinRange3Atr` | 혼조 |
-| 2 | `priorDownX` AND (샛별 OR 상승장악 OR 망치 OR 역망치 OR 반전강봉↑) | 반전형 상승 예측 |
-| 3 | `priorUpX` AND (석별 OR 하락장악 OR 유성 OR 교수형 OR 반전강봉↓) | 반전형 하락 예측 |
+| 2 | `priorDownExcl` AND (샛별 OR 상승장악 OR 망치 OR 역망치 OR 반전강봉↑) | 반전형 상승 예측 |
+| 3 | `priorUpExcl` AND (석별 OR 하락장악 OR 유성 OR 교수형 OR 반전강봉↓) | 반전형 하락 예측 |
 | 4 | `(HH and HL)·upCount≥2·netBody≥candleNetBodyMin` **또는** `(HH or HL)·upCount==3·netBody≥candleNetBodyStrong` | 상승 진행 |
 | 5 | `(LL and LH)·dnCount≥2·netBody≤−candleNetBodyMin` **또는** `(LL or LH)·dnCount==3·netBody≤−candleNetBodyStrong` | 하락 진행 |
 | 6 | `priorUpX` AND 2봉고점돌파 | 추세형 상승 예측 |
@@ -277,8 +278,18 @@
 
 - **강몸통 방향 폴백(순위 최하단, 혼조 직전)**: 2봉 극점 돌파(6·7)·3봉 계단 진행(4·5)에 걸리지 않았지만 **현재봉(b0)이 강몸통(`br0≥candleStrongBodyRatio`)이고 3봉 순몸통(`netBody`)이 뚜렷한** 명백한 강방향봉을 추세형 예측으로 흡수합니다. 저점 미갱신 강음봉(대칭: 고점 미갱신 강양봉)이 else 혼조로 새던 문제를 보완합니다. `dir0` 부호 배타로 상승/하락 폴백은 동시 성립하지 않습니다. **신규 파라미터 없음**(기존 `candleStrongBodyRatio`·`candleNetBodyMin` 재사용).
 - 진행 분류에서 3봉이 **모두 같은 방향**(`upCount==3`/`dnCount==3`)이면 근거 패턴을 `적삼병`/`흑삼병`으로 병기합니다. 반전형 예측은 성립 패턴명(`샛별`/`석별`/`장악형`/`망치`/`역망치`/`유성`/`교수형`/`반전강봉`)을, 추세형 예측은 `2봉고점돌파`/`2봉저점돌파`(폴백은 `강몸통`)를 병기합니다(반전형 우선순위: 샛별·석별 → 장악형 → 망치·역망치 / 유성·교수형 → 반전강봉).
-- **반전강봉(반전형 최하단 항)**: 꼬리형 반전(`br0≤candleSmallBodyRatio`)과 강몸통 방향 폴백(`br0≥candleStrongBodyRatio`) 사이 **중간몸통(0.45~)** 사각지대에서, `priorUpX`라 추세형·진행에 안 걸리고 else 혼조로 새던 **상승세 끝 중간~강 음봉**(대칭: 하락세 끝 양봉)을 반전형으로 흡수합니다. `c0<l1`(대칭 `c0>h1`)로 방향 확증. `dir0` 부호로 상승/하락 배타이며, `c0<l1`가 `HL`(`l0>l1`)과, `dir0==-1`가 `upCount==3`과 모순이라 **기존 상승 진행 케이스를 가로채지 않습니다**. 신규 노브 `candleRevBodyRatio`(0.45).
+- **반전강봉(반전형 최하단 항)**: 꼬리형 반전(`br0≤candleSmallBodyRatio`)과 강몸통 방향 폴백(`br0≥candleStrongBodyRatio`) 사이 **중간몸통(0.45~)** 사각지대에서, `priorUpExcl`라 추세형·진행에 안 걸리고 else 혼조로 새던 **상승세 끝 중간~강 음봉**(대칭: 하락세 끝 양봉)을 반전형으로 흡수합니다. `c0<l1`(대칭 `c0>h1`)로 방향 확증. `dir0` 부호로 상승/하락 배타이며, `c0<l1`가 `HL`(`l0>l1`)과, `dir0==-1`가 `upCount==3`과 모순이라 **기존 상승 진행 케이스를 가로채지 않습니다**. 신규 노브 `candleRevBodyRatio`(0.45).
 - **이전 12분류의 4중 AND 브리틀 게이트(적삼병 오분류)는 폐기**했습니다. 예전 적삼병은 "강한 몸통≥0.60 AND 짧은 윗꼬리 AND 종가 계단상승 AND 3봉 모두"를 전부 요구해 정상 강양봉 3연속도 혼조로 떨어졌습니다. 진행은 구조(HH/HL)+순몸통 스코어로 로버스트하게 잡습니다.
+
+#### 반전형 게이트 배타화 — "반전형 하락 예측" 미발화 버그 수정
+
+**증상**: 위꼬리가 긴 반전 캔들(선행 상승세 끝 유성형)에서 **"반전형 하락 예측"이 뜨지 않았습니다.** "반전형 상승 예측"은 정상 발화.
+
+**원인**: 유성(`priorUpX`)과 역망치(`priorDownX`)는 몸통 형태(`작은몸통 + longUpperWick`)가 **완전히 동일**하고 선행추세 게이트만 다릅니다. 그런데 `priorUpX = (c1>c2) or (h1>h2)`와 `priorDownX = (c1<c2) or (l1<l2)`는 OR가 느슨해 **동시 참**이 흔합니다(예: 종가는 올랐지만 저점을 갱신한 흔들림 봉, 외봉). 동시 참이면 위꼬리 봉에서 역망치·유성이 **둘 다 성립**하고, 판정순서가 `반전형 상승(2) → 반전형 하락(3)`이라 **항상 상승(역망치)이 하락(유성)을 선점** → 하락이 구조적으로 미발화. 아래꼬리 봉(망치/교수형)도 같은 편향으로 항상 상승(망치)이 이겨, 결과적으로 **상승 반전은 정상·하락 반전만 죽는** 비대칭이 나타났습니다.
+
+**수정**: 반전형 전용 배타 게이트 `priorUpExcl`/`priorDownExcl`(선행추세 강도 스코어 `priorNet`의 부호)로 방향을 **하나로 확정**했습니다. `priorNet=0`(상승·하락 신호 동수, 방향 불명확)이면 반전형을 열지 않습니다. 이제 revUp·revDn이 동시에 참일 수 없어 판정순서 선점 편향이 사라집니다. **판정 순서는 그대로 두었습니다**(순서를 뒤집으면 편향 방향만 반대로 이동할 뿐이라 근본 해결이 아님 — 게이트 배타화가 근본 처방).
+
+**무회귀**: `priorDownExcl ⊂ priorDownX`(부분집합)이라 상승 반전 발화가 **늘지 않습니다.** 유일한 변화는 `priorNet=0`인 방향 불명확 봉에서 과거에 편향으로 뜨던 상승/하락 반전이 이제 안 뜨는 것(거짓양성 제거). 추세형·진행 분류는 기존 `priorUpX`/`priorDownX`를 그대로 써 **전혀 영향받지 않습니다.**
 
 ### 셀색 7분류 범례
 

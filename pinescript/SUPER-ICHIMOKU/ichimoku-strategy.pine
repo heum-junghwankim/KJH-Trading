@@ -1394,6 +1394,16 @@ f_candleState(int off) =>
     // 선행추세 확장: 종가 전용이 아니라 고점/저점 상승·하락 시도까지 포함(눌린 종가 봉에서도 반전 게이트 통과).
     priorUpX = (c1 > c2) or (h1 > h2)
     priorDownX = (c1 < c2) or (l1 < l2)
+    // ★반전형 전용 배타 게이트(netPrior): priorUpX/priorDownX는 OR가 느슨해 동시 참(예: c1>c2 & l1<l2)이 흔하다.
+    //  위꼬리(유성/역망치)·아래꼬리(망치/교수형) 반전형은 몸통 형태가 좌우 동일하고 게이트만 달라, 동시 참이면
+    //  판정순서상 revUp(상승)이 revDn(하락)을 항상 선점 → "반전형 하락 예측"이 구조적으로 미발화하던 버그.
+    //  선행추세 강도 스코어의 부호로 방향을 하나로 확정(동점=불명확→반전형 게이트 닫음). 상호배타 보장.
+    //  ※ 적용 범위=반전형 전체(꼬리형 4종·장악형·샛별/석별·반전강봉)만. 진행·추세형(trendUp/trendDn)은 기존 priorUpX/priorDownX 유지→회귀 차단.
+    priorUpScore = (c1 > c2 ? 1 : 0) + (h1 > h2 ? 1 : 0)
+    priorDownScore = (c1 < c2 ? 1 : 0) + (l1 < l2 ? 1 : 0)
+    priorNet = priorUpScore - priorDownScore
+    priorUpExcl = priorNet > 0     // 선행추세 상승 우세(배타)
+    priorDownExcl = priorNet < 0   // 선행추세 하락 우세(배타)
     // 반전 패턴(예측) 정의
     strongBody = candleStrongBodyRatio
     smallBody = candleSmallBodyRatio
@@ -1409,20 +1419,22 @@ f_candleState(int off) =>
     bullBreak2 = dir0 == 1 and h0 > h1 and h0 > h2 and (upWick0 / r0) <= candleShortWickRatio and br0 >= strongBody
     // 작은몸통 + 긴 꼬리 반전형(직전 방향 게이트로 상/하 구분):
     //  망치(강세)=선행하락+긴아래꼬리, 역망치(강세)=선행하락+긴위꼬리, 교수형(약세)=선행상승+긴아래꼬리, 유성(약세)=선행상승+긴위꼬리.
-    revUpHammer = priorDownX and br0 <= smallBody and longLowerWick    // 망치
-    revUpInvHammer = priorDownX and br0 <= smallBody and longUpperWick // 역망치
-    revDnHanging = priorUpX and br0 <= smallBody and longLowerWick     // 교수형
-    revDnShooting = priorUpX and br0 <= smallBody and longUpperWick    // 유성
+    revUpHammer = priorDownExcl and br0 <= smallBody and longLowerWick    // 망치
+    revUpInvHammer = priorDownExcl and br0 <= smallBody and longUpperWick // 역망치
+    revDnHanging = priorUpExcl and br0 <= smallBody and longLowerWick     // 교수형
+    revDnShooting = priorUpExcl and br0 <= smallBody and longUpperWick    // 유성
     // 샛별(강세)·석별(약세)
     morningStar = dir2 == -1 and br2 >= strongBody and br1 <= smallBody and dir0 == 1 and c0 >= mid2
     eveningStar = dir2 == 1 and br2 >= strongBody and br1 <= smallBody and dir0 == -1 and c0 <= mid2
     // 반전강봉(중간~강 몸통 반전): 꼬리형(br≤smallBody)과 강몸통 폴백(br≥strongBody) 사이 중간몸통 사각지대 보완.
     //  선행추세 반대 방향 + 중간~강 몸통(br0>=candleRevBodyRatio) + 직전 봉 극점 확증 마감으로 방향 확증(장악형보다 완화).
-    revDnBody = priorUpX and dir0 == -1 and br0 >= candleRevBodyRatio and c0 < l1   // 상승세 끝 중간~강 음봉, 직전 봉 저점 하회 마감
-    revUpBody = priorDownX and dir0 == 1 and br0 >= candleRevBodyRatio and c0 > h1   // 하락세 끝 중간~강 양봉, 직전 봉 고점 상회 마감
+    revDnBody = priorUpExcl and dir0 == -1 and br0 >= candleRevBodyRatio and c0 < l1   // 상승세 끝 중간~강 음봉, 직전 봉 저점 하회 마감
+    revUpBody = priorDownExcl and dir0 == 1 and br0 >= candleRevBodyRatio and c0 > h1   // 하락세 끝 중간~강 양봉, 직전 봉 고점 상회 마감
     // 반전형 상승/하락 예측 성립 여부 및 근거 패턴명(샛별/석별→장악형→망치·역망치→반전강봉 / 석별→장악형→교수형·유성→반전강봉 우선순위)
-    revUp = priorDownX and (morningStar or bullEngulf or revUpHammer or revUpInvHammer or revUpBody)
-    revDn = priorUpX and (eveningStar or bearEngulf or revDnShooting or revDnHanging or revDnBody)
+    //  ★최종 게이트도 배타(priorUpExcl/priorDownExcl)로 통일 — 장악형·샛별/석별은 자체 게이트가 없어 최종 게이트가 방향을 확정한다.
+    //   배타 게이트라 revUp·revDn이 동시에 참일 수 없어(priorNet 부호 하나로 결정) 판정순서 선점 편향이 제거된다.
+    revUp = priorDownExcl and (morningStar or bullEngulf or revUpHammer or revUpInvHammer or revUpBody)
+    revDn = priorUpExcl and (eveningStar or bearEngulf or revDnShooting or revDnHanging or revDnBody)
     revUpPat = morningStar ? "샛별" : bullEngulf ? "장악형" : revUpHammer ? "망치" : revUpInvHammer ? "역망치" : revUpBody ? "반전강봉" : na
     revDnPat = eveningStar ? "석별" : bearEngulf ? "장악형" : revDnShooting ? "유성" : revDnHanging ? "교수형" : revDnBody ? "반전강봉" : na
     // 추세형 상승/하락 예측(선행 추세 방향으로 2봉 극점 돌파형 강봉)
