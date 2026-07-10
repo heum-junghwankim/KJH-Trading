@@ -6,7 +6,9 @@
 //   - basis 이동평균은 SMA / WMA / VWMA / EMA 중 선택. 표준편차(dev) 항은 표준대로 ta.stdev 유지.
 // 이 지표는 "변동성(국면)"을 보는 보조 지표이며, 방향성(롱/숏) 신호가 아니다.
 //
-indicator(title = "Bollinger Band Width", shorttitle = "BBW", format = format.price, precision = 2)
+// max_bars_back: VWAP 상태 이식으로 과거참조 인덱싱(vwCumPV[최근봉 수] 등)이 있어 히스토리 버퍼를 넉넉히 확보한다.
+//   (timeframe 인자는 넣지 않는다 — CE10080 방지.)
+indicator(title = "Bollinger Band Width", shorttitle = "BBW", format = format.price, precision = 2, max_bars_back = 5000)
 
 // =========================
 // 입력 (기본 설정)
@@ -15,23 +17,34 @@ length  = input.int(20, "길이(Length)", minval = 1, group = "기본 설정", t
 src     = input(close, "소스(Source)", group = "기본 설정", tooltip = "밴드 계산에 사용할 가격 소스. 기본 close(종가).")
 mult    = input.float(2.0, "표준편차 배수(StdDev)", minval = 0.001, maxval = 50, group = "기본 설정", tooltip = "밴드 폭을 결정하는 표준편차 배수. 원본 볼린저밴드 관례 기본값 2.0.")
 maType  = input.string("SMA", "이동평균 종류(MA Type)", options = ["SMA", "WMA", "VWMA", "EMA"], group = "기본 설정", tooltip = "basis(중심선) 계산에 쓸 이동평균.\nSMA=단순, WMA=최근봉 가중, VWMA=거래량 가중, EMA=지수. 기본 SMA(원본 볼린저밴드 관례). 표준편차 항은 종류와 무관하게 그대로 유지됩니다.")
+bbwStyle = input.string("히스토그램", "밴드 폭 라인 표시 모드", options = ["히스토그램", "선"], group = "기본 설정", tooltip = "메인 밴드 폭(BBW) 값의 표시 방식.\n히스토그램=세로 막대(컬럼, 비정상 거래량 지표 스타일), 선=꺾은선. 기본 히스토그램(세로 막대).\n※ 막대/선 색은 각 봉의 VWAP 상태 색(이치모쿠 규칙)으로 칠합니다.\n※ 평균선(폭 이동평균)은 이 옵션과 무관하게 항상 '선'으로 표시됩니다.")
 
 // =========================
 // 입력 (보조 요소)
 // =========================
 showMa        = input.bool(true, "폭 이동평균선 표시", group = "보조 요소", tooltip = "밴드 폭(BBW)의 이동평균선을 함께 그려 현재 폭이 평소보다 넓은지/좁은지 비교합니다.")
-maLen         = input.int(20, "폭 이동평균 길이", minval = 1, group = "보조 요소", active = showMa, tooltip = "BBW 자체를 평활하는 SMA 길이. BBW가 이 선 위면 평소보다 확장, 아래면 수축 경향.")
+maLen         = input.int(20, "폭 이동평균 길이", minval = 1, group = "보조 요소", active = showMa, tooltip = "BBW 자체를 평활하는 이동평균 길이. 평활 방식은 위 '이동평균 종류(MA Type)'를 따릅니다(basis와 동일 종류). BBW가 이 선 위면 평소보다 확장, 아래면 수축 경향.")
 showSqueeze   = input.bool(true, "스퀴즈(최저폭) 강조", group = "보조 요소", tooltip = "최근 N봉 중 밴드 폭이 최저치에 근접하면 '스퀴즈(수축)'로 보고 배경으로 강조합니다. 큰 변동 직전 눌림일 수 있습니다.")
 squeezeLen    = input.int(120, "스퀴즈 룩백(N봉)", minval = 2, group = "보조 요소", active = showSqueeze, tooltip = "스퀴즈 판정용 최저폭을 찾는 과거 구간(봉 수).")
 squeezeTolPct = input.float(5.0, "스퀴즈 허용치(%)", minval = 0.0, maxval = 100.0, group = "보조 요소", active = showSqueeze, tooltip = "현재 폭이 '최근 N봉 최저폭'보다 이 % 이내로 크면 스퀴즈로 인정. 0이면 정확히 최저치일 때만.")
 bgOpacity     = input.int(85, "스퀴즈 배경 불투명성 (0=투명, 100=진함)", minval = 0, maxval = 100, group = "보조 요소", active = showSqueeze, tooltip = "스퀴즈 배경의 진하기. 0=완전 투명(안 보임), 100=가장 진함.")
+showExpandBg  = input.bool(true, "폭 확장 배경(보라) 표시", group = "보조 요소", tooltip = "폭 확장 국면(BBW가 폭 이동평균 위)일 때 차트 배경을 보라색으로 강조합니다. 스퀴즈 배경과는 배타적으로 표시됩니다(스퀴즈 우선).")
+expandOpacity = input.int(30, "폭 확장 배경 불투명도 (0=투명, 100=진함)", minval = 0, maxval = 100, group = "보조 요소", active = showExpandBg, tooltip = "폭 확장 배경의 진하기(opacity). 값이 클수록 진함. 기본 30(옅은 보라). 내부적으로 transp = 100 - opacity로 변환되어 적용됩니다.")
 
 // =========================
 // 색상 (상단 모아 선언)
 // =========================
-bbwColor     = input.color(#2962FF, "밴드 폭(BBW) 선 색", group = "색상")
-bbwMaColor   = input.color(#FF9800, "폭 이동평균선 색", group = "색상")
+bbwColor     = input.color(#2962FF, "밴드 폭(BBW) 기본 선 색", group = "색상", tooltip = "VWAP 상태 색을 끄면(막대/선에 VWAP 상태 색 적용 OFF) 이 색으로 표시됩니다.")
+bbwMaColor   = input.color(color.white, "폭 이동평균선 색", group = "색상", tooltip = "폭 이동평균선(항상 '선')의 색. 기본 흰색 — 봉별 VWAP 상태 색으로 칠해진 막대/선 위에서도 기준선이 또렷이 보이도록.")
 squeezeColor = input.color(#D35400, "스퀴즈 배경 색", group = "색상")
+expandColor  = input.color(color.purple, "폭 확장 배경 색", group = "색상", tooltip = "폭 확장 국면 배경색. 상태판 '확장' 표기(보라)와 일관되게 기본 보라.")
+
+// =========================
+// VWAP 상태 색 (막대/선에 적용) — 이치모쿠 규칙 이식
+// =========================
+// CEO 지시: BBW 세로 막대(및 선)를 이치모쿠 'VWAP 상태' 셀과 "동일 규칙"으로 색칠한다.
+// 아래 useVwapColor로 켜고 끈다(기본 켜짐). 끄면 위 bbwColor 단색.
+useVwapColor = input.bool(true, "막대/선에 VWAP 상태 색 적용", group = "VWAP 상태 색", tooltip = "각 봉의 VWAP 상태(방향·밴드워킹·지지/저항)에 따라 이치모쿠 'VWAP 상태' 셀과 동일한 규칙·색으로 막대(및 선)를 칠합니다. 끄면 기본 선 색(파랑) 단색으로 표시합니다.\n\n색 규칙(이치모쿠 원본과 동일):\n· 상승 → 녹(밴드워킹=선명 초록, 그 외=둔탁 녹 #6E8F72)\n· 하락 → 빨강(밴드워킹=선명 빨강, 그 외=둔탁 빨강 #A57A7A)\n· 평탄(중심) → 상단밴드워킹/하단지지=둔탁 녹, 하단밴드워킹/상단저항=둔탁 빨강, 중앙(공방)=회색\n· VWAP 없음=회색")
 
 // =========================
 // basis 이동평균 선택 (헬퍼)
@@ -57,8 +70,11 @@ lower = basis - dev
 bbwRaw = na(basis) or basis == 0 ? na : (upper - lower) / basis
 bbw    = bbwRaw * 100
 
-// 폭 이동평균(BBW 자체의 SMA) — 확장/수축 비교용
-bbwMa = ta.sma(bbw, maLen)
+// 폭 이동평균(BBW 자체의 MA) — 확장/수축 비교용
+// basis와 동일한 maType(SMA/WMA/VWMA/EMA)을 따르게 하여 MA 기준을 일관되게 맞춘다.
+// 길이는 폭 MA 전용 maLen 사용(basis의 length와 별개).
+// VWMA 선택 시 bbw(폭 값)에 volume 가중이 적용되며, volume 없는 심볼은 maSelect 내부에서 SMA로 폴백된다.
+bbwMa = maSelect(bbw, maLen, maType)
 
 // =========================
 // 스퀴즈(최근 N봉 최저폭) 판정
@@ -68,19 +84,168 @@ bbwMa = ta.sma(bbw, maLen)
 lowestBbw     = ta.lowest(bbw, squeezeLen)
 squeezeActive = showSqueeze and not na(bbw) and not na(lowestBbw) and bar_index >= squeezeLen and bbw <= lowestBbw * (1 + squeezeTolPct / 100)
 
-// 스퀴즈 배경(불투명성 baking: transp = 100 - opacity)
-bgcolor(squeezeActive ? color.new(squeezeColor, 100 - bgOpacity) : na, title = "스퀴즈 배경")
+// 확장 판정: 상태판 "확장"과 동일 정의(BBW가 폭 이동평균 위). 배경/상태판에서 동일 변수 재사용.
+wide = not na(bbw) and not na(bbwMa) and bbw > bbwMa
+
+// 배경 강조: 스퀴즈(수축)=기존 색, 확장=보라. 스퀴즈를 우선 처리해 두 배경이 배타적으로 공존한다.
+//   (squeezeActive와 wide가 동시에 성립할 수 있으나, 스퀴즈를 우선하여 시각적 충돌을 방지.)
+// 불투명도 변환: CEO 지시의 opacity(값이 클수록 진함)를 Pine의 transp(값이 클수록 투명)로 변환.
+//   → transp = 100 - opacity (예: opacity 30 → transp 70 → 옅은 배경).
+bgcolor(
+     squeezeActive ? color.new(squeezeColor, 100 - bgOpacity) :
+     (showExpandBg and wide) ? color.new(expandColor, 100 - expandOpacity) :
+     na,
+     title = "변동성 국면 배경")
+
+// =========================
+// Auto VWAP 상태 이식 — 이치모쿠(advanced-ichimoku.pine) 계산·상태·색 규칙을 그대로 가져와 막대색 결정에 사용
+// =========================
+// 목적: 이치모쿠 'VWAP 상태' 셀 색과 "동일 규칙"으로 BBW 세로 막대(및 선)를 봉마다 칠한다.
+// 이식 범위: (1) Auto VWAP 값·밴드1/밴드2 누적 계산, (2) 방향(상승/하락/평탄)·밴드폭 확장/수축·
+//            밴드워킹·지지/저항 상태 판정, (3) 상태→셀색 매핑(vwBandColor). 차트에 VWAP선/밴드는 그리지 않는다(BBW는 별도 패널).
+// 리페인팅: request.security/lookahead 없음. var 누적 + 확정 ta.*/과거참조([n])만 사용 → 봉 마감 후 값 불변.
+//            (실시간 미마감 봉에서 진행 중 close/volume에 따라 값이 갱신되는 것은 이치모쿠 원본과 동일한 정상 성격.)
+// 기본값은 이치모쿠와 동일: Recent Bars / 최근 50봉 / hlc3 / Log StdDev / 밴드배수 1.0·2.0.
+vwapHideDWM = input.bool(false, title = "1D 이상에서 VWAP 계산 제외", group = "VWAP 상태 색", display = display.none)
+vwapAnchorMode = input.string("Recent Bars", title = "앵커 모드", options = ["Session", "Recent Trading Days", "Recent Bars"], group = "VWAP 상태 색", display = display.none)
+vwapRecentDays = input.int(5, title = "최근 거래일 수", minval = 1, group = "VWAP 상태 색", display = display.none)
+vwapRecentBars = input.int(20, title = "최근 봉 수", minval = 1, group = "VWAP 상태 색", display = display.none)
+vwapSrc = input(title = "VWAP 소스", defval = hlc3, group = "VWAP 상태 색", display = display.none)
+vwapCalcMode = input.string("Log Standard Deviation", "밴드 계산 모드", options = ["Log Standard Deviation", "Absolute Standard Deviation"], group = "VWAP 상태 색", display = display.none)
+vwapBandMult1 = input.float(1.0, title = "밴드 배수 #1", group = "VWAP 상태 색", step = 0.5, minval = 0, display = display.none)
+vwapBandMult2 = input.float(2.0, title = "밴드 배수 #2", group = "VWAP 상태 색", step = 0.5, minval = 0, display = display.none)
+
+vwapNewSession = barstate.isfirst or timeframe.change("D")
+vwapSessTime = time("D")
+vwapSessClose = time_close("D")
+vwapIsLatestSession = vwapSessTime <= last_bar_time and vwapSessClose > last_bar_time
+
+var array<float> vwSessPV = array.new_float()
+var array<float> vwSessVol = array.new_float()
+var array<float> vwSessP2V = array.new_float()
+var array<float> vwSessLogPV = array.new_float()
+var array<float> vwSessLog2V = array.new_float()
+var array<float> vwSessInvalidLogVol = array.new_float()
+var float vwCumPV = 0.0
+var float vwCumVol = 0.0
+var float vwCumP2V = 0.0
+var float vwCumLogPV = 0.0
+var float vwCumLog2V = 0.0
+var float vwCumInvalidLogVol = 0.0
+
+if vwapNewSession
+    array.push(vwSessPV, vwCumPV)
+    array.push(vwSessVol, vwCumVol)
+    array.push(vwSessP2V, vwCumP2V)
+    array.push(vwSessLogPV, vwCumLogPV)
+    array.push(vwSessLog2V, vwCumLog2V)
+    array.push(vwSessInvalidLogVol, vwCumInvalidLogVol)
+
+vwLogSrc = vwapSrc > 0 ? math.log(vwapSrc) : na
+vwCumPV += vwapSrc * volume
+vwCumVol += volume
+vwCumP2V += vwapSrc * vwapSrc * volume
+vwCumLogPV += na(vwLogSrc) ? 0.0 : vwLogSrc * volume
+vwCumLog2V += na(vwLogSrc) ? 0.0 : vwLogSrc * vwLogSrc * volume
+vwCumInvalidLogVol += na(vwLogSrc) ? volume : 0.0
+
+vwSessCount = array.size(vwSessPV)
+vwAnchorIdx = vwapAnchorMode == "Session" ? vwSessCount - 1 : math.max(vwSessCount - vwapRecentDays, 0)
+vwAnchorPV = vwapAnchorMode == "Recent Bars" ? nz(vwCumPV[vwapRecentBars], 0.0) : array.get(vwSessPV, vwAnchorIdx)
+vwAnchorVol = vwapAnchorMode == "Recent Bars" ? nz(vwCumVol[vwapRecentBars], 0.0) : array.get(vwSessVol, vwAnchorIdx)
+vwAnchorP2V = vwapAnchorMode == "Recent Bars" ? nz(vwCumP2V[vwapRecentBars], 0.0) : array.get(vwSessP2V, vwAnchorIdx)
+vwAnchorLogPV = vwapAnchorMode == "Recent Bars" ? nz(vwCumLogPV[vwapRecentBars], 0.0) : array.get(vwSessLogPV, vwAnchorIdx)
+vwAnchorLog2V = vwapAnchorMode == "Recent Bars" ? nz(vwCumLog2V[vwapRecentBars], 0.0) : array.get(vwSessLog2V, vwAnchorIdx)
+vwAnchorInvalidLogVol = vwapAnchorMode == "Recent Bars" ? nz(vwCumInvalidLogVol[vwapRecentBars], 0.0) : array.get(vwSessInvalidLogVol, vwAnchorIdx)
+
+vwWinPV = vwCumPV - vwAnchorPV
+vwWinVol = vwCumVol - vwAnchorVol
+vwWinP2V = vwCumP2V - vwAnchorP2V
+vwWinLogPV = vwCumLogPV - vwAnchorLogPV
+vwWinLog2V = vwCumLog2V - vwAnchorLog2V
+vwWinInvalidLogVol = vwCumInvalidLogVol - vwAnchorInvalidLogVol
+
+float vwapValue = na
+float vwUpper1 = na
+float vwLower1 = na
+float vwUpper2 = na
+float vwLower2 = na
+vwShouldCalc = not (vwapHideDWM and timeframe.isdwm) and vwWinVol > 0 and (vwapAnchorMode != "Session" or vwapIsLatestSession)
+if vwShouldCalc
+    vwapValue := vwWinPV / vwWinVol
+    vwStdAbs = math.sqrt(math.max(vwWinP2V / vwWinVol - math.pow(vwapValue, 2), 0))
+    vwStdLog = math.sqrt(math.max(vwWinLog2V / vwWinVol - math.pow(vwWinLogPV / vwWinVol, 2), 0))
+    vwCanLog = vwWinInvalidLogVol == 0 and vwapValue > 0
+    if vwapCalcMode == "Absolute Standard Deviation"
+        vwUpper1 := vwapValue + vwStdAbs * vwapBandMult1
+        vwLower1 := vwapValue - vwStdAbs * vwapBandMult1
+        vwUpper2 := vwapValue + vwStdAbs * vwapBandMult2
+        vwLower2 := vwapValue - vwStdAbs * vwapBandMult2
+    else if vwCanLog
+        vwUpper1 := vwapValue * math.exp(vwStdLog * vwapBandMult1)
+        vwLower1 := vwapValue * math.exp(-vwStdLog * vwapBandMult1)
+        vwUpper2 := vwapValue * math.exp(vwStdLog * vwapBandMult2)
+        vwLower2 := vwapValue * math.exp(-vwStdLog * vwapBandMult2)
+
+// --- VWAP 상태 판정 (이치모쿠와 동일) ---
+vwHasVwap = vwShouldCalc and not na(vwapValue)
+vwAbove = vwHasVwap and close > vwapValue
+vwNearLower = vwHasVwap and not na(vwLower1) and close < vwLower1
+vwNearUpper = vwHasVwap and not na(vwUpper1) and close > vwUpper1
+vwSlopeLen = 5
+vwBw2 = vwHasVwap and not na(vwUpper2) and not na(vwLower2) ? vwUpper2 - vwLower2 : na
+vwSlope = vwHasVwap and not na(vwapValue[vwSlopeLen]) ? vwapValue - vwapValue[vwSlopeLen] : na
+vwFlatThresh = not na(vwBw2) ? vwBw2 * 0.03 : na
+vwSlopeUp = not na(vwSlope) and not na(vwFlatThresh) and vwSlope > vwFlatThresh
+vwSlopeDown = not na(vwSlope) and not na(vwFlatThresh) and vwSlope < -vwFlatThresh
+vwSlopeFlat = vwHasVwap and not vwSlopeUp and not vwSlopeDown
+vwBwExpanding = vwHasVwap and not na(vwBw2[vwSlopeLen]) and vwBw2 > vwBw2[vwSlopeLen]
+vwBwContracting = vwHasVwap and not na(vwBw2[vwSlopeLen]) and vwBw2 < vwBw2[vwSlopeLen]
+vwPreWalk = vwBwContracting or vwSlopeFlat or vwBwContracting[1] or vwBwContracting[2]
+vwUpBreakout = vwPreWalk and close > open and not na(vwUpper2) and close > vwUpper2
+vwDownBreakout = vwPreWalk and close < open and not na(vwLower2) and close < vwLower2
+vwWalkSlopeLen = 3
+vwLowerRising = vwHasVwap and not na(vwLower2[vwWalkSlopeLen]) and vwLower2 > vwLower2[vwWalkSlopeLen]
+vwUpperFalling = vwHasVwap and not na(vwUpper2[vwWalkSlopeLen]) and vwUpper2 < vwUpper2[vwWalkSlopeLen]
+var int vwWalk = 0
+if vwWalk == 1 and (not vwHasVwap or vwUpperFalling)
+    vwWalk := 0
+if vwWalk == -1 and (not vwHasVwap or vwLowerRising)
+    vwWalk := 0
+if vwUpBreakout
+    vwWalk := 1
+if vwDownBreakout
+    vwWalk := -1
+vwUpperWalk = vwWalk == 1 or (vwBwExpanding and vwSlopeUp and vwNearUpper)
+vwLowerWalk = vwWalk == -1 or (vwBwExpanding and vwSlopeDown and vwNearLower)
+vwSupport = not vwUpperWalk and not vwLowerWalk and (vwBwContracting or vwSlopeFlat) and vwNearLower
+vwResistance = not vwUpperWalk and not vwLowerWalk and (vwBwContracting or vwSlopeFlat) and vwNearUpper
+// VWAP 상태 셀 색 (이치모쿠 advanced-ichimoku.pine 라인 1297 vwBandColor와 100% 동일한 규칙·색값·투명도):
+//  상승 → 녹(밴드워킹=선명 green, 그 외=둔탁 #6E8F72) / 하락 → 빨강(밴드워킹=선명 red, 그 외=둔탁 #A57A7A)
+//  평탄(중심) → 상단밴드워킹/하단지지=둔탁 녹, 하단밴드워킹/상단저항=둔탁 빨강, 중앙(공방)=회색. VWAP 없음=회색.
+vwBandColor = not vwHasVwap ? color.new(color.gray, 40) : vwSlopeUp ? ((vwUpperWalk or vwLowerWalk) ? color.new(color.green, 0) : color.new(#6E8F72, 0)) : vwSlopeDown ? ((vwUpperWalk or vwLowerWalk) ? color.new(color.red, 0) : color.new(#A57A7A, 0)) : vwUpperWalk ? color.new(#6E8F72, 0) : vwLowerWalk ? color.new(#A57A7A, 0) : vwSupport ? color.new(#6E8F72, 0) : vwResistance ? color.new(#A57A7A, 0) : color.new(color.gray, 30)
+
+// 막대/선에 실제 적용할 색: VWAP 상태 색(켜짐) 또는 기본 파랑(꺼짐).
+barColor = useVwapColor ? vwBandColor : bbwColor
 
 // =========================
 // 플롯
 // =========================
-plot(bbw, "밴드 폭(BBW)", color = bbwColor, linewidth = 2)
+// 밴드 폭(BBW) 표시 모드: 히스토그램(세로 막대=컬럼) / 선.
+//   Pine v6에서 plot()의 style은 컴파일 타임 상수라 input으로 직접 바꿀 수 없다.
+//   따라서 plot 2개(막대용·선용)를 두고, 선택 안 된 쪽은 값을 na로 넘겨 그려지지 않게 한다(표준 패턴).
+//   CEO 피드백 반영: '히스토그램' 모드는 plot.style_columns(세로 막대/컬럼)로 표시한다.
+//     (비정상 거래량 지표(VOLUME-PRESSURE)·MACD 히스토그램과 동일한 컬럼 표현 톤.)
+//   색(barColor)은 두 plot 모두 봉별 VWAP 상태 색을 series로 받아 동일하게 칠한다.
+plot(bbwStyle == "히스토그램" ? bbw : na, "밴드 폭(BBW) 막대", color = barColor, style = plot.style_columns, linewidth = 2)
+plot(bbwStyle == "선"       ? bbw : na, "밴드 폭(BBW) 선",   color = barColor, style = plot.style_line,      linewidth = 2)
+// 평균선(폭 이동평균)은 표시 모드와 무관하게 항상 '선'으로 표시(변경 금지).
 plot(showMa ? bbwMa : na, "폭 이동평균", color = bbwMaColor, display = display.all - display.price_scale)
 
 // =========================
 // 우측 상단 상태판 (변동성 국면 — 방향성 신호 아님)
 // =========================
-wide     = not na(bbw) and not na(bbwMa) and bbw > bbwMa
+// wide(확장 판정)는 위 배경 섹션에서 정의한 변수를 재사용 — 배경/상태판 국면 정의 일관.
 regime   = squeezeActive ? "스퀴즈(수축)" : wide ? "확장" : na(bbw) ? "계산중" : "수축"
 regColor = squeezeActive ? color.new(squeezeColor, 0) : wide ? color.new(color.purple, 0) : na(bbw) ? color.new(color.gray, 40) : color.new(color.gray, 40)
 
