@@ -1,0 +1,94 @@
+//@version=6
+//
+// Bollinger Band Width (볼린저밴드 폭) — 변동성 국면 보조 지표
+// CEO 제공 "Bollinger Bands %b" 소스코드를 기반으로 밴드 "폭(Width)"을 산출하도록 재구성.
+//   - %b(가격의 밴드 내 상대 위치)가 아니라, 밴드가 얼마나 벌어졌는지(변동성)를 본다.
+//   - basis 이동평균은 SMA / WMA / VWMA / EMA 중 선택. 표준편차(dev) 항은 표준대로 ta.stdev 유지.
+// 이 지표는 "변동성(국면)"을 보는 보조 지표이며, 방향성(롱/숏) 신호가 아니다.
+//
+indicator(title = "Bollinger Band Width", shorttitle = "BBW", format = format.price, precision = 2, timeframe = "", timeframe_gaps = true)
+
+// =========================
+// 입력 (기본 설정)
+// =========================
+length  = input.int(20, "길이(Length)", minval = 1, group = "기본 설정", tooltip = "basis(이동평균)와 표준편차 계산에 쓰는 봉 개수. 볼린저밴드 관례 기본값 20.")
+src     = input(close, "소스(Source)", group = "기본 설정", tooltip = "밴드 계산에 사용할 가격 소스. 기본 close(종가).")
+mult    = input.float(2.0, "표준편차 배수(StdDev)", minval = 0.001, maxval = 50, group = "기본 설정", tooltip = "밴드 폭을 결정하는 표준편차 배수. 원본 볼린저밴드 관례 기본값 2.0.")
+maType  = input.string("SMA", "이동평균 종류(MA Type)", options = ["SMA", "WMA", "VWMA", "EMA"], group = "기본 설정", tooltip = "basis(중심선) 계산에 쓸 이동평균.\nSMA=단순, WMA=최근봉 가중, VWMA=거래량 가중, EMA=지수. 기본 SMA(원본 볼린저밴드 관례). 표준편차 항은 종류와 무관하게 그대로 유지됩니다.")
+
+// =========================
+// 입력 (보조 요소)
+// =========================
+showMa        = input.bool(true, "폭 이동평균선 표시", group = "보조 요소", tooltip = "밴드 폭(BBW)의 이동평균선을 함께 그려 현재 폭이 평소보다 넓은지/좁은지 비교합니다.")
+maLen         = input.int(20, "폭 이동평균 길이", minval = 1, group = "보조 요소", active = showMa, tooltip = "BBW 자체를 평활하는 SMA 길이. BBW가 이 선 위면 평소보다 확장, 아래면 수축 경향.")
+showSqueeze   = input.bool(true, "스퀴즈(최저폭) 강조", group = "보조 요소", tooltip = "최근 N봉 중 밴드 폭이 최저치에 근접하면 '스퀴즈(수축)'로 보고 배경으로 강조합니다. 큰 변동 직전 눌림일 수 있습니다.")
+squeezeLen    = input.int(120, "스퀴즈 룩백(N봉)", minval = 2, group = "보조 요소", active = showSqueeze, tooltip = "스퀴즈 판정용 최저폭을 찾는 과거 구간(봉 수).")
+squeezeTolPct = input.float(5.0, "스퀴즈 허용치(%)", minval = 0.0, maxval = 100.0, group = "보조 요소", active = showSqueeze, tooltip = "현재 폭이 '최근 N봉 최저폭'보다 이 % 이내로 크면 스퀴즈로 인정. 0이면 정확히 최저치일 때만.")
+bgOpacity     = input.int(85, "스퀴즈 배경 불투명성 (0=투명, 100=진함)", minval = 0, maxval = 100, group = "보조 요소", active = showSqueeze, tooltip = "스퀴즈 배경의 진하기. 0=완전 투명(안 보임), 100=가장 진함.")
+
+// =========================
+// 색상 (상단 모아 선언)
+// =========================
+bbwColor     = input.color(#2962FF, "밴드 폭(BBW) 선 색", group = "색상")
+bbwMaColor   = input.color(#FF9800, "폭 이동평균선 색", group = "색상")
+squeezeColor = input.color(#D35400, "스퀴즈 배경 색", group = "색상")
+
+// =========================
+// basis 이동평균 선택 (헬퍼)
+// =========================
+// MA 종류만 basis에 반영한다. 표준편차 항(dev)은 표준대로 ta.stdev(src, length) 그대로 유지.
+// VWMA는 volume에 의존하므로, volume이 없는(na) 심볼에서는 ta.vwma가 na를 낼 수 있다 → SMA로 폴백.
+maSelect(source, len, typ) =>
+    typ == "EMA"  ? ta.ema(source, len) :
+     typ == "WMA"  ? ta.wma(source, len) :
+     typ == "VWMA" ? (na(volume) ? ta.sma(source, len) : ta.vwma(source, len)) :
+     ta.sma(source, len)
+
+basis = maSelect(src, length, maType)
+dev   = mult * ta.stdev(src, length)
+upper = basis + dev
+lower = basis - dev
+
+// =========================
+// 밴드 폭(BBW) 계산
+// =========================
+// 표준 정의: BBW = (upper - lower) / basis. basis=0/na이면 정의 불가 → na 가드.
+// 표시 스케일은 관례에 따라 ×100(%)로 표기(가독성). 비율(0.04)보다 4.00처럼 읽기 쉽다.
+bbwRaw = na(basis) or basis == 0 ? na : (upper - lower) / basis
+bbw    = bbwRaw * 100
+
+// 폭 이동평균(BBW 자체의 SMA) — 확장/수축 비교용
+bbwMa = ta.sma(bbw, maLen)
+
+// =========================
+// 스퀴즈(최근 N봉 최저폭) 판정
+// =========================
+// 현재 폭이 최근 N봉 최저폭에 허용치(%) 이내로 근접하면 수축(스퀴즈)으로 본다.
+// 리페인팅 방지: ta.lowest는 확정된 과거 값만 사용(미래참조 없음).
+lowestBbw     = ta.lowest(bbw, squeezeLen)
+squeezeActive = showSqueeze and not na(bbw) and not na(lowestBbw) and bar_index >= squeezeLen and bbw <= lowestBbw * (1 + squeezeTolPct / 100)
+
+// 스퀴즈 배경(불투명성 baking: transp = 100 - opacity)
+bgcolor(squeezeActive ? color.new(squeezeColor, 100 - bgOpacity) : na, title = "스퀴즈 배경")
+
+// =========================
+// 플롯
+// =========================
+plot(bbw, "밴드 폭(BBW)", color = bbwColor, linewidth = 2)
+plot(showMa ? bbwMa : na, "폭 이동평균", color = bbwMaColor, display = display.all - display.price_scale)
+
+// =========================
+// 우측 상단 상태판 (변동성 국면 — 방향성 신호 아님)
+// =========================
+wide     = not na(bbw) and not na(bbwMa) and bbw > bbwMa
+regime   = squeezeActive ? "스퀴즈(수축)" : wide ? "확장" : na(bbw) ? "계산중" : "수축"
+regColor = squeezeActive ? color.new(squeezeColor, 0) : wide ? color.new(color.purple, 0) : na(bbw) ? color.new(color.gray, 40) : color.new(color.gray, 40)
+
+var table bbwStatus = table.new(position.top_right, 2, 3, border_width = 1, border_color = color.new(color.gray, 50))
+if barstate.islast
+    table.cell(bbwStatus, 0, 0, "BBW", text_color = color.white, bgcolor = color.new(#1B2A4A, 0), text_size = size.small)
+    table.cell(bbwStatus, 1, 0, regime, text_color = color.white, bgcolor = regColor, text_size = size.small)
+    table.cell(bbwStatus, 0, 1, "폭(%)", text_color = color.white, text_size = size.small)
+    table.cell(bbwStatus, 1, 1, na(bbw) ? "-" : str.tostring(bbw, "#.00"), text_color = color.white, bgcolor = color.new(color.gray, 50), text_size = size.small)
+    table.cell(bbwStatus, 0, 2, "MA(" + maType + ")", text_color = color.white, text_size = size.small)
+    table.cell(bbwStatus, 1, 2, na(bbwMa) ? "-" : str.tostring(bbwMa, "#.00"), text_color = color.white, bgcolor = color.new(color.gray, 50), text_size = size.small)
