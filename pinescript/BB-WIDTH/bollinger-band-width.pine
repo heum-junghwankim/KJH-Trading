@@ -6,7 +6,7 @@
 //   - basis 이동평균은 SMA / WMA / VWMA / EMA 중 선택. 표준편차(dev) 항은 표준대로 ta.stdev 유지.
 // 이 지표는 "변동성(국면)"을 보는 보조 지표이며, 방향성(롱/숏) 신호가 아니다.
 //
-indicator(title = "Bollinger Band Width", shorttitle = "BBW", format = format.price, precision = 2, timeframe = "", timeframe_gaps = true)
+indicator(title = "Bollinger Band Width", shorttitle = "BBW", format = format.price, precision = 2)
 
 // =========================
 // 입력 (기본 설정)
