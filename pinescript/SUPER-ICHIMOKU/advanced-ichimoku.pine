@@ -952,122 +952,6 @@ f_pct(p) =>
     d = (p - close) / close * 100
     (d > 0 ? "+" : "") + str.tostring(d, "0.0") + "%"
 
-// 스윕(점선) = 샹들리에 ATR 트레일링(세력 스톱헌트 자리). 청산(직선) = 그 너머(버퍼+스윙 풀).
-ceLength = input.int(22, title="스윕 룩백 길이", minval=1, group="스윕/청산")
-ceAtrLen = input.int(22, title="스윕 ATR 길이", minval=1, group="스윕/청산")
-ceMult = input.float(3.0, title="스윕 ATR 배수", minval=0.0, step=0.01, group="스윕/청산")
-// 스윕 가격 모드(샹들리에 기반):
-//  - 기본: 표준 샹들리에(룩백 고가/저가 − ATR)
-//  - 거래량 가중: 거래량 큰 봉(VWMA)에 가중 → 거래 몰린 봉에서 스윕가를 끌어올림
-//  - 최근봉 가중: 최근봉(WMA)에 가중 → 휩쏘 급등/급락 봉에서 스윕가를 빠르게·높게
-//  - 거래량+최근봉: 두 가중을 함께(거래량 × 선형 최근봉)
-ceMode = input.string("기본", title="스윕 가격 모드", options=["기본", "거래량 가중", "최근봉 가중", "거래량+최근봉"], group="스윕/청산")
-ceWeightLen = input.int(10, title="가중 트레일 길이", minval=1, group="스윕/청산")
-ceWeightMult = input.float(1.5, title="가중 트레일 ATR 배수", minval=0.0, step=0.01, group="스윕/청산")
-// 청산(직선) = 스윕 너머. 세력이 스윕을 더 깊게 찌를 것을 예상해 청산선을 그만큼 바깥에 둔다.
-sweepBufferMult = input.float(0.4, title="청산 버퍼 ATR 배수(스윕 너머)", minval=0.0, step=0.1, group="스윕/청산")
-useSweepPivot = input.bool(true, title="청산에 스윙 풀(피벗) 반영", group="스윕/청산")
-sweepPivotLen = input.int(5, minval=1, title="스윙 풀 좌우 봉수", group="스윕/청산")
-sweepMaxGapMult = input.float(1.0, title="청산-스윕 최대 간격 ATR 배수", minval=0.1, step=0.1, group="스윕/청산")
-trailLen = input.int(200, title="트레일 길이(봉)", minval=10, maxval=5000, group="스윕/청산")
-showExitLines = input.bool(true, title="스윕·청산선 표시(트레일+수평선)", group="스윕/청산")
-sweepLineWidth = input.int(1, title="스윕 선 두께", minval=1, group="스윕/청산")
-clearLineWidth = input.int(2, title="청산 선 두께", minval=1, group="스윕/청산")
-longExitLineColor = input.color(#2979FF, title="롱 선 색(스윕·청산)", group="스윕/청산")
-shortExitLineColor = input.color(#FF1744, title="숏 선 색(스윕·청산)", group="스윕/청산")
-// 청산선(직선=손절 기준선) 전용 색 — 스윕선과 색을 분리하고 싶을 때 사용. 기본값은 위 스윕·청산 공통색과 동일해 외관 불변.
-longClearLineColor = input.color(#2979FF, title="롱 청산선 색", group="스윕/청산", tooltip="청산선(직선=손절 기준선)의 롱 색. 기본값은 '롱 선 색(스윕·청산)'과 동일합니다. 값을 바꾸면 롱 청산선만 스윕선과 다른 색으로 표시됩니다. 값 계산·전략 로직에는 영향 없는 표시 옵션입니다.")
-shortClearLineColor = input.color(#FF1744, title="숏 청산선 색", group="스윕/청산", tooltip="청산선(직선=손절 기준선)의 숏 색. 기본값은 '숏 선 색(스윕·청산)'과 동일합니다. 값을 바꾸면 숏 청산선만 스윕선과 다른 색으로 표시됩니다. 값 계산·전략 로직에는 영향 없는 표시 옵션입니다.")
-
-atrCe = ta.atr(ceAtrLen)   // 한 번만 계산해 ceAtrVal·weightAtr·sweepAtr에서 재사용(중복 ta.atr 제거)
-ceAtrVal = ceMult * atrCe
-// 거래량 × 최근봉(선형) 가중 평균
-f_volRecencyMa(src, len) =>
-    float num = 0.0
-    float den = 0.0
-    for i = 0 to len - 1
-        float w = volume[i] * (len - i)
-        num += src[i] * w
-        den += w
-    den != 0 ? num / den : src
-// 모드별 앵커 — 활성 모드에 필요한 것만 계산(기본 모드에선 VWMA/WMA/가중루프 모두 생략 → 속도↑). ceMode는 세션 상수.
-// 가중 모드(거래량/최근봉/거래량+최근봉)는 형성 중인 현재봉을 제외하고 **직전 봉 기준**([1])으로 앵커를 잡는다.
-longAnchorWNow = ceMode == "거래량 가중" ? ta.vwma(high, ceWeightLen) : ceMode == "최근봉 가중" ? ta.wma(high, ceWeightLen) : ceMode == "거래량+최근봉" ? f_volRecencyMa(high, ceWeightLen) : na
-shortAnchorWNow = ceMode == "거래량 가중" ? ta.vwma(low, ceWeightLen) : ceMode == "최근봉 가중" ? ta.wma(low, ceWeightLen) : ceMode == "거래량+최근봉" ? f_volRecencyMa(low, ceWeightLen) : na
-longAnchorW = longAnchorWNow[1]
-shortAnchorW = shortAnchorWNow[1]
-weightAtr = ceWeightMult * atrCe
-longCERaw = ceMode == "기본" ? ta.highest(high, ceLength) - ceAtrVal : longAnchorW - weightAtr
-shortCERaw = ceMode == "기본" ? ta.lowest(low, ceLength) + ceAtrVal : shortAnchorW + weightAtr
-var float longCE = na
-longCEPrev = nz(longCE[1], longCERaw)
-longCE := close[1] > longCEPrev ? math.max(longCERaw, longCEPrev) : longCERaw
-var float shortCE = na
-shortCEPrev = nz(shortCE[1], shortCERaw)
-shortCE := close[1] < shortCEPrev ? math.min(shortCERaw, shortCEPrev) : shortCERaw
-
-// 청산(직선) = 스윕(longCE/shortCE) 너머. ATR 버퍼 + 옵션으로 가장 가까운 스윙 풀(피벗) 너머까지.
-sweepAtr = atrCe
-sweepPLow = ta.pivotlow(sweepPivotLen, sweepPivotLen)
-sweepPHigh = ta.pivothigh(sweepPivotLen, sweepPivotLen)
-var float lastSweepPLow = na
-var float lastSweepPHigh = na
-lastSweepPLow := not na(sweepPLow) ? sweepPLow : lastSweepPLow
-lastSweepPHigh := not na(sweepPHigh) ? sweepPHigh : lastSweepPHigh
-longClear = longCE - sweepBufferMult * sweepAtr
-longClear := useSweepPivot and not na(lastSweepPLow) ? math.min(longClear, lastSweepPLow - syminfo.mintick) : longClear
-longClear := math.max(longClear, longCE - sweepMaxGapMult * sweepAtr)   // 스윕과의 간격 상한(괴리감 방지)
-shortClear = shortCE + sweepBufferMult * sweepAtr
-shortClear := useSweepPivot and not na(lastSweepPHigh) ? math.max(shortClear, lastSweepPHigh + syminfo.mintick) : shortClear
-shortClear := math.min(shortClear, shortCE + sweepMaxGapMult * sweepAtr)
-
-// 스윕(점선)·청산(직선) 트레일 — plot이 아니라 polyline(선)으로 그려 점선/직선 스타일을 적용.
-f_trailLine(float src, int lb, color col, int w, string sty, bool show) =>
-    var polyline pl = na
-    if barstate.islast
-        polyline.delete(pl)
-        pl := na
-        if show
-            pts = array.new<chart.point>()
-            for i = lb to 0
-                if not na(src[i])
-                    array.push(pts, chart.point.from_index(bar_index - i, src[i]))
-            pl := array.size(pts) > 1 ? polyline.new(pts, curved=false, closed=false, line_color=col, line_width=w, line_style=sty) : na
-    pl
-trailLb = math.min(bar_index, trailLen)
-f_trailLine(longCE,     trailLb, longExitLineColor,  sweepLineWidth, line.style_dotted, showExitLines)
-f_trailLine(shortCE,    trailLb, shortExitLineColor, sweepLineWidth, line.style_dotted, showExitLines)
-f_trailLine(longClear,  trailLb, longClearLineColor,  clearLineWidth, line.style_solid,  showExitLines)
-f_trailLine(shortClear, trailLb, shortClearLineColor, clearLineWidth, line.style_solid,  showExitLines)
-// 스윕/청산 수평선 4개 — var로 1회 생성 후 islast마다 좌표·색만 set 갱신(delete→new churn 제거).
-//  style은 생성 시 고정(dotted=스윕·solid=청산)이며 이후 불변이라 set 불필요. width=1도 불변.
-var line longSweepLine = na
-var line shortSweepLine = na
-var line longClearLine = na
-var line shortClearLine = na
-if showExitLines and barstate.islast
-    if na(longSweepLine)
-        longSweepLine := line.new(bar_index, longCE, bar_index + 20, longCE, color=longExitLineColor, width=1, style=line.style_dotted)
-        shortSweepLine := line.new(bar_index, shortCE, bar_index + 20, shortCE, color=shortExitLineColor, width=1, style=line.style_dotted)
-        longClearLine := line.new(bar_index, longClear, bar_index + 20, longClear, color=longClearLineColor, width=1, style=line.style_solid)
-        shortClearLine := line.new(bar_index, shortClear, bar_index + 20, shortClear, color=shortClearLineColor, width=1, style=line.style_solid)
-    else
-        line.set_xy1(longSweepLine, bar_index, longCE)
-        line.set_xy2(longSweepLine, bar_index + 20, longCE)
-        line.set_color(longSweepLine, longExitLineColor)
-        line.set_xy1(shortSweepLine, bar_index, shortCE)
-        line.set_xy2(shortSweepLine, bar_index + 20, shortCE)
-        line.set_color(shortSweepLine, shortExitLineColor)
-        line.set_xy1(longClearLine, bar_index, longClear)
-        line.set_xy2(longClearLine, bar_index + 20, longClear)
-        line.set_color(longClearLine, longClearLineColor)
-        line.set_xy1(shortClearLine, bar_index, shortClear)
-        line.set_xy2(shortClearLine, bar_index + 20, shortClear)
-        line.set_color(shortClearLine, shortClearLineColor)
-
-// 롱/숏 포지션 청산가만 가격축(price scale)에 라벨 표시 (선은 위 line·polyline이 그리므로 여기선 라벨만)
-plot(showExitLines ? longClear : na, title="롱 청산가 라벨", color=longClearLineColor, display=display.price_scale)
-plot(showExitLines ? shortClear : na, title="숏 청산가 라벨", color=shortClearLineColor, display=display.price_scale)
 
 // 가격이 없으면(같은 방향 신호가 이미 나와 막힘 = 그 방향 진행 중) 상승/하락으로 표시.
 // 진행 중(상승/하락 추세)이면 그 스케일 기준선(baseRef) 대비 이격도(기준 100: 종가÷기준선×100)를 괄호로 표기.
@@ -1453,7 +1337,8 @@ candleStopCellColor = candleClsName == "혼조" ? color.new(color.gray, 40) : ca
 barcolor(candleShowState ? candleBarColor : na, title="캔들 상태 바색")
 
 // =========================
-// 손익비(RR) — 3종·5행으로 분리(CEO 지시): Cha(청산선)·VWAP(밴드2)·Ret(되돌림).
+// 손익비(RR) — 2종·3행: VWAP(밴드2)·Ret(되돌림).
+//  (구 Cha(청산선) 손익비는 청산선 페인팅이 auto-vwap 으로 이동하며 지표에서 제거됨 — 위 (1) 참조.)
 //  각 손익비는 서로 독립 계산되어 각자의 행에 표시된다(우선순위 통합 없음).
 //  RR = 목표까지 거리(reward) ÷ 손절까지 거리(risk). reward>0·risk>0일 때만 유효, 아니면 "계산 불가".
 // =========================
@@ -1466,18 +1351,9 @@ f_rrColor(rr) => na(rr) ? color.new(color.gray, 40) : rr >= 1.5 ? color.new(colo
 // Ret 손익비 색(별도 등급 — Cha/VWAP와 임계 다름): ≥5 녹색·3~5 둔탁녹·<3 회색·na 계산불가(회색). <3=회색은 본부 기본값(저RR 보조, 조정 가능).
 f_retRrColor(rr) => na(rr) ? color.new(color.gray, 40) : rr >= 5 ? color.new(color.green, 0) : rr >= 3 ? color.new(#6E8F72, 0) : color.new(color.gray, 40)
 
-// (1) Cha 롱/숏 손익비 — 롱숏 청산선 기준. 진입=현재 종가.
-//  Cha 롱: 목표=숏 청산선(위)·손절=롱 청산선(아래). 종가가 두 청산선 사이일 때만 유효.
-//  Cha 숏: 목표=롱 청산선(아래)·손절=숏 청산선(위). "이 범주(청산선 범위)를 지나면"(종가가 밖) 계산 불가.
-chaUp = shortClear - close     // 위쪽(숏 청산선까지) 거리
-chaDown = close - longClear    // 아래쪽(롱 청산선까지) 거리
-chaValid = chaUp > 0 and chaDown > 0   // 종가가 롱·숏 청산선 사이(범주 안)일 때만 유효
-chaLongRR = chaValid ? chaUp / chaDown : na
-chaShortRR = chaValid ? chaDown / chaUp : na
-chaUpPct = close != 0 ? math.abs(chaUp / close * 100) : na
-chaDownPct = close != 0 ? math.abs(chaDown / close * 100) : na
-chaLongText = chaValid ? f_rrText("", chaLongRR, chaUpPct, chaDownPct) : "계산 불가"
-chaShortText = chaValid ? f_rrText("", chaShortRR, chaDownPct, chaUpPct) : "계산 불가"
+// (1) Cha(청산선 기준) 손익비 — [제거됨] 청산선 페인팅이 auto-vwap 으로 이동하면서 지표에서 샹들리에 청산선
+//  값 계산 자체가 사라졌다(shortClear/longClear 미존재). 청산선 기반 손익비(Cha 롱/숏)도 함께 제거.
+//  VWAP 손익비(밴드2 기준)·Ret 손익비(되돌림 기준)는 청산선과 무관하므로 그대로 유지한다.
 
 // (2) VWAP 롱/숏 손익비 — VWAP선과 ±밴드2선 기준(보조). 항상 회색. 위/아래 양쪽 모두 계산.
 //  기준선(regime): 종가>VWAP(위) → 하단기준선=VWAP·상단기준선=상단밴드2 / 종가<VWAP(아래) → 하단기준선=하단밴드2·상단기준선=VWAP.
@@ -1535,7 +1411,7 @@ retText = not na(retRRPure) ? f_rrText(retPfx, retRRPure, retReward, retRisk) : 
 // 셀 색이 참조할 실제 표시 RR = 순수 E 우선, 없으면 폴백(retText와 동일 우선순위). 둘 다 na면 na(회색).
 retRR = not na(retRRPure) ? retRRPure : retRRFixed
 
-var table triggerTable = table.new(position.top_right, 2, 26, border_width=1, border_color=color.new(color.gray, 50))
+var table triggerTable = table.new(position.top_right, 2, 24, border_width=1, border_color=color.new(color.gray, 50))
 if barstate.islast
     // ── 섹션 1: [추세 확인] (row 0, 병합 헤더) — 기존 "항목|값" 헤더를 섹션 헤더로 대체.
     //    스타일 통일: merge_cells · 딥 네이비 배경 #1B2A4A · 흰 글자 · size.small (값 열은 빈 문자열 후 병합).
@@ -1619,20 +1495,15 @@ if barstate.islast
     table.cell(triggerTable, 1, 20, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.merge_cells(triggerTable, 0, 20, 1, 20)
 
-    // 손익비(RR) 5행 — Cha(청산선, 주 손익비·색 로직) / VWAP(밴드2, 회색) / Ret(되돌림, 회색).
-    //  (1) Cha 롱/숏 — 청산선 범위 밖이면 "계산 불가", 셀 색 = f_rrColor(유리/중립/불리/계산불가).
-    table.cell(triggerTable, 0, 21, "Cha 롱 손익비", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 21, chaLongText, text_color=color.white, bgcolor=f_rrColor(chaLongRR), text_size=size.small)
-    table.cell(triggerTable, 0, 22, "Cha 숏 손익비", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 22, chaShortText, text_color=color.white, bgcolor=f_rrColor(chaShortRR), text_size=size.small)
-    //  (2) VWAP 롱/숏 — VWAP선·밴드2 기준, 셀 색 = f_rrColor(Cha와 동일: 유리 초록/중립 회색/불리 빨강/계산불가 회색). 종가가 VWAP 이탈/밴드2 초과면 "계산 불가".
-    table.cell(triggerTable, 0, 23, "VWAP 롱 손익비", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 23, vwLongText, text_color=color.white, bgcolor=f_rrColor(vwLongRR), text_size=size.small)
-    table.cell(triggerTable, 0, 24, "VWAP 숏 손익비", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 24, vwShortText, text_color=color.white, bgcolor=f_rrColor(vwShortRR), text_size=size.small)
-    //  (3) Ret 롱숏 — 되돌림 가격 기준(1행 통합), 셀 색 = f_retRrColor(≥5 녹/3~5 둔탁녹/<3·na 회색). L=과매도(롱)·S=과열(숏)·없으면 "계산 불가".
-    table.cell(triggerTable, 0, 25, "Ret 롱숏 손익비", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 25, retText, text_color=color.white, bgcolor=f_retRrColor(retRR), text_size=size.small)
+    // 손익비(RR) 3행 — VWAP(밴드2, 회색) / Ret(되돌림, 회색). (구 Cha(청산선) 2행은 청산선 이동으로 제거 → 아래로 당김.)
+    //  (1) VWAP 롱/숏 — VWAP선·밴드2 기준, 셀 색 = f_rrColor(유리 초록/중립 회색/불리 빨강/계산불가 회색). 종가가 VWAP 이탈/밴드2 초과면 "계산 불가".
+    table.cell(triggerTable, 0, 21, "VWAP 롱 손익비", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 21, vwLongText, text_color=color.white, bgcolor=f_rrColor(vwLongRR), text_size=size.small)
+    table.cell(triggerTable, 0, 22, "VWAP 숏 손익비", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 22, vwShortText, text_color=color.white, bgcolor=f_rrColor(vwShortRR), text_size=size.small)
+    //  (2) Ret 롱숏 — 되돌림 가격 기준(1행 통합), 셀 색 = f_retRrColor(≥5 녹/3~5 둔탁녹/<3·na 회색). L=과매도(롱)·S=과열(숏)·없으면 "계산 불가".
+    table.cell(triggerTable, 0, 23, "Ret 롱숏 손익비", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 23, retText, text_color=color.white, bgcolor=f_retRrColor(retRR), text_size=size.small)
 
 // 이평 기반 상태 표식(+ 모양) (압축=보라 #9C27B0[상승·하락과 확실히 구분], 상승 분출=파랑, 하락 분출=빨강)
 // 먼저 그려서 아래 신호 삼각형보다 뒤(아래 레이어)에 오게 한다.
@@ -1642,9 +1513,13 @@ plotshape(series=ribbonBull, title="상승 분출", style=shape.cross, location=
 plotshape(series=ribbonBear, title="하락 분출", style=shape.cross, location=location.abovebar, color=color.new(color.red, 0), size=size.tiny)
 
 // 신호 삼각형 — 리본 표식 뒤에(나중에) 그려 위 레이어로. 스케일별 크기: 0.5×=가장 작음, 1×=작음, 2×=보통
-// 모멘텀 모드로 발생한 신호는 청산선 색(롱=파랑, 숏=크림슨)으로 정상 신호(매수=아쿠아, 매도=핑크)와 구분.
-momBuyColor = momentum ? longExitLineColor : defaultBuyColor
-momSellColor = momentum ? shortExitLineColor : defaultSellColor
+// 모멘텀 모드로 발생한 신호는 전용 색(롱=파랑, 숏=크림슨)으로 정상 신호(매수=아쿠아, 매도=핑크)와 구분.
+//  (구: 스윕/청산 블록의 청산선 색을 재사용했으나, 청산선 페인팅이 auto-vwap 으로 이동하며 그 input이 제거돼
+//   여기 전용 색 input 으로 분리. 기본값(#2979FF/#FF1744)은 종전과 동일해 외관 불변.)
+momBuySignalColor = input.color(#2979FF, title="모멘텀 매수 신호 색", group="신호 표시", tooltip="모멘텀 모드에서 발생한 매수 신호 삼각형 색(롱=파랑). 정상 신호(아쿠아)와 구분용. 표시 전용.")
+momSellSignalColor = input.color(#FF1744, title="모멘텀 매도 신호 색", group="신호 표시", tooltip="모멘텀 모드에서 발생한 매도 신호 삼각형 색(숏=크림슨). 정상 신호(핑크)와 구분용. 표시 전용.")
+momBuyColor = momentum ? momBuySignalColor : defaultBuyColor
+momSellColor = momentum ? momSellSignalColor : defaultSellColor
 // 신호 삼각형은 최종 발화(sBuyXX/sSellXX) 기준 — 정상 봉은 확정봉(fBuyXX, 다음 봉 확정 시·1봉 지연·휩쏘 필터), 혼합 비정상 봉은 그 봉 즉시(iBuyXX).
 // 소스 택일(sigVw): 거래량 가중 전용 모드(sigVw)=VWMA 신호(vwBuyXX/vwSellXX, 파이프라인 우회)만. 그 외(not sigVw)=파이프라인/최종 발화 신호(sBuyXX/sSellXX)만.
 //  혼합 모드(sigHybrid)는 sigVw=false라 여기서 not sigVw 경로로 sBuyXX/sSellXX 삼각형을 그린다. 비정상 봉은 sBuyXX=iBuyXX(즉시), 정상 봉은 sBuyXX=fBuyXX.

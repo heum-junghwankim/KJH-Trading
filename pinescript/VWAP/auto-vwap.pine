@@ -159,7 +159,8 @@ color activeFillColor = color.new(activeLineColor, 92)
 //    기본값은 이치모쿠와 동일하게 "기본". 가중 모드 선택 시 청산선(longCE/shortCE→longClear/shortClear)이 그 가중 앵커 기준으로 계산됨.
 //  - 확정 성격 값(ta.*)·과거참조([1] 트레일)만 사용 → 이치모쿠와 동일하게 신규 리페인팅 없음.
 //    가중 모드도 앵커를 직전 봉([1]) 기준으로 잡아(형성 중 현재봉 제외) 이치모쿠와 동일한 확정 성격 유지.
-//  - 여기서는 값만 계산해 아래 밴드2 노랑 판정에 사용(차트에 청산선 자체는 그리지 않음).
+//  - 청산선(longClear/shortClear)은 (1) 아래 밴드2 색 판정에 사용하고, (2) 파일 하단에서 plot 으로 전 히스토리
+//    봉에 직접 그린다(CEO 지시로 이치모쿠에서 이동). 스윕라인(longCE/shortCE)은 여기로 옮기지 않는다(그리지 않음).
 // =========================
 ceLength = input.int(22, title="스윕 룩백 길이", minval=1, group="스윕/청산")
 ceAtrLen = input.int(22, title="스윕 ATR 길이", minval=1, group="스윕/청산")
@@ -176,6 +177,12 @@ sweepBufferMult = input.float(0.4, title="청산 버퍼 ATR 배수(스윕 너머
 useSweepPivot = input.bool(true, title="청산에 스윙 풀(피벗) 반영", group="스윕/청산")
 sweepPivotLen = input.int(5, minval=1, title="스윙 풀 좌우 봉수", group="스윕/청산")
 sweepMaxGapMult = input.float(1.0, title="청산-스윕 최대 간격 ATR 배수", minval=0.1, step=0.1, group="스윕/청산")
+// 청산선(직선=손절 기준선) 차트 페인팅 옵션 — 이치모쿠에서 이 지표로 이동(CEO 지시).
+//  청산선(longClear/shortClear)만 전 히스토리 봉에 plot으로 그린다(스윕라인 longCE/shortCE는 여기로 옮기지 않음).
+showClearLines = input.bool(true, title="청산선 표시(전 히스토리 봉)", group="스윕/청산", tooltip="롱/숏 청산선(직선=손절 기준선)을 차트 전 구간 봉마다 plot으로 그립니다. 스윕라인(점선)은 이 지표에 없습니다(이치모쿠 전략 전용).")
+clearLineWidth = input.int(2, title="청산 선 두께", minval=1, group="스윕/청산", active=showClearLines)
+longClearLineColor = input.color(#2979FF, title="롱 청산선 색", group="스윕/청산", active=showClearLines, tooltip="청산선(직선=손절 기준선)의 롱 색. 값 계산·밴드2 색 판정에는 영향 없는 표시 옵션입니다.")
+shortClearLineColor = input.color(#FF1744, title="숏 청산선 색", group="스윕/청산", active=showClearLines, tooltip="청산선(직선=손절 기준선)의 숏 색. 값 계산·밴드2 색 판정에는 영향 없는 표시 옵션입니다.")
 
 atrCe = ta.atr(ceAtrLen)   // 한 번만 계산해 ceAtrVal·weightAtr·sweepAtr에서 재사용(중복 ta.atr 제거)
 ceAtrVal = ceMult * atrCe
@@ -247,6 +254,15 @@ upperBand_2 = plot(upperBandValue2, title="Upper Band #2", color=upperBand2LineC
 lowerBand_2 = plot(lowerBandValue2, title="Lower Band #2", color=lowerBand2LineColor, offset=offset, display=displayBand2, editable=true, linewidth=2, linestyle=plot.linestyle_dashed)
 // fill(±2σ 채움)은 밴드2 원값 선(upperBand_2/lowerBand_2)에 직접 붙인다. clamp 폐기로 선 자체가 항상 원값이라 별도 fill ref plot 불필요. 현재 display=none.
 fill(upperBand_2, lowerBand_2, title="Bands Fill #2", color=activeFillColor, display=display.none, editable=true)
+
+// =========================
+// 샹들리에 청산선(직선=손절 기준선) 차트 페인팅 — 이치모쿠에서 이동(CEO 지시).
+//  ⚠️ "봉 전체 다 나올 수 있게"(CEO): 최근 몇 봉만 그리는 line.new 방식이 아니라 plot으로 전 히스토리 봉에 그린다.
+//  longClear/shortClear 는 위(214~219)에서 매 봉 계산된 확정 성격 값(ta.*·과거참조 [1] 트레일)이라
+//   plot 으로 전 구간에 그려도 신규 리페인팅이 없다(그리기 전환 시에도 값 자체는 불변).
+//  스윕라인(longCE/shortCE)은 여기로 옮기지 않는다(CEO: "청산선 스윕라인은 옮기지 않음") → plot 하지 않는다.
+plot(showClearLines ? longClear : na, title="롱 청산선", color=longClearLineColor, linewidth=clearLineWidth, offset=offset, editable=true, linestyle=plot.linestyle_solid)
+plot(showClearLines ? shortClear : na, title="숏 청산선", color=shortClearLineColor, linewidth=clearLineWidth, offset=offset, editable=true, linestyle=plot.linestyle_solid)
 
 // VWAP 현재값 수평선 — 트레일 말고, 현재 봉부터 미래 20봉까지 1px 흰색 수평선
 var line vwapHLine = na
