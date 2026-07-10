@@ -181,7 +181,7 @@ sweepMaxGapMult = input.float(1.0, title="청산-스윕 최대 간격 ATR 배수
 //  청산선(longClear/shortClear)만 전 히스토리 봉에 plot으로 그린다(스윕라인 longCE/shortCE는 여기로 옮기지 않음).
 showClearLines = input.bool(true, title="청산선 표시(전 히스토리 봉)", group="스윕/청산", tooltip="롱/숏 청산선(직선=손절 기준선)을 차트 전 구간 봉마다 plot으로 그립니다. 스윕라인(점선)은 이 지표에 없습니다(이치모쿠 전략 전용).")
 clearLineWidth = input.int(2, title="청산 선 두께", minval=1, group="스윕/청산", active=showClearLines)
-longClearLineColor = input.color(#2979FF, title="롱 청산선 색", group="스윕/청산", active=showClearLines, tooltip="청산선(직선=손절 기준선)의 롱 색. 값 계산·밴드2 색 판정에는 영향 없는 표시 옵션입니다.")
+longClearLineColor = input.color(#00C853, title="롱 청산선 색", group="스윕/청산", active=showClearLines, tooltip="청산선(직선=손절 기준선)의 롱 색. 값 계산·밴드2 색 판정에는 영향 없는 표시 옵션입니다.")
 shortClearLineColor = input.color(#FF1744, title="숏 청산선 색", group="스윕/청산", active=showClearLines, tooltip="청산선(직선=손절 기준선)의 숏 색. 값 계산·밴드2 색 판정에는 영향 없는 표시 옵션입니다.")
 
 atrCe = ta.atr(ceAtrLen)   // 한 번만 계산해 ceAtrVal·weightAtr·sweepAtr에서 재사용(중복 ta.atr 제거)
@@ -232,13 +232,13 @@ shortClear := math.min(shortClear, shortCE + sweepMaxGapMult * sweepAtr)
 //  - 청산선(longClear/shortClear)은 밴드와 독립적으로 ceMode에 따라 값만 바뀐다. 밴드2가 그 청산선 "안"에
 //    들어오는지 체크해서 색으로만 표기한다(위치·값은 고정, 절대 변경하지 않음).
 //  - 상단 밴드(upperBandValue2)가 "위쪽 청산선"(shortClear) 안쪽으로 들어오면(upperBandValue2 < shortClear) => 빨강(color.red).
-//  - 하단 밴드(lowerBandValue2)가 "아래쪽 청산선"(longClear) 안쪽으로 들어오면(lowerBandValue2 > longClear) => 파랑(color.blue).
+//  - 하단 밴드(lowerBandValue2)가 "아래쪽 청산선"(longClear) 안쪽으로 들어오면(lowerBandValue2 > longClear) => 녹색(color.green, 롱 계열).
 //  - 미진입(안 들어옴) 또는 청산선 na => 기본색(activeLineColor). 상/하단 독립 판정.
 // =========================
 upper2InsideSweep = shouldPlot and showBand_2 and not na(upperBandValue2) and not na(shortClear) and upperBandValue2 < shortClear
 lower2InsideSweep = shouldPlot and showBand_2 and not na(lowerBandValue2) and not na(longClear) and lowerBandValue2 > longClear
 color upperBand2LineColor = upper2InsideSweep ? color.red : activeLineColor
-color lowerBand2LineColor = lower2InsideSweep ? color.blue : activeLineColor
+color lowerBand2LineColor = lower2InsideSweep ? color.green : activeLineColor
 
 // VWAP 선: 기본 2px + 가격축 라벨은 이 선만 표시(display 기본=all). 밴드는 라벨 제외.
 plot(vwapValue, title="브이왑", color=activeLineColor, offset=offset, linewidth=2, editable=true, linestyle=plot.linestyle_solid)
