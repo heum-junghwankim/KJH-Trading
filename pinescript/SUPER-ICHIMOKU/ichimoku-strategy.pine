@@ -1059,6 +1059,9 @@ sweepLineWidth = input.int(1, title="스윕 선 두께", minval=1, group="스윕
 clearLineWidth = input.int(2, title="청산 선 두께", minval=1, group="스윕/청산")
 longExitLineColor = input.color(#2979FF, title="롱 선 색(스윕·청산)", group="스윕/청산")
 shortExitLineColor = input.color(#FF1744, title="숏 선 색(스윕·청산)", group="스윕/청산")
+// 청산선(직선=손절 기준선) 전용 색 — 스윕선과 색을 분리하고 싶을 때 사용. 기본값은 위 스윕·청산 공통색과 동일해 외관 불변.
+longClearLineColor = input.color(#2979FF, title="롱 청산선 색", group="스윕/청산", tooltip="청산선(직선=손절 기준선)의 롱 색. 기본값은 '롱 선 색(스윕·청산)'과 동일합니다. 값을 바꾸면 롱 청산선만 스윕선과 다른 색으로 표시됩니다. 값 계산·전략 로직에는 영향 없는 표시 옵션입니다.")
+shortClearLineColor = input.color(#FF1744, title="숏 청산선 색", group="스윕/청산", tooltip="청산선(직선=손절 기준선)의 숏 색. 기본값은 '숏 선 색(스윕·청산)'과 동일합니다. 값을 바꾸면 숏 청산선만 스윕선과 다른 색으로 표시됩니다. 값 계산·전략 로직에는 영향 없는 표시 옵션입니다.")
 
 atrCe = ta.atr(ceAtrLen)   // 한 번만 계산해 ceAtrVal·weightAtr·sweepAtr에서 재사용(중복 ta.atr 제거)
 ceAtrVal = ceMult * atrCe
@@ -1118,8 +1121,8 @@ f_trailLine(float src, int lb, color col, int w, string sty, bool show) =>
 trailLb = math.min(bar_index, trailLen)
 f_trailLine(longCE,     trailLb, longExitLineColor,  sweepLineWidth, line.style_dotted, showExitLines)
 f_trailLine(shortCE,    trailLb, shortExitLineColor, sweepLineWidth, line.style_dotted, showExitLines)
-f_trailLine(longClear,  trailLb, longExitLineColor,  clearLineWidth, line.style_solid,  showExitLines)
-f_trailLine(shortClear, trailLb, shortExitLineColor, clearLineWidth, line.style_solid,  showExitLines)
+f_trailLine(longClear,  trailLb, longClearLineColor,  clearLineWidth, line.style_solid,  showExitLines)
+f_trailLine(shortClear, trailLb, shortClearLineColor, clearLineWidth, line.style_solid,  showExitLines)
 // 스윕/청산 수평선 4개 — var로 1회 생성 후 islast마다 좌표·색만 set 갱신(delete→new churn 제거).
 //  style은 생성 시 고정(dotted=스윕·solid=청산)이며 이후 불변이라 set 불필요. width=1도 불변.
 var line longSweepLine = na
@@ -1130,8 +1133,8 @@ if showExitLines and barstate.islast
     if na(longSweepLine)
         longSweepLine := line.new(bar_index, longCE, bar_index + 20, longCE, color=longExitLineColor, width=1, style=line.style_dotted)
         shortSweepLine := line.new(bar_index, shortCE, bar_index + 20, shortCE, color=shortExitLineColor, width=1, style=line.style_dotted)
-        longClearLine := line.new(bar_index, longClear, bar_index + 20, longClear, color=longExitLineColor, width=1, style=line.style_solid)
-        shortClearLine := line.new(bar_index, shortClear, bar_index + 20, shortClear, color=shortExitLineColor, width=1, style=line.style_solid)
+        longClearLine := line.new(bar_index, longClear, bar_index + 20, longClear, color=longClearLineColor, width=1, style=line.style_solid)
+        shortClearLine := line.new(bar_index, shortClear, bar_index + 20, shortClear, color=shortClearLineColor, width=1, style=line.style_solid)
     else
         line.set_xy1(longSweepLine, bar_index, longCE)
         line.set_xy2(longSweepLine, bar_index + 20, longCE)
@@ -1141,24 +1144,14 @@ if showExitLines and barstate.islast
         line.set_color(shortSweepLine, shortExitLineColor)
         line.set_xy1(longClearLine, bar_index, longClear)
         line.set_xy2(longClearLine, bar_index + 20, longClear)
-        line.set_color(longClearLine, longExitLineColor)
+        line.set_color(longClearLine, longClearLineColor)
         line.set_xy1(shortClearLine, bar_index, shortClear)
         line.set_xy2(shortClearLine, bar_index + 20, shortClear)
-        line.set_color(shortClearLine, shortExitLineColor)
-
-// 기준선(베이스 라인) 현재값 수평 라인 — 현재 봉에서 오른쪽으로 연장, 1px. var로 1회 생성 후 set 갱신.
-var line baseHLine = na
-if showBaseLine and barstate.islast
-    if na(baseHLine)
-        baseHLine := line.new(bar_index, baseLine, bar_index + 20, baseLine, color=baseLineColor, width=1, style=line.style_solid)
-    else
-        line.set_xy1(baseHLine, bar_index, baseLine)
-        line.set_xy2(baseHLine, bar_index + 20, baseLine)
-        line.set_color(baseHLine, baseLineColor)
+        line.set_color(shortClearLine, shortClearLineColor)
 
 // 롱/숏 포지션 청산가만 가격축(price scale)에 라벨 표시 (선은 위 line·polyline이 그리므로 여기선 라벨만)
-plot(showExitLines ? longClear : na, title="롱 청산가 라벨", color=longExitLineColor, display=display.price_scale)
-plot(showExitLines ? shortClear : na, title="숏 청산가 라벨", color=shortExitLineColor, display=display.price_scale)
+plot(showExitLines ? longClear : na, title="롱 청산가 라벨", color=longClearLineColor, display=display.price_scale)
+plot(showExitLines ? shortClear : na, title="숏 청산가 라벨", color=shortClearLineColor, display=display.price_scale)
 
 // 가격이 없으면(같은 방향 신호가 이미 나와 막힘 = 그 방향 진행 중) 상승/하락으로 표시.
 // 진행 중(상승/하락 추세)이면 그 스케일 기준선(baseRef) 대비 이격도(기준 100: 종가÷기준선×100)를 괄호로 표기.
