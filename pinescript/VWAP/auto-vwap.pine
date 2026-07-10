@@ -150,6 +150,54 @@ else if isLowerBand2Break and isUpperBand2Break
 color activeLineColor = enableDynamicLineColor ? breakHighlightLineColor : DEFAULT_LINE_COLOR
 color activeFillColor = color.new(activeLineColor, 92)
 
+// =========================
+// 최외곽 밴드(±2σ, Band #2) 선 색 = 이치모쿠 "VWAP 상태" 셀 색 규칙(vwBandColor)과 동일
+// 이치모쿠 advanced-ichimoku.pine 의 vwBandColor 로직을 그대로 이식(임계·색값 동일).
+//  - 판정 입력(vwapValue·밴드값)은 위 blocks에서 이미 확정됐고, 확정 성격 값·과거 히스토리[n]만 참조 → 신규 리페인팅 없음.
+//  - 여기 변수는 선 색 전용(접두사 ln). 상태판 테이블은 CEO 지시로 완전 제거됨.
+//  - 주의: 이치모쿠 평탄 임계는 밴드폭 3%를 사용 → 선 색은 이치모쿠 기준으로 3% 사용.
+// =========================
+lnHasVwap    = shouldPlot and not na(vwapValue)
+lnNearLower  = lnHasVwap and not na(lowerBandValue1) and close < lowerBandValue1
+lnNearUpper  = lnHasVwap and not na(upperBandValue1) and close > upperBandValue1
+lnSlopeLen   = 5
+lnBw2        = lnHasVwap and not na(upperBandValue2) and not na(lowerBandValue2) ? upperBandValue2 - lowerBandValue2 : na
+lnSlope      = lnHasVwap and not na(vwapValue[lnSlopeLen]) ? vwapValue - vwapValue[lnSlopeLen] : na
+lnFlatThresh = not na(lnBw2) ? lnBw2 * 0.03 : na
+lnSlopeUp    = not na(lnSlope) and not na(lnFlatThresh) and lnSlope > lnFlatThresh
+lnSlopeDown  = not na(lnSlope) and not na(lnFlatThresh) and lnSlope < -lnFlatThresh
+lnSlopeFlat  = lnHasVwap and not lnSlopeUp and not lnSlopeDown
+lnBwExpand   = lnHasVwap and not na(lnBw2[lnSlopeLen]) and lnBw2 > lnBw2[lnSlopeLen]
+lnBwContract = lnHasVwap and not na(lnBw2[lnSlopeLen]) and lnBw2 < lnBw2[lnSlopeLen]
+lnPreWalk    = lnBwContract or lnSlopeFlat or lnBwContract[1] or lnBwContract[2]
+lnUpBreak    = lnPreWalk and close > open and not na(upperBandValue2) and close > upperBandValue2
+lnDownBreak  = lnPreWalk and close < open and not na(lowerBandValue2) and close < lowerBandValue2
+lnWalkSlopeLen = 3
+lnLowerRising  = lnHasVwap and not na(lowerBandValue2[lnWalkSlopeLen]) and lowerBandValue2 > lowerBandValue2[lnWalkSlopeLen]
+lnUpperFalling = lnHasVwap and not na(upperBandValue2[lnWalkSlopeLen]) and upperBandValue2 < upperBandValue2[lnWalkSlopeLen]
+var int lnWalk = 0
+if lnWalk == 1 and (not lnHasVwap or lnUpperFalling)
+    lnWalk := 0
+if lnWalk == -1 and (not lnHasVwap or lnLowerRising)
+    lnWalk := 0
+if lnUpBreak
+    lnWalk := 1
+if lnDownBreak
+    lnWalk := -1
+lnUpperWalk  = lnWalk == 1 or (lnBwExpand and lnSlopeUp and lnNearUpper)
+lnLowerWalk  = lnWalk == -1 or (lnBwExpand and lnSlopeDown and lnNearLower)
+// 밴드2 선(plot) 전용 색: 검은 배경(다크 테마) 시인성 최우선.
+//  - 방향(상승=롱=녹 계열, 하락=숏=적 계열)일 때만 색을 부여하고, 평탄은 전부 흰색으로 단순화한다.
+//    다크 배경에서 흐릿한 둔탁색(둔녹 #6E8F72 / 둔적 #A57A7A)은 더 밝고 또렷한 톤으로 치환한다.
+//    · 둔녹 #6E8F72 → 밝은 라임녹 #7CFC7C   · 둔적 #A57A7A → 밝은 코랄적 #FF6E6E
+//    선명녹(color.green,0)/선명적(color.red,0)은 이미 밝아 그대로 사용.
+//  - 평탄(상승도 하락도 아닌) 상태는 서브케이스(상단/하단워킹·지지·저항·중앙/공방·VWAP없음)와 무관하게 전부 흰색.
+//    => 방향(상승/하락)일 때만 색을 부여하고, 그 외 평탄은 무조건 흰색으로 단순화(CEO 지시).
+//  - 이 색 파생은 밴드2 상/하단 선(plot)에만 쓴다. (상태판 테이블은 CEO 지시로 완전 제거됨.)
+LN_LINE_DIM_GREEN  = #7CFC7C   // 둔녹 #6E8F72 대체(밝은 라임녹)
+LN_LINE_DIM_RED    = #FF6E6E   // 둔적 #A57A7A 대체(밝은 코랄적)
+color lnLineColor = lnSlopeUp ? ((lnUpperWalk or lnLowerWalk) ? color.new(color.green, 0) : color.new(LN_LINE_DIM_GREEN, 0)) : lnSlopeDown ? ((lnUpperWalk or lnLowerWalk) ? color.new(color.red, 0) : color.new(LN_LINE_DIM_RED, 0)) : color.white
+
 // VWAP 선: 기본 2px + 가격축 라벨은 이 선만 표시(display 기본=all). 밴드는 라벨 제외.
 plot(vwapValue, title="브이왑", color=activeLineColor, offset=offset, linewidth=2, editable=true, linestyle=plot.linestyle_solid)
 
@@ -158,9 +206,10 @@ upperBand_1 = plot(upperBandValue1, title="Upper Band #1", color=activeLineColor
 lowerBand_1 = plot(lowerBandValue1, title="Lower Band #1", color=activeLineColor, offset=offset, display=displayBand1, editable=true, linestyle=plot.linestyle_dotted)
 fill(upperBand_1, lowerBand_1, title="Bands Fill #1", color=activeFillColor, display=display.none, editable=true)
 
+// 최외곽 상/하단 선(Band #2)만 이치모쿠 VWAP 상태 색(lnLineColor) 동적 적용. 상승=녹/하락=적, 평탄 상태는 전부 흰색. fill·중간밴드·VWAP선은 미변경.
 displayBand2 = showBand_2 ? display.all - display.price_scale : display.none
-upperBand_2 = plot(upperBandValue2, title="Upper Band #2", color=activeLineColor, offset=offset, display=displayBand2, editable=true, linestyle=plot.linestyle_dashed)
-lowerBand_2 = plot(lowerBandValue2, title="Lower Band #2", color=activeLineColor, offset=offset, display=displayBand2, editable=true, linestyle=plot.linestyle_dashed)
+upperBand_2 = plot(upperBandValue2, title="Upper Band #2", color=lnLineColor, offset=offset, display=displayBand2, editable=true, linewidth=2, linestyle=plot.linestyle_dashed)
+lowerBand_2 = plot(lowerBandValue2, title="Lower Band #2", color=lnLineColor, offset=offset, display=displayBand2, editable=true, linewidth=2, linestyle=plot.linestyle_dashed)
 fill(upperBand_2, lowerBand_2, title="Bands Fill #2", color=activeFillColor, display=display.none, editable=true)
 
 // VWAP 현재값 수평선 — 트레일 말고, 현재 봉부터 미래 20봉까지 1px 흰색 수평선
@@ -175,73 +224,3 @@ if barstate.islast
     lowerBand1LineEndLabel := updateLineEndLabel(lowerBand1LineEndLabel, lineEndX, lowerBandValue1, formatPercentGap(lowerBandValue1, vwapValue), activeLineColor, showBandPctLabels and shouldPlot and showBand_1 and not na(lowerBandValue1))
     upperBand2LineEndLabel := updateLineEndLabel(upperBand2LineEndLabel, lineEndX, upperBandValue2, formatPercentGap(upperBandValue2, vwapValue), activeLineColor, showBandPctLabels and shouldPlot and showBand_2 and not na(upperBandValue2))
     lowerBand2LineEndLabel := updateLineEndLabel(lowerBand2LineEndLabel, lineEndX, lowerBandValue2, formatPercentGap(lowerBandValue2, vwapValue), activeLineColor, showBandPctLabels and shouldPlot and showBand_2 and not na(lowerBandValue2))
-
-// =========================
-// 우측 상단 상태판 (이치모쿠 신호 위치 / 과확장 확인)
-// =========================
-hasVwap   = shouldPlot and not na(vwapValue)
-aboveVwap = hasVwap and close > vwapValue
-gapPct    = hasVwap and vwapValue != 0 ? (close / vwapValue - 1.0) * 100.0 : na
-posText   = not hasVwap ? "-" : aboveVwap ? "VWAP 위" : "VWAP 아래"
-nearLower = hasVwap and not na(lowerBandValue1) and close < lowerBandValue1
-nearUpper = hasVwap and not na(upperBandValue1) and close > upperBandValue1
-
-// 밴드폭 변화(확장/수축)와 VWAP 기울기(각도)
-slopeLen      = 5
-bw2           = hasVwap and not na(upperBandValue2) and not na(lowerBandValue2) ? upperBandValue2 - lowerBandValue2 : na
-vwapSlope     = hasVwap and not na(vwapValue[slopeLen]) ? vwapValue - vwapValue[slopeLen] : na
-flatThresh    = not na(bw2) ? bw2 * 0.25 : na
-slopeUp       = not na(vwapSlope) and not na(flatThresh) and vwapSlope > flatThresh
-slopeDown     = not na(vwapSlope) and not na(flatThresh) and vwapSlope < -flatThresh
-slopeFlat     = hasVwap and not slopeUp and not slopeDown
-bwExpanding   = hasVwap and not na(bw2[slopeLen]) and bw2 > bw2[slopeLen]
-bwContracting = hasVwap and not na(bw2[slopeLen]) and bw2 < bw2[slopeLen]
-
-// 수축/저변동 구간에서 양봉이 상단 돌파 / 음봉이 하단 돌파 = 밴드워킹 진입(추세 시작)
-bullCandle    = close > open
-bearCandle    = close < open
-preWalkRegime = bwContracting or slopeFlat or bwContracting[1] or bwContracting[2]
-upBreakout    = preWalkRegime and bullCandle and not na(upperBandValue2) and close > upperBandValue2
-downBreakout  = preWalkRegime and bearCandle and not na(lowerBandValue2) and close < lowerBandValue2
-// 밴드선 각도가 반대로 꺾이면(=수축) 밴드워킹 종료
-//  하단워킹: 최하단선(Lower Band #2)이 위로 꺾이면 중지 / 상단워킹: 최상단선이 아래로 꺾이면 중지
-bandWalkSlopeLen = 3
-lowerBandRising  = hasVwap and not na(lowerBandValue2[bandWalkSlopeLen]) and lowerBandValue2 > lowerBandValue2[bandWalkSlopeLen]
-upperBandFalling = hasVwap and not na(upperBandValue2[bandWalkSlopeLen]) and upperBandValue2 < upperBandValue2[bandWalkSlopeLen]
-var int vwapWalk = 0
-if vwapWalk == 1 and (not hasVwap or upperBandFalling)
-    vwapWalk := 0
-if vwapWalk == -1 and (not hasVwap or lowerBandRising)
-    vwapWalk := 0
-// 돌파 진입(상태 유지)
-if upBreakout
-    vwapWalk := 1
-if downBreakout
-    vwapWalk := -1
-
-// 밴드워킹(추세) = 돌파 진입 상태 유지 또는 (밴드 확장 + VWAP 기울기 방향 + 밴드 터치)
-upperWalk = vwapWalk == 1 or (bwExpanding and slopeUp and nearUpper)
-lowerWalk = vwapWalk == -1 or (bwExpanding and slopeDown and nearLower)
-// 지지/저항(되돌림): 워킹이 아니고, 밴드 수축 또는 VWAP 평탄(중심) + 가격이 밴드 끝
-support    = not upperWalk and not lowerWalk and (bwContracting or slopeFlat) and nearLower
-resistance = not upperWalk and not lowerWalk and (bwContracting or slopeFlat) and nearUpper
-
-slopeText  = not hasVwap ? "-" : slopeUp ? "상승" : slopeDown ? "하락" : "평탄(중심)"
-bwStateText = not hasVwap ? "-" : bwExpanding ? "확장" : bwContracting ? "수축" : "유지"
-bandState  = lowerWalk ? "하단 밴드워킹" : upperWalk ? "상단 밴드워킹" : support ? "하단 지지" : resistance ? "상단 저항" : "중앙(공방)"
-bandColor  = lowerWalk or upperWalk ? color.new(color.orange, 0) : support or resistance ? color.new(color.gray, 30) : color.new(color.gray, 50)
-posVerdict = lowerWalk ? "숏 유리(하단 밴드워킹)" : upperWalk ? "롱 유리(상단 밴드워킹)" : support ? "롱 유리(하단 지지)" : resistance ? "숏 유리(상단 저항)" : "중립"
-posColor   = lowerWalk ? color.new(color.red, 0) : upperWalk ? color.new(color.green, 0) : support ? color.new(color.green, 0) : resistance ? color.new(color.red, 0) : color.new(color.gray, 40)
-
-var table vwapStatus = table.new(position.top_right, 2, 5, border_width=1, border_color=color.new(color.gray, 50))
-if barstate.islast
-    table.cell(vwapStatus, 0, 0, "Auto VWAP", text_color=color.white, bgcolor=color.new(color.blue, 0), text_size=size.small)
-    table.cell(vwapStatus, 1, 0, posVerdict, text_color=color.white, bgcolor=posColor, text_size=size.small)
-    table.cell(vwapStatus, 0, 1, "위치", text_color=color.white, text_size=size.small)
-    table.cell(vwapStatus, 1, 1, posText + (na(gapPct) ? "" : " " + (gapPct > 0 ? "+" : "") + str.tostring(gapPct, "0.0") + "%"), text_color=color.white, bgcolor=not hasVwap ? color.new(color.gray, 50) : aboveVwap ? color.new(color.green, 30) : color.new(color.red, 30), text_size=size.small)
-    table.cell(vwapStatus, 0, 2, "VWAP 기울기", text_color=color.white, text_size=size.small)
-    table.cell(vwapStatus, 1, 2, slopeText, text_color=color.white, bgcolor=slopeUp ? color.new(color.green, 30) : slopeDown ? color.new(color.red, 30) : color.new(color.gray, 50), text_size=size.small)
-    table.cell(vwapStatus, 0, 3, "밴드폭", text_color=color.white, text_size=size.small)
-    table.cell(vwapStatus, 1, 3, bwStateText, text_color=color.white, bgcolor=bwExpanding ? color.new(color.orange, 20) : color.new(color.gray, 50), text_size=size.small)
-    table.cell(vwapStatus, 0, 4, "밴드 상태", text_color=color.white, text_size=size.small)
-    table.cell(vwapStatus, 1, 4, bandState, text_color=color.white, bgcolor=bandColor, text_size=size.small)
