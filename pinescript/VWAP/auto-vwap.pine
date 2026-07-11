@@ -160,7 +160,7 @@ ipShowMarkers = input.bool(true, title="변곡 지점 마커 표시", group=IP_G
 //  (anchored 특성: Recent Bars 앵커 모드에서만 유효. Session/Recent Trading Days 모드에선 기본 세트와 동일 앵커를 공유.)
 ipRecentBars = input.int(defval=22, title="[변곡] Recent Bars (변곡 VWAP)", minval=1, group=IP_GROUP, display=display.none, active=anchorMode == "Recent Bars", tooltip="변곡 지점 판정용 VWAP의 window 길이(N선). 기본 화면 VWAP와 독립. 기본 22. Recent Bars 앵커 모드에서만 유효합니다.")
 // 마커 모양 옵션(기본값=십자가). 리터럴 style plotshape로 분기하므로 컴파일 안전(입력→series 강등 이슈 없음).
-ipMarkerStyle = input.string("십자가", title="변곡 지점 마커 모양", options=["십자가", "원", "삼각형", "다이아몬드", "네모"], group=IP_GROUP, active=ipShowMarkers, tooltip="변곡 지점 마커의 모양입니다. 기본값은 십자가(cross)입니다.")
+ipMarkerStyle = input.string("원", title="변곡 지점 마커 모양", options=["십자가", "원", "삼각형", "다이아몬드", "네모"], group=IP_GROUP, active=ipShowMarkers, tooltip="변곡 지점 마커의 모양입니다. 기본값은 원(circle)입니다.")
 // 변곡점용 베이스 라인(이치모쿠 Kijun-sen) 기간 — 화면 미표시(hidden), 마커 AND 게이트 판정 전용. 기본 22.
 ipBaseLen = input.int(22, title="[변곡] 이치모쿠 베이스라인 기간", minval=1, group=IP_GROUP, display=display.none, tooltip="변곡점용 베이스 라인(이치모쿠 Kijun-sen = (기간 최고가+최저가)/2)의 기간. 화면에는 표시하지 않고 변곡 마커 AND 판정에만 씁니다. 기본 22.")
 // 변곡 지점 판정용 청산선 파라미터 — 기본 세트와 동일 기본값. 독립 조정 가능.
@@ -324,13 +324,21 @@ ipLowerFlatOk = not ipFlatFilter or isClearLineFlat(ipLongClear, ipFlatLookback,
 //   → 밴드선(기본 밴드2)을 화면에서 꺼도 마커 판정은 독립적으로 성립한다.
 upper2InflectionPoint = ipShouldPlot and not na(ipUpperBandValue2) and not na(ipShortClear) and ipUpperBandValue2 < ipShortClear and ipUpperFlatOk
 lower2InflectionPoint = ipShouldPlot and not na(ipLowerBandValue2) and not na(ipLongClear) and ipLowerBandValue2 > ipLongClear and ipLowerFlatOk
-// 요구사항 3: 마커 발동 조건 — 위 판정에 "베이스 라인 vs 변곡점용 VWAP 위치 관계"를 AND 게이트로 결합한다.
+// 요구사항 3: 마커 발동 조건 — 위 판정에 "베이스 라인 vs 변곡점용 임계선 위치 관계"를 AND 게이트로 결합한다.
 //  목적: 변곡점 마커 표시의 정확성 측정(둘 다 성립할 때만 마커 표시).
-//  - 녹색(하단): 하단 판정 AND (ipBaseLine < ipVwapValue).  (베이스라인이 변곡 VWAP 아래)
-//  - 빨강(상단): 상단 판정 AND (ipBaseLine > ipVwapValue).  (베이스라인이 변곡 VWAP 위)
-//  ipBaseLine·ipVwapValue 가 na 이면 위치 관계 판정 불가 → 마커 억제(false).
-baseBelowVwap = not na(ipBaseLine) and not na(ipVwapValue) and ipBaseLine < ipVwapValue
-baseAboveVwap = not na(ipBaseLine) and not na(ipVwapValue) and ipBaseLine > ipVwapValue
+//  계산은 오로지 변곡점용 세트로만 한다: 변곡용 VWAP(ipVwapValue)·변곡용 밴드1(ipUpperBandValue1/ipLowerBandValue1)·베이스라인(ipBaseLine).
+//   기본 화면 세트(vwapValue·upperBandValue1 등) 값은 이 게이트 계산에 넣지 않는다.
+//  [임계] VWAP와 변곡용 밴드1 사이 구간을 10등분한 "1/10 지점"을 베이스라인 게이트 임계로 쓴다(기존 VWAP 임계보다 범위 확장).
+//  - 녹색(하단): 하단 판정 AND (ipBaseLine < 롱 임계).  롱 임계 = VWAP~상단밴드1 구간의 1/10 지점(= ipVwapValue + (ipUpperBandValue1 - ipVwapValue)/10).
+//      (임계가 VWAP보다 살짝 위이므로 기존 "VWAP 아래" 케이스를 포함하며 발동 범위가 넓어진다.)
+//  - 빨강(상단): 상단 판정 AND (ipBaseLine > 숏 임계).  숏 임계 = VWAP~하단밴드1 구간의 1/10 지점(= ipVwapValue - (ipVwapValue - ipLowerBandValue1)/10). (롱과 대칭)
+//  ipBaseLine·ipVwapValue·ipUpperBandValue1(롱)·ipLowerBandValue1(숏) 중 하나라도 na 이면 위치 관계 판정 불가 → 마커 억제(false).
+// 롱 임계: 변곡용 VWAP와 변곡용 상단 밴드1 사이 구간의 1/10 지점.
+float longBaseThreshold = ipVwapValue + (ipUpperBandValue1 - ipVwapValue) / 10
+// 숏 임계: 변곡용 VWAP와 변곡용 하단 밴드1 사이 구간의 1/10 지점(롱과 대칭).
+float shortBaseThreshold = ipVwapValue - (ipVwapValue - ipLowerBandValue1) / 10
+baseBelowVwap = not na(ipBaseLine) and not na(ipVwapValue) and not na(ipUpperBandValue1) and ipBaseLine < longBaseThreshold
+baseAboveVwap = not na(ipBaseLine) and not na(ipVwapValue) and not na(ipLowerBandValue1) and ipBaseLine > shortBaseThreshold
 upper2Marker = upper2InflectionPoint and baseAboveVwap
 lower2Marker = lower2InflectionPoint and baseBelowVwap
 // 요구사항 1: 밴드2 상/하단 선 색은 청산선 진입에 따른 색 변경을 제거하고 기본색(activeLineColor)으로 되돌린다.
