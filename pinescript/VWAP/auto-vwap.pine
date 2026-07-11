@@ -154,7 +154,7 @@ computeVwapSet(int barsLen) =>
 //  ⚠️ 매매 전략(진입·청산·임계값)과 무관한 표시 옵션이다.
 // =========================
 IP_GROUP = "변곡 지점"
-ipShowMarkers = input.bool(true, title="변곡 지점 마커 표시", group=IP_GROUP, tooltip="밴드2 상/하단 선이 변곡 지점용 청산선 안으로 들어오는 순간을 변곡용 밴드2 값 위치에 마커로 표시합니다(색=변곡용 청산선 색). 청산선 수평화 시작 봉의 고가/저가 게이트와 AND로 결합합니다.")
+ipShowMarkers = input.bool(true, title="변곡 지점 마커 표시", group=IP_GROUP, tooltip="밴드2 상/하단 선이 변곡 지점용 청산선 안으로 들어오는 순간을 변곡용 밴드2 값 위치에 마커로 표시합니다(색=변곡용 청산선 색). 변곡용 청산선 수평 필터·방향성 밴드워킹 억제와 AND로 결합합니다.")
 // 변곡 지점 판정용 VWAP window 길이 — 기본 화면 VWAP(recentBars=50)와 **완전 독립**. CEO 지시: 변곡용 기본 22.
 //  이 length로 별도 window(±σ 밴드·밴드2 포함)를 산출하고, 변곡 지점 마커 판정은 이 변곡용 밴드2/VWAP 기준으로 계산한다.
 //  (anchored 특성: Recent Bars 앵커 모드에서만 유효. Session/Recent Trading Days 모드에선 기본 세트와 동일 앵커를 공유.)
@@ -367,55 +367,20 @@ isClearLineFlat(float lineVal, int lb, float atrVal, float maxRatio) =>
 ipUpperFlatOk = not ipFlatFilter or isClearLineFlat(ipShortClear, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)
 ipLowerFlatOk = not ipFlatFilter or isClearLineFlat(ipLongClear, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)
 
-// =========================
-// 새 게이트 — "청산선 수평화 시작 봉의 고가/저가" 기준(베이스라인 게이트를 대체).
-//  개념: 청산선이 수평화(flat)될 때만 마커를 표시하되, 수평화가 시작된 그 봉의 고가/저가를 기준으로
-//   현재 가격이 안쪽으로 눌린(숏=현재 고가가 시작봉 고가보다 낮음, 롱=현재 저가가 시작봉 저가보다 높음)
-//   경우에만 게이트를 통과시킨다.
-//  ⚠️ 수평화 판정은 기존 수평 필터의 flat 판정(isClearLineFlat)을 그대로 재사용한다.
-//   숏은 숏 청산선(ipShortClear)의 flat, 롱은 롱 청산선(ipLongClear)의 flat 기준.
-//  ⚠️ 표시(마커) 게이트 전용 — 매매 전략(진입·청산·임계·산식)과 무관하다.
-// =========================
-// 각 청산선의 raw flat 상태(필터 토글과 무관하게 산식 자체의 flat 여부). rising edge/게이트 판정의 근간.
-ipShortClearFlat = isClearLineFlat(ipShortClear, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)
-ipLongClearFlat = isClearLineFlat(ipLongClear, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)
-// 수평화 시작 봉(rising edge): 직전 봉은 flat이 아니었고 현재 봉이 flat이 된 봉.
-ipShortFlatStart = ipShortClearFlat and not ipShortClearFlat[1]
-ipLongFlatStart = ipLongClearFlat and not ipLongClearFlat[1]
-// 수평화 시작 봉의 기준값 latch — 숏은 시작봉 고가(refHighShort), 롱은 시작봉 저가(refLowLong).
-//  flat 지속 중에는 유지, flat이 끝나면 na로 리셋(무효화).
-var float refHighShort = na
-var float refLowLong = na
-if ipShortFlatStart
-    refHighShort := high
-else if not ipShortClearFlat
-    refHighShort := na
-if ipLongFlatStart
-    refLowLong := low
-else if not ipLongClearFlat
-    refLowLong := na
-// 게이트 조건 — 베이스라인 게이트를 대체. na 가드 포함(ref na면 억제).
-//  숏(빨강·상단): flat 지속 중 AND 현재 봉 고가 < 수평화 시작봉 고가(refHighShort).
-//  롱(녹색·하단): flat 지속 중 AND 현재 봉 저가 > 수평화 시작봉 저가(refLowLong).
-shortFlatHighGate = ipShortClearFlat and not na(refHighShort) and high < refHighShort
-longFlatLowGate = ipLongClearFlat and not na(refLowLong) and low > refLowLong
-// 기존 변곡 판정(밴드2가 변곡용 청산선 안 진입) — 수평 필터 AND 포함.
+// 변곡 판정(밴드2가 변곡용 청산선 안 진입) — 수평 필터 AND 포함.
 //  ⚠️ 사양 1: 발동 조건은 오로지 변곡용 세트(ipShouldPlot·ipUpperBandValue2/ipLowerBandValue2·ipShortClear/ipLongClear)로만 구성한다.
 //   기본 화면 세트의 표시 토글 showBand_2 는 발동 조건에서 제외한다(기본 세트 값·토글이 마커 계산에 개입 금지).
 //   → 밴드선(기본 밴드2)을 화면에서 꺼도 마커 판정은 독립적으로 성립한다.
 upper2InflectionPoint = ipShouldPlot and not na(ipUpperBandValue2) and not na(ipShortClear) and ipUpperBandValue2 < ipShortClear and ipUpperFlatOk
 lower2InflectionPoint = ipShouldPlot and not na(ipLowerBandValue2) and not na(ipLongClear) and ipLowerBandValue2 > ipLongClear and ipLowerFlatOk
-// 마커 발동 조건 — 위 판정에 "청산선 수평화 시작 봉의 고가/저가" 게이트를 AND로 결합한다(베이스라인 게이트 대체).
-//  게이트(shortFlatHighGate/longFlatLowGate)는 위에서 계산: flat 지속 중 AND 현재 봉 고가/저가가 수평화 시작봉 기준값 안쪽.
-//  - 숏(빨강·상단): 상단 판정 AND (현재 고가 < 수평화 시작봉 고가).
-//  - 롱(녹색·하단): 하단 판정 AND (현재 저가 > 수평화 시작봉 저가).
-// 방향성 밴드워킹 억제(ipBwSuppress) AND 결합 — 기존 발동식(변곡 판정 · 수평필터 · 고가/저가 게이트) 위에 방향 억제만 얹는다.
-//  숏(빨강·상단) = 기존 조건 AND (not 상승 밴드워킹).  롱(녹색·하단) = 기존 조건 AND (not 하락 밴드워킹).
+// 마커 발동 조건 — 변곡 판정(수평 필터 포함)에 방향성 밴드워킹 억제만 AND로 결합한다.
+// 방향성 밴드워킹 억제(ipBwSuppress) AND 결합 — 변곡 판정·수평필터 위에 방향 억제만 얹는다.
+//  숏(빨강·상단) = 변곡 판정 AND (not 상승 밴드워킹).  롱(녹색·하단) = 변곡 판정 AND (not 하락 밴드워킹).
 //  토글 OFF면 억제 항이 항상 참 → 기존 동작 그대로.
 upperBwOk = not ipBwSuppress or not isUpBandWalking
 lowerBwOk = not ipBwSuppress or not isDownBandWalking
-upper2Marker = upper2InflectionPoint and shortFlatHighGate and upperBwOk
-lower2Marker = lower2InflectionPoint and longFlatLowGate and lowerBwOk
+upper2Marker = upper2InflectionPoint and upperBwOk
+lower2Marker = lower2InflectionPoint and lowerBwOk
 // 요구사항 1: 밴드2 상/하단 선 색은 청산선 진입에 따른 색 변경을 제거하고 기본색(activeLineColor)으로 되돌린다.
 color upperBand2LineColor = activeLineColor
 color lowerBand2LineColor = activeLineColor
@@ -445,8 +410,8 @@ fill(upperBand_2, lowerBand_2, title="Bands Fill #2", color=activeFillColor, dis
 
 // =========================
 // 변곡 지점(Inflection Point) 마커 — 요구사항 1·2·3.
-//  상단(빨강): 변곡용 밴드2 상단선이 변곡용 청산선 안 진입 AND (현재 고가 < 숏 청산선 수평화 시작봉 고가) => 기본 화면 상단 밴드2 값 위치에 숏 청산선 색 마커.
-//  하단(녹색): 변곡용 밴드2 하단선이 변곡용 청산선 안 진입 AND (현재 저가 > 롱 청산선 수평화 시작봉 저가) => 기본 화면 하단 밴드2 값 위치에 롱 청산선 색 마커.
+//  상단(빨강): 변곡용 밴드2 상단선이 변곡용 청산선 안 진입 => 기본 화면 상단 밴드2 값 위치에 숏 청산선 색 마커.
+//  하단(녹색): 변곡용 밴드2 하단선이 변곡용 청산선 안 진입 => 기본 화면 하단 밴드2 값 위치에 롱 청산선 색 마커.
 //  마커 색 = 변곡용 청산선 색(ipShortClearLineColor/ipLongClearLineColor)과 동일. 모양은 옵션(기본=십자가). 화면 밴드2 선 위치·색은 불변(마커만 추가).
 // =========================
 // ⚠️ location=location.absolute + size.tiny 로 series 값 좌표에 정확히 그린다(직전 커밋 유지).
