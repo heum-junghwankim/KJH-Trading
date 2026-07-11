@@ -167,9 +167,10 @@ ipMarkerStyle = input.string("원", title="변곡 지점 마커 모양", options
 //  청산선이 추세로 기울어(위/아래 워킹 중) 있으면 변곡 조건이 성립해도 마커를 억제한다.
 //  판정: 최근 N봉 사이 청산선 값 변화량(|line - line[N]|)을 ATR로 정규화한 비율(=ATR 대비 배수)이 임계 이내면 수평.
 //   → 절대 가격차가 아니라 ATR 정규화 비율이라 종목·타임프레임 무관하게 동작한다.
-//  변곡 전용 청산선이 제거됐으므로(CEO 지시 #4), 상/하단 모두 **기본 청산선**(shortClear/longClear = 화면 페인팅 mode=ceMode 세트)의 기울기로 판정한다.
+//  변곡 전용 청산선이 제거됐으므로(CEO 지시 #4), flat 판정은 **후보 3모드(기본·거래량 가중·최근봉 가중) 청산선** 기준으로 한다.
+//  ⚠️ 화면 페인팅용(ceMode) 청산선 shortClear/longClear는 flat 판정에 쓰지 않는다 — 스윕 모드 선택이 마커에 관여하면 안 되기 때문(사양 1). 후보에 기여한 모드의 청산선 flat만 본다.
 //  ⚠️ 청산선 계산·전략 로직과 무관한 표시 전용 필터다(마커 억제만).
-ipFlatFilter = input.bool(true, title="변곡 시 청산선 수평 필터(밴드워킹 억제)", group=IP_GROUP, active=ipShowMarkers, tooltip="켜면 변곡 시점 기본 청산선 기울기가 근사 수평일 때만 마커를 표시합니다. 청산선이 추세로 기울어(밴드워킹 중) 있으면 변곡이어도 억제합니다.")
+ipFlatFilter = input.bool(true, title="변곡 시 청산선 수평 필터(밴드워킹 억제)", group=IP_GROUP, active=ipShowMarkers, tooltip="켜면 변곡 시점 청산선 기울기가 근사 수평일 때만 마커를 표시합니다. 판정은 후보에 기여한 모드(기본·거래량 가중·최근봉 가중 중 밴드2가 들어온 모드)의 청산선 기울기로 하며, 스윕 가격 모드(ceMode) 선택과는 무관합니다. 청산선이 추세로 기울어(밴드워킹 중) 있으면 변곡이어도 억제합니다.")
 ipFlatLookback = input.int(3, title="[변곡] 수평 판정 lookback 봉수", minval=1, group=IP_GROUP, active=ipShowMarkers and ipFlatFilter, display=display.none, tooltip="청산선 기울기를 측정할 과거 봉 수(N). 최근 N봉 사이 청산선 값 변화량으로 기울기를 판정합니다. 기본 3.")
 ipFlatSlopeMax = input.float(0.15, title="[변곡] 수평 허용 기울기(ATR 대비 배수)", minval=0.0, step=0.01, group=IP_GROUP, active=ipShowMarkers and ipFlatFilter, display=display.none, tooltip="N봉 사이 청산선 변화량 ÷ ATR 이 이 값 이하이면 '수평'으로 간주합니다. 기본 0.15(=ATR의 15%). 값을 키우면 더 기울어도 표시, 줄이면 더 엄격히 수평만 표시.")
 // 방향성 밴드워킹 억제 — 이치모쿠 메인 지표 "VWAP 상태"의 밴드워킹 판정 알고리즘을 이식(포팅)한다.
@@ -329,7 +330,7 @@ computeClearLines(int ceLen, int atrLen, float mult, string mode, int wLen, floa
     [longClearLocal, shortClearLocal]
 
 // (a) 기본 청산선 세트(화면 페인팅용) — mode=ceMode. 화면에 plot으로 그려진다(전 히스토리 봉).
-//  이 세트가 변곡 마커의 "수평 필터 대상"이기도 하다(화면에 그려지는 mode 기준 = ceMode 세트).
+//  ⚠️ 이 세트(ceMode)는 화면 plot·손익비 등 표시 전용이다. 변곡 마커 판정(후보·수평필터·표시) 어디에도 쓰지 않는다(사양 1: ceMode는 페인팅 전용).
 [longClear, shortClear] = computeClearLines(ceLength, ceAtrLen, ceMult, ceMode, ceWeightLen, ceWeightMult, sweepBufferMult, useSweepPivot, sweepPivotLen, sweepMaxGapMult)
 // (b) 후보 판정용 3모드 청산선 세트(CEO 지시 #1·#2) — mode만 "기본"·"거래량 가중"·"최근봉 가중"으로 바꿔 각각 계산한다.
 //  mode 외 파라미터(길이·ATR·배수·가중·버퍼·피벗·최대간격)는 모두 "스윕/청산" 그룹(기본 청산 설정) 공통값을 쓴다.
@@ -338,7 +339,8 @@ computeClearLines(int ceLen, int atrLen, float mult, string mode, int wLen, floa
 [longClear_base, shortClear_base] = computeClearLines(ceLength, ceAtrLen, ceMult, "기본", ceWeightLen, ceWeightMult, sweepBufferMult, useSweepPivot, sweepPivotLen, sweepMaxGapMult)
 [longClear_vol, shortClear_vol] = computeClearLines(ceLength, ceAtrLen, ceMult, "거래량 가중", ceWeightLen, ceWeightMult, sweepBufferMult, useSweepPivot, sweepPivotLen, sweepMaxGapMult)
 [longClear_recent, shortClear_recent] = computeClearLines(ceLength, ceAtrLen, ceMult, "최근봉 가중", ceWeightLen, ceWeightMult, sweepBufferMult, useSweepPivot, sweepPivotLen, sweepMaxGapMult)
-// 수평 필터용 ATR — 변곡 판정 대상이 기본 청산선(shortClear/longClear)이므로 기본 스윕 ATR 길이(ceAtrLen)에 맞춘다.
+// 수평 필터용 ATR — 후보/수평 판정이 3모드 청산선(shortClear_*/longClear_*) 기준이므로 기본 스윕 ATR 길이(ceAtrLen)에 맞춘다.
+//  ⚠️ ATR은 mode 무관 공통값이라 ceMode에 의존하지 않는다(모드 독립 보장의 일부).
 ipFlatAtr = ta.atr(ceAtrLen)
 
 // =========================
@@ -357,15 +359,28 @@ ipFlatAtr = ta.atr(ceAtrLen)
 isClearLineFlat(float lineVal, int lb, float atrVal, float maxRatio) =>
     float prevVal = lineVal[lb]
     na(lineVal) or na(prevVal) or na(atrVal) or atrVal <= 0 ? false : (math.abs(lineVal - prevVal) / atrVal) <= maxRatio
-// 필터 OFF면 항상 통과(기존 동작 유지). ON이면 각 마커는 **기본 청산선(화면 페인팅 mode=ceMode 세트: shortClear/longClear)**의 수평 여부와 AND 결합.
-//  변곡 전용 청산선이 제거됐으므로 flat 판정 대상은 화면에 그려지는 기본 청산선으로 전환한다(CEO 지시).
-ipUpperFlatOk = not ipFlatFilter or isClearLineFlat(shortClear, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)
-ipLowerFlatOk = not ipFlatFilter or isClearLineFlat(longClear, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)
+// 후보 판정(CEO 지시 #1·#2) — 3모드 OR. na 가드는 각 항에 포함. 각 모드별 "밴드2 진입" 성립 여부를 개별 bool로 둔다.
+//  숏 진입_m = (ipUpperBandValue2 < shortClear_m),  롱 진입_m = (ipLowerBandValue2 > longClear_m).  m∈{기본(base),거래량(vol),최근봉(recent)}.
+//  ⚠️ 3모드는 모두 computeClearLines를 mode 리터럴("기본"/"거래량 가중"/"최근봉 가중")로 고정 호출한 세트라 ceMode 선택과 무관하다.
+ipUpperBand2Valid = ipShouldPlot and not na(ipUpperBandValue2)
+ipLowerBand2Valid = ipShouldPlot and not na(ipLowerBandValue2)
+shortEnter_base   = ipUpperBand2Valid and not na(shortClear_base)   and ipUpperBandValue2 < shortClear_base
+shortEnter_vol    = ipUpperBand2Valid and not na(shortClear_vol)    and ipUpperBandValue2 < shortClear_vol
+shortEnter_recent = ipUpperBand2Valid and not na(shortClear_recent) and ipUpperBandValue2 < shortClear_recent
+longEnter_base    = ipLowerBand2Valid and not na(longClear_base)    and ipLowerBandValue2 > longClear_base
+longEnter_vol     = ipLowerBand2Valid and not na(longClear_vol)     and ipLowerBandValue2 > longClear_vol
+longEnter_recent  = ipLowerBand2Valid and not na(longClear_recent)  and ipLowerBandValue2 > longClear_recent
+// 숏 후보 = OR_m ( 진입_m ),  롱 후보 = OR_m ( 진입_m ).
+shortCand = shortEnter_base or shortEnter_vol or shortEnter_recent
+longCand  = longEnter_base or longEnter_vol or longEnter_recent
 
-// 후보 판정(CEO 지시 #1·#2) — 3모드 OR. na 가드는 각 항에 포함.
-//  숏 후보 = OR_m ( ipUpperBandValue2 < shortClear_m ),  롱 후보 = OR_m ( ipLowerBandValue2 > longClear_m ).
-shortCand = ipShouldPlot and not na(ipUpperBandValue2) and ((not na(shortClear_base) and ipUpperBandValue2 < shortClear_base) or (not na(shortClear_vol) and ipUpperBandValue2 < shortClear_vol) or (not na(shortClear_recent) and ipUpperBandValue2 < shortClear_recent))
-longCand = ipShouldPlot and not na(ipLowerBandValue2) and ((not na(longClear_base) and ipLowerBandValue2 > longClear_base) or (not na(longClear_vol) and ipLowerBandValue2 > longClear_vol) or (not na(longClear_recent) and ipLowerBandValue2 > longClear_recent))
+// ── 수평 필터(밴드워킹 억제) — 모드 독립 교정(CEO 지시: ceMode가 마커에 관여 금지) ──
+//  버그(교정 전): flat 판정 대상이 화면 페인팅용 shortClear/longClear(=ceMode 세트)였다 → 스윕 모드를 바꾸면 마커 발동이 바뀜(사양 1 위반).
+//  교정(후보 논리와 정합): 후보에 기여한(밴드2가 들어온) 모드의 청산선이 flat일 때만 그 방향 flat 통과로 본다.
+//   → 숏 flatOk = OR_m ( 진입_m AND flat(shortClear_m) ),  롱 flatOk = OR_m ( 진입_m AND flat(longClear_m) ).
+//   3모드 청산선은 mode 리터럴 고정 호출이므로 ceMode 선택과 완전 무관하다. 필터 OFF면 항상 통과(기존 동작 유지).
+ipUpperFlatOk = not ipFlatFilter or ((shortEnter_base and isClearLineFlat(shortClear_base, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)) or (shortEnter_vol and isClearLineFlat(shortClear_vol, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)) or (shortEnter_recent and isClearLineFlat(shortClear_recent, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)))
+ipLowerFlatOk = not ipFlatFilter or ((longEnter_base and isClearLineFlat(longClear_base, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)) or (longEnter_vol and isClearLineFlat(longClear_vol, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)) or (longEnter_recent and isClearLineFlat(longClear_recent, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)))
 
 // 표시 게이트(CEO 지시 #3) — 3봉 평균. 누적 극값 게이트를 대체한다.
 //  숏 변곡: 현재봉 고가 < (현재봉+과거2봉) 고가 평균.
