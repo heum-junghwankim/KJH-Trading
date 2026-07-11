@@ -382,17 +382,18 @@ longCand  = longEnter_base or longEnter_vol or longEnter_recent
 ipUpperFlatOk = not ipFlatFilter or ((shortEnter_base and isClearLineFlat(shortClear_base, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)) or (shortEnter_vol and isClearLineFlat(shortClear_vol, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)) or (shortEnter_recent and isClearLineFlat(shortClear_recent, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)))
 ipLowerFlatOk = not ipFlatFilter or ((longEnter_base and isClearLineFlat(longClear_base, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)) or (longEnter_vol and isClearLineFlat(longClear_vol, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)) or (longEnter_recent and isClearLineFlat(longClear_recent, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)))
 
-// 표시 게이트(CEO 지시 #3) — 3봉 평균. 누적 극값 게이트를 대체한다.
-//  숏 변곡: 현재봉 고가 < (현재봉+과거2봉) 고가 평균.
-//  롱 변곡: 현재봉 저가 > (현재봉+과거2봉) 저가 평균.
-avg3High = (high + high[1] + high[2]) / 3
-avg3Low = (low + low[1] + low[2]) / 3
-shortAvg3Gate = high < avg3High
-longAvg3Gate = low > avg3Low
+// 표시 게이트(CEO 지시 #3) — 3봉 hlc3 평균. 누적 극값 게이트를 대체한다.
+//  숏 변곡: 현재봉 hlc3 < (현재봉+과거2봉) hlc3 평균.
+//  롱 변곡: 현재봉 hlc3 > (현재봉+과거2봉) hlc3 평균.
+//  단일 hlc3 지표 기준이라 숏/롱 게이트가 상호배타(한 봉에서 둘 다 참 불가)다.
+gateHlc3 = (high + low + close) / 3
+avg3Hlc3 = (gateHlc3 + gateHlc3[1] + gateHlc3[2]) / 3
+shortAvg3Gate = gateHlc3 < avg3Hlc3
+longAvg3Gate = gateHlc3 > avg3Hlc3
 
 // 방향성 밴드워킹 억제(ipBwSuppress) AND 결합 — 후보·수평필터·3봉평균 게이트 위에 방향 억제만 얹는다.
-//  숏(빨강·상단) = 후보(3모드OR) AND 수평필터(숏) AND (현재 고가 < 3봉 고가평균) AND (not 상승 밴드워킹).
-//  롱(녹색·하단) = 후보(3모드OR) AND 수평필터(롱) AND (현재 저가 > 3봉 저가평균) AND (not 하락 밴드워킹).
+//  숏(빨강·상단) = 후보(3모드OR) AND 수평필터(숏) AND (현재 hlc3 < 3봉 hlc3평균) AND (not 상승 밴드워킹).
+//  롱(녹색·하단) = 후보(3모드OR) AND 수평필터(롱) AND (현재 hlc3 > 3봉 hlc3평균) AND (not 하락 밴드워킹).
 //  토글 OFF면 억제 항이 항상 참 → 기존 동작 그대로.
 upperBwOk = not ipBwSuppress or not isUpBandWalking
 lowerBwOk = not ipBwSuppress or not isDownBandWalking
