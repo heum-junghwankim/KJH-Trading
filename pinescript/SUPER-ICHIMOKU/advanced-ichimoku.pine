@@ -1175,11 +1175,11 @@ ceMult = input.float(3.0, title="스윕 ATR 배수", minval=0.0, step=0.01, grou
 //  - 거래량 가중: 거래량 큰 봉(VWMA)에 가중 → 거래 몰린 봉에서 스윕가를 끌어올림
 //  - 최근봉 가중: 최근봉(WMA)에 가중 → 휩쏘 급등/급락 봉에서 스윕가를 빠르게·높게
 //  - 거래량+최근봉: 두 가중을 함께(거래량 × 선형 최근봉)
-ceMode = input.string("최근봉 가중", title="스윕 가격 모드", options=["기본", "거래량 가중", "최근봉 가중", "거래량+최근봉"], group="스윕/청산")
+ceMode = input.string("기본", title="스윕 가격 모드", options=["기본", "거래량 가중", "최근봉 가중", "거래량+최근봉"], group="스윕/청산")
 ceWeightLen = input.int(10, title="가중 트레일 길이", minval=1, group="스윕/청산")
 ceWeightMult = input.float(2.0, title="가중 트레일 ATR 배수", minval=0.0, step=0.01, group="스윕/청산")
 // 청산(직선) = 스윕 너머. 세력이 스윕을 더 깊게 찌를 것을 예상해 청산선을 그만큼 바깥에 둔다.
-sweepBufferMult = input.float(1.0, title="청산 버퍼 ATR 배수(스윕 너머)", minval=0.0, step=0.1, group="스윕/청산")
+sweepBufferMult = input.float(0.5, title="청산 버퍼 ATR 배수(스윕 너머)", minval=0.0, step=0.1, group="스윕/청산")
 useSweepPivot = input.bool(true, title="청산에 스윙 풀(피벗) 반영", group="스윕/청산")
 sweepPivotLen = input.int(5, minval=1, title="스윙 풀 좌우 봉수", group="스윕/청산")
 sweepMaxGapMult = input.float(1.0, title="청산-스윕 최대 간격 ATR 배수", minval=0.1, step=0.1, group="스윕/청산")
