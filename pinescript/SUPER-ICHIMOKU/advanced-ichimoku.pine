@@ -377,11 +377,6 @@ disparityMaLen = input.int(20, minval=1, title="이격도 MA 길이", group="이
 disparityThreshold = input.float(10.0, minval=0.1, step=0.1, title="이격도 임계(±%, 고정)", group="이격도")
 disparityStatLen = input.int(50, minval=5, title="이격도 통계 구간(적응형)", group="이격도")
 disparityStatMult = input.float(1.5, minval=0.1, step=0.1, title="이격도 통계 시그마 배수", group="이격도")
-// Ret 손익비(되돌림 기반) 손절 = 이격도 바깥쪽 엣지(disparityNeutralPct × retStopMult). 이익 목표와 같은 이격도 척도. 초기값 2.0은 잠정 — 백테스트로 확정 대상.
-retStopMult = input.float(2.0, minval=0.1, step=0.1, title="Ret 손절 이격 배수", group="이격도", tooltip="Ret 손익비의 손절 = 되돌림 이익 목표(중립 안쪽 엣지)와 같은 이격도 척도의 바깥쪽 엣지. 손절 편차폭 = 중립폭(disparityNeutralPct) × 이 배수. 이격이 더 벌어져 되돌림이 무효화되는 지점. 초기 2.0은 잠정치(백테스트 확정 대상).")
-// Ret 고정손절 폴백 — 순수 E(이격 바깥 엣지) 계산불가(가격이 바깥 엣지 너머라 손절 방향 뒤집힘) 시 고정 %로 대체. 본부추천 주의2%/확실4%·백테스트 확정 대상.
-retFixedStopWarn = input.float(2.0, minval=0.1, step=0.1, title="Ret 고정손절% (되돌림 주의)", group="이격도", tooltip="순수 E(이격 바깥 엣지) 손절이 계산불가일 때 폴백. 되돌림 '주의' 국면에서 손절을 현재가 대비 고정 %로. 롱=close×(1−%/100)·숏=close×(1+%/100). 본부추천 2.0·백테스트 확정 대상.")
-retFixedStopSure = input.float(4.0, minval=0.1, step=0.1, title="Ret 고정손절% (되돌림 확실)", group="이격도", tooltip="순수 E(이격 바깥 엣지) 손절이 계산불가일 때 폴백. 되돌림 '확실' 국면에서 손절을 현재가 대비 고정 %로. 롱=close×(1−%/100)·숏=close×(1+%/100). 본부추천 4.0·백테스트 확정 대상.")
 disparityMa = switch disparityMaType
     "SMA" => ta.sma(close, disparityMaLen)
     "EMA" => ta.ema(close, disparityMaLen)
@@ -1159,72 +1154,10 @@ priceFmt = priceDecimals == 0 ? "#,##0" : priceDecimals == 1 ? "#,##0.0" : price
 f_price(p) => str.tostring(p, priceFmt)
 // 화살표는 현재 가격(close) 대비 트리거 가격 위치로 결정: 트리거가 현재가보다 높으면 ↑, 낮으면 ↓
 f_arrow(refPrice) => refPrice > close ? "↑ " : "↓ "
-// 청산가의 현재 종가 대비 % (롱 청산은 아래라 −, 숏 청산은 위라 +)
+// 대상 가격의 현재 종가 대비 % (현재가보다 위면 +, 아래면 −). 되돌림가·트리거가 표기에 재사용.
 f_pct(p) =>
     d = (p - close) / close * 100
     (d > 0 ? "+" : "") + str.tostring(d, "0.0") + "%"
-
-// 샹들리에 청산선 '값 계산'(Cha 손익비 전용) — 차트 페인팅(선·라벨)은 하지 않는다(청산선 페인팅은 auto-vwap 으로 이동됨).
-//  스윕(샹들리에 ATR 트레일링) = longCE/shortCE. 청산선(그 너머 손절 기준선) = longClear/shortClear.
-//  값은 확정값(close[1]·ta.highest/lowest·확정 피벗) 기반이라 리페인팅 없음. 아래 (1) Cha 손익비가 청산선 값을 손절선으로 사용.
-ceLength = input.int(22, title="스윕 룩백 길이", minval=1, group="스윕/청산")
-ceAtrLen = input.int(22, title="스윕 ATR 길이", minval=1, group="스윕/청산")
-ceMult = input.float(3.0, title="스윕 ATR 배수", minval=0.0, step=0.01, group="스윕/청산")
-// 스윕 가격 모드(샹들리에 기반):
-//  - 기본: 표준 샹들리에(룩백 고가/저가 − ATR)
-//  - 거래량 가중: 거래량 큰 봉(VWMA)에 가중 → 거래 몰린 봉에서 스윕가를 끌어올림
-//  - 최근봉 가중: 최근봉(WMA)에 가중 → 휩쏘 급등/급락 봉에서 스윕가를 빠르게·높게
-//  - 거래량+최근봉: 두 가중을 함께(거래량 × 선형 최근봉)
-ceMode = input.string("기본", title="스윕 가격 모드", options=["기본", "거래량 가중", "최근봉 가중", "거래량+최근봉"], group="스윕/청산")
-ceWeightLen = input.int(10, title="가중 트레일 길이", minval=1, group="스윕/청산")
-ceWeightMult = input.float(2.0, title="가중 트레일 ATR 배수", minval=0.0, step=0.01, group="스윕/청산")
-// 청산(직선) = 스윕 너머. 세력이 스윕을 더 깊게 찌를 것을 예상해 청산선을 그만큼 바깥에 둔다.
-sweepBufferMult = input.float(0.5, title="청산 버퍼 ATR 배수(스윕 너머)", minval=0.0, step=0.1, group="스윕/청산")
-useSweepPivot = input.bool(true, title="청산에 스윙 풀(피벗) 반영", group="스윕/청산")
-sweepPivotLen = input.int(5, minval=1, title="스윙 풀 좌우 봉수", group="스윕/청산")
-sweepMaxGapMult = input.float(1.0, title="청산-스윕 최대 간격 ATR 배수", minval=0.1, step=0.1, group="스윕/청산")
-
-atrCe = ta.atr(ceAtrLen)   // 한 번만 계산해 ceAtrVal·weightAtr·sweepAtr에서 재사용(중복 ta.atr 제거)
-ceAtrVal = ceMult * atrCe
-// 거래량 × 최근봉(선형) 가중 평균
-f_volRecencyMa(src, len) =>
-    float num = 0.0
-    float den = 0.0
-    for i = 0 to len - 1
-        float w = volume[i] * (len - i)
-        num += src[i] * w
-        den += w
-    den != 0 ? num / den : src
-// 모드별 앵커 — 활성 모드에 필요한 것만 계산(기본 모드에선 VWMA/WMA/가중루프 모두 생략 → 속도↑). ceMode는 세션 상수.
-// 가중 모드(거래량/최근봉/거래량+최근봉)는 형성 중인 현재봉을 제외하고 **직전 봉 기준**([1])으로 앵커를 잡는다.
-longAnchorWNow = ceMode == "거래량 가중" ? ta.vwma(high, ceWeightLen) : ceMode == "최근봉 가중" ? ta.wma(high, ceWeightLen) : ceMode == "거래량+최근봉" ? f_volRecencyMa(high, ceWeightLen) : na
-shortAnchorWNow = ceMode == "거래량 가중" ? ta.vwma(low, ceWeightLen) : ceMode == "최근봉 가중" ? ta.wma(low, ceWeightLen) : ceMode == "거래량+최근봉" ? f_volRecencyMa(low, ceWeightLen) : na
-longAnchorW = longAnchorWNow[1]
-shortAnchorW = shortAnchorWNow[1]
-weightAtr = ceWeightMult * atrCe
-longCERaw = ceMode == "기본" ? ta.highest(high, ceLength) - ceAtrVal : longAnchorW - weightAtr
-shortCERaw = ceMode == "기본" ? ta.lowest(low, ceLength) + ceAtrVal : shortAnchorW + weightAtr
-var float longCE = na
-longCEPrev = nz(longCE[1], longCERaw)
-longCE := close[1] > longCEPrev ? math.max(longCERaw, longCEPrev) : longCERaw
-var float shortCE = na
-shortCEPrev = nz(shortCE[1], shortCERaw)
-shortCE := close[1] < shortCEPrev ? math.min(shortCERaw, shortCEPrev) : shortCERaw
-
-// 청산(직선) = 스윕(longCE/shortCE) 너머. ATR 버퍼 + 옵션으로 가장 가까운 스윙 풀(피벗) 너머까지.
-sweepAtr = atrCe
-sweepPLow = ta.pivotlow(sweepPivotLen, sweepPivotLen)
-sweepPHigh = ta.pivothigh(sweepPivotLen, sweepPivotLen)
-var float lastSweepPLow = na
-var float lastSweepPHigh = na
-lastSweepPLow := not na(sweepPLow) ? sweepPLow : lastSweepPLow
-lastSweepPHigh := not na(sweepPHigh) ? sweepPHigh : lastSweepPHigh
-longClear = longCE - sweepBufferMult * sweepAtr
-longClear := useSweepPivot and not na(lastSweepPLow) ? math.min(longClear, lastSweepPLow - syminfo.mintick) : longClear
-longClear := math.max(longClear, longCE - sweepMaxGapMult * sweepAtr)   // 스윕과의 간격 상한(괴리감 방지)
-shortClear = shortCE + sweepBufferMult * sweepAtr
-shortClear := useSweepPivot and not na(lastSweepPHigh) ? math.max(shortClear, lastSweepPHigh + syminfo.mintick) : shortClear
-shortClear := math.min(shortClear, shortCE + sweepMaxGapMult * sweepAtr)
 
 // 가격이 없으면(같은 방향 신호가 이미 나와 막힘 = 그 방향 진행 중) 상승/하락으로 표시.
 // 진행 중(상승/하락 추세)이면 그 스케일 기준선(baseRef) 대비 이격도(기준 100: 종가÷기준선×100)를 괄호로 표기.
@@ -1456,72 +1389,7 @@ candleStopCellColor = candleClsName == "혼조" ? color.new(color.gray, 40) : ca
 //  실시간 모드(candleConfirmOnClose=false)면 봉 완성 전 색 변동(리페인팅) — 표시 전용이라 감수.
 barcolor(candleShowState ? candleBarColor : na, title="캔들 상태 바색")
 
-// =========================
-// 손익비(RR) — 2종·3행: Cha(청산선)·Ret(되돌림).
-//  (VWAP(밴드2) 손익비는 CEO 지시로 제거됨 — 표시 전용·매매 미사용.)
-//  각 손익비는 서로 독립 계산되어 각자의 행에 표시된다(우선순위 통합 없음).
-//  RR = 목표까지 거리(reward) ÷ 손절까지 거리(risk). reward>0·risk>0일 때만 유효, 아니면 "계산 불가".
-// =========================
-// 공통 RR 텍스트: "비율 (+목표%/-손절%)". 접두(pfx)로 Cha/VWAP/Ret·L/S 구분.
-f_rrText(pfx, rr, rewardPct, riskPct) => na(rr) ? "계산 불가" : pfx + str.tostring(rr, "0.00") + " (+" + str.tostring(rewardPct, "0.0") + "% / -" + str.tostring(riskPct, "0.0") + "%)"
-// Ret 고정손절 폴백 전용: 괄호 안 손절 자리를 "고정 -X.X%"로 렌더(괄호 밖 태그 없음). 순수 E는 f_rrText 그대로.
-f_rrTextFixed(pfx, rr, rewardPct, fixedPct) => na(rr) ? "계산 불가" : pfx + str.tostring(rr, "0.00") + " (+" + str.tostring(rewardPct, "0.0") + "% / 고정 -" + str.tostring(fixedPct, "0.0") + "%)"
-// Cha·VWAP 손익비 색(동일 로직): ≥1.5 유리(초록)·≥1.0 중립(회색)·<1 불리(빨강)·na 계산불가(회색).
-f_rrColor(rr) => na(rr) ? color.new(color.gray, 40) : rr >= 1.5 ? color.new(color.green, 30) : rr >= 1.0 ? color.new(color.gray, 40) : color.new(color.red, 30)
-// Ret 손익비 색(별도 등급 — Cha/VWAP와 임계 다름): ≥5 녹색·3~5 둔탁녹·<3 회색·na 계산불가(회색). <3=회색은 본부 기본값(저RR 보조, 조정 가능).
-f_retRrColor(rr) => na(rr) ? color.new(color.gray, 40) : rr >= 5 ? color.new(color.green, 0) : rr >= 3 ? color.new(#6E8F72, 0) : color.new(color.gray, 40)
-
-// (1) Cha 롱/숏 손익비 — 롱숏 청산선 기준. 진입=현재 종가.
-//  Cha 롱: 목표=숏 청산선(위)·손절=롱 청산선(아래). 종가가 두 청산선 사이일 때만 유효.
-//  Cha 숏: 목표=롱 청산선(아래)·손절=숏 청산선(위). "이 범주(청산선 범위)를 지나면"(종가가 밖) 계산 불가.
-//  청산선 값(shortClear/longClear)은 위 스윕/청산 값 계산부(페인팅 없음·확정값 기반·리페인팅 없음)에서 참조.
-chaUp = shortClear - close     // 위쪽(숏 청산선까지) 거리
-chaDown = close - longClear    // 아래쪽(롱 청산선까지) 거리
-chaValid = chaUp > 0 and chaDown > 0   // 종가가 롱·숏 청산선 사이(범주 안)일 때만 유효
-chaLongRR = chaValid ? chaUp / chaDown : na
-chaShortRR = chaValid ? chaDown / chaUp : na
-chaUpPct = close != 0 ? math.abs(chaUp / close * 100) : na
-chaDownPct = close != 0 ? math.abs(chaDown / close * 100) : na
-chaLongText = chaValid ? f_rrText("", chaLongRR, chaUpPct, chaDownPct) : "계산 불가"
-chaShortText = chaValid ? f_rrText("", chaShortRR, chaDownPct, chaUpPct) : "계산 불가"
-
-// (2) Ret 롱숏 손익비(1행 통합) — 되돌림 가격 기준(보조). 회색.
-//  구조: 순수 E안(이격 바깥 엣지) 우선, 계산불가 시 고정손절 폴백.
-//  [순수 E안] 이익·손절 모두 disparityMa 기준 이격도%로 같은 척도.
-//   - 이익 목표 = 중립 '안쪽' 엣지(disparityPullbackPrice) = disparityMa × (1 ± disparityNeutralPct/100).
-//   - 손절     = 같은 방향 '바깥쪽' 엣지 = disparityMa × (1 ± disparityStopPct/100), disparityStopPct = disparityNeutralPct × retStopMult.
-//     (이격이 더 벌어져 되돌림이 무효화되는 지점 — 되돌림 이익 프레임워크와 동일 척도).
-//   롱(과매도, underCount≥1): retStopPrice = disparityMa × (1 − disparityStopPct/100)  // 현재가 아래(더 벌어짐)
-//   숏(과열,   overCount≥1): retStopPrice = disparityMa × (1 + disparityStopPct/100)  // 현재가 위
-//   방향 검증: 롱은 손절가가 현재가 아래·숏은 위여야 유효. 가격이 이미 바깥 엣지 너머면 방향이 뒤집혀 순수 E 계산불가.
-//   RR(순수) = retReward/retRisk (둘 다 종가 대비 % — retReward=|되돌림가−close|/close·retRisk=|손절가−close|/close).
-//  [고정손절 폴백] 되돌림 주의/확실(disparityPullbackPrice not na)인데 순수 E가 계산불가일 때만 발동.
-//   손절%를 disparityState로 분기(주의→retFixedStopWarn·확실→retFixedStopSure). 손절가 = 롱 close×(1−%/100)·숏 close×(1+%/100) → 항상 현재가 바깥이라 유효.
-//   RR(폴백) = retReward / 고정손절%. 이익 목표는 순수 E와 동일(disparityPullbackPrice).
-//   → 되돌림 주의/확실 국면에서는 (순수 E 유효 시 E값, 아니면 폴백)으로 항상 계산됨 — 계산불가가 사라진다.
-//  방향 접두: 과매도(롱 방향, underCount≥1)면 "L "·과열(숏 방향, overCount≥1)면 "S ".
-//  계산 불가(na)로 남는 경우: disparityPullbackPrice na(중립=되돌림 없음, 정상) · disparityMa na 또는 0 · close==0 · retReward≤0. (중립일 때만 계산불가)
-disparityStopPct = disparityNeutralPct * retStopMult
-retMaOk = not na(disparityMa) and disparityMa != 0
-retStopPriceRaw = retMaOk ? (underCount >= 1 ? disparityMa * (1 - disparityStopPct / 100) : overCount >= 1 ? disparityMa * (1 + disparityStopPct / 100) : na) : na
-// 손절 방향 검증: 롱은 손절가가 현재가 아래, 숏은 위여야 유효. 아니면 na(→ 폴백 대상).
-retStopPrice = not na(retStopPriceRaw) ? (underCount >= 1 ? (retStopPriceRaw < close ? retStopPriceRaw : na) : overCount >= 1 ? (retStopPriceRaw > close ? retStopPriceRaw : na) : na) : na
-retReward = not na(disparityPullbackPrice) and close != 0 ? math.abs(disparityPullbackPrice - close) / close * 100 : na
-retRisk = not na(retStopPrice) and close != 0 ? math.abs(retStopPrice - close) / close * 100 : na
-// risk가 mintick 이하로 좁으면(RR 무한대·왜곡) 계산 불가 처리.
-retRiskOk = not na(retRisk) and not na(retStopPrice) and math.abs(retStopPrice - close) > syminfo.mintick and retRisk > 0
-retRRPure = (not na(retReward) and retRiskOk and retReward > 0) ? retReward / retRisk : na
-retPfx = underCount >= 1 ? "L " : overCount >= 1 ? "S " : ""
-// 고정손절 폴백: 되돌림 주의/확실(disparityPullbackPrice not na)인데 순수 E(retRRPure) na일 때만.
-retFixedPct = disparityState == "되돌림 확실" ? retFixedStopSure : retFixedStopWarn
-retUseFixed = na(retRRPure) and not na(disparityPullbackPrice) and not na(retReward) and retReward > 0 and retPfx != ""
-retRRFixed = retUseFixed and retFixedPct > 0 ? retReward / retFixedPct : na
-// 폴백 셀: 괄호 안 손절 자리를 "고정 -X.X%"로 통합 렌더(외부 태그 제거). 순수 E 유효 케이스는 f_rrText 그대로.
-retText = not na(retRRPure) ? f_rrText(retPfx, retRRPure, retReward, retRisk) : (not na(retRRFixed) ? f_rrTextFixed(retPfx, retRRFixed, retReward, retFixedPct) : "계산 불가")
-// 셀 색이 참조할 실제 표시 RR = 순수 E 우선, 없으면 폴백(retText와 동일 우선순위). 둘 다 na면 na(회색).
-retRR = not na(retRRPure) ? retRRPure : retRRFixed
-
-var table triggerTable = table.new(position.top_right, 2, 24, border_width=1, border_color=color.new(color.gray, 50))
+var table triggerTable = table.new(position.top_right, 2, 20, border_width=1, border_color=color.new(color.gray, 50))
 if barstate.islast
     // ── 섹션 1: [추세 확인] (row 0, 병합 헤더) — 기존 "항목|값" 헤더를 섹션 헤더로 대체.
     //    스타일 통일: merge_cells · 딥 네이비 배경 #1B2A4A · 흰 글자 · size.small (값 열은 빈 문자열 후 병합).
@@ -1599,21 +1467,6 @@ if barstate.islast
     table.cell(triggerTable, 1, 18, ltCellText, text_color=color.white, bgcolor=ltCellColor, text_size=size.small)
     table.cell(triggerTable, 0, 19, "장기 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
     table.cell(triggerTable, 1, 19, ltSrText, text_color=color.white, bgcolor=ltSrColor, text_size=size.small)
-
-    // ── 섹션 4: [손익비 현황 확인] (row 20, 병합 헤더) — 텍스트만 수정, 스타일 동일.
-    table.cell(triggerTable, 0, 20, "손익비 현황 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.cell(triggerTable, 1, 20, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.merge_cells(triggerTable, 0, 20, 1, 20)
-
-    // 손익비(RR) 3행 — Cha(청산선, 주 손익비·색 로직) / Ret(되돌림, 회색). (VWAP(밴드2) 2행은 CEO 지시로 제거.)
-    //  (1) Cha 롱/숏 — 청산선 범위 밖이면 "계산 불가", 셀 색 = f_rrColor(유리/중립/불리/계산불가).
-    table.cell(triggerTable, 0, 21, "Cha 롱 손익비", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 21, chaLongText, text_color=color.white, bgcolor=f_rrColor(chaLongRR), text_size=size.small)
-    table.cell(triggerTable, 0, 22, "Cha 숏 손익비", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 22, chaShortText, text_color=color.white, bgcolor=f_rrColor(chaShortRR), text_size=size.small)
-    //  (2) Ret 롱숏 — 되돌림 가격 기준(1행 통합), 셀 색 = f_retRrColor(≥5 녹/3~5 둔탁녹/<3·na 회색). L=과매도(롱)·S=과열(숏)·없으면 "계산 불가".
-    table.cell(triggerTable, 0, 23, "Ret 롱숏 손익비", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 23, retText, text_color=color.white, bgcolor=f_retRrColor(retRR), text_size=size.small)
 
 // 이평 기반 상태 표식(+ 모양) (압축=보라 #9C27B0[상승·하락과 확실히 구분], 상승 분출=파랑, 하락 분출=빨강)
 // 먼저 그려서 아래 신호 삼각형보다 뒤(아래 레이어)에 오게 한다.
