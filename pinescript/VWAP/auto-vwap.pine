@@ -99,7 +99,7 @@ sessionCount = array.size(sessionStartPV)
 anchorSessionIndex = anchorMode == "Session" ? sessionCount - 1 : math.max(sessionCount - recentTradingDays, 0)
 
 // VWAP·밴드·밴드2 계산 헬퍼 — window 길이(barsLen: Recent Bars 모드일 때의 rolling length)를 파라미터로 받아
-//  단일 기본 세트(length=50)를 계산한다(CEO 지시 심플화: 변곡 전용 세트 제거, 하나로 통합).
+//  "기본 화면용(length=50)"과 "변곡 지점용(length=22)" 두 세트를 독립 계산한다(CEO 지시: VWAP 완전 분리).
 //  누적값(cumulative*)·세션 앵커 배열은 window 무관 공통값이라 재사용한다.
 //  산식 자체(anchored VWAP + 로그/절대 표준편차 밴드)는 원본과 100% 동일.
 //  반환: [vwapValue, upperBand1, lowerBand1, upperBand2, lowerBand2, shouldPlot].
@@ -147,28 +147,52 @@ computeVwapSet(int barsLen) =>
     [vwapLocal, upperBand1Local, lowerBand1Local, upperBand2Local, lowerBand2Local, shouldPlotLocal]
 
 // =========================
-// 변곡 지점(Inflection Point) 설정 — 밴드2 상/하단 선이 "기본 청산선"(longClear/shortClear) 안으로 들어오는 순간을
-//  마커로 표시하기 위한 표시 옵션이다. CEO 지시(심플화): 변곡 전용 VWAP/청산선 파라미터 세트를 모두 제거하고,
-//  판정·표시를 **기본 화면 VWAP 세트의 밴드2 + 기본 청산선**만으로 계산한다(중복 옵션 제거).
+// 변곡 지점(Inflection Point) 설정 — 밴드2 상/하단 선이 "변곡 지점용 청산선"(ipLongClear/ipShortClear) 안으로
+//  들어오는 순간을 마커로 표시하기 위한 표시 옵션이다. CEO 지시(재도입): 변곡 전용 VWAP·청산선 파라미터 세트를
+//  기본 화면 세트와 **완전히 독립**으로 다시 둔다(기본 화면 VWAP recentBars=50 과 무관, 변곡용 기본 22).
 //  ⚠️ 이 그룹은 판정·마커 표시 전용이며, 화면에 청산선(직선)을 그리지 않는다(마커만 그린다).
 //  ⚠️ 매매 전략(진입·청산·임계값)과 무관한 표시 옵션이다.
 // =========================
 IP_GROUP = "변곡 지점"
-ipShowMarkers = input.bool(true, title="변곡 지점 마커 표시", group=IP_GROUP, tooltip="밴드2 상/하단 선이 기본 청산선 안으로 들어오는 순간을 밴드2 값 위치에 마커로 표시합니다(색=기본 청산선 색).")
+ipShowMarkers = input.bool(true, title="변곡 지점 마커 표시", group=IP_GROUP, tooltip="밴드2 상/하단 선이 변곡 지점용 청산선 안으로 들어오는 순간을 변곡용 밴드2 값 위치에 마커로 표시합니다(색=변곡용 청산선 색). 베이스라인 vs 변곡 VWAP 위치 관계와 AND로 결합합니다.")
+// 변곡 지점 판정용 VWAP window 길이 — 기본 화면 VWAP(recentBars=50)와 **완전 독립**. CEO 지시: 변곡용 기본 22.
+//  이 length로 별도 window(±σ 밴드·밴드2 포함)를 산출하고, 변곡 지점 마커 판정은 이 변곡용 밴드2/VWAP 기준으로 계산한다.
+//  (anchored 특성: Recent Bars 앵커 모드에서만 유효. Session/Recent Trading Days 모드에선 기본 세트와 동일 앵커를 공유.)
+ipRecentBars = input.int(defval=22, title="[변곡] Recent Bars (변곡 VWAP)", minval=1, group=IP_GROUP, display=display.none, active=anchorMode == "Recent Bars", tooltip="변곡 지점 판정용 VWAP의 window 길이(N선). 기본 화면 VWAP와 독립. 기본 22. Recent Bars 앵커 모드에서만 유효합니다.")
 // 마커 모양 옵션(기본값=십자가). 리터럴 style plotshape로 분기하므로 컴파일 안전(입력→series 강등 이슈 없음).
 ipMarkerStyle = input.string("십자가", title="변곡 지점 마커 모양", options=["십자가", "원", "삼각형", "다이아몬드", "네모"], group=IP_GROUP, active=ipShowMarkers, tooltip="변곡 지점 마커의 모양입니다. 기본값은 십자가(cross)입니다.")
+// 변곡점용 베이스 라인(이치모쿠 Kijun-sen) 기간 — 화면 미표시(hidden), 마커 AND 게이트 판정 전용. 기본 22.
+ipBaseLen = input.int(22, title="[변곡] 이치모쿠 베이스라인 기간", minval=1, group=IP_GROUP, display=display.none, tooltip="변곡점용 베이스 라인(이치모쿠 Kijun-sen = (기간 최고가+최저가)/2)의 기간. 화면에는 표시하지 않고 변곡 마커 AND 판정에만 씁니다. 기본 22.")
+// 변곡 지점 판정용 청산선 파라미터 — 기본 세트와 동일 기본값. 독립 조정 가능.
+ipCeLength = input.int(22, title="[변곡] 스윕 룩백 길이", minval=1, group=IP_GROUP, display=display.none)
+ipCeAtrLen = input.int(22, title="[변곡] 스윕 ATR 길이", minval=1, group=IP_GROUP, display=display.none)
+ipCeMult = input.float(3.0, title="[변곡] 스윕 ATR 배수", minval=0.0, step=0.01, group=IP_GROUP, display=display.none)
+ipCeMode = input.string("기본", title="[변곡] 스윕 가격 모드", options=["기본", "거래량 가중", "최근봉 가중", "거래량+최근봉"], group=IP_GROUP, display=display.none)
+ipCeWeightLen = input.int(10, title="[변곡] 가중 트레일 길이", minval=1, group=IP_GROUP, display=display.none)
+ipCeWeightMult = input.float(1.5, title="[변곡] 가중 트레일 ATR 배수", minval=0.0, step=0.01, group=IP_GROUP, display=display.none)
+ipSweepBufferMult = input.float(0.4, title="[변곡] 청산 버퍼 ATR 배수(스윕 너머)", minval=0.0, step=0.1, group=IP_GROUP, display=display.none)
+ipUseSweepPivot = input.bool(true, title="[변곡] 청산에 스윙 풀(피벗) 반영", group=IP_GROUP, display=display.none)
+ipSweepPivotLen = input.int(5, minval=1, title="[변곡] 스윙 풀 좌우 봉수", group=IP_GROUP, display=display.none)
+ipSweepMaxGapMult = input.float(1.0, title="[변곡] 청산-스윕 최대 간격 ATR 배수", minval=0.1, step=0.1, group=IP_GROUP, display=display.none)
+// 변곡 지점 마커 색 = 변곡용 청산선 색과 동일(요구사항 1). 기본 화면 청산선 색과 같은 기본값.
+ipLongClearLineColor = input.color(#00C853, title="[변곡] 롱 청산선 색(하단 마커 색)", group=IP_GROUP, active=ipShowMarkers, display=display.none, tooltip="하단선 변곡 시 마커 색. 변곡용 청산선 색과 동일하게 씁니다.")
+ipShortClearLineColor = input.color(#FF1744, title="[변곡] 숏 청산선 색(상단 마커 색)", group=IP_GROUP, active=ipShowMarkers, display=display.none, tooltip="상단선 변곡 시 마커 색. 변곡용 청산선 색과 동일하게 씁니다.")
 // 요구사항 4: 밴드워킹 억제 필터 — 변곡 시점 청산선의 기울기가 "근사 수평"일 때만 마커를 표시한다.
 //  청산선이 추세로 기울어(위/아래 워킹 중) 있으면 변곡 조건이 성립해도 마커를 억제한다.
 //  판정: 최근 N봉 사이 청산선 값 변화량(|line - line[N]|)을 ATR로 정규화한 비율(=ATR 대비 배수)이 임계 이내면 수평.
 //   → 절대 가격차가 아니라 ATR 정규화 비율이라 종목·타임프레임 무관하게 동작한다.
-//  상단 마커는 기본 청산선 shortClear, 하단 마커는 기본 청산선 longClear의 기울기로 각각 독립 판정한다.
+//  상단 마커는 변곡용 청산선 ipShortClear, 하단 마커는 변곡용 청산선 ipLongClear 의 기울기로 각각 독립 판정한다.
 //  ⚠️ 청산선 계산·전략 로직과 무관한 표시 전용 필터다(마커 억제만).
 ipFlatFilter = input.bool(true, title="변곡 시 청산선 수평 필터(밴드워킹 억제)", group=IP_GROUP, active=ipShowMarkers, tooltip="켜면 변곡 시점 청산선 기울기가 근사 수평일 때만 마커를 표시합니다. 청산선이 추세로 기울어(밴드워킹 중) 있으면 변곡이어도 억제합니다.")
 ipFlatLookback = input.int(3, title="[변곡] 수평 판정 lookback 봉수", minval=1, group=IP_GROUP, active=ipShowMarkers and ipFlatFilter, display=display.none, tooltip="청산선 기울기를 측정할 과거 봉 수(N). 최근 N봉 사이 청산선 값 변화량으로 기울기를 판정합니다. 기본 3.")
 ipFlatSlopeMax = input.float(0.10, title="[변곡] 수평 허용 기울기(ATR 대비 배수)", minval=0.0, step=0.01, group=IP_GROUP, active=ipShowMarkers and ipFlatFilter, display=display.none, tooltip="N봉 사이 청산선 변화량 ÷ ATR 이 이 값 이하이면 '수평'으로 간주합니다. 보수적 기본 0.10(=ATR의 10%). 값을 키우면 더 기울어도 표시, 줄이면 더 엄격히 수평만 표시.")
 
-// 기본 화면용 VWAP 세트(length=50) — 화면 plot·밴드·라벨의 기준이자 변곡 지점 판정의 밴드2 기준.
+// 기본 화면용 VWAP 세트(length=50) — 화면 plot·밴드·라벨의 기준.
 [vwapValue, upperBandValue1, lowerBandValue1, upperBandValue2, lowerBandValue2, shouldPlot] = computeVwapSet(recentBars)
+// 변곡 지점 판정용 VWAP 세트(length=22) — 변곡 지점 마커 판정에만 쓰는 독립 window·밴드2/VWAP.
+[ipVwapValue, ipUpperBandValue1, ipLowerBandValue1, ipUpperBandValue2, ipLowerBandValue2, ipShouldPlot] = computeVwapSet(ipRecentBars)
+// 변곡점용 베이스 라인(이치모쿠 Kijun-sen = (기간 최고가+최저가)/2, 기본 len=22) — 화면 미표시(hidden), 마커 AND 판정 전용.
+ipBaseLine = (ta.highest(high, ipBaseLen) + ta.lowest(low, ipBaseLen)) / 2
 
 isLowerBand2Break = shouldPlot and showBand_2 and not na(lowerBandValue2) and low < lowerBandValue2
 isUpperBand2Break = shouldPlot and showBand_2 and not na(upperBandValue2) and high > upperBandValue2
@@ -193,8 +217,9 @@ color activeFillColor = color.new(activeLineColor, 92)
 //    기본값은 이치모쿠와 동일하게 "기본". 가중 모드 선택 시 청산선(longCE/shortCE→longClear/shortClear)이 그 가중 앵커 기준으로 계산됨.
 //  - 확정 성격 값(ta.*)·과거참조([1] 트레일)만 사용 → 이치모쿠와 동일하게 신규 리페인팅 없음.
 //    가중 모드도 앵커를 직전 봉([1]) 기준으로 잡아(형성 중 현재봉 제외) 이치모쿠와 동일한 확정 성격 유지.
-//  - 청산선(longClear/shortClear)은 computeClearLines 헬퍼로 계산하며 **단일 기본 세트**다(CEO 지시 심플화):
-//    파일 하단에서 plot 으로 전 히스토리 봉에 직접 그리고(이치모쿠에서 이동), 동시에 밴드2 변곡 지점(마커) 판정에도 쓴다.
+//  - 청산선(longClear/shortClear)은 computeClearLines 헬퍼로 계산하며 **두 세트**로 나뉜다(CEO 지시: 세트 완전 독립):
+//    (a) 기본 화면용("스윕/청산" 그룹) → 파일 하단에서 plot 으로 전 히스토리 봉에 직접 그린다(이치모쿠에서 이동). 화면 페인팅 전용.
+//    (b) 변곡 지점용("변곡 지점" 그룹) → 밴드2 변곡 지점(마커) 판정에만 쓰고 청산선 자체는 그리지 않는다.
 //    스윕라인(longCE/shortCE)은 여기로 옮기지 않는다(그리지 않음).
 // =========================
 ceLength = input.int(22, title="스윕 룩백 길이", minval=1, group="스윕/청산")
@@ -214,7 +239,7 @@ sweepPivotLen = input.int(5, minval=1, title="스윙 풀 좌우 봉수", group="
 sweepMaxGapMult = input.float(1.0, title="청산-스윕 최대 간격 ATR 배수", minval=0.1, step=0.1, group="스윕/청산")
 // 청산선(직선=손절 기준선) 차트 페인팅 옵션 — 이치모쿠에서 이 지표로 이동(CEO 지시).
 //  청산선(longClear/shortClear)만 전 히스토리 봉에 plot으로 그린다(스윕라인 longCE/shortCE는 여기로 옮기지 않음).
-//  ⚠️ 이 "스윕/청산" 그룹의 청산선은 화면 plot이자 변곡 지점(밴드2 마커) 판정 기준으로도 함께 쓰인다(CEO 지시 심플화: 단일 세트).
+//  ⚠️ 이 "스윕/청산" 그룹의 청산선은 화면 plot 전용이다. 변곡 지점(밴드2 마커) 판정은 "변곡 지점" 그룹의 독립 청산선 세트를 쓴다(CEO 지시: 세트 완전 독립).
 showClearLines = input.bool(true, title="청산선 표시(전 히스토리 봉)", group="스윕/청산", tooltip="롱/숏 청산선(직선=손절 기준선)을 차트 전 구간 봉마다 plot으로 그립니다. 스윕라인(점선)은 이 지표에 없습니다(이치모쿠 전략 전용).")
 clearLineWidth = input.int(1, title="청산 선 두께", minval=1, group="스윕/청산", active=showClearLines)
 longClearLineColor = input.color(#00C853, title="롱 청산선 색", group="스윕/청산", active=showClearLines, tooltip="청산선(직선=손절 기준선)의 롱 색. 값 계산·밴드2 색 판정에는 영향 없는 표시 옵션입니다.")
@@ -267,20 +292,22 @@ computeClearLines(int ceLen, int atrLen, float mult, string mode, int wLen, floa
     shortClearLocal := math.min(shortClearLocal, shortCE + maxGapMult * sweepAtr)
     [longClearLocal, shortClearLocal]
 
-// 기본 청산선 세트 — 화면에 plot으로 그려지고, 변곡 지점(밴드2 마커) 판정에도 함께 쓰인다(CEO 지시 심플화: 단일 세트).
+// (a) 기본 청산선 세트 — 화면에 plot으로 그려진다(전 히스토리 봉). 변곡 마커 판정에는 쓰지 않는다.
 [longClear, shortClear] = computeClearLines(ceLength, ceAtrLen, ceMult, ceMode, ceWeightLen, ceWeightMult, sweepBufferMult, useSweepPivot, sweepPivotLen, sweepMaxGapMult)
-// 수평 필터용 ATR — 변곡 판정 대상이 기본 청산선(longClear/shortClear)이므로 기본 스윕 ATR 길이(ceAtrLen)에 맞춘다.
-ipFlatAtr = ta.atr(ceAtrLen)
+// (b) 변곡 지점(밴드2 마커) 판정용 청산선 세트 — 화면에 청산선을 그리지 않고 마커 판정에만 쓴다(CEO 지시: 세트 완전 독립).
+[ipLongClear, ipShortClear] = computeClearLines(ipCeLength, ipCeAtrLen, ipCeMult, ipCeMode, ipCeWeightLen, ipCeWeightMult, ipSweepBufferMult, ipUseSweepPivot, ipSweepPivotLen, ipSweepMaxGapMult)
+// 수평 필터용 ATR — 변곡 판정 대상이 변곡용 청산선(ipLongClear/ipShortClear)이므로 변곡용 스윕 ATR 길이(ipCeAtrLen)에 맞춘다.
+ipFlatAtr = ta.atr(ipCeAtrLen)
 
 // =========================
-// 변곡 지점(Inflection Point) 판정 — 밴드2 상/하단 선이 "기본 청산선"(longClear/shortClear) 안으로
-//  들어오는지 판정한다. 밴드2 선 색은 기본색 고정(요구사항 1), 변곡 순간은 마커로만 표시한다(요구사항 2).
-//  - 밴드 선 위치·색은 절대 변경하지 않는다(밴드2는 언제나 원값 위치 + 기본 activeLineColor).
-//  - 상단 밴드(upperBandValue2)가 "위쪽 청산선"(shortClear) 안쪽으로 들어옴(upperBandValue2 < shortClear) => 상단 마커(숏 청산선 색).
-//  - 하단 밴드(lowerBandValue2)가 "아래쪽 청산선"(longClear) 안쪽으로 들어옴(lowerBandValue2 > longClear) => 하단 마커(롱 청산선 색).
+// 변곡 지점(Inflection Point) 판정 — 밴드2 상/하단 선이 "변곡 지점용 청산선"(ipLongClear/ipShortClear) 안으로
+//  들어오는지 판정한다. 밴드2 선 색은 기본색 고정, 변곡 순간은 마커로만 표시한다.
+//  - 화면 밴드(upperBandValue2/lowerBandValue2) 위치·색은 절대 변경하지 않는다(언제나 원값 위치 + 기본 activeLineColor).
+//  - 상단 밴드(변곡용 ipUpperBandValue2)가 "위쪽 청산선"(ipShortClear) 안쪽으로 들어옴(ipUpperBandValue2 < ipShortClear) => 상단 마커(숏 청산선 색).
+//  - 하단 밴드(변곡용 ipLowerBandValue2)가 "아래쪽 청산선"(ipLongClear) 안쪽으로 들어옴(ipLowerBandValue2 > ipLongClear) => 하단 마커(롱 청산선 색).
 //  - 상/하단 각각 독립 판정.
 // =========================
-// 변곡 판정은 **기본 화면 VWAP 세트의 밴드2**(upperBandValue2/lowerBandValue2)와 **기본 청산선**(longClear/shortClear) 기준이다.
+// 변곡 판정은 **변곡용 VWAP 세트(length=22)의 밴드2**(ipUpperBandValue2/ipLowerBandValue2)와 **변곡용 청산선**(ipLongClear/ipShortClear) 기준이다.
 //  마커만 판정에 쓰므로 화면 밴드 위치·색은 불변.
 // 요구사항 4: 청산선 "수평(flat)" 판정 헬퍼 — 최근 lb봉 사이 변화량을 ATR로 정규화한 비율이 임계 이내이면 true.
 //  atr<=0(초기·데이터 부족)일 때는 정규화가 불가능하므로 필터를 통과시키지 않는다(false).
@@ -288,11 +315,21 @@ ipFlatAtr = ta.atr(ceAtrLen)
 isClearLineFlat(float lineVal, int lb, float atrVal, float maxRatio) =>
     float prevVal = lineVal[lb]
     na(lineVal) or na(prevVal) or na(atrVal) or atrVal <= 0 ? false : (math.abs(lineVal - prevVal) / atrVal) <= maxRatio
-// 필터 OFF면 항상 통과(기존 동작 유지). ON이면 각 마커는 해당 판정 청산선의 수평 여부와 AND 결합.
-ipUpperFlatOk = not ipFlatFilter or isClearLineFlat(shortClear, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)
-ipLowerFlatOk = not ipFlatFilter or isClearLineFlat(longClear, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)
-upper2InflectionPoint = shouldPlot and showBand_2 and not na(upperBandValue2) and not na(shortClear) and upperBandValue2 < shortClear and ipUpperFlatOk
-lower2InflectionPoint = shouldPlot and showBand_2 and not na(lowerBandValue2) and not na(longClear) and lowerBandValue2 > longClear and ipLowerFlatOk
+// 필터 OFF면 항상 통과(기존 동작 유지). ON이면 각 마커는 해당 판정 청산선(변곡용)의 수평 여부와 AND 결합.
+ipUpperFlatOk = not ipFlatFilter or isClearLineFlat(ipShortClear, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)
+ipLowerFlatOk = not ipFlatFilter or isClearLineFlat(ipLongClear, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)
+// 기존 변곡 판정(밴드2가 변곡용 청산선 안 진입) — 수평 필터 AND 포함.
+upper2InflectionPoint = ipShouldPlot and showBand_2 and not na(ipUpperBandValue2) and not na(ipShortClear) and ipUpperBandValue2 < ipShortClear and ipUpperFlatOk
+lower2InflectionPoint = ipShouldPlot and showBand_2 and not na(ipLowerBandValue2) and not na(ipLongClear) and ipLowerBandValue2 > ipLongClear and ipLowerFlatOk
+// 요구사항 3: 마커 발동 조건 — 위 판정에 "베이스 라인 vs 변곡점용 VWAP 위치 관계"를 AND 게이트로 결합한다.
+//  목적: 변곡점 마커 표시의 정확성 측정(둘 다 성립할 때만 마커 표시).
+//  - 녹색(하단): 하단 판정 AND (ipBaseLine < ipVwapValue).  (베이스라인이 변곡 VWAP 아래)
+//  - 빨강(상단): 상단 판정 AND (ipBaseLine > ipVwapValue).  (베이스라인이 변곡 VWAP 위)
+//  ipBaseLine·ipVwapValue 가 na 이면 위치 관계 판정 불가 → 마커 억제(false).
+baseBelowVwap = not na(ipBaseLine) and not na(ipVwapValue) and ipBaseLine < ipVwapValue
+baseAboveVwap = not na(ipBaseLine) and not na(ipVwapValue) and ipBaseLine > ipVwapValue
+upper2Marker = upper2InflectionPoint and baseAboveVwap
+lower2Marker = lower2InflectionPoint and baseBelowVwap
 // 요구사항 1: 밴드2 상/하단 선 색은 청산선 진입에 따른 색 변경을 제거하고 기본색(activeLineColor)으로 되돌린다.
 color upperBand2LineColor = activeLineColor
 color lowerBand2LineColor = activeLineColor
@@ -313,19 +350,18 @@ lowerBand_2 = plot(lowerBandValue2, title="Lower Band #2", color=lowerBand2LineC
 fill(upperBand_2, lowerBand_2, title="Bands Fill #2", color=activeFillColor, display=display.none, editable=true)
 
 // =========================
-// 변곡 지점(Inflection Point) 마커 — 요구사항 2·3.
-//  밴드2 상단선이 기본 청산선 안으로 들어오는 순간 => 상단 밴드2 값 위치에 숏 청산선 색 마커.
-//  밴드2 하단선이 기본 청산선 안으로 들어오는 순간 => 하단 밴드2 값 위치에 롱 청산선 색 마커.
-//  마커 색 = 기본 청산선 색(shortClearLineColor/longClearLineColor)과 동일. 모양은 옵션(기본=십자가). 밴드2 선 위치·색은 불변(마커만 추가).
+// 변곡 지점(Inflection Point) 마커 — 요구사항 1·2·3.
+//  상단(빨강): 변곡용 밴드2 상단선이 변곡용 청산선 안 진입 AND (베이스라인 > 변곡 VWAP) => 변곡용 상단 밴드2 값 위치에 숏 청산선 색 마커.
+//  하단(녹색): 변곡용 밴드2 하단선이 변곡용 청산선 안 진입 AND (베이스라인 < 변곡 VWAP) => 변곡용 하단 밴드2 값 위치에 롱 청산선 색 마커.
+//  마커 색 = 변곡용 청산선 색(ipShortClearLineColor/ipLongClearLineColor)과 동일. 모양은 옵션(기본=십자가). 화면 밴드2 선 위치·색은 불변(마커만 추가).
 // =========================
-// ⚠️ 요구사항 3 수정: 이전엔 location=location.top/bottom을 썼는데, 이 모드에서는 첫 인자(밴드2 값)가 무시되고
-//    마커가 차트 창의 최상/최하단에 고정 → "지정한 모양이 원하는 자리에 안 나온다"는 이슈의 원인.
-//    location=location.absolute 로 바꿔 series 값(밴드2 값) 좌표에 정확히 그린다. 상단/하단 마커가 서로 다른
-//    y(밴드2 상단/하단)에 놓이고, offset을 함께 걸어 겹침으로 인한 미표시도 방지한다.
+// ⚠️ location=location.absolute + size.tiny 로 series 값(변곡용 밴드2 값) 좌표에 정확히 그린다(직전 커밋 유지).
+//    y위치도 변곡용 밴드2(ipUpperBandValue2/ipLowerBandValue2, length=22) 기준 — 판정과 동일 세트라 마커가 실제 변곡 지점에 놓인다.
+//    location.top/bottom 은 첫 인자(값)가 무시되어 창 최상/최하단에 고정되므로 쓰지 않는다.
 // ⚠️ plotshape의 style은 const string만 받으므로, 모양 삼항을 style 인자에 **직접 인라인**한다(변수 저장 시 컴파일 에러).
 //    각 분기가 shape.* 리터럴이라 컴파일 타임 상수로 평가된다. 기본값(십자가)은 마지막 else 분기(shape.cross).
-plotshape(ipShowMarkers and upper2InflectionPoint ? upperBandValue2 : na, title="변곡 지점(상단)", style=ipMarkerStyle == "원" ? shape.circle : ipMarkerStyle == "삼각형" ? shape.triangleup : ipMarkerStyle == "다이아몬드" ? shape.diamond : ipMarkerStyle == "네모" ? shape.square : shape.cross, location=location.absolute, color=shortClearLineColor, size=size.tiny, offset=offset, editable=true)
-plotshape(ipShowMarkers and lower2InflectionPoint ? lowerBandValue2 : na, title="변곡 지점(하단)", style=ipMarkerStyle == "원" ? shape.circle : ipMarkerStyle == "삼각형" ? shape.triangleup : ipMarkerStyle == "다이아몬드" ? shape.diamond : ipMarkerStyle == "네모" ? shape.square : shape.cross, location=location.absolute, color=longClearLineColor, size=size.tiny, offset=offset, editable=true)
+plotshape(ipShowMarkers and upper2Marker ? ipUpperBandValue2 : na, title="변곡 지점(상단)", style=ipMarkerStyle == "원" ? shape.circle : ipMarkerStyle == "삼각형" ? shape.triangleup : ipMarkerStyle == "다이아몬드" ? shape.diamond : ipMarkerStyle == "네모" ? shape.square : shape.cross, location=location.absolute, color=ipShortClearLineColor, size=size.tiny, offset=offset, editable=true)
+plotshape(ipShowMarkers and lower2Marker ? ipLowerBandValue2 : na, title="변곡 지점(하단)", style=ipMarkerStyle == "원" ? shape.circle : ipMarkerStyle == "삼각형" ? shape.triangleup : ipMarkerStyle == "다이아몬드" ? shape.diamond : ipMarkerStyle == "네모" ? shape.square : shape.cross, location=location.absolute, color=ipLongClearLineColor, size=size.tiny, offset=offset, editable=true)
 
 // =========================
 // 샹들리에 청산선(직선=손절 기준선) 차트 페인팅 — 이치모쿠에서 이동(CEO 지시).
