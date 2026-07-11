@@ -186,6 +186,19 @@ ipBwSlopeLen = input.int(5, title="[밴드워킹] VWAP 기울기 lookback 봉수
 ipBwWalkSlopeLen = input.int(3, title="[밴드워킹] 밴드2 레일 기울기 lookback 봉수", minval=1, group=IP_GROUP, active=ipShowMarkers and ipBwSuppress, display=display.none, tooltip="밴드워킹 종료(레일 반전) 판정용 밴드2 상/하단선 기울기 측정 봉 수. 이치모쿠 원본 기본 3.")
 ipBwFlatPct = input.float(0.03, title="[밴드워킹] VWAP 평탄 임계(밴드폭 대비 비율)", minval=0.0, step=0.01, group=IP_GROUP, active=ipShowMarkers and ipBwSuppress, display=display.none, tooltip="VWAP 기울기가 밴드2 총폭의 이 비율보다 작으면 '평탄'으로 봅니다. 이치모쿠 원본 기본 0.03(=밴드폭의 3%).")
 
+// =========================
+// OBV DI 게이트 설정 — 변곡 마커 표시 게이트(3봉 hlc3 평균 게이트를 대체). CEO 지시.
+//  OBV-ADX 보조지표(obv-adx-extreme-background.pine)의 DI+/DI-(OBV 기반 커스텀 산식)를 이식한다.
+//  숏 변곡 마커는 DI- 우위(diMinus > diPlus), 롱 변곡 마커는 DI+ 우위(diPlus > diMinus)일 때만 표시한다.
+//  ⚠️ input 기본값은 OBV-ADX 원본과 동일(DI Length=20, ADX Smoothing=20). 표시 게이트 전용 — 매매 전략(진입·청산·임계)과 무관.
+// =========================
+DI_GROUP = "OBV DI 게이트"
+// DI Length — OBV-ADX 원본 len(기본 20)과 동일. DI+/DI- 계산의 유일한 실제 파라미터(EMA·표준편차 길이).
+obvDiLen = input.int(20, minval=1, title="DI Length", group=DI_GROUP, active=ipShowMarkers, tooltip="OBV 기반 DI+/DI- 계산에 쓰는 길이(EMA·표준편차 window). OBV-ADX 원본 기본 20과 동일.")
+// ADX Smoothing — OBV-ADX 원본 lensig(기본 20). auto-vwap 마커 게이트는 DI 우위만 보므로 ADX 자체는 쓰지 않지만,
+//  OBV-ADX와 input 정합(동일 옵션 구성)을 위해 유지한다(계산부에서 값은 산출하되 게이트엔 미사용).
+obvAdxSmooth = input.int(20, minval=1, maxval=50, title="ADX Smoothing", group=DI_GROUP, active=ipShowMarkers, display=display.none, tooltip="OBV-ADX 원본 lensig(기본 20)와 정합용 옵션. 변곡 마커 게이트는 DI 우위(DI+/DI-)만 사용하므로 ADX 값은 게이트에 쓰이지 않습니다.")
+
 // 기본 화면용 VWAP 세트(length=50) — 화면 plot·밴드·라벨의 기준.
 [vwapValue, upperBandValue1, lowerBandValue1, upperBandValue2, lowerBandValue2, shouldPlot] = computeVwapSet(recentBars)
 // 변곡 지점 판정용 VWAP 세트(length=22) — 변곡 지점 마커 판정에만 쓰는 독립 window·밴드2/VWAP.
@@ -382,23 +395,35 @@ longCand  = longEnter_base or longEnter_vol or longEnter_recent
 ipUpperFlatOk = not ipFlatFilter or ((shortEnter_base and isClearLineFlat(shortClear_base, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)) or (shortEnter_vol and isClearLineFlat(shortClear_vol, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)) or (shortEnter_recent and isClearLineFlat(shortClear_recent, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)))
 ipLowerFlatOk = not ipFlatFilter or ((longEnter_base and isClearLineFlat(longClear_base, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)) or (longEnter_vol and isClearLineFlat(longClear_vol, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)) or (longEnter_recent and isClearLineFlat(longClear_recent, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)))
 
-// 표시 게이트(CEO 지시 #3) — 3봉 hlc3 평균. 누적 극값 게이트를 대체한다.
-//  숏 변곡: 현재봉 hlc3 < (현재봉+과거2봉) hlc3 평균.
-//  롱 변곡: 현재봉 hlc3 > (현재봉+과거2봉) hlc3 평균.
-//  단일 hlc3 지표 기준이라 숏/롱 게이트가 상호배타(한 봉에서 둘 다 참 불가)다.
-gateHlc3 = (high + low + close) / 3
-avg3Hlc3 = (gateHlc3 + gateHlc3[1] + gateHlc3[2]) / 3
-shortAvg3Gate = gateHlc3 < avg3Hlc3
-longAvg3Gate = gateHlc3 > avg3Hlc3
+// 표시 게이트(CEO 지시) — OBV 기반 DI+/DI- 우위. 3봉 hlc3 평균 게이트를 대체한다.
+//  OBV-ADX 보조지표(obv-adx-extreme-background.pine)의 DI+/DI- 산식을 그대로 이식(값 동일, v6 정합).
+//   obvValue = OBV 누적. up/down = OBV 변화량. plusDM/minusDM = 방향성 이동. trur = OBV 표준편차의 RMA(=정규화 기준).
+//   diPlus = 100 * EMA(plusDM,len)/trur,  diMinus = 100 * EMA(minusDM,len)/trur.  (fixnan으로 trur==0/na 보정)
+//  숏 변곡: DI- 우위(diMinus > diPlus).  롱 변곡: DI+ 우위(diPlus > diMinus).  na면 억제(둘 다 미표시).
+//  ⚠️ 확정 성격 값(ta.cum/change/rma/stdev/ema)만 사용 → 신규 리페인팅 없음. 표시 게이트 전용(전략 로직 불변).
+obvValue = ta.cum(math.sign(ta.change(close)) * volume)
+obvUp = ta.change(obvValue)
+obvDown = -ta.change(obvValue)
+obvPlusDM = na(obvUp) ? na : obvUp > obvDown and obvUp > 0 ? obvUp : 0
+obvMinusDM = na(obvDown) ? na : obvDown > obvUp and obvDown > 0 ? obvDown : 0
+obvTrur = ta.rma(ta.stdev(obvValue, obvDiLen), obvDiLen)
+diPlus = fixnan(obvTrur == 0 ? 0 : 100 * ta.ema(obvPlusDM, obvDiLen) / obvTrur)
+diMinus = fixnan(obvTrur == 0 ? 0 : 100 * ta.ema(obvMinusDM, obvDiLen) / obvTrur)
+// ADX(OBV-ADX 원본 lensig 사용) — input 정합용으로 계산만 유지. 변곡 마커 게이트엔 미사용.
+obvDiSum = diPlus + diMinus
+obvAdx = 100 * ta.ema(math.abs(diPlus - diMinus) / (obvDiSum == 0 ? 1 : obvDiSum), obvAdxSmooth)
+// DI 우위 게이트(na 가드 포함) — DI 값이 na면 해당 방향 억제.
+shortDiGate = not na(diMinus) and not na(diPlus) and diMinus > diPlus
+longDiGate = not na(diPlus) and not na(diMinus) and diPlus > diMinus
 
-// 방향성 밴드워킹 억제(ipBwSuppress) AND 결합 — 후보·수평필터·3봉평균 게이트 위에 방향 억제만 얹는다.
-//  숏(빨강·상단) = 후보(3모드OR) AND 수평필터(숏) AND (현재 hlc3 < 3봉 hlc3평균) AND (not 상승 밴드워킹).
-//  롱(녹색·하단) = 후보(3모드OR) AND 수평필터(롱) AND (현재 hlc3 > 3봉 hlc3평균) AND (not 하락 밴드워킹).
+// 방향성 밴드워킹 억제(ipBwSuppress) AND 결합 — 후보·수평필터·DI 우위 게이트 위에 방향 억제만 얹는다.
+//  숏(빨강·상단) = 후보(3모드OR) AND 수평필터(숏) AND (DI- 우위) AND (not 상승 밴드워킹).
+//  롱(녹색·하단) = 후보(3모드OR) AND 수평필터(롱) AND (DI+ 우위) AND (not 하락 밴드워킹).
 //  토글 OFF면 억제 항이 항상 참 → 기존 동작 그대로.
 upperBwOk = not ipBwSuppress or not isUpBandWalking
 lowerBwOk = not ipBwSuppress or not isDownBandWalking
-upper2Marker = shortCand and ipUpperFlatOk and shortAvg3Gate and upperBwOk
-lower2Marker = longCand and ipLowerFlatOk and longAvg3Gate and lowerBwOk
+upper2Marker = shortCand and ipUpperFlatOk and shortDiGate and upperBwOk
+lower2Marker = longCand and ipLowerFlatOk and longDiGate and lowerBwOk
 // 요구사항 1: 밴드2 상/하단 선 색은 청산선 진입에 따른 색 변경을 제거하고 기본색(activeLineColor)으로 되돌린다.
 color upperBand2LineColor = activeLineColor
 color lowerBand2LineColor = activeLineColor
