@@ -373,47 +373,44 @@ ipLowerFlatOk = not ipFlatFilter or isClearLineFlat(ipLongClear, ipFlatLookback,
 //  판정 대상 청산선의 flat 여부는 기존 isClearLineFlat 재사용(숏=ipShortClear, 롱=ipLongClear).
 //   → 여기서는 마커 게이트 전용이므로 필터 토글과 무관하게 flat 자체를 직접 판정한다(게이트는 "수평화 구간"의 극값을 봐야 하므로).
 //  누적 방식(직전 방식과의 핵심 차이):
-//   - 이전: 수평화 "시작봉 한 봉"의 극값만 기준값으로 latch.
-//   - 이번: 수평화가 시작된 후 이어지는 봉들의 **누적 극값**(running max hlc3 / running min hlc3)을 추적.
-//  게이트 소스: 고가/저가가 아니라 **hlc3((high+low+close)/3)** 을 쓴다(단일 봉의 꼬리 극단보다 대표 가격을 보게 함).
+//   - 이전: 수평화 "시작봉 한 봉"의 고가/저가만 기준값으로 latch.
+//   - 이번: 수평화가 시작된 후 이어지는 봉들의 **누적 극값**(running max high / running min low)을 추적.
 //  비교 순서(CEO 의도 "고점 대비 눌림 확인"에 맞춘 구현 판단):
-//   - 누적 극값은 시작봉부터 포함해 추적한다(수평화 구간 전체의 고점/저점 hlc3를 대변).
-//   - 단, 게이트 판정은 "직전까지 누적된 극값" vs "현재 봉 hlc3"로 한다(현재 봉을 누적에 반영하기 **전**에 비교).
+//   - 누적 극값은 시작봉부터 포함해 추적한다(수평화 구간 전체의 고점/저점을 대변).
+//   - 단, 게이트 판정은 "직전까지 누적된 극값" vs "현재 봉"으로 한다(현재 봉을 누적에 반영하기 **전**에 비교).
 //     이렇게 하면 시작봉 하나뿐일 때 자기 자신과 비교하는 무의미한 참/거짓이 나오지 않고,
 //     "수평화 구간에서 앞서 형성된 고점보다 현재 봉이 눌렸는가"라는 의미가 정확히 성립한다(시작봉에선 자연히 게이트=거짓).
-//   숏 게이트 = 현재 봉 hlc3 < 수평화 구간 직전까지 누적 최대 hlc3(고점 눌림).
-//   롱 게이트 = 현재 봉 hlc3 > 수평화 구간 직전까지 누적 최소 hlc3(저점 반등).
+//   숏 게이트 = 현재 봉 고가 < 수평화 구간 직전까지 누적 최고가(고점 눌림).
+//   롱 게이트 = 현재 봉 저가 > 수평화 구간 직전까지 누적 최저가(저점 반등).
 //  na 가드: 누적값 na이면(시작봉 이전·데이터 부족) 게이트 억제.
 // =========================
 ipShortClearFlat = isClearLineFlat(ipShortClear, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)
 ipLongClearFlat = isClearLineFlat(ipLongClear, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)
-// 게이트 소스 hlc3 = (고+저+종)/3. 봉 대표 가격(고가/저가의 단일 꼬리 극단이 아님).
-gateHlc3 = (high + low + close) / 3.0
 // 수평화 시작봉(rising edge): 직전 봉은 flat이 아니었고 현재 봉이 flat이 된 봉.
 ipShortFlatStart = ipShortClearFlat and not ipShortClearFlat[1]
 ipLongFlatStart = ipLongClearFlat and not ipLongClearFlat[1]
-// 수평화 구간 누적 극값(hlc3 기준) — 시작봉에서 시작값으로 초기화, flat 지속 중 각 봉마다 갱신, flat 종료 시 na 리셋.
-var float maxHlc3SinceFlat = na
-var float minHlc3SinceFlat = na
+// 수평화 구간 누적 극값 — 시작봉에서 시작값으로 초기화, flat 지속 중 각 봉마다 갱신, flat 종료 시 na 리셋.
+var float maxHighSinceFlat = na
+var float minLowSinceFlat = na
 // 게이트 판정은 "현재 봉을 누적에 반영하기 전(=직전까지 누적)"의 극값과 비교한다.
 //  → 시작봉에서는 아직 직전 누적이 없어(na/자기 자신) 게이트가 거짓이 되도록, 갱신 전에 비교값을 확보한다.
-float prevMaxHlc3Short = ipShortFlatStart ? na : maxHlc3SinceFlat
-float prevMinHlc3Long = ipLongFlatStart ? na : minHlc3SinceFlat
-shortFlatHighGate = ipShortClearFlat and not na(prevMaxHlc3Short) and gateHlc3 < prevMaxHlc3Short
-longFlatLowGate = ipLongClearFlat and not na(prevMinHlc3Long) and gateHlc3 > prevMinHlc3Long
-// 누적 극값 갱신(비교 후) — 시작봉이면 현재 봉 hlc3로 초기화, flat 지속이면 running max/min 갱신, flat 아니면 리셋.
+float prevMaxHighShort = ipShortFlatStart ? na : maxHighSinceFlat
+float prevMinLowLong = ipLongFlatStart ? na : minLowSinceFlat
+shortFlatHighGate = ipShortClearFlat and not na(prevMaxHighShort) and high < prevMaxHighShort
+longFlatLowGate = ipLongClearFlat and not na(prevMinLowLong) and low > prevMinLowLong
+// 누적 극값 갱신(비교 후) — 시작봉이면 현재 봉 값으로 초기화, flat 지속이면 running max/min 갱신, flat 아니면 리셋.
 if ipShortFlatStart
-    maxHlc3SinceFlat := gateHlc3
+    maxHighSinceFlat := high
 else if ipShortClearFlat
-    maxHlc3SinceFlat := math.max(nz(maxHlc3SinceFlat, gateHlc3), gateHlc3)
+    maxHighSinceFlat := math.max(nz(maxHighSinceFlat, high), high)
 else
-    maxHlc3SinceFlat := na
+    maxHighSinceFlat := na
 if ipLongFlatStart
-    minHlc3SinceFlat := gateHlc3
+    minLowSinceFlat := low
 else if ipLongClearFlat
-    minHlc3SinceFlat := math.min(nz(minHlc3SinceFlat, gateHlc3), gateHlc3)
+    minLowSinceFlat := math.min(nz(minLowSinceFlat, low), low)
 else
-    minHlc3SinceFlat := na
+    minLowSinceFlat := na
 
 // 변곡 판정(밴드2가 변곡용 청산선 안 진입) — 수평 필터 AND 포함.
 //  ⚠️ 사양 1: 발동 조건은 오로지 변곡용 세트(ipShouldPlot·ipUpperBandValue2/ipLowerBandValue2·ipShortClear/ipLongClear)로만 구성한다.
