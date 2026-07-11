@@ -328,15 +328,15 @@ lower2InflectionPoint = ipShouldPlot and not na(ipLowerBandValue2) and not na(ip
 //  목적: 변곡점 마커 표시의 정확성 측정(둘 다 성립할 때만 마커 표시).
 //  계산은 오로지 변곡점용 세트로만 한다: 변곡용 VWAP(ipVwapValue)·변곡용 밴드1(ipUpperBandValue1/ipLowerBandValue1)·베이스라인(ipBaseLine).
 //   기본 화면 세트(vwapValue·upperBandValue1 등) 값은 이 게이트 계산에 넣지 않는다.
-//  [임계] VWAP와 변곡용 밴드1 사이 구간을 10등분한 "1/10 지점"을 베이스라인 게이트 임계로 쓴다(기존 VWAP 임계보다 범위 확장).
-//  - 녹색(하단): 하단 판정 AND (ipBaseLine < 롱 임계).  롱 임계 = VWAP~상단밴드1 구간의 1/10 지점(= ipVwapValue + (ipUpperBandValue1 - ipVwapValue)/10).
-//      (임계가 VWAP보다 살짝 위이므로 기존 "VWAP 아래" 케이스를 포함하며 발동 범위가 넓어진다.)
-//  - 빨강(상단): 상단 판정 AND (ipBaseLine > 숏 임계).  숏 임계 = VWAP~하단밴드1 구간의 1/10 지점(= ipVwapValue - (ipVwapValue - ipLowerBandValue1)/10). (롱과 대칭)
+//  [임계] VWAP와 변곡용 밴드1 사이 구간을 2등분한 "1/2 지점"을 베이스라인 게이트 임계로 쓴다(기존 VWAP 임계보다 범위 확장).
+//  - 녹색(하단): 하단 판정 AND (ipBaseLine < 롱 임계).  롱 임계 = VWAP~상단밴드1 구간의 1/2 지점(= ipVwapValue + (ipUpperBandValue1 - ipVwapValue)/2).
+//      (임계가 VWAP보다 위이므로 기존 "VWAP 아래" 케이스를 포함하며 발동 범위가 넓어진다.)
+//  - 빨강(상단): 상단 판정 AND (ipBaseLine > 숏 임계).  숏 임계 = VWAP~하단밴드1 구간의 1/2 지점(= ipVwapValue - (ipVwapValue - ipLowerBandValue1)/2). (롱과 대칭)
 //  ipBaseLine·ipVwapValue·ipUpperBandValue1(롱)·ipLowerBandValue1(숏) 중 하나라도 na 이면 위치 관계 판정 불가 → 마커 억제(false).
-// 롱 임계: 변곡용 VWAP와 변곡용 상단 밴드1 사이 구간의 1/10 지점.
-float longBaseThreshold = ipVwapValue + (ipUpperBandValue1 - ipVwapValue) / 10
-// 숏 임계: 변곡용 VWAP와 변곡용 하단 밴드1 사이 구간의 1/10 지점(롱과 대칭).
-float shortBaseThreshold = ipVwapValue - (ipVwapValue - ipLowerBandValue1) / 10
+// 롱 임계: 변곡용 VWAP와 변곡용 상단 밴드1 사이 구간의 1/2 지점.
+float longBaseThreshold = ipVwapValue + (ipUpperBandValue1 - ipVwapValue) / 2
+// 숏 임계: 변곡용 VWAP와 변곡용 하단 밴드1 사이 구간의 1/2 지점(롱과 대칭).
+float shortBaseThreshold = ipVwapValue - (ipVwapValue - ipLowerBandValue1) / 2
 baseBelowVwap = not na(ipBaseLine) and not na(ipVwapValue) and not na(ipUpperBandValue1) and ipBaseLine < longBaseThreshold
 baseAboveVwap = not na(ipBaseLine) and not na(ipVwapValue) and not na(ipLowerBandValue1) and ipBaseLine > shortBaseThreshold
 upper2Marker = upper2InflectionPoint and baseAboveVwap
