@@ -351,17 +351,18 @@ fill(upperBand_2, lowerBand_2, title="Bands Fill #2", color=activeFillColor, dis
 
 // =========================
 // 변곡 지점(Inflection Point) 마커 — 요구사항 1·2·3.
-//  상단(빨강): 변곡용 밴드2 상단선이 변곡용 청산선 안 진입 AND (베이스라인 > 변곡 VWAP) => 변곡용 상단 밴드2 값 위치에 숏 청산선 색 마커.
-//  하단(녹색): 변곡용 밴드2 하단선이 변곡용 청산선 안 진입 AND (베이스라인 < 변곡 VWAP) => 변곡용 하단 밴드2 값 위치에 롱 청산선 색 마커.
+//  상단(빨강): 변곡용 밴드2 상단선이 변곡용 청산선 안 진입 AND (베이스라인 > 변곡 VWAP) => 기본 화면 상단 밴드2 값 위치에 숏 청산선 색 마커.
+//  하단(녹색): 변곡용 밴드2 하단선이 변곡용 청산선 안 진입 AND (베이스라인 < 변곡 VWAP) => 기본 화면 하단 밴드2 값 위치에 롱 청산선 색 마커.
 //  마커 색 = 변곡용 청산선 색(ipShortClearLineColor/ipLongClearLineColor)과 동일. 모양은 옵션(기본=십자가). 화면 밴드2 선 위치·색은 불변(마커만 추가).
 // =========================
-// ⚠️ location=location.absolute + size.tiny 로 series 값(변곡용 밴드2 값) 좌표에 정확히 그린다(직전 커밋 유지).
-//    y위치도 변곡용 밴드2(ipUpperBandValue2/ipLowerBandValue2, length=22) 기준 — 판정과 동일 세트라 마커가 실제 변곡 지점에 놓인다.
+// ⚠️ location=location.absolute + size.tiny 로 series 값 좌표에 정확히 그린다(직전 커밋 유지).
+//    판정(발동 조건)은 변곡용 밴드2(ipUpperBandValue2/ipLowerBandValue2, length=22) vs 변곡용 청산선으로 그대로 유지.
+//    다만 y위치(그려지는 좌표)는 화면에 페인트되는 기본 밴드2(upperBandValue2/lowerBandValue2)로 놓아 마커가 실제 화면 밴드2 선 위에 얹힌다.
 //    location.top/bottom 은 첫 인자(값)가 무시되어 창 최상/최하단에 고정되므로 쓰지 않는다.
 // ⚠️ plotshape의 style은 const string만 받으므로, 모양 삼항을 style 인자에 **직접 인라인**한다(변수 저장 시 컴파일 에러).
 //    각 분기가 shape.* 리터럴이라 컴파일 타임 상수로 평가된다. 기본값(십자가)은 마지막 else 분기(shape.cross).
-plotshape(ipShowMarkers and upper2Marker ? ipUpperBandValue2 : na, title="변곡 지점(상단)", style=ipMarkerStyle == "원" ? shape.circle : ipMarkerStyle == "삼각형" ? shape.triangleup : ipMarkerStyle == "다이아몬드" ? shape.diamond : ipMarkerStyle == "네모" ? shape.square : shape.cross, location=location.absolute, color=ipShortClearLineColor, size=size.tiny, offset=offset, editable=true)
-plotshape(ipShowMarkers and lower2Marker ? ipLowerBandValue2 : na, title="변곡 지점(하단)", style=ipMarkerStyle == "원" ? shape.circle : ipMarkerStyle == "삼각형" ? shape.triangleup : ipMarkerStyle == "다이아몬드" ? shape.diamond : ipMarkerStyle == "네모" ? shape.square : shape.cross, location=location.absolute, color=ipLongClearLineColor, size=size.tiny, offset=offset, editable=true)
+plotshape(ipShowMarkers and upper2Marker ? upperBandValue2 : na, title="변곡 지점(상단)", style=ipMarkerStyle == "원" ? shape.circle : ipMarkerStyle == "삼각형" ? shape.triangleup : ipMarkerStyle == "다이아몬드" ? shape.diamond : ipMarkerStyle == "네모" ? shape.square : shape.cross, location=location.absolute, color=ipShortClearLineColor, size=size.tiny, offset=offset, editable=true)
+plotshape(ipShowMarkers and lower2Marker ? lowerBandValue2 : na, title="변곡 지점(하단)", style=ipMarkerStyle == "원" ? shape.circle : ipMarkerStyle == "삼각형" ? shape.triangleup : ipMarkerStyle == "다이아몬드" ? shape.diamond : ipMarkerStyle == "네모" ? shape.square : shape.cross, location=location.absolute, color=ipLongClearLineColor, size=size.tiny, offset=offset, editable=true)
 
 // =========================
 // 샹들리에 청산선(직선=손절 기준선) 차트 페인팅 — 이치모쿠에서 이동(CEO 지시).

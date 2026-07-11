@@ -22,7 +22,7 @@
 | 선 굵기·가격축 | VWAP 중앙선은 **1px**이며(CEO 지시), **가격축(price scale) 라벨은 VWAP 선만** 표시합니다(밴드는 차트엔 그리되 가격축 라벨 제외). |
 | 선 색상 변화 | VWAP 선·`Band #1`은 기본 흰색이고, `Enable Dynamic Line Color`를 켜면 `Band #2` 이탈 시 하단 아래 녹색·상단 위 빨간색으로 읽습니다. |
 | 최외곽 선(`Band #2`) 색·두께 | `Upper/Lower Band #2`(±2σ, 최외곽 선)는 **위치가 항상 밴드2 원값(VWAP±2σ)에 고정**되며(이치모쿠 밴드처럼 위치 불변), **색도 항상 기본 단색(`activeLineColor`)으로 고정**입니다. 예전에는 청산선 안으로 들어오면 상단 빨강/하단 녹색으로 색이 바뀌었지만, **이 색 변경은 제거되었습니다(CEO 지시)**. 대신 그 "변곡 지점"은 아래 **변곡 지점 마커**로 표시합니다. 선 두께는 **기본 1px 대시(dashed)**입니다. 위 `Enable Dynamic Line Color`(녹/빨강 이탈 표시)는 VWAP 선·`Band #1`에 적용됩니다. |
-| 변곡 지점(Inflection Point) 마커 | **변곡용 VWAP 세트(length=22)의 밴드2** 상/하단 선이 **변곡용 청산선**(`ipLongClear`/`ipShortClear`) 안으로 들어오고, **동시에 베이스라인 조건(AND 게이트)** 이 성립하는 순간을 마커로 표시합니다. **상단(빨강)**: 상단 밴드이 위쪽 청산선 안으로 진입(`ipUpperBandValue2 < ipShortClear`) **AND** `ipBaseLine > ipVwapValue` → 변곡용 상단 밴드2 값 위치에 숏 청산선 색 마커. **하단(녹색)**: 하단 밴드이 아래쪽 청산선 안으로 진입(`ipLowerBandValue2 > ipLongClear`) **AND** `ipBaseLine < ipVwapValue` → 변곡용 하단 밴드2 값 위치에 롱 청산선 색 마커. 마커 색은 **변곡용 청산선 색(`ipLongClearLineColor`/`ipShortClearLineColor`)과 동일**하고, 모양은 옵션(`변곡 지점 마커 모양`, 기본값 십자가)으로 조정합니다. 상단·하단은 각각 독립 판정입니다. 마커는 **변곡용 밴드2 값 좌표(`location.absolute` + `size.tiny`)** 에 그려지며, 화면에 그려지는 밴드2 선의 위치·색은 절대 바꾸지 않습니다(마커만 추가). |
+| 변곡 지점(Inflection Point) 마커 | **변곡용 VWAP 세트(length=22)의 밴드2** 상/하단 선이 **변곡용 청산선**(`ipLongClear`/`ipShortClear`) 안으로 들어오고, **동시에 베이스라인 조건(AND 게이트)** 이 성립하는 순간을 마커로 표시합니다. **상단(빨강)**: 상단 밴드이 위쪽 청산선 안으로 진입(`ipUpperBandValue2 < ipShortClear`) **AND** `ipBaseLine > ipVwapValue` → 기본 화면 상단 밴드2 값 위치에 숏 청산선 색 마커. **하단(녹색)**: 하단 밴드이 아래쪽 청산선 안으로 진입(`ipLowerBandValue2 > ipLongClear`) **AND** `ipBaseLine < ipVwapValue` → 기본 화면 하단 밴드2 값 위치에 롱 청산선 색 마커. 마커 색은 **변곡용 청산선 색(`ipLongClearLineColor`/`ipShortClearLineColor`)과 동일**하고, 모양은 옵션(`변곡 지점 마커 모양`, 기본값 십자가)으로 조정합니다. 상단·하단은 각각 독립 판정입니다. 판정(발동 조건)은 변곡용 세트를 그대로 쓰되, 마커가 **그려지는 y좌표는 화면에 페인트되는 기본 밴드2 값(`upperBandValue2`/`lowerBandValue2`) 좌표(`location.absolute` + `size.tiny`)** 이며, 화면에 그려지는 밴드2 선의 위치·색은 절대 바꾸지 않습니다(마커만 얹음). |
 | 변곡점용 베이스 라인(이치모쿠 22선, 화면 미표시) | 이치모쿠 베이스라인(Kijun-sen) `ipBaseLine = (ta.highest(high, len) + ta.lowest(low, len)) / 2`(기본 `len=22`)를 계산합니다. **화면에는 그리지 않고(hidden)**, 오직 위 변곡 마커 AND 게이트 판정에만 씁니다(베이스라인 vs 변곡 VWAP 위치 관계). 목적은 변곡점 마커 표시의 정확성 측정입니다. 기간은 `[변곡] 이치모쿠 베이스라인 기간`(기본 22)으로 조정합니다. |
 | 변곡 시 청산선 수평 필터(밴드워킹 억제) | `변곡 시 청산선 수평 필터` 옵션(기본 ON)을 켜면, 변곡 시점 **청산선의 기울기가 근사 수평일 때만** 마커를 표시합니다. 청산선이 추세로 기울어 **밴드워킹 중**(위/아래로 워킹)이면 변곡 조건이 성립해도 마커를 **억제**합니다. 판정은 **최근 N봉 사이 청산선 값 변화량을 ATR로 정규화한 비율**(=ATR 대비 배수)이 임계 이하이면 수평으로 간주합니다(절대 가격차가 아닌 ATR 정규화라 종목·타임프레임 무관). **상단 마커는 변곡용 청산선(`ipShortClear`), 하단 마커는 변곡용 청산선(`ipLongClear`)의 기울기로 각각 독립 판정**하며, ATR은 변곡용 스윕 ATR 길이(`ipCeAtrLen`)에 맞춥니다. `[변곡] 수평 판정 lookback 봉수`(기본 3), `[변곡] 수평 허용 기울기(ATR 대비 배수)`(기본 0.10, 보수적)로 조정합니다. 임계를 키우면 더 기울어도 표시, 줄이면 더 엄격히 수평만 표시. 필터를 끄면 기존처럼 기울기 무관하게 표시합니다. |
 | 끝 라벨 | `VWAP = 0`, 각 밴드는 VWAP 대비 `+/- %` 차이를 표시합니다. |
@@ -143,10 +143,10 @@ Band #2 접근이나 이탈은 `강한 확장`, `과열 / 과매도`, `과확장
 
 변곡 지점(Inflection Point) 판정은 아래와 같습니다. 판정은 **변곡용 VWAP 세트(length=22)의 밴드2**(`ipUpperBandValue2`/`ipLowerBandValue2`)와 **변곡용 청산선**(`ipLongClear`/`ipShortClear`)을 쓰며, 여기에 **변곡점용 베이스 라인(이치모쿠 22선) vs 변곡 VWAP 위치 관계를 AND 게이트**로 결합합니다(둘 다 성립할 때만 마커 표시). **화면 밴드2 선의 위치·색은 언제나 밴드2 원값(VWAP±2σ) 위치 + 기본색(`activeLineColor`)에 고정**되고, 변곡 여부는 **마커로만** 표기합니다(밴드 선 위치·색 변경 없음). **상단·하단 각각 독립**입니다.
 
-- **상단(빨강)**: 변곡용 상단 밴드(`ipUpperBandValue2`)가 위쪽 청산선 안으로 들어옴(`ipUpperBandValue2 < ipShortClear`) **AND** `ipBaseLine > ipVwapValue` → **변곡용 상단 밴드2 값 위치에 숏 청산선 색 마커**.
-- **하단(녹색)**: 변곡용 하단 밴드(`ipLowerBandValue2`)가 아래쪽 청산선 안으로 들어옴(`ipLowerBandValue2 > ipLongClear`) **AND** `ipBaseLine < ipVwapValue` → **변곡용 하단 밴드2 값 위치에 롱 청산선 색 마커**.
+- **상단(빨강)**: 변곡용 상단 밴드(`ipUpperBandValue2`)가 위쪽 청산선 안으로 들어옴(`ipUpperBandValue2 < ipShortClear`) **AND** `ipBaseLine > ipVwapValue` → **기본 화면 상단 밴드2 값(`upperBandValue2`) 위치에 숏 청산선 색 마커**.
+- **하단(녹색)**: 변곡용 하단 밴드(`ipLowerBandValue2`)가 아래쪽 청산선 안으로 들어옴(`ipLowerBandValue2 > ipLongClear`) **AND** `ipBaseLine < ipVwapValue` → **기본 화면 하단 밴드2 값(`lowerBandValue2`) 위치에 롱 청산선 색 마커**.
 
-AND 게이트의 목적은 **변곡점 마커 표시의 정확성 측정**입니다(베이스라인이 변곡 VWAP의 어느 쪽에 있는지로 방향 필터). 즉 마커는 "밴드2의 과확장 여력이 샹들리에 청산선 안으로 수렴했고, 베이스라인 위치도 정합한다(변곡 지점)"는 시각 신호일 뿐, 화면 밴드 선은 이에 따라 위치·색이 전혀 바뀌지 않습니다. 청산선은 확정값·과거참조 기반이라 신규 리페인팅이 없습니다. 마커는 `plotshape`의 `location.absolute` + `size.tiny`로 **변곡용 밴드2 값 좌표**에 그립니다.
+AND 게이트의 목적은 **변곡점 마커 표시의 정확성 측정**입니다(베이스라인이 변곡 VWAP의 어느 쪽에 있는지로 방향 필터). 즉 마커는 "밴드2의 과확장 여력이 샹들리에 청산선 안으로 수렴했고, 베이스라인 위치도 정합한다(변곡 지점)"는 시각 신호일 뿐, 화면 밴드 선은 이에 따라 위치·색이 전혀 바뀌지 않습니다. 청산선은 확정값·과거참조 기반이라 신규 리페인팅이 없습니다. 마커의 **발동 판정은 변곡용 밴드2/청산선 세트**로 하되, 마커가 **그려지는 y좌표는 화면에 페인트되는 기본 밴드2 값(`upperBandValue2`/`lowerBandValue2`)**입니다. `plotshape`의 `location.absolute` + `size.tiny`로 기본 밴드2 선 좌표에 얹어 그립니다.
 
 > **밴드2 선 원값·기본색 보존:** 변곡 지점 판정은 **마커(`plotshape`)에만** 영향을 주며, 화면 밴드2 선의 plot 값은 언제나 기본 세트 원값(`upperBandValue2`/`lowerBandValue2`)이고 색은 언제나 기본색(`activeLineColor`)입니다. 이 원값은 VWAP·밴드 간격 % 라벨 등에 그대로 쓰이고, 밴드2 채움(fill, 현재 비표시)도 원값 선(`upperBand_2`/`lowerBand_2`)에 직접 붙습니다.
 
@@ -163,7 +163,7 @@ AND 게이트의 목적은 **변곡점 마커 표시의 정확성 측정**입니
 - **베이스라인 AND 게이트**: 위 판정에 변곡점용 베이스 라인(`ipBaseLine`, 이치모쿠 22선, 화면 미표시) vs 변곡 VWAP(`ipVwapValue`) 위치 관계를 AND로 결합합니다. 상단 마커는 `ipBaseLine > ipVwapValue`, 하단 마커는 `ipBaseLine < ipVwapValue`일 때만 표시합니다.
 - **마커 색 = 변곡용 청산선 색**(`[변곡] 롱/숏 청산선 색`, 기본 롱 #00C853·숏 #FF1744)입니다. 상단선 변곡 → 숏 색, 하단선 변곡 → 롱 색.
 - **마커 모양 옵션(`변곡 지점 마커 모양`)** 은 `십자가`(기본)/`원`/`삼각형`/`다이아몬드`/`네모` 중 선택합니다. `plotshape`의 `style`이 `const string`만 받으므로 삼항을 `style` 인자에 직접 인라인해 컴파일 안전을 확보했습니다.
-- **마커는 `location.absolute` + `size.tiny`로 변곡용 밴드2 값 좌표에 그립니다.** `location.top`/`location.bottom`은 첫 인자 값을 무시하고 차트 창 상/하단에 고정돼 선택한 모양이 원하는 자리에 나오지 않으므로 쓰지 않습니다.
+- **마커는 `location.absolute` + `size.tiny`로 기본 화면 밴드2 값(`upperBandValue2`/`lowerBandValue2`) 좌표에 그립니다**(발동 판정은 변곡용 세트, y위치는 화면 밴드2). `location.top`/`location.bottom`은 첫 인자 값을 무시하고 차트 창 상/하단에 고정돼 선택한 모양이 원하는 자리에 나오지 않으므로 쓰지 않습니다.
 
 ## 자주 만지는 설정
 
