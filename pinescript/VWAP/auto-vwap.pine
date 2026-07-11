@@ -56,54 +56,58 @@ sessionTime = time("D")
 sessionCloseTime = time_close("D")
 isLatestSession = sessionTime <= last_bar_time and sessionCloseTime > last_bar_time
 
-var array<float> sessionStartPV = array.new_float()
-var array<float> sessionStartVolume = array.new_float()
-var array<float> sessionStartP2V = array.new_float()
-var array<float> sessionStartLogPV = array.new_float()
-var array<float> sessionStartLog2V = array.new_float()
-var array<float> sessionStartInvalidLogVolume = array.new_float()
-
-var float cumulativePV = 0.0
-var float cumulativeVolume = 0.0
-var float cumulativeP2V = 0.0
-var float cumulativeLogPV = 0.0
-var float cumulativeLog2V = 0.0
-var float cumulativeInvalidLogVolume = 0.0
 var label upperBand1LineEndLabel = na
 var label lowerBand1LineEndLabel = na
 var label upperBand2LineEndLabel = na
 var label lowerBand2LineEndLabel = na
 
-if isNewSession
-    array.push(sessionStartPV, cumulativePV)
-    array.push(sessionStartVolume, cumulativeVolume)
-    array.push(sessionStartP2V, cumulativeP2V)
-    array.push(sessionStartLogPV, cumulativeLogPV)
-    array.push(sessionStartLog2V, cumulativeLog2V)
-    array.push(sessionStartInvalidLogVolume, cumulativeInvalidLogVolume)
-
-barPV = src * volume
-barP2V = src * src * volume
-logSrc = src > 0 ? math.log(src) : na
-barLogPV = na(logSrc) ? 0.0 : logSrc * volume
-barLog2V = na(logSrc) ? 0.0 : logSrc * logSrc * volume
-barInvalidLogVolume = na(logSrc) ? volume : 0.0
-cumulativePV += barPV
-cumulativeVolume += volume
-cumulativeP2V += barP2V
-cumulativeLogPV += barLogPV
-cumulativeLog2V += barLog2V
-cumulativeInvalidLogVolume += barInvalidLogVolume
-
-sessionCount = array.size(sessionStartPV)
-anchorSessionIndex = anchorMode == "Session" ? sessionCount - 1 : math.max(sessionCount - recentTradingDays, 0)
-
-// VWAP·밴드·밴드2 계산 헬퍼 — window 길이(barsLen: Recent Bars 모드일 때의 rolling length)를 파라미터로 받아
-//  "기본 화면용(length=50)"과 "변곡 지점용(length=22)" 두 세트를 독립 계산한다(CEO 지시: VWAP 완전 분리).
-//  누적값(cumulative*)·세션 앵커 배열은 window 무관 공통값이라 재사용한다.
-//  산식 자체(anchored VWAP + 로그/절대 표준편차 밴드)는 원본과 100% 동일.
+// VWAP·밴드·밴드2 계산 헬퍼 — window 길이(barsLen)와 **소스(srcArg)**를 파라미터로 받아
+//  "기본 화면용(length=50, src)"·"변곡(length=ipRecentBars, ipSrc)" 세트를 독립 계산한다(CEO 지시: VWAP 완전 분리 + 소스 독립).
+//  ⚠️ 소스별로 서로 다른 누적이 필요하므로 누적(cumulative*)·세션 앵커 배열을 **함수-로컬 var로 내부화**한다.
+//   Pine v6에서 함수 내부 var/var array는 그 호출부(instance)마다 독립 상태를 가지므로, 두 번 호출하면 두 개의 독립 누적이 유지된다.
+//   소스가 동일하면(기본값 hlc3) 각 인스턴스가 같은 누적 궤적을 재현하므로 기존(전역 단일 누적) 대비 값이 동일하다(거동 불변).
+//  세션 앵커 배열 push는 소스와 무관한 "시점 스냅샷"이라, 각 인스턴스가 자기 소스 누적을 그 시점에 스냅샷하는 것이 산식상 올바르다.
+//  산식 자체(anchored VWAP + 로그/절대 표준편차 밴드)는 원본과 100% 동일. 확정봉 기준 누적이라 소스가 series여도 신규 리페인팅 없음.
 //  반환: [vwapValue, upperBand1, lowerBand1, upperBand2, lowerBand2, shouldPlot].
-computeVwapSet(int barsLen) =>
+computeVwapSet(int barsLen, float srcArg) =>
+    var array<float> sessionStartPV = array.new_float()
+    var array<float> sessionStartVolume = array.new_float()
+    var array<float> sessionStartP2V = array.new_float()
+    var array<float> sessionStartLogPV = array.new_float()
+    var array<float> sessionStartLog2V = array.new_float()
+    var array<float> sessionStartInvalidLogVolume = array.new_float()
+
+    var float cumulativePV = 0.0
+    var float cumulativeVolume = 0.0
+    var float cumulativeP2V = 0.0
+    var float cumulativeLogPV = 0.0
+    var float cumulativeLog2V = 0.0
+    var float cumulativeInvalidLogVolume = 0.0
+
+    if isNewSession
+        array.push(sessionStartPV, cumulativePV)
+        array.push(sessionStartVolume, cumulativeVolume)
+        array.push(sessionStartP2V, cumulativeP2V)
+        array.push(sessionStartLogPV, cumulativeLogPV)
+        array.push(sessionStartLog2V, cumulativeLog2V)
+        array.push(sessionStartInvalidLogVolume, cumulativeInvalidLogVolume)
+
+    barPV = srcArg * volume
+    barP2V = srcArg * srcArg * volume
+    logSrc = srcArg > 0 ? math.log(srcArg) : na
+    barLogPV = na(logSrc) ? 0.0 : logSrc * volume
+    barLog2V = na(logSrc) ? 0.0 : logSrc * logSrc * volume
+    barInvalidLogVolume = na(logSrc) ? volume : 0.0
+    cumulativePV += barPV
+    cumulativeVolume += volume
+    cumulativeP2V += barP2V
+    cumulativeLogPV += barLogPV
+    cumulativeLog2V += barLog2V
+    cumulativeInvalidLogVolume += barInvalidLogVolume
+
+    sessionCount = array.size(sessionStartPV)
+    anchorSessionIndex = anchorMode == "Session" ? sessionCount - 1 : math.max(sessionCount - recentTradingDays, 0)
+
     anchorPV = anchorMode == "Recent Bars" ? nz(cumulativePV[barsLen], 0.0) : array.get(sessionStartPV, anchorSessionIndex)
     anchorVolume = anchorMode == "Recent Bars" ? nz(cumulativeVolume[barsLen], 0.0) : array.get(sessionStartVolume, anchorSessionIndex)
     anchorP2V = anchorMode == "Recent Bars" ? nz(cumulativeP2V[barsLen], 0.0) : array.get(sessionStartP2V, anchorSessionIndex)
@@ -159,6 +163,10 @@ ipShowMarkers = input.bool(true, title="변곡 지점 마커 표시", group=IP_G
 //  이 length로 별도 window(±σ 밴드·밴드2 포함)를 산출하고, 변곡 지점 마커 판정은 이 변곡용 밴드2/VWAP 기준으로 계산한다.
 //  (anchored 특성: Recent Bars 앵커 모드에서만 유효. Session/Recent Trading Days 모드에선 기본 세트와 동일 앵커를 공유.)
 ipRecentBars = input.int(defval=20, title="[변곡] Recent Bars (변곡 VWAP)", minval=1, group=IP_GROUP, display=display.none, active=anchorMode == "Recent Bars", tooltip="변곡 지점 판정용 VWAP의 window 길이(N선). 기본 화면 VWAP와 독립. 기본 20. Recent Bars 앵커 모드에서만 유효합니다.")
+// 변곡 VWAP 소스 선택(CEO 지시) — 기본값 = hlc3(현재 거동과 동일. 화면 VWAP src와 같은 hlc3로 누적하던 것을 그대로 유지).
+//  input.source 방식(화면 VWAP의 src와 동일 톤): close/hlc3/hl2/ohlc4/open 등 어떤 series든 선택 가능한 소스 드롭다운.
+//  ⚠️ 소스별로 **독립 누적**이 되도록 computeVwapSet가 소스를 인자로 받는다(전역 단일 누적으로는 소스 분리 불가). 확정봉 기준 누적이라 신규 리페인팅 없음.
+ipSrc  = input(title="[변곡] Source (변곡 VWAP)", defval=hlc3, group=IP_GROUP, display=display.none, tooltip="변곡 VWAP(변곡 Recent Bars)의 VWAP 소스. 기본 hlc3(고저종÷3)로, 현재 동작과 동일합니다. close(종가)·hl2·ohlc4 등으로 바꿀 수 있습니다.")
 // 마커 모양 옵션(기본값=십자가). 리터럴 style plotshape로 분기하므로 컴파일 안전(입력→series 강등 이슈 없음).
 ipMarkerStyle = input.string("원", title="변곡 지점 마커 모양", options=["십자가", "원", "삼각형", "다이아몬드", "네모"], group=IP_GROUP, active=ipShowMarkers, tooltip="변곡 지점 마커의 모양입니다. 기본값은 원(circle)입니다.")
 // ⚠️ 변곡 전용 청산선 파라미터(ipCe*/ipSweep*)·변곡 전용 청산선 색(ipLong/ipShortClearLineColor)은 제거되었다(CEO 지시 #4).
@@ -199,10 +207,10 @@ obvDiLen = input.int(5, minval=1, title="DI Length", group=DI_GROUP, active=ipSh
 //  OBV-ADX와 input 정합(동일 옵션 구성)을 위해 유지한다(계산부에서 값은 산출하되 게이트엔 미사용).
 obvAdxSmooth = input.int(5, minval=1, maxval=50, title="ADX Smoothing", group=DI_GROUP, active=ipShowMarkers, display=display.none, tooltip="OBV-ADX 원본 lensig(20)에 대응하는 옵션(기본 5). 변곡 마커 게이트는 DI 우위(DI+/DI-)만 사용하므로 ADX 값은 게이트에 쓰이지 않습니다.")
 
-// 기본 화면용 VWAP 세트(length=50) — 화면 plot·밴드·라벨의 기준.
-[vwapValue, upperBandValue1, lowerBandValue1, upperBandValue2, lowerBandValue2, shouldPlot] = computeVwapSet(recentBars)
-// 변곡 지점 판정용 VWAP 세트(length=22) — 변곡 지점 마커 판정에만 쓰는 독립 window·밴드2/VWAP.
-[ipVwapValue, ipUpperBandValue1, ipLowerBandValue1, ipUpperBandValue2, ipLowerBandValue2, ipShouldPlot] = computeVwapSet(ipRecentBars)
+// 기본 화면용 VWAP 세트(length=50, 소스=src) — 화면 plot·밴드·라벨의 기준. 소스는 기존 화면 VWAP src(기본 hlc3) 유지 → 거동 불변.
+[vwapValue, upperBandValue1, lowerBandValue1, upperBandValue2, lowerBandValue2, shouldPlot] = computeVwapSet(recentBars, src)
+// 변곡 지점 판정용 VWAP 세트(length=ipRecentBars, 소스=ipSrc) — 변곡 지점 마커 판정에만 쓰는 독립 window·소스·밴드2/VWAP. ipSrc 기본 hlc3 → 거동 불변.
+[ipVwapValue, ipUpperBandValue1, ipLowerBandValue1, ipUpperBandValue2, ipLowerBandValue2, ipShouldPlot] = computeVwapSet(ipRecentBars, ipSrc)
 
 // =========================
 // 밴드워킹(추세 국면) 판정 — 이치모쿠 advanced-ichimoku.pine "VWAP 상태" 알고리즘(원본 vwUpperWalk/vwLowerWalk)의 이식(포팅).
