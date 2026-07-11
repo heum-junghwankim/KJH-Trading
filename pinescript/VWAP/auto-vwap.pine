@@ -159,8 +159,10 @@ color activeFillColor = color.new(activeLineColor, 92)
 //    기본값은 이치모쿠와 동일하게 "기본". 가중 모드 선택 시 청산선(longCE/shortCE→longClear/shortClear)이 그 가중 앵커 기준으로 계산됨.
 //  - 확정 성격 값(ta.*)·과거참조([1] 트레일)만 사용 → 이치모쿠와 동일하게 신규 리페인팅 없음.
 //    가중 모드도 앵커를 직전 봉([1]) 기준으로 잡아(형성 중 현재봉 제외) 이치모쿠와 동일한 확정 성격 유지.
-//  - 청산선(longClear/shortClear)은 (1) 아래 밴드2 색 판정에 사용하고, (2) 파일 하단에서 plot 으로 전 히스토리
-//    봉에 직접 그린다(CEO 지시로 이치모쿠에서 이동). 스윕라인(longCE/shortCE)은 여기로 옮기지 않는다(그리지 않음).
+//  - 청산선(longClear/shortClear)은 computeClearLines 헬퍼로 계산하며 **두 세트**로 나뉜다:
+//    (a) 기본 화면용(이 "스윕/청산" 그룹) → 파일 하단에서 plot 으로 전 히스토리 봉에 직접 그린다(CEO 지시로 이치모쿠에서 이동).
+//    (b) 변곡 지점용("변곡 지점" 그룹) → 밴드2 변곡 지점(십자가) 판정에만 쓰고 청산선 자체는 그리지 않는다.
+//    스윕라인(longCE/shortCE)은 여기로 옮기지 않는다(그리지 않음).
 // =========================
 ceLength = input.int(22, title="스윕 룩백 길이", minval=1, group="스윕/청산")
 ceAtrLen = input.int(22, title="스윕 ATR 길이", minval=1, group="스윕/청산")
@@ -179,13 +181,38 @@ sweepPivotLen = input.int(5, minval=1, title="스윙 풀 좌우 봉수", group="
 sweepMaxGapMult = input.float(1.0, title="청산-스윕 최대 간격 ATR 배수", minval=0.1, step=0.1, group="스윕/청산")
 // 청산선(직선=손절 기준선) 차트 페인팅 옵션 — 이치모쿠에서 이 지표로 이동(CEO 지시).
 //  청산선(longClear/shortClear)만 전 히스토리 봉에 plot으로 그린다(스윕라인 longCE/shortCE는 여기로 옮기지 않음).
+//  ⚠️ 여기 "스윕/청산" 그룹의 파라미터는 (a) 기본 화면 표시용 청산선 세트다. 화면에 plot으로 그려진다.
+//     변곡 지점(밴드2 십자가) 판정용 청산선은 아래 "변곡 지점" 그룹에서 독립 설정한다(기본값 동일).
 showClearLines = input.bool(true, title="청산선 표시(전 히스토리 봉)", group="스윕/청산", tooltip="롱/숏 청산선(직선=손절 기준선)을 차트 전 구간 봉마다 plot으로 그립니다. 스윕라인(점선)은 이 지표에 없습니다(이치모쿠 전략 전용).")
 clearLineWidth = input.int(2, title="청산 선 두께", minval=1, group="스윕/청산", active=showClearLines)
 longClearLineColor = input.color(#00C853, title="롱 청산선 색", group="스윕/청산", active=showClearLines, tooltip="청산선(직선=손절 기준선)의 롱 색. 값 계산·밴드2 색 판정에는 영향 없는 표시 옵션입니다.")
 shortClearLineColor = input.color(#FF1744, title="숏 청산선 색", group="스윕/청산", active=showClearLines, tooltip="청산선(직선=손절 기준선)의 숏 색. 값 계산·밴드2 색 판정에는 영향 없는 표시 옵션입니다.")
 
-atrCe = ta.atr(ceAtrLen)   // 한 번만 계산해 ceAtrVal·weightAtr·sweepAtr에서 재사용(중복 ta.atr 제거)
-ceAtrVal = ceMult * atrCe
+// =========================
+// 변곡 지점(Inflection Point) 설정 — 밴드2 상/하단 선이 "변곡 지점용 청산선" 안으로 들어오는 순간을
+//  십자가(cross) 마커로 표시하기 위한 **독립 청산선 세트**다. 기본 화면 표시용(위 "스윕/청산" 그룹)과 분리해,
+//  이 그룹의 파라미터를 건드리지 않으면 기본 화면 세트와 완전히 동일하게 동작한다(기본값 일치).
+//  ⚠️ 이 그룹은 판정·마커 표시 전용이며, 화면에 청산선(직선)을 그리지 않는다(마커만 그린다).
+//  ⚠️ 매매 전략(진입·청산·임계값)과 무관한 표시 옵션이다.
+IP_GROUP = "변곡 지점"
+ipShowMarkers = input.bool(true, title="변곡 지점 십자가 표시", group=IP_GROUP, tooltip="밴드2 상/하단 선이 변곡 지점용 청산선 안으로 들어오는 순간을 top/bottom 위치에 마커로 표시합니다(색=청산선 색).")
+// 마커 모양 옵션(기본값=십자가). 리터럴 style plotshape로 분기하므로 컴파일 안전(입력→series 강등 이슈 없음).
+ipMarkerStyle = input.string("십자가", title="변곡 지점 마커 모양", options=["십자가", "원", "삼각형", "다이아몬드", "네모"], group=IP_GROUP, active=ipShowMarkers, tooltip="변곡 지점 마커의 모양입니다. 기본값은 십자가(cross)입니다.")
+// 변곡 지점 판정용 청산선 파라미터 — 기본 세트와 동일 기본값. 독립 조정 가능.
+ipCeLength = input.int(22, title="[변곡] 스윕 룩백 길이", minval=1, group=IP_GROUP, display=display.none)
+ipCeAtrLen = input.int(22, title="[변곡] 스윕 ATR 길이", minval=1, group=IP_GROUP, display=display.none)
+ipCeMult = input.float(3.0, title="[변곡] 스윕 ATR 배수", minval=0.0, step=0.01, group=IP_GROUP, display=display.none)
+ipCeMode = input.string("기본", title="[변곡] 스윕 가격 모드", options=["기본", "거래량 가중", "최근봉 가중", "거래량+최근봉"], group=IP_GROUP, display=display.none)
+ipCeWeightLen = input.int(10, title="[변곡] 가중 트레일 길이", minval=1, group=IP_GROUP, display=display.none)
+ipCeWeightMult = input.float(1.5, title="[변곡] 가중 트레일 ATR 배수", minval=0.0, step=0.01, group=IP_GROUP, display=display.none)
+ipSweepBufferMult = input.float(0.4, title="[변곡] 청산 버퍼 ATR 배수(스윕 너머)", minval=0.0, step=0.1, group=IP_GROUP, display=display.none)
+ipUseSweepPivot = input.bool(true, title="[변곡] 청산에 스윙 풀(피벗) 반영", group=IP_GROUP, display=display.none)
+ipSweepPivotLen = input.int(5, minval=1, title="[변곡] 스윙 풀 좌우 봉수", group=IP_GROUP, display=display.none)
+ipSweepMaxGapMult = input.float(1.0, title="[변곡] 청산-스윕 최대 간격 ATR 배수", minval=0.1, step=0.1, group=IP_GROUP, display=display.none)
+// 변곡 지점 마커 색 = 청산선 색과 동일하게(요구사항 2). 기본 화면 청산선 색과 같은 기본값.
+ipLongClearLineColor = input.color(#00C853, title="[변곡] 롱 청산선 색(하단 십자가 색)", group=IP_GROUP, active=ipShowMarkers, display=display.none, tooltip="하단선 변곡 시 bottom 십자가 색. 청산선 색과 동일하게 씁니다.")
+ipShortClearLineColor = input.color(#FF1744, title="[변곡] 숏 청산선 색(상단 십자가 색)", group=IP_GROUP, active=ipShowMarkers, display=display.none, tooltip="상단선 변곡 시 top 십자가 색. 청산선 색과 동일하게 씁니다.")
+
 // 거래량 × 최근봉(선형) 가중 평균
 f_volRecencyMa(src, len) =>
     float num = 0.0
@@ -195,50 +222,63 @@ f_volRecencyMa(src, len) =>
         num += src[i] * w
         den += w
     den != 0 ? num / den : src
-// 모드별 앵커 — 활성 모드에 필요한 것만 계산(기본 모드에선 VWMA/WMA/가중루프 모두 생략 → 속도↑). ceMode는 세션 상수.
-// 가중 모드(거래량/최근봉/거래량+최근봉)는 형성 중인 현재봉을 제외하고 **직전 봉 기준**([1])으로 앵커를 잡는다.
-longAnchorWNow = ceMode == "거래량 가중" ? ta.vwma(high, ceWeightLen) : ceMode == "최근봉 가중" ? ta.wma(high, ceWeightLen) : ceMode == "거래량+최근봉" ? f_volRecencyMa(high, ceWeightLen) : na
-shortAnchorWNow = ceMode == "거래량 가중" ? ta.vwma(low, ceWeightLen) : ceMode == "최근봉 가중" ? ta.wma(low, ceWeightLen) : ceMode == "거래량+최근봉" ? f_volRecencyMa(low, ceWeightLen) : na
-longAnchorW = longAnchorWNow[1]
-shortAnchorW = shortAnchorWNow[1]
-weightAtr = ceWeightMult * atrCe
-longCERaw = ceMode == "기본" ? ta.highest(high, ceLength) - ceAtrVal : longAnchorW - weightAtr
-shortCERaw = ceMode == "기본" ? ta.lowest(low, ceLength) + ceAtrVal : shortAnchorW + weightAtr
-var float longCE = na
-longCEPrev = nz(longCE[1], longCERaw)
-longCE := close[1] > longCEPrev ? math.max(longCERaw, longCEPrev) : longCERaw
-var float shortCE = na
-shortCEPrev = nz(shortCE[1], shortCERaw)
-shortCE := close[1] < shortCEPrev ? math.min(shortCERaw, shortCEPrev) : shortCERaw
 
-sweepAtr = atrCe
-sweepPLow = ta.pivotlow(sweepPivotLen, sweepPivotLen)
-sweepPHigh = ta.pivothigh(sweepPivotLen, sweepPivotLen)
-var float lastSweepPLow = na
-var float lastSweepPHigh = na
-lastSweepPLow := not na(sweepPLow) ? sweepPLow : lastSweepPLow
-lastSweepPHigh := not na(sweepPHigh) ? sweepPHigh : lastSweepPHigh
-longClear = longCE - sweepBufferMult * sweepAtr
-longClear := useSweepPivot and not na(lastSweepPLow) ? math.min(longClear, lastSweepPLow - syminfo.mintick) : longClear
-longClear := math.max(longClear, longCE - sweepMaxGapMult * sweepAtr)
-shortClear = shortCE + sweepBufferMult * sweepAtr
-shortClear := useSweepPivot and not na(lastSweepPHigh) ? math.max(shortClear, lastSweepPHigh + syminfo.mintick) : shortClear
-shortClear := math.min(shortClear, shortCE + sweepMaxGapMult * sweepAtr)
+// 청산선(longClear/shortClear) 계산 헬퍼 — 이치모쿠에서 이식한 산식을 그대로 함수화(값 불변).
+//  각 호출은 독립 var/ta 상태를 가지므로 "기본 화면용"과 "변곡 지점용" 두 세트를 안전히 병렬 계산할 수 있다.
+//  반환: [longClear, shortClear]. 확정 성격 값(ta.*·과거참조 [1] 트레일)만 사용 → 신규 리페인팅 없음.
+computeClearLines(int ceLen, int atrLen, float mult, string mode, int wLen, float wMult, float bufMult, bool usePivot, int pivotLen, float maxGapMult) =>
+    atrCe = ta.atr(atrLen)   // 한 번만 계산해 ceAtrVal·weightAtr·sweepAtr에서 재사용(중복 ta.atr 제거)
+    ceAtrVal = mult * atrCe
+    // 모드별 앵커 — 활성 모드에 필요한 것만 계산(기본 모드에선 VWMA/WMA/가중루프 모두 생략 → 속도↑).
+    // 가중 모드(거래량/최근봉/거래량+최근봉)는 형성 중인 현재봉을 제외하고 **직전 봉 기준**([1])으로 앵커를 잡는다.
+    longAnchorWNow = mode == "거래량 가중" ? ta.vwma(high, wLen) : mode == "최근봉 가중" ? ta.wma(high, wLen) : mode == "거래량+최근봉" ? f_volRecencyMa(high, wLen) : na
+    shortAnchorWNow = mode == "거래량 가중" ? ta.vwma(low, wLen) : mode == "최근봉 가중" ? ta.wma(low, wLen) : mode == "거래량+최근봉" ? f_volRecencyMa(low, wLen) : na
+    longAnchorW = longAnchorWNow[1]
+    shortAnchorW = shortAnchorWNow[1]
+    weightAtr = wMult * atrCe
+    longCERaw = mode == "기본" ? ta.highest(high, ceLen) - ceAtrVal : longAnchorW - weightAtr
+    shortCERaw = mode == "기본" ? ta.lowest(low, ceLen) + ceAtrVal : shortAnchorW + weightAtr
+    var float longCE = na
+    longCEPrev = nz(longCE[1], longCERaw)
+    longCE := close[1] > longCEPrev ? math.max(longCERaw, longCEPrev) : longCERaw
+    var float shortCE = na
+    shortCEPrev = nz(shortCE[1], shortCERaw)
+    shortCE := close[1] < shortCEPrev ? math.min(shortCERaw, shortCEPrev) : shortCERaw
+
+    sweepAtr = atrCe
+    sweepPLow = ta.pivotlow(pivotLen, pivotLen)
+    sweepPHigh = ta.pivothigh(pivotLen, pivotLen)
+    var float lastSweepPLow = na
+    var float lastSweepPHigh = na
+    lastSweepPLow := not na(sweepPLow) ? sweepPLow : lastSweepPLow
+    lastSweepPHigh := not na(sweepPHigh) ? sweepPHigh : lastSweepPHigh
+    float longClearLocal = longCE - bufMult * sweepAtr
+    longClearLocal := usePivot and not na(lastSweepPLow) ? math.min(longClearLocal, lastSweepPLow - syminfo.mintick) : longClearLocal
+    longClearLocal := math.max(longClearLocal, longCE - maxGapMult * sweepAtr)
+    float shortClearLocal = shortCE + bufMult * sweepAtr
+    shortClearLocal := usePivot and not na(lastSweepPHigh) ? math.max(shortClearLocal, lastSweepPHigh + syminfo.mintick) : shortClearLocal
+    shortClearLocal := math.min(shortClearLocal, shortCE + maxGapMult * sweepAtr)
+    [longClearLocal, shortClearLocal]
+
+// (a) 기본 화면 표시용 청산선 세트 — 화면에 plot으로 그려진다.
+[longClear, shortClear] = computeClearLines(ceLength, ceAtrLen, ceMult, ceMode, ceWeightLen, ceWeightMult, sweepBufferMult, useSweepPivot, sweepPivotLen, sweepMaxGapMult)
+// (b) 변곡 지점(밴드2 십자가) 판정용 청산선 세트 — 화면에 청산선을 그리지 않고 마커 판정에만 쓴다.
+[ipLongClear, ipShortClear] = computeClearLines(ipCeLength, ipCeAtrLen, ipCeMult, ipCeMode, ipCeWeightLen, ipCeWeightMult, ipSweepBufferMult, ipUseSweepPivot, ipSweepPivotLen, ipSweepMaxGapMult)
 
 // =========================
-// 밴드2(±2σ, Band #2) 색 판정 — 위치는 항상 고정, 색만 조건부(상/하단 각각 독립).
-//  - VWAP 밴드는 이치모쿠 밴드처럼 위치 불변: 밴드2 선은 언제나 원값(upperBandValue2/lowerBandValue2 = VWAP±2σ) 위치에 그린다.
-//    청산 계산 모드(ceMode)를 바꿔 청산선이 움직여도 밴드 위치는 절대 따라가지 않는다(clamp 폐기).
-//  - 청산선(longClear/shortClear)은 밴드와 독립적으로 ceMode에 따라 값만 바뀐다. 밴드2가 그 청산선 "안"에
-//    들어오는지 체크해서 색으로만 표기한다(위치·값은 고정, 절대 변경하지 않음).
-//  - 상단 밴드(upperBandValue2)가 "위쪽 청산선"(shortClear) 안쪽으로 들어오면(upperBandValue2 < shortClear) => 빨강(color.red).
-//  - 하단 밴드(lowerBandValue2)가 "아래쪽 청산선"(longClear) 안쪽으로 들어오면(lowerBandValue2 > longClear) => 녹색(color.green, 롱 계열).
-//  - 미진입(안 들어옴) 또는 청산선 na => 기본색(activeLineColor). 상/하단 독립 판정.
+// 변곡 지점(Inflection Point) 판정 — 밴드2 상/하단 선이 "변곡 지점용 청산선"(ipLongClear/ipShortClear) 안으로
+//  들어오는지 판정한다. 이전(색 변경) 방식은 폐기: 밴드2 선 색은 기본색으로 되돌리고(요구사항 1),
+//  변곡 순간은 top/bottom 십자가 마커로만 표시한다(요구사항 2).
+//  - 밴드 선 위치·색은 절대 변경하지 않는다(밴드2는 언제나 원값 위치 + 기본 activeLineColor).
+//  - 상단 밴드(upperBandValue2)가 "위쪽 청산선"(ipShortClear) 안쪽으로 들어옴(upperBandValue2 < ipShortClear) => top 십자가(숏 청산선 색).
+//  - 하단 밴드(lowerBandValue2)가 "아래쪽 청산선"(ipLongClear) 안쪽으로 들어옴(lowerBandValue2 > ipLongClear) => bottom 십자가(롱 청산선 색).
+//  - 상/하단 각각 독립 판정.
 // =========================
-upper2InsideSweep = shouldPlot and showBand_2 and not na(upperBandValue2) and not na(shortClear) and upperBandValue2 < shortClear
-lower2InsideSweep = shouldPlot and showBand_2 and not na(lowerBandValue2) and not na(longClear) and lowerBandValue2 > longClear
-color upperBand2LineColor = upper2InsideSweep ? color.red : activeLineColor
-color lowerBand2LineColor = lower2InsideSweep ? color.green : activeLineColor
+upper2InflectionPoint = shouldPlot and showBand_2 and not na(upperBandValue2) and not na(ipShortClear) and upperBandValue2 < ipShortClear
+lower2InflectionPoint = shouldPlot and showBand_2 and not na(lowerBandValue2) and not na(ipLongClear) and lowerBandValue2 > ipLongClear
+// 요구사항 1: 밴드2 상/하단 선 색은 청산선 진입에 따른 색 변경을 제거하고 기본색(activeLineColor)으로 되돌린다.
+color upperBand2LineColor = activeLineColor
+color lowerBand2LineColor = activeLineColor
 
 // VWAP 선: 기본 2px + 가격축 라벨은 이 선만 표시(display 기본=all). 밴드는 라벨 제외.
 plot(vwapValue, title="브이왑", color=activeLineColor, offset=offset, linewidth=2, editable=true, linestyle=plot.linestyle_solid)
@@ -248,17 +288,28 @@ upperBand_1 = plot(upperBandValue1, title="Upper Band #1", color=activeLineColor
 lowerBand_1 = plot(lowerBandValue1, title="Lower Band #1", color=activeLineColor, offset=offset, display=displayBand1, editable=true, linestyle=plot.linestyle_dotted)
 fill(upperBand_1, lowerBand_1, title="Bands Fill #1", color=activeFillColor, display=display.none, editable=true)
 
-// 최외곽 상/하단 선(Band #2): 위치는 항상 밴드2 원값(고정). 청산선 안으로 들어오면 색만 상단 빨강/하단 파랑(상/하단 독립).
+// 최외곽 상/하단 선(Band #2): 위치·색 모두 항상 원값/기본색(고정). 요구사항 1: 청산선 진입 색 변경 제거 + 두께 1px.
 displayBand2 = showBand_2 ? display.all - display.price_scale : display.none
-upperBand_2 = plot(upperBandValue2, title="Upper Band #2", color=upperBand2LineColor, offset=offset, display=displayBand2, editable=true, linewidth=2, linestyle=plot.linestyle_dashed)
-lowerBand_2 = plot(lowerBandValue2, title="Lower Band #2", color=lowerBand2LineColor, offset=offset, display=displayBand2, editable=true, linewidth=2, linestyle=plot.linestyle_dashed)
+upperBand_2 = plot(upperBandValue2, title="Upper Band #2", color=upperBand2LineColor, offset=offset, display=displayBand2, editable=true, linewidth=1, linestyle=plot.linestyle_dashed)
+lowerBand_2 = plot(lowerBandValue2, title="Lower Band #2", color=lowerBand2LineColor, offset=offset, display=displayBand2, editable=true, linewidth=1, linestyle=plot.linestyle_dashed)
 // fill(±2σ 채움)은 밴드2 원값 선(upperBand_2/lowerBand_2)에 직접 붙인다. clamp 폐기로 선 자체가 항상 원값이라 별도 fill ref plot 불필요. 현재 display=none.
 fill(upperBand_2, lowerBand_2, title="Bands Fill #2", color=activeFillColor, display=display.none, editable=true)
 
 // =========================
+// 변곡 지점(Inflection Point) 십자가 마커 — 요구사항 2.
+//  밴드2 상단선이 변곡 지점용 청산선 안으로 들어오는 순간 => top(가격 상단)에 숏 청산선 색 십자가.
+//  밴드2 하단선이 변곡 지점용 청산선 안으로 들어오는 순간 => bottom(가격 하단)에 롱 청산선 색 십자가.
+//  마커 색 = 청산선 색과 동일. 모양은 옵션(기본=십자가). 밴드2 선 위치·색은 변경하지 않는다(마커만 추가).
+// =========================
+// ⚠️ plotshape의 style은 const string만 받으므로, 모양 삼항을 style 인자에 **직접 인라인**한다(변수 저장 시 컴파일 에러).
+//    각 분기가 shape.* 리터럴이라 컴파일 타임 상수로 평가된다. 기본값(십자가)은 마지막 else 분기(shape.cross).
+plotshape(ipShowMarkers and upper2InflectionPoint ? upperBandValue2 : na, title="변곡 지점(상단)", style=ipMarkerStyle == "원" ? shape.circle : ipMarkerStyle == "삼각형" ? shape.triangleup : ipMarkerStyle == "다이아몬드" ? shape.diamond : ipMarkerStyle == "네모" ? shape.square : shape.cross, location=location.top, color=ipShortClearLineColor, offset=offset, editable=true)
+plotshape(ipShowMarkers and lower2InflectionPoint ? lowerBandValue2 : na, title="변곡 지점(하단)", style=ipMarkerStyle == "원" ? shape.circle : ipMarkerStyle == "삼각형" ? shape.triangleup : ipMarkerStyle == "다이아몬드" ? shape.diamond : ipMarkerStyle == "네모" ? shape.square : shape.cross, location=location.bottom, color=ipLongClearLineColor, offset=offset, editable=true)
+
+// =========================
 // 샹들리에 청산선(직선=손절 기준선) 차트 페인팅 — 이치모쿠에서 이동(CEO 지시).
 //  ⚠️ "봉 전체 다 나올 수 있게"(CEO): 최근 몇 봉만 그리는 line.new 방식이 아니라 plot으로 전 히스토리 봉에 그린다.
-//  longClear/shortClear 는 위(214~219)에서 매 봉 계산된 확정 성격 값(ta.*·과거참조 [1] 트레일)이라
+//  longClear/shortClear 는 위 computeClearLines(기본 화면 세트)에서 매 봉 계산된 확정 성격 값(ta.*·과거참조 [1] 트레일)이라
 //   plot 으로 전 구간에 그려도 신규 리페인팅이 없다(그리기 전환 시에도 값 자체는 불변).
 //  스윕라인(longCE/shortCE)은 여기로 옮기지 않는다(CEO: "청산선 스윕라인은 옮기지 않음") → plot 하지 않는다.
 plot(showClearLines ? longClear : na, title="롱 청산선", color=longClearLineColor, linewidth=clearLineWidth, offset=offset, editable=true, linestyle=plot.linestyle_solid)
