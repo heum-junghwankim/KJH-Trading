@@ -4,7 +4,9 @@ indicator(title="Auto VWAP", shorttitle="Auto VWAP", overlay=true)
 hideonDWM = input(false, title="Hide VWAP on 1D or Above", group="VWAP Settings", display=display.none)
 anchorMode = input.string(defval="Recent Bars", title="Anchor Mode", options=["Session", "Recent Trading Days", "Recent Bars"], group="VWAP Settings")
 recentTradingDays = input.int(defval=5, title="Recent Trading Days", minval=1, group="VWAP Settings", display=display.none, active=anchorMode == "Recent Trading Days")
-recentBars = input.int(defval=22, title="Recent Bars", minval=1, group="VWAP Settings", display=display.none, active=anchorMode == "Recent Bars")
+// 기본 화면용 VWAP window 길이(=Recent Bars 모드일 때의 rolling length). CEO 지시: 기본 화면 VWAP 기본값 50.
+//  변곡 지점용 VWAP는 "변곡 지점" 그룹에서 독립 length(기본 22)로 분리 계산한다.
+recentBars = input.int(defval=50, title="Recent Bars (기본 화면 VWAP)", minval=1, group="VWAP Settings", display=display.none, active=anchorMode == "Recent Bars")
 src = input(title="Source", defval=hlc3, group="VWAP Settings", display=display.none)
 offset = input.int(0, title="Offset", group="VWAP Settings", display=display.none)
 enableDynamicLineColor = input.bool(true, title="Enable Dynamic Line Color", group="VWAP Settings", display=display.none)
@@ -95,46 +97,59 @@ cumulativeInvalidLogVolume += barInvalidLogVolume
 
 sessionCount = array.size(sessionStartPV)
 anchorSessionIndex = anchorMode == "Session" ? sessionCount - 1 : math.max(sessionCount - recentTradingDays, 0)
-anchorPV = anchorMode == "Recent Bars" ? nz(cumulativePV[recentBars], 0.0) : array.get(sessionStartPV, anchorSessionIndex)
-anchorVolume = anchorMode == "Recent Bars" ? nz(cumulativeVolume[recentBars], 0.0) : array.get(sessionStartVolume, anchorSessionIndex)
-anchorP2V = anchorMode == "Recent Bars" ? nz(cumulativeP2V[recentBars], 0.0) : array.get(sessionStartP2V, anchorSessionIndex)
-anchorLogPV = anchorMode == "Recent Bars" ? nz(cumulativeLogPV[recentBars], 0.0) : array.get(sessionStartLogPV, anchorSessionIndex)
-anchorLog2V = anchorMode == "Recent Bars" ? nz(cumulativeLog2V[recentBars], 0.0) : array.get(sessionStartLog2V, anchorSessionIndex)
-anchorInvalidLogVolume = anchorMode == "Recent Bars" ? nz(cumulativeInvalidLogVolume[recentBars], 0.0) : array.get(sessionStartInvalidLogVolume, anchorSessionIndex)
 
-windowPV = cumulativePV - anchorPV
-windowVolume = cumulativeVolume - anchorVolume
-windowP2V = cumulativeP2V - anchorP2V
-windowLogPV = cumulativeLogPV - anchorLogPV
-windowLog2V = cumulativeLog2V - anchorLog2V
-windowInvalidLogVolume = cumulativeInvalidLogVolume - anchorInvalidLogVolume
+// VWAP·밴드·밴드2 계산 헬퍼 — window 길이(barsLen: Recent Bars 모드일 때의 rolling length)를 파라미터로 받아
+//  "기본 화면용(length=50)"과 "변곡 지점용(length=22)" 두 세트를 독립 계산한다(CEO 지시: VWAP 완전 분리).
+//  누적값(cumulative*)·세션 앵커 배열은 window 무관 공통값이라 인자로 넘겨 재사용한다(중복 누적 방지).
+//  산식 자체(anchored VWAP + 로그/절대 표준편차 밴드)는 원본과 100% 동일 — length 분기점만 세트별로 다르다.
+//  반환: [vwapValue, upperBand1, lowerBand1, upperBand2, lowerBand2, shouldPlot].
+computeVwapSet(int barsLen) =>
+    anchorPV = anchorMode == "Recent Bars" ? nz(cumulativePV[barsLen], 0.0) : array.get(sessionStartPV, anchorSessionIndex)
+    anchorVolume = anchorMode == "Recent Bars" ? nz(cumulativeVolume[barsLen], 0.0) : array.get(sessionStartVolume, anchorSessionIndex)
+    anchorP2V = anchorMode == "Recent Bars" ? nz(cumulativeP2V[barsLen], 0.0) : array.get(sessionStartP2V, anchorSessionIndex)
+    anchorLogPV = anchorMode == "Recent Bars" ? nz(cumulativeLogPV[barsLen], 0.0) : array.get(sessionStartLogPV, anchorSessionIndex)
+    anchorLog2V = anchorMode == "Recent Bars" ? nz(cumulativeLog2V[barsLen], 0.0) : array.get(sessionStartLog2V, anchorSessionIndex)
+    anchorInvalidLogVolume = anchorMode == "Recent Bars" ? nz(cumulativeInvalidLogVolume[barsLen], 0.0) : array.get(sessionStartInvalidLogVolume, anchorSessionIndex)
 
-float vwapValue = na
-float upperBandValue1 = na
-float lowerBandValue1 = na
-float upperBandValue2 = na
-float lowerBandValue2 = na
+    windowPV = cumulativePV - anchorPV
+    windowVolume = cumulativeVolume - anchorVolume
+    windowP2V = cumulativeP2V - anchorP2V
+    windowLogPV = cumulativeLogPV - anchorLogPV
+    windowLog2V = cumulativeLog2V - anchorLog2V
+    windowInvalidLogVolume = cumulativeInvalidLogVolume - anchorInvalidLogVolume
 
-shouldPlot = not (hideonDWM and timeframe.isdwm) and windowVolume > 0 and (anchorMode != "Session" or isLatestSession)
+    float vwapLocal = na
+    float upperBand1Local = na
+    float lowerBand1Local = na
+    float upperBand2Local = na
+    float lowerBand2Local = na
 
-if shouldPlot
-    vwapValue := windowPV / windowVolume
-    weightedVariance = math.max(windowP2V / windowVolume - math.pow(vwapValue, 2), 0)
-    stdevAbs = math.sqrt(weightedVariance)
-    weightedLogVariance = math.max(windowLog2V / windowVolume - math.pow(windowLogPV / windowVolume, 2), 0)
-    stdevLog = math.sqrt(weightedLogVariance)
-    canUseLogBands = windowInvalidLogVolume == 0 and vwapValue > 0
+    shouldPlotLocal = not (hideonDWM and timeframe.isdwm) and windowVolume > 0 and (anchorMode != "Session" or isLatestSession)
 
-    if calcModeInput == "Absolute Standard Deviation"
-        upperBandValue1 := vwapValue + stdevAbs * bandMult_1
-        lowerBandValue1 := vwapValue - stdevAbs * bandMult_1
-        upperBandValue2 := vwapValue + stdevAbs * bandMult_2
-        lowerBandValue2 := vwapValue - stdevAbs * bandMult_2
-    else if canUseLogBands
-        upperBandValue1 := vwapValue * math.exp(stdevLog * bandMult_1)
-        lowerBandValue1 := vwapValue * math.exp(-stdevLog * bandMult_1)
-        upperBandValue2 := vwapValue * math.exp(stdevLog * bandMult_2)
-        lowerBandValue2 := vwapValue * math.exp(-stdevLog * bandMult_2)
+    if shouldPlotLocal
+        vwapLocal := windowPV / windowVolume
+        weightedVariance = math.max(windowP2V / windowVolume - math.pow(vwapLocal, 2), 0)
+        stdevAbs = math.sqrt(weightedVariance)
+        weightedLogVariance = math.max(windowLog2V / windowVolume - math.pow(windowLogPV / windowVolume, 2), 0)
+        stdevLog = math.sqrt(weightedLogVariance)
+        canUseLogBands = windowInvalidLogVolume == 0 and vwapLocal > 0
+
+        if calcModeInput == "Absolute Standard Deviation"
+            upperBand1Local := vwapLocal + stdevAbs * bandMult_1
+            lowerBand1Local := vwapLocal - stdevAbs * bandMult_1
+            upperBand2Local := vwapLocal + stdevAbs * bandMult_2
+            lowerBand2Local := vwapLocal - stdevAbs * bandMult_2
+        else if canUseLogBands
+            upperBand1Local := vwapLocal * math.exp(stdevLog * bandMult_1)
+            lowerBand1Local := vwapLocal * math.exp(-stdevLog * bandMult_1)
+            upperBand2Local := vwapLocal * math.exp(stdevLog * bandMult_2)
+            lowerBand2Local := vwapLocal * math.exp(-stdevLog * bandMult_2)
+    [vwapLocal, upperBand1Local, lowerBand1Local, upperBand2Local, lowerBand2Local, shouldPlotLocal]
+
+// 기본 화면용 VWAP 세트(length=50) — 화면 plot·밴드·라벨의 기준.
+[vwapValue, upperBandValue1, lowerBandValue1, upperBandValue2, lowerBandValue2, shouldPlot] = computeVwapSet(recentBars)
+// 변곡 지점 판정용 VWAP 세트(length=22) — 변곡 지점 십자가 판정에만 쓰는 독립 window·밴드2.
+[ipVwapValue, ipUpperBandValue1, ipLowerBandValue1, ipUpperBandValue2, ipLowerBandValue2, ipShouldPlot] = computeVwapSet(ipRecentBars)
 
 isLowerBand2Break = shouldPlot and showBand_2 and not na(lowerBandValue2) and low < lowerBandValue2
 isUpperBand2Break = shouldPlot and showBand_2 and not na(upperBandValue2) and high > upperBandValue2
@@ -184,7 +199,7 @@ sweepMaxGapMult = input.float(1.0, title="청산-스윕 최대 간격 ATR 배수
 //  ⚠️ 여기 "스윕/청산" 그룹의 파라미터는 (a) 기본 화면 표시용 청산선 세트다. 화면에 plot으로 그려진다.
 //     변곡 지점(밴드2 십자가) 판정용 청산선은 아래 "변곡 지점" 그룹에서 독립 설정한다(기본값 동일).
 showClearLines = input.bool(true, title="청산선 표시(전 히스토리 봉)", group="스윕/청산", tooltip="롱/숏 청산선(직선=손절 기준선)을 차트 전 구간 봉마다 plot으로 그립니다. 스윕라인(점선)은 이 지표에 없습니다(이치모쿠 전략 전용).")
-clearLineWidth = input.int(2, title="청산 선 두께", minval=1, group="스윕/청산", active=showClearLines)
+clearLineWidth = input.int(1, title="청산 선 두께", minval=1, group="스윕/청산", active=showClearLines)
 longClearLineColor = input.color(#00C853, title="롱 청산선 색", group="스윕/청산", active=showClearLines, tooltip="청산선(직선=손절 기준선)의 롱 색. 값 계산·밴드2 색 판정에는 영향 없는 표시 옵션입니다.")
 shortClearLineColor = input.color(#FF1744, title="숏 청산선 색", group="스윕/청산", active=showClearLines, tooltip="청산선(직선=손절 기준선)의 숏 색. 값 계산·밴드2 색 판정에는 영향 없는 표시 옵션입니다.")
 
@@ -196,6 +211,11 @@ shortClearLineColor = input.color(#FF1744, title="숏 청산선 색", group="스
 //  ⚠️ 매매 전략(진입·청산·임계값)과 무관한 표시 옵션이다.
 IP_GROUP = "변곡 지점"
 ipShowMarkers = input.bool(true, title="변곡 지점 십자가 표시", group=IP_GROUP, tooltip="밴드2 상/하단 선이 변곡 지점용 청산선 안으로 들어오는 순간을 top/bottom 위치에 마커로 표시합니다(색=청산선 색).")
+// 변곡 지점 판정용 VWAP window 길이 — 기본 화면 VWAP(recentBars=50)와 **완전 독립**. CEO 지시: 변곡용 기본 22.
+//  이 length로 별도 window(±σ 밴드·밴드2 포함)를 산출하고, 변곡 지점 십자가 판정은 이 변곡용 밴드2/VWAP 기준으로 계산한다.
+//  ⚠️ "Recent Bars" 앵커 모드일 때만 이 length가 window 크기로 쓰인다(Session/Recent Trading Days 모드는 앵커가 세션/거래일 기준이라
+//     length 개념이 없으므로 기본 화면 세트와 동일 앵커를 공유한다 — anchored VWAP 특성상의 해석).
+ipRecentBars = input.int(defval=22, title="[변곡] Recent Bars (변곡 VWAP)", minval=1, group=IP_GROUP, display=display.none, active=anchorMode == "Recent Bars", tooltip="변곡 지점 판정용 VWAP의 window 길이. 기본 화면 VWAP와 독립. Recent Bars 앵커 모드에서만 유효합니다.")
 // 마커 모양 옵션(기본값=십자가). 리터럴 style plotshape로 분기하므로 컴파일 안전(입력→series 강등 이슈 없음).
 ipMarkerStyle = input.string("십자가", title="변곡 지점 마커 모양", options=["십자가", "원", "삼각형", "다이아몬드", "네모"], group=IP_GROUP, active=ipShowMarkers, tooltip="변곡 지점 마커의 모양입니다. 기본값은 십자가(cross)입니다.")
 // 변곡 지점 판정용 청산선 파라미터 — 기본 세트와 동일 기본값. 독립 조정 가능.
@@ -274,14 +294,16 @@ computeClearLines(int ceLen, int atrLen, float mult, string mode, int wLen, floa
 //  - 하단 밴드(lowerBandValue2)가 "아래쪽 청산선"(ipLongClear) 안쪽으로 들어옴(lowerBandValue2 > ipLongClear) => bottom 십자가(롱 청산선 색).
 //  - 상/하단 각각 독립 판정.
 // =========================
-upper2InflectionPoint = shouldPlot and showBand_2 and not na(upperBandValue2) and not na(ipShortClear) and upperBandValue2 < ipShortClear
-lower2InflectionPoint = shouldPlot and showBand_2 and not na(lowerBandValue2) and not na(ipLongClear) and lowerBandValue2 > ipLongClear
+// 변곡 판정은 **변곡용 VWAP 세트(length=22)의 밴드2**(ipUpperBandValue2/ipLowerBandValue2) 기준으로 계산한다(CEO 지시: VWAP 완전 분리).
+//  화면에 그려지는 밴드2(upperBandValue2/lowerBandValue2, length=50)와는 독립. 마커만 판정에 쓰므로 화면 밴드 위치·색은 불변.
+upper2InflectionPoint = ipShouldPlot and showBand_2 and not na(ipUpperBandValue2) and not na(ipShortClear) and ipUpperBandValue2 < ipShortClear
+lower2InflectionPoint = ipShouldPlot and showBand_2 and not na(ipLowerBandValue2) and not na(ipLongClear) and ipLowerBandValue2 > ipLongClear
 // 요구사항 1: 밴드2 상/하단 선 색은 청산선 진입에 따른 색 변경을 제거하고 기본색(activeLineColor)으로 되돌린다.
 color upperBand2LineColor = activeLineColor
 color lowerBand2LineColor = activeLineColor
 
-// VWAP 선: 기본 2px + 가격축 라벨은 이 선만 표시(display 기본=all). 밴드는 라벨 제외.
-plot(vwapValue, title="브이왑", color=activeLineColor, offset=offset, linewidth=2, editable=true, linestyle=plot.linestyle_solid)
+// VWAP 중앙선: 두께 1px(CEO 지시 요구사항 3) + 가격축 라벨은 이 선만 표시(display 기본=all). 밴드는 라벨 제외.
+plot(vwapValue, title="브이왑", color=activeLineColor, offset=offset, linewidth=1, editable=true, linestyle=plot.linestyle_solid)
 
 displayBand1 = showBand_1 ? display.all - display.price_scale : display.none
 upperBand_1 = plot(upperBandValue1, title="Upper Band #1", color=activeLineColor, offset=offset, display=displayBand1, editable=true, linestyle=plot.linestyle_dotted)
@@ -303,8 +325,9 @@ fill(upperBand_2, lowerBand_2, title="Bands Fill #2", color=activeFillColor, dis
 // =========================
 // ⚠️ plotshape의 style은 const string만 받으므로, 모양 삼항을 style 인자에 **직접 인라인**한다(변수 저장 시 컴파일 에러).
 //    각 분기가 shape.* 리터럴이라 컴파일 타임 상수로 평가된다. 기본값(십자가)은 마지막 else 분기(shape.cross).
-plotshape(ipShowMarkers and upper2InflectionPoint ? upperBandValue2 : na, title="변곡 지점(상단)", style=ipMarkerStyle == "원" ? shape.circle : ipMarkerStyle == "삼각형" ? shape.triangleup : ipMarkerStyle == "다이아몬드" ? shape.diamond : ipMarkerStyle == "네모" ? shape.square : shape.cross, location=location.top, color=ipShortClearLineColor, offset=offset, editable=true)
-plotshape(ipShowMarkers and lower2InflectionPoint ? lowerBandValue2 : na, title="변곡 지점(하단)", style=ipMarkerStyle == "원" ? shape.circle : ipMarkerStyle == "삼각형" ? shape.triangleup : ipMarkerStyle == "다이아몬드" ? shape.diamond : ipMarkerStyle == "네모" ? shape.square : shape.cross, location=location.bottom, color=ipLongClearLineColor, offset=offset, editable=true)
+// y위치도 변곡용 밴드2(ipUpperBandValue2/ipLowerBandValue2, length=22) 기준 — 판정과 동일 세트라 마커가 실제 변곡 지점에 놓인다.
+plotshape(ipShowMarkers and upper2InflectionPoint ? ipUpperBandValue2 : na, title="변곡 지점(상단)", style=ipMarkerStyle == "원" ? shape.circle : ipMarkerStyle == "삼각형" ? shape.triangleup : ipMarkerStyle == "다이아몬드" ? shape.diamond : ipMarkerStyle == "네모" ? shape.square : shape.cross, location=location.top, color=ipShortClearLineColor, offset=offset, editable=true)
+plotshape(ipShowMarkers and lower2InflectionPoint ? ipLowerBandValue2 : na, title="변곡 지점(하단)", style=ipMarkerStyle == "원" ? shape.circle : ipMarkerStyle == "삼각형" ? shape.triangleup : ipMarkerStyle == "다이아몬드" ? shape.diamond : ipMarkerStyle == "네모" ? shape.square : shape.cross, location=location.bottom, color=ipLongClearLineColor, offset=offset, editable=true)
 
 // =========================
 // 샹들리에 청산선(직선=손절 기준선) 차트 페인팅 — 이치모쿠에서 이동(CEO 지시).
