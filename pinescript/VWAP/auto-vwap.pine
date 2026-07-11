@@ -232,6 +232,17 @@ ipSweepMaxGapMult = input.float(1.0, title="[변곡] 청산-스윕 최대 간격
 // 변곡 지점 마커 색 = 청산선 색과 동일하게(요구사항 2). 기본 화면 청산선 색과 같은 기본값.
 ipLongClearLineColor = input.color(#00C853, title="[변곡] 롱 청산선 색(하단 십자가 색)", group=IP_GROUP, active=ipShowMarkers, display=display.none, tooltip="하단선 변곡 시 bottom 십자가 색. 청산선 색과 동일하게 씁니다.")
 ipShortClearLineColor = input.color(#FF1744, title="[변곡] 숏 청산선 색(상단 십자가 색)", group=IP_GROUP, active=ipShowMarkers, display=display.none, tooltip="상단선 변곡 시 top 십자가 색. 청산선 색과 동일하게 씁니다.")
+// 요구사항 4: 밴드워킹 억제 필터 — 변곡 시점 청산선의 기울기가 "근사 수평"일 때만 십자가를 표시한다.
+//  청산선이 추세로 기울어(위/아래 워킹 중) 있으면 변곡 조건이 성립해도 마커를 억제한다.
+//  판정: 최근 N봉 사이 청산선 값 변화량(|line - line[N]|)을 ATR로 정규화한 비율(=ATR 대비 배수)이 임계 이내면 수평.
+//   → 절대 가격차가 아니라 ATR 정규화 비율이라 종목·타임프레임 무관하게 동작한다.
+//  상단 십자가는 ipShortClear, 하단 십자가는 ipLongClear의 기울기로 각각 독립 판정한다.
+//  ⚠️ 청산선 계산·전략 로직과 무관한 표시 전용 필터다(마커 억제만).
+ipFlatFilter = input.bool(true, title="변곡 시 청산선 수평 필터(밴드워킹 억제)", group=IP_GROUP, active=ipShowMarkers, tooltip="켜면 변곡 시점 청산선 기울기가 근사 수평일 때만 십자가를 표시합니다. 청산선이 추세로 기울어(밴드워킹 중) 있으면 변곡이어도 억제합니다.")
+ipFlatLookback = input.int(3, title="[변곡] 수평 판정 lookback 봉수", minval=1, group=IP_GROUP, active=ipShowMarkers and ipFlatFilter, display=display.none, tooltip="청산선 기울기를 측정할 과거 봉 수(N). 최근 N봉 사이 청산선 값 변화량으로 기울기를 판정합니다. 기본 3.")
+ipFlatSlopeMax = input.float(0.10, title="[변곡] 수평 허용 기울기(ATR 대비 배수)", minval=0.0, step=0.01, group=IP_GROUP, active=ipShowMarkers and ipFlatFilter, display=display.none, tooltip="N봉 사이 청산선 변화량 ÷ ATR 이 이 값 이하이면 '수평'으로 간주합니다. 보수적 기본 0.10(=ATR의 10%). 값을 키우면 더 기울어도 표시, 줄이면 더 엄격히 수평만 표시.")
+// 수평 필터용 ATR — 변곡 판정 청산선과 같은 스케일이 되도록 변곡 세트 스윕 ATR 길이(ipCeAtrLen)를 재사용한다.
+ipFlatAtr = ta.atr(ipCeAtrLen)
 
 // 거래량 × 최근봉(선형) 가중 평균
 f_volRecencyMa(src, len) =>
@@ -296,8 +307,17 @@ computeClearLines(int ceLen, int atrLen, float mult, string mode, int wLen, floa
 // =========================
 // 변곡 판정은 **변곡용 VWAP 세트(length=22)의 밴드2**(ipUpperBandValue2/ipLowerBandValue2) 기준으로 계산한다(CEO 지시: VWAP 완전 분리).
 //  화면에 그려지는 밴드2(upperBandValue2/lowerBandValue2, length=50)와는 독립. 마커만 판정에 쓰므로 화면 밴드 위치·색은 불변.
-upper2InflectionPoint = ipShouldPlot and showBand_2 and not na(ipUpperBandValue2) and not na(ipShortClear) and ipUpperBandValue2 < ipShortClear
-lower2InflectionPoint = ipShouldPlot and showBand_2 and not na(ipLowerBandValue2) and not na(ipLongClear) and ipLowerBandValue2 > ipLongClear
+// 요구사항 4: 청산선 "수평(flat)" 판정 헬퍼 — 최근 lb봉 사이 변화량을 ATR로 정규화한 비율이 임계 이내이면 true.
+//  atr<=0(초기·데이터 부족)일 때는 정규화가 불가능하므로 필터를 통과시키지 않는다(false).
+//  na 값(과거참조 부족)일 때도 판정 불가로 false 처리.
+isClearLineFlat(float lineVal, int lb, float atrVal, float maxRatio) =>
+    float prevVal = lineVal[lb]
+    na(lineVal) or na(prevVal) or na(atrVal) or atrVal <= 0 ? false : (math.abs(lineVal - prevVal) / atrVal) <= maxRatio
+// 필터 OFF면 항상 통과(기존 동작 유지). ON이면 각 십자가는 해당 판정 청산선의 수평 여부와 AND 결합.
+ipUpperFlatOk = not ipFlatFilter or isClearLineFlat(ipShortClear, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)
+ipLowerFlatOk = not ipFlatFilter or isClearLineFlat(ipLongClear, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)
+upper2InflectionPoint = ipShouldPlot and showBand_2 and not na(ipUpperBandValue2) and not na(ipShortClear) and ipUpperBandValue2 < ipShortClear and ipUpperFlatOk
+lower2InflectionPoint = ipShouldPlot and showBand_2 and not na(ipLowerBandValue2) and not na(ipLongClear) and ipLowerBandValue2 > ipLongClear and ipLowerFlatOk
 // 요구사항 1: 밴드2 상/하단 선 색은 청산선 진입에 따른 색 변경을 제거하고 기본색(activeLineColor)으로 되돌린다.
 color upperBand2LineColor = activeLineColor
 color lowerBand2LineColor = activeLineColor
