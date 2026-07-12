@@ -159,10 +159,10 @@ computeVwapSet(int barsLen, float srcArg) =>
 // =========================
 IP_GROUP = "변곡 지점"
 ipShowMarkers = input.bool(true, title="변곡 지점 마커 표시", group=IP_GROUP, tooltip="변곡용 밴드2 상/하단 선이 기본 청산선(가격 모드 기본·거래량 가중·최근봉 가중 3가지 중 1개 이상) 안으로 들어오는 순간을 밴드2 값 위치에 마커로 표시합니다(색=기본 청산선 색). 청산선 수평 필터·3봉 평균 게이트·방향성 밴드워킹 억제와 AND로 결합합니다.")
-// 변곡 지점 판정용 VWAP window 길이 — 기본 화면 VWAP(recentBars=50)와 **완전 독립**. CEO 지시: 변곡용 기본 20.
+// 변곡 지점 판정용 VWAP window 길이 — 기본 화면 VWAP(recentBars=50)와 **완전 독립**. CEO 지시: 변곡용 기본 10.
 //  이 length로 별도 window(±σ 밴드·밴드2 포함)를 산출하고, 변곡 지점 마커 판정은 이 변곡용 밴드2/VWAP 기준으로 계산한다.
 //  (anchored 특성: Recent Bars 앵커 모드에서만 유효. Session/Recent Trading Days 모드에선 기본 세트와 동일 앵커를 공유.)
-ipRecentBars = input.int(defval=20, title="[변곡] Recent Bars (변곡 VWAP)", minval=1, group=IP_GROUP, display=display.none, active=anchorMode == "Recent Bars", tooltip="변곡 지점 판정용 VWAP의 window 길이(N선). 기본 화면 VWAP와 독립. 기본 20. Recent Bars 앵커 모드에서만 유효합니다.")
+ipRecentBars = input.int(defval=10, title="[변곡] Recent Bars (변곡 VWAP)", minval=1, group=IP_GROUP, display=display.none, active=anchorMode == "Recent Bars", tooltip="변곡 지점 판정용 VWAP의 window 길이(N선). 기본 화면 VWAP와 독립. 기본 10. Recent Bars 앵커 모드에서만 유효합니다.")
 // 변곡 VWAP 소스 선택(CEO 지시) — 기본값 = hlc3(현재 거동과 동일. 화면 VWAP src와 같은 hlc3로 누적하던 것을 그대로 유지).
 //  input.source 방식(화면 VWAP의 src와 동일 톤): close/hlc3/hl2/ohlc4/open 등 어떤 series든 선택 가능한 소스 드롭다운.
 //  ⚠️ 소스별로 **독립 누적**이 되도록 computeVwapSet가 소스를 인자로 받는다(전역 단일 누적으로는 소스 분리 불가). 확정봉 기준 누적이라 신규 리페인팅 없음.
@@ -292,18 +292,18 @@ color activeFillColor = color.new(activeLineColor, 92)
 //    · 변곡 마커 후보 판정: 같은 파라미터로 mode만 "기본"·"거래량 가중"·"최근봉 가중" 3가지로 각각 계산해 OR로 확인한다(#1·#2).
 //    스윕라인(longCE/shortCE)은 여기로 옮기지 않는다(그리지 않음).
 // =========================
-ceLength = input.int(20, title="스윕 룩백 길이", minval=1, group="스윕/청산")
-ceAtrLen = input.int(20, title="스윕 ATR 길이", minval=1, group="스윕/청산")
+ceLength = input.int(14, title="스윕 룩백 길이", minval=1, group="스윕/청산")
+ceAtrLen = input.int(14, title="스윕 ATR 길이", minval=1, group="스윕/청산")
 ceMult = input.float(3.0, title="스윕 ATR 배수", minval=0.0, step=0.01, group="스윕/청산")
 // 스윕 가격 모드(샹들리에 기반):
 //  - 기본: 표준 샹들리에(룩백 고가/저가 − ATR)
 //  - 거래량 가중: 거래량 큰 봉(VWMA)에 가중 → 거래 몰린 봉에서 스윕가를 끌어올림
 //  - 최근봉 가중: 최근봉(WMA)에 가중 → 휩쏘 급등/급락 봉에서 스윕가를 빠르게·높게
 //  - 거래량+최근봉: 두 가중을 함께(거래량 × 선형 최근봉)
-ceMode = input.string("기본", title="스윕 가격 모드", options=["기본", "거래량 가중", "최근봉 가중", "거래량+최근봉"], group="스윕/청산")
-ceWeightLen = input.int(10, title="가중 트레일 길이", minval=1, group="스윕/청산")
-ceWeightMult = input.float(2.0, title="가중 트레일 ATR 배수", minval=0.0, step=0.01, group="스윕/청산")
-sweepBufferMult = input.float(0.5, title="청산 버퍼 ATR 배수(스윕 너머)", minval=0.0, step=0.1, group="스윕/청산")
+ceMode = input.string("최근봉 가중", title="스윕 가격 모드", options=["기본", "거래량 가중", "최근봉 가중", "거래량+최근봉"], group="스윕/청산")
+ceWeightLen = input.int(14, title="가중 트레일 길이", minval=1, group="스윕/청산")
+ceWeightMult = input.float(3.0, title="가중 트레일 ATR 배수", minval=0.0, step=0.01, group="스윕/청산")
+sweepBufferMult = input.float(1.0, title="청산 버퍼 ATR 배수(스윕 너머)", minval=0.0, step=0.1, group="스윕/청산")
 useSweepPivot = input.bool(true, title="청산에 스윙 풀(피벗) 반영", group="스윕/청산")
 sweepPivotLen = input.int(5, minval=1, title="스윙 풀 좌우 봉수", group="스윕/청산")
 sweepMaxGapMult = input.float(1.0, title="청산-스윕 최대 간격 ATR 배수", minval=0.1, step=0.1, group="스윕/청산")
