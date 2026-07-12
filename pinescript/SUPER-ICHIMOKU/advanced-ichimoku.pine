@@ -1126,15 +1126,22 @@ resistMidColor   = #B14A4A   // 저항 보통 = 중간 빨강
 f_srColor(bool support) =>
     na(srScore) ? color.new(color.gray, 40) : srScore >= 0.8 ? (support ? color.new(color.green, 0) : color.new(color.red, 0)) : srScore >= 0.4 ? (support ? color.new(supportMidColor, 0) : color.new(resistMidColor, 0)) : (support ? color.new(supportWeakColor, 0) : color.new(resistWeakColor, 0))
 // 양운/음운 접두(cloudColorText: leadingSpanA vs B) — 예 "양운 지지 강함", "음운 저항 약함".
-// 구름 안(inCloud)일 때 스팬1·스팬2 각각의 지지/저항을 괄호로 세분(가격 기준=종가 close).
-//  가격이 각 스팬 위=그 스팬이 하방 지지, 아래=그 스팬이 상방 저항. 양운/음운 무관하게 스팬별 위/아래만으로 성립.
-//  구름 안 정상 케이스: 양운=상단 S1 저항·하단 S2 지지 → "안·양운 (S1 저항 / S2 지지)". 음운=상단 S2 저항·하단 S1 지지 → "안·음운 (S1 지지 / S2 저항)".
-s1Role = close >= curSpanA ? "지지" : "저항"
-s2Role = close >= curSpanB ? "지지" : "저항"
-cloudInsideText = cloudPosText + "·" + cloudColorText + " (S1 " + s1Role + " / S2 " + s2Role + ")"
+// 구름 안(inCloud)일 때 = 3봉 진입 방향 기반 지지/저항/중립(CEO 확정 사양).
+//  방향 판정 = A안(3봉 전 종가의 구름 대비 위치로 진입 방향 추정), 기준봉 = close[0] 실시간(CEO 선택).
+//   지지: close[3] > cloudTop[3](3봉 전 종가가 그 시점 구름 상단 위) AND 현재 inCloud → "위→아래로 진입" = 구름이 하방 지지.
+//   저항: close[3] < cloudBottom[3](3봉 전 종가가 그 시점 구름 하단 아래) AND 현재 inCloud → "아래→위로 진입" = 구름이 상방 저항.
+//   중립: 위 두 조건 모두 아니면(3봉 전 이미 구름 안이었거나, close[3]/스팬 na 워밍업 등) → 중립.
+//  na 가드: close[3]·cloudTop[3]·cloudBottom[3] 중 하나라도 na면 지지/저항 조건이 성립하지 않아 자동 중립.
+//  강도 정량화 없음(3분류만): 지지/저항/중립 텍스트만(과최적화 방지).
+cloudEnterSupport = inCloud and not na(close[3]) and not na(cloudTop[3]) and close[3] > cloudTop[3]
+cloudEnterResist  = inCloud and not na(close[3]) and not na(cloudBottom[3]) and close[3] < cloudBottom[3]
+cloudInsideRole = cloudEnterSupport ? "지지" : cloudEnterResist ? "저항" : "중립"
+cloudInsideText = cloudPosText + "·" + cloudColorText + "·" + cloudInsideRole
 cloudCellText = isSupport ? cloudColorText + " " + f_srLabel("지지") : isResist ? cloudColorText + " " + f_srLabel("저항") : inCloud ? cloudInsideText : cloudPosText + "·" + cloudColorText
-// 맥락(능동 S/R 아닐 때) 색: 위치×구름색 방향색. 위+양운=선명 녹, 위+음운=흐린 녹(약강세), 아래+음운=선명 빨, 아래+양운=흐린 빨(약약세), 구름 안=회색.
-cloudContextColor = priceAboveCloud ? (cloudColorText == "양운" ? color.new(color.green, 0) : color.new(#6E8F72, 55)) : priceBelowCloud ? (cloudColorText == "음운" ? color.new(color.red, 0) : color.new(#A57A7A, 55)) : color.new(color.gray, 40)
+// 맥락(능동 S/R 아닐 때) 색: 위치×구름색 방향색. 위+양운=선명 녹, 위+음운=흐린 녹(약강세), 아래+음운=선명 빨, 아래+양운=흐린 빨(약약세).
+//  구름 안: 3봉 진입방향 상태 반영 — 지지=둔탁 녹 / 저항=둔탁 빨강 / 중립=회색(기존 구름 안 회색 톤 유지).
+cloudInsideColor = cloudEnterSupport ? color.new(#6E8F72, 40) : cloudEnterResist ? color.new(#A57A7A, 40) : color.new(color.gray, 40)
+cloudContextColor = priceAboveCloud ? (cloudColorText == "양운" ? color.new(color.green, 0) : color.new(#6E8F72, 55)) : priceBelowCloud ? (cloudColorText == "음운" ? color.new(color.red, 0) : color.new(#A57A7A, 55)) : cloudInsideColor
 cloudCellColor = isSupport ? f_srColor(true) : isResist ? f_srColor(false) : cloudContextColor
 
 // 리본 상태 = 마지막으로 발생한 다이아몬드(상태머신) 기준이라 차트 표시와 동기화된다.
