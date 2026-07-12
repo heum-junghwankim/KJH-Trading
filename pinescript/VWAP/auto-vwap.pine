@@ -448,13 +448,14 @@ lower2Marker = longCand and ipLowerFlatOk and longDiGate and lowerBwOk
 color upperBand2LineColor = activeLineColor
 color lowerBand2LineColor = activeLineColor
 
-// 사양 2: 마커 y좌표는 오로지 기본 화면 밴드2(upperBandValue2/lowerBandValue2)에 찍는다.
-//  ⚠️ na 정합성 보정: 발동 조건은 변곡용 세트(ipShouldPlot)로 게이팅되지만 y좌표는 기본 세트라,
-//   특정 봉에서 기본 세트가 na(기본 shouldPlot=false 등)이면 조건이 참이어도 마커가 안 뜰 수 있다.
-//   → 기본 밴드2가 na이면 변곡용 밴드2로 폴백해 마커가 항상 안정적으로 찍히게 한다(위치는 기본 밴드2 우선).
-//   showBand_2(기본 밴드선 표시 토글)와 무관하게 계산되므로, 밴드선을 꺼도 마커는 기본 밴드2 값 위치에 표시된다.
-float upper2MarkerY = na(upperBandValue2) ? ipUpperBandValue2 : upperBandValue2
-float lower2MarkerY = na(lowerBandValue2) ? ipLowerBandValue2 : lowerBandValue2
+// 사양 2(CEO 지시 변경): 마커 y좌표를 기본 화면 밴드2가 아니라 **화면에 실제 그려지는 청산선**(shortClear/longClear, ceMode 선택 결과선)에 얹는다.
+//  - 숏 변곡 마커(upper2Marker) y = shortClear(숏 청산선).  롱 변곡 마커(lower2Marker) y = longClear(롱 청산선).
+//  - shortClear/longClear 는 computeClearLines(ceMode 반영, 위 L367)의 확정 성격 값(ta.*·과거참조 [1] 트레일) → 신규 리페인팅 없음.
+//  ⚠️ na 가드: 청산선이 na인 봉에서는 y를 na로 두어 그 봉의 마커를 **미표시**한다(밴드2 등 다른 선으로 폴백하지 않음).
+//   폴백 미채택 이유: 지시 취지가 "마커를 청산선 위에 정렬"이므로 청산선이 없는데 다른 값에 얹으면 정렬이 깨진다.
+//   마커 발동 조건(upper2Marker/lower2Marker)은 불변 — 위치 y좌표만 청산선으로 이동하고 na일 때만 미표시.
+float upper2MarkerY = shortClear
+float lower2MarkerY = longClear
 
 // VWAP 중앙선: 두께 1px(CEO 지시 요구사항 3) + 가격축 라벨은 이 선만 표시(display 기본=all). 밴드는 라벨 제외.
 plot(vwapValue, title="브이왑", color=activeLineColor, offset=offset, linewidth=1, editable=true, linestyle=plot.linestyle_solid)
@@ -473,13 +474,13 @@ fill(upperBand_2, lowerBand_2, title="Bands Fill #2", color=activeFillColor, dis
 
 // =========================
 // 변곡 지점(Inflection Point) 마커 — 요구사항 1·2·3.
-//  상단(빨강): 변곡용 밴드2 상단선이 기본 청산선(3모드 OR) 안 진입 => 기본 화면 상단 밴드2 값 위치에 숏 청산선 색 마커.
-//  하단(녹색): 변곡용 밴드2 하단선이 기본 청산선(3모드 OR) 안 진입 => 기본 화면 하단 밴드2 값 위치에 롱 청산선 색 마커.
+//  상단(빨강): 변곡용 밴드2 상단선이 기본 청산선(3모드 OR) 안 진입 => 화면 숏 청산선(shortClear) 값 위치에 숏 청산선 색 마커.
+//  하단(녹색): 변곡용 밴드2 하단선이 기본 청산선(3모드 OR) 안 진입 => 화면 롱 청산선(longClear) 값 위치에 롱 청산선 색 마커.
 //  마커 색 = 기본 청산선 색(shortClearLineColor/longClearLineColor)과 동일. 모양은 옵션(기본=원). 화면 밴드2 선 위치·색은 불변(마커만 추가).
 // =========================
 // ⚠️ location=location.absolute + size.tiny 로 series 값 좌표에 정확히 그린다(직전 커밋 유지).
 //    판정(발동 조건)은 변곡용 밴드2(ipUpperBandValue2/ipLowerBandValue2, length=22) vs 기본 청산선 3모드(shortClear_*/longClear_*)로 그대로 유지.
-//    다만 y위치(그려지는 좌표)는 화면에 페인트되는 기본 밴드2(upper2MarkerY/lower2MarkerY=기본 밴드2 우선, na면 변곡용 폴백)로 놓아 마커가 실제 화면 밴드2 선 위에 얹힌다.
+//    다만 y위치(그려지는 좌표)는 화면에 페인트되는 청산선(upper2MarkerY=shortClear, lower2MarkerY=longClear)에 놓아 마커가 실제 화면 청산선 위에 얹힌다(na면 미표시).
 //    location.top/bottom 은 첫 인자(값)가 무시되어 창 최상/최하단에 고정되므로 쓰지 않는다.
 // ⚠️ plotshape의 style은 const string만 받으므로, 모양 삼항을 style 인자에 **직접 인라인**한다(변수 저장 시 컴파일 에러).
 //    각 분기가 shape.* 리터럴이라 컴파일 타임 상수로 평가된다. 기본값(원)은 첫 분기(shape.circle).
