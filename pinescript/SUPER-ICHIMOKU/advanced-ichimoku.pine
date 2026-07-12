@@ -1126,7 +1126,13 @@ resistMidColor   = #B14A4A   // 저항 보통 = 중간 빨강
 f_srColor(bool support) =>
     na(srScore) ? color.new(color.gray, 40) : srScore >= 0.8 ? (support ? color.new(color.green, 0) : color.new(color.red, 0)) : srScore >= 0.4 ? (support ? color.new(supportMidColor, 0) : color.new(resistMidColor, 0)) : (support ? color.new(supportWeakColor, 0) : color.new(resistWeakColor, 0))
 // 양운/음운 접두(cloudColorText: leadingSpanA vs B) — 예 "양운 지지 강함", "음운 저항 약함".
-cloudCellText = isSupport ? cloudColorText + " " + f_srLabel("지지") : isResist ? cloudColorText + " " + f_srLabel("저항") : cloudPosText + "·" + cloudColorText
+// 구름 안(inCloud)일 때 스팬1·스팬2 각각의 지지/저항을 괄호로 세분(가격 기준=종가 close).
+//  가격이 각 스팬 위=그 스팬이 하방 지지, 아래=그 스팬이 상방 저항. 양운/음운 무관하게 스팬별 위/아래만으로 성립.
+//  구름 안 정상 케이스: 양운=상단 S1 저항·하단 S2 지지 → "안·양운 (S1 저항 / S2 지지)". 음운=상단 S2 저항·하단 S1 지지 → "안·음운 (S1 지지 / S2 저항)".
+s1Role = close >= curSpanA ? "지지" : "저항"
+s2Role = close >= curSpanB ? "지지" : "저항"
+cloudInsideText = cloudPosText + "·" + cloudColorText + " (S1 " + s1Role + " / S2 " + s2Role + ")"
+cloudCellText = isSupport ? cloudColorText + " " + f_srLabel("지지") : isResist ? cloudColorText + " " + f_srLabel("저항") : inCloud ? cloudInsideText : cloudPosText + "·" + cloudColorText
 // 맥락(능동 S/R 아닐 때) 색: 위치×구름색 방향색. 위+양운=선명 녹, 위+음운=흐린 녹(약강세), 아래+음운=선명 빨, 아래+양운=흐린 빨(약약세), 구름 안=회색.
 cloudContextColor = priceAboveCloud ? (cloudColorText == "양운" ? color.new(color.green, 0) : color.new(#6E8F72, 55)) : priceBelowCloud ? (cloudColorText == "음운" ? color.new(color.red, 0) : color.new(#A57A7A, 55)) : color.new(color.gray, 40)
 cloudCellColor = isSupport ? f_srColor(true) : isResist ? f_srColor(false) : cloudContextColor
