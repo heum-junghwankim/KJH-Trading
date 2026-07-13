@@ -169,6 +169,11 @@ ipRecentBars = input.int(defval=10, title="[변곡] Recent Bars (변곡 VWAP)", 
 ipSrc  = input(title="[변곡] Source (변곡 VWAP)", defval=hlc3, group=IP_GROUP, display=display.none, tooltip="변곡 VWAP(변곡 Recent Bars)의 VWAP 소스. 기본 hlc3(고저종÷3)로, 현재 동작과 동일합니다. close(종가)·hl2·ohlc4 등으로 바꿀 수 있습니다.")
 // 마커 모양 옵션(기본값=십자가). 리터럴 style plotshape로 분기하므로 컴파일 안전(입력→series 강등 이슈 없음).
 ipMarkerStyle = input.string("원", title="변곡 지점 마커 모양", options=["십자가", "원", "삼각형", "다이아몬드", "네모"], group=IP_GROUP, active=ipShowMarkers, tooltip="변곡 지점 마커의 모양입니다. 기본값은 원(circle)입니다.")
+// CEO 재지시: "기본 vwap이 청산선 안으로 들어오고, 마커가 생길 때"만 기본 화면 밴드2 선을 마커색으로 강조(표시 전용, 판정·계산 불변).
+//  상단 밴드2(upperBandValue2)는 숏 마커(upper2Marker)이면서 화면 상단 밴드2가 숏 청산선 안(upperBandValue2 < shortClear)일 때 숏 마커색(shortClearLineColor)으로,
+//  하단 밴드2(lowerBandValue2)는 롱 마커(lower2Marker)이면서 화면 하단 밴드2가 롱 청산선 안(lowerBandValue2 > longClear)일 때 롱 마커색(longClearLineColor)으로 강조한다.
+//  OFF·조건 미충족이면 기본색(activeLineColor)으로 원복. 봉 단위 색 지정이라 조건 봉만 강조되고 나머지는 기본색.
+ipBand2MarkerColor = input.bool(true, title="변곡 마커 봉 밴드2 강조 색", group=IP_GROUP, active=ipShowMarkers, tooltip="켜면 변곡 마커가 뜨면서 해당 방향 기본 화면 밴드2가 실제로 청산선 안으로 들어온 봉에서만 그 밴드2 선을 마커와 같은 색으로 강조합니다(상단=숏 마커색, 하단=롱 마커색). 그 봉에서만 색이 바뀌고 나머지 봉은 기본색을 유지합니다. 밴드2 위치·계산·마커 판정은 바뀌지 않는 표시 전용 옵션입니다.")
 // ⚠️ 변곡 전용 청산선 파라미터(ipCe*/ipSweep*)·변곡 전용 청산선 색(ipLong/ipShortClearLineColor)은 제거되었다(CEO 지시 #4).
 //  변곡 마커 판정은 이제 아래 "스윕/청산" 그룹(기본 청산 설정)을 그대로 쓴다. 마커 색도 기본 청산선 색(short/longClearLineColor)을 쓴다.
 // 요구사항 4: 밴드워킹 억제 필터 — 변곡 시점 청산선의 기울기가 "근사 수평"일 때만 마커를 표시한다.
@@ -445,8 +450,22 @@ lowerBwOk = not ipBwSuppress or not isDownBandWalking
 upper2Marker = shortCand and ipUpperFlatOk and shortDiGate and upperBwOk
 lower2Marker = longCand and ipLowerFlatOk and longDiGate and lowerBwOk
 // 요구사항 1: 밴드2 상/하단 선 색은 청산선 진입에 따른 색 변경을 제거하고 기본색(activeLineColor)으로 되돌린다.
-color upperBand2LineColor = activeLineColor
-color lowerBand2LineColor = activeLineColor
+// CEO 재지시(강조 옵션 보정): "기본 vwap이 청산선 안으로 들어오고, 마커가 생길 때" 해당 밴드2를 마커색으로 강조.
+//  ⚠️ 후보/마커 판정은 변곡용 밴드2(ipUpperBandValue2/ipLowerBandValue2, window=ipRecentBars 기본 10)를 3모드 청산선과 비교한다(L405-410).
+//     따라서 마커(upper2Marker/lower2Marker)만으로는 "화면에 그려지는 기본 밴드2"가 청산선 안이라는 보장이 없다.
+//     → 화면 세트 밴드2(upperBandValue2/lowerBandValue2)가 실제로 청산선 안인지를 별도 게이트로 명시한다.
+//  기본(화면) 밴드2 "청산선 안" 판정 — 후보 판정과 동일 부등호, 화면에 그려지는 청산선(shortClear/longClear, ceMode 결과선 L372) 기준.
+//   상단(숏 맥락): upperBandValue2 < shortClear  (후보 shortEnter_m = ipUpperBandValue2 < shortClear_m 와 동일 부등호).
+//   하단(롱 맥락): lowerBandValue2 > longClear   (후보 longEnter_m  = ipLowerBandValue2 > longClear_m  와 동일 부등호).
+//   화면에 그려지는 선(shortClear/longClear)을 기준으로 삼아 "그 vwap의 밴드2가 화면 청산선 안"이라는 CEO 취지와 정렬한다.
+//   na 가드: 화면 밴드2·청산선이 유효할 때만 판정(shouldPlot·not na). 어느 한쪽이라도 na면 강조 안 함.
+baseUpperBand2InClear = shouldPlot and not na(upperBandValue2) and not na(shortClear) and upperBandValue2 < shortClear
+baseLowerBand2InClear = shouldPlot and not na(lowerBandValue2) and not na(longClear)  and lowerBandValue2 > longClear
+//  강조 = 옵션 ON AND 마커 발동 AND 화면 밴드2가 청산선 안. 셋 다 충족해야 마커색, 아니면 기본색(activeLineColor)으로 원복.
+//  마커 plotshape와 동일 색 변수(short/longClearLineColor)를 재사용해 강조색·마커색 불일치를 원천 차단.
+//  봉 단위 series color 지정이므로 리페인팅 없음(마커 조건·밴드2·청산선 모두 확정 성격 값 기반).
+color upperBand2LineColor = ipBand2MarkerColor and upper2Marker and baseUpperBand2InClear ? shortClearLineColor : activeLineColor
+color lowerBand2LineColor = ipBand2MarkerColor and lower2Marker and baseLowerBand2InClear ? longClearLineColor : activeLineColor
 
 // 사양 2(CEO 지시 변경): 마커 y좌표를 기본 화면 밴드2가 아니라 **화면에 실제 그려지는 청산선**(shortClear/longClear, ceMode 선택 결과선)에 얹는다.
 //  - 숏 변곡 마커(upper2Marker) y = shortClear(숏 청산선).  롱 변곡 마커(lower2Marker) y = longClear(롱 청산선).
