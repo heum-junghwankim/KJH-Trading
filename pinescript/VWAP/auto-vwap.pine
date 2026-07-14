@@ -10,14 +10,26 @@ recentBars = input.int(defval=50, title="Recent Bars (기본 화면 VWAP)", minv
 src = input(title="Source", defval=hlc3, group="VWAP Settings", display=display.none)
 offset = input.int(0, title="Offset", group="VWAP Settings", display=display.none)
 enableDynamicLineColor = input.bool(false, title="Enable Dynamic Line Color", group="VWAP Settings", display=display.none)
-// VWAP 중앙선 지지/저항 색 규칙(CEO 지시). 화면 기본 VWAP 선(vwapValue)의 색을 봉 단위로 판정한다:
-//  · 흰색   = 캔들 고가·저가가 VWAP "근처"에 닿지 않음(중립).
-//  · 녹색   = 지지(저가가 VWAP 근처/아래 후 종가 VWAP 위) 또는 저항 실패(시가 VWAP 아래→종가 VWAP 위).
-//  · 빨간색 = 저항(고가가 VWAP 근처/위 후 종가 VWAP 아래) 또는 지지 실패(시가 VWAP 위→종가 VWAP 아래).
-//  녹/빨강 배타성은 "종가 위치"로 갈린다(종가>vwap→녹, 종가<vwap→빨강). 흰색은 폴백.
-//  "근처" 임계는 VWAP 밴드2 편차 기반(아래 vwapSRProximityK 참조). 이 규칙은 enableDynamicLineColor(밴드2 이탈 녹/빨강)와 독립한 별도 VWAP 선 전용 색이다.
-enableVwapSRColor = input.bool(true, title="VWAP 선 지지/저항 색(고저·시종가 기준)", group="VWAP Settings", tooltip="켜면 화면 VWAP 중앙선의 색을 봉 단위로 지지=녹/저항=빨강/중립=흰색으로 칠합니다. 지지=저가가 VWAP 근처·아래 후 종가가 VWAP 위, 저항=고가가 VWAP 근처·위 후 종가가 VWAP 아래. 지지 실패(시가 위→종가 아래)=빨강, 저항 실패(시가 아래→종가 위)=녹색. 고저가 VWAP 근처에 닿지 않으면 흰색. '근처'는 VWAP 밴드2 편차 × 근접 계수로 동적 계산합니다. 이 옵션은 아래 Enable Dynamic Line Color(밴드2 이탈 색)와 별개이며, 켜져 있으면 VWAP 선 색을 이 규칙이 담당합니다(밴드1·밴드2 등 다른 선 색은 기존대로).")
-vwapSRProximityK = input.float(0.25, title="VWAP 근처 임계(밴드2 편차 대비 배수)", minval=0.0, step=0.05, group="VWAP Settings", active=enableVwapSRColor, display=display.none, tooltip="'VWAP 근처' 판정 폭을 정합니다. 하단 근처 = 저가 ≤ VWAP + k×(VWAP−하단밴드2), 상단 근처 = 고가 ≥ VWAP − k×(상단밴드2−VWAP). k가 이 값입니다(기본 0.25 = 밴드2까지 편차의 25% 이내면 '근처'). 키우면 더 멀리서도 닿음 판정, 줄이면 VWAP 바로 옆만 닿음 판정. 밴드2가 na인 워밍업 구간에는 판정 불가로 흰색 폴백.")
+// VWAP 중앙선 지지/저항 색 규칙(CEO 개정 7규칙 — 전면 재작성). 화면 기본 VWAP 선(vwapValue)의 색을 봉 단위로 판정한다.
+//  판정 축: (1) 시가(open) 출발 구간 + (2) 고가/저가(high/low)의 VWAP 돌파 여부 + (3) 종가(close) 마감 위치. (개정판은 high/low를 다시 쓴다.)
+//  "근처 범위"는 **밴드1 기준 ±p%**(기본 10%)로 정의:
+//   상단 근처 상한 nearUpper = vwap + p×(upperBand1 − vwap),  하단 근처 하한 nearLower = vwap − p×(vwap − lowerBand1).  p = vwapNearBand1Pct/100.
+//  시가 구간(실수 전체 커버·상호배타): open<nearLower / nearLower≤open<vwap / open==vwap(중립) / vwap<open≤nearUpper / open>nearUpper.
+//  ▸ 저항 계열(시가가 VWAP 아래쪽 출발):
+//     [A] open<nearLower : close>nearUpper→저항실패(녹,#2) / vwap<close≤nearUpper→중립(#3) / high≤vwap&close≤vwap→저항(빨강,#4) / high>vwap&close≤vwap→중립(구멍X-A).
+//     [B] nearLower≤open<vwap : close>nearUpper→저항실패(녹,#5) / high≤vwap&close≤vwap→저항(빨강,#6) / 그외(vwap<close≤nearUpper·위꼬리되밀림)→중립.
+//  ▸ 지지 계열(시가가 VWAP 위쪽 출발, 위 저항의 정확한 상하 대칭 — 고↔저·상↔하·돌파↔이탈):
+//     [C] open>nearUpper : close<nearLower→지지실패(빨강) / nearLower≤close<vwap→중립 / low≥vwap&close≥vwap→지지(녹) / low<vwap&close≥vwap→중립(구멍X-C).
+//     [D] vwap<open≤nearUpper : close<nearLower→지지실패(빨강) / low≥vwap&close≥vwap→지지(녹) / 그외→중립.
+//  색 규약: 지지=녹 / 지지실패=빨강 / 저항=빨강 / 저항실패=녹 / 그 외 전부 중립(흰).
+//  ★ CEO 미정의 구멍(위/아래꼬리 되밀림 X-A~D, "VWAP은 넘었으나 근처 미달" 구간)은 전부 (i) 중립(흰)으로 채운다 → 모든 (시가,고저,종가) 조합이 한 색으로 결정.
+//  enableDynamicLineColor(밴드2 이탈 녹/빨강)와 독립한 별도 VWAP 선 전용 색이다.
+enableVwapSRColor = input.bool(true, title="VWAP 선 지지/저항 색(시가 구간·종가 돌파)", group="VWAP Settings", tooltip="켜면 화면 VWAP 중앙선의 색을 봉 단위로 지지=녹/지지실패=빨강/저항=빨강/저항실패=녹/중립=흰색으로 칠합니다(CEO 개정 7규칙). 판정은 시가가 VWAP 기준 어느 구간(하단근처 아래/안·상단근처 안/위)에서 출발했는지 + 고가/저가가 VWAP을 넘었는지 + 종가 마감 위치로 결정합니다. 위/아래꼬리로 찔렀다 되밀린 봉이나 VWAP은 넘었으나 근처엔 못 미친 봉은 중립(흰)으로 처리합니다. '근처 범위'는 VWAP↔밴드1 거리의 일정 % 이내(아래 근처 % 입력)로 정의합니다. 이 옵션은 아래 Enable Dynamic Line Color(밴드2 이탈 색)와 별개이며, 켜져 있으면 VWAP 선 색을 이 규칙이 담당합니다(밴드1·밴드2 등 다른 선 색은 기존대로).")
+// VWAP 중앙선 "근처 범위" 폭(밴드1 기준 %). CEO 새 정의: VWAP를 0%, 밴드1을 100%로 볼 때 이 %까지를 '근처'로 본다.
+//  상단 근처 상한 = vwap + (p/100)×(upperBand1 − vwap),  하단 근처 하한 = vwap − (p/100)×(vwap − lowerBand1).  p = 이 입력값.
+//  기본 10(=밴드1까지 거리의 10% 이내). 키우면 근처 범위가 넓어져 저항/지지 판정이 완만, 줄이면 VWAP 바로 옆만 근처로 인정.
+//  ⚠️ 과거 규칙과 달리 밴드2가 아니라 밴드1 기준이다. 밴드1이 na(워밍업)·편차 0(도지)면 판정 불가로 흰색 폴백.
+vwapNearBand1Pct = input.float(10.0, title="VWAP 근처 범위(밴드1 대비 %)", minval=0.0, maxval=100.0, step=1.0, group="VWAP Settings", active=enableVwapSRColor, display=display.none, tooltip="VWAP 중앙선의 '근처 범위'를 밴드1 기준 %로 정합니다. VWAP를 0%, 상단/하단 밴드1을 100%로 볼 때 이 %까지가 '근처'입니다. 상단 근처 상한 = VWAP + (%/100)×(상단밴드1−VWAP), 하단 근처 하한 = VWAP − (%/100)×(VWAP−하단밴드1). 기본 10(=밴드1까지 거리의 10% 이내). 키우면 근처 범위가 넓어지고, 줄이면 VWAP 바로 옆만 인정합니다. 밴드1이 na인 워밍업이나 편차 0(도지)이면 흰색(중립)으로 폴백합니다.")
 showBandPctLabels = input.bool(true, title="VWAP·밴드 간격 % 라벨 표시", group="VWAP Settings")
 
 BANDS_GROUP = "Bands Settings"
@@ -226,6 +238,10 @@ obvDiLen = input.int(5, minval=1, title="DI Length", group=DI_GROUP, active=ipSh
 // ADX Smoothing — OBV-ADX 원본 lensig(20)에 대응하는 옵션이며 기본 5로 짧게 잡는다. auto-vwap 마커 게이트는 DI 우위만 보므로 ADX 자체는 쓰지 않지만,
 //  OBV-ADX와 input 정합(동일 옵션 구성)을 위해 유지한다(계산부에서 값은 산출하되 게이트엔 미사용).
 obvAdxSmooth = input.int(5, minval=1, maxval=50, title="ADX Smoothing", group=DI_GROUP, active=ipShowMarkers, display=display.none, tooltip="OBV-ADX 원본 lensig(20)에 대응하는 옵션(기본 5). 변곡 마커 게이트는 DI 우위(DI+/DI-)만 사용하므로 ADX 값은 게이트에 쓰이지 않습니다.")
+// OBV 에너지 평균 길이 — 변곡 마커 색 채도(강/약) 판정용. auto-vwap 마커용으로 기본 5(짧게)로 잡는다(반응 빠름). obvDiLen(기본 5)과 결이 맞음.
+//  에너지 강/약 = OBV 방향 격차 |diPlus−diMinus|(=obv-adx의 |diDiff|)가 그 평균 이상/이하인가 + 3봉 전 대비 감소 여부.
+//  ⚠️ 산식 구조는 obv-adx-extreme-background.pine 상태판(L79-82)의 energyFading과 동일(평균 대비 OR 3봉 전 모멘텀). 평균 창만 obvEnergyLen(auto-vwap 기본 5, obv-adx 기본 14)로 다르게 두고, 3봉 전 [3] 룩백은 obv-adx와 동일한 고정 상수. 표시 전용(마커 색 채도만) — 판정·표시 여부와 무관.
+obvEnergyLen = input.int(5, minval=1, title="OBV 에너지 평균 길이", group=DI_GROUP, active=ipShowMarkers, display=display.none, tooltip="변곡 마커 색 채도(강/약) 판정용. OBV 방향 격차 |DI+−DI-|가 이 길이의 평균 이상이고 3봉 전보다 줄지 않았으면 '강(선명)', 아니면 '약(둔탁)'으로 마커 채도를 나눕니다. 평균만 obvEnergyLen(기본 5)로 짧게, 3봉 전 대비 모멘텀은 obv-adx 상태판과 동일한 고정 [3] 룩백입니다. 마커 표시 여부·판정은 바뀌지 않는 표시 전용 옵션입니다.")
 
 // 기본 화면용 VWAP 세트(length=50, 소스=src) — 화면 plot·밴드·라벨의 기준. 소스는 기존 화면 VWAP src(기본 hlc3) 유지 → 거동 불변.
 [vwapValue, upperBandValue1, lowerBandValue1, upperBandValue2, lowerBandValue2, shouldPlot] = computeVwapSet(recentBars, src)
@@ -292,39 +308,82 @@ color activeLineColor = enableDynamicLineColor ? breakHighlightLineColor : DEFAU
 color activeFillColor = color.new(activeLineColor, 92)
 
 // =========================
-// VWAP 중앙선 지지/저항 색 판정(CEO 지시) — 화면 기본 VWAP 선(vwapValue) 전용.
-//  판정에 쓰는 open/high/low/close·vwapValue·밴드2는 모두 현재봉의 확정 성격 값이다(과거 봉은 이미 확정, 형성 중 현재봉만 실시간).
-//   → 과거 봉 색은 재계산돼도 값이 불변이라 리페인팅(과거 변조) 없음. 형성 중 현재봉은 종가/고저 확정 전 색이 바뀔 수 있으나(정상적 인트라바 갱신), 봉 마감 시 확정된다.
-//  "근처" 동적 임계(CEO 규칙 #5):
-//   상단 편차 upDev = upperBandValue2 - vwapValue,  하단 편차 dnDev = vwapValue - lowerBandValue2.
-//   하단 근처(지지 맥락) = low  <= vwapValue + k*dnDev   (VWAP에서 k×하단편차 위까지 저가가 내려오면 '닿음')
-//   상단 근처(저항 맥락) = high >= vwapValue - k*upDev   (VWAP에서 k×상단편차 아래까지 고가가 올라오면 '닿음')
-//   k = vwapSRProximityK(기본 0.25). 편차 기반이라 종목·변동성에 자동 적응.
-//  엣지케이스: (a) 닿았지만 3·4·6·7 어디에도 안 걸리는 봉 → 흰색 폴백. (b) 종가==vwap → 지지/저항 실패의 종가 부등호가 strict(>,<)라 녹/빨강 모두 불성립 → 흰색. (c) 밴드2/vwap na(워밍업) → 흰색.
+// VWAP 중앙선 지지/저항 색 판정(CEO 개정 7규칙 — 전면 재작성). 화면 기본 VWAP 선(vwapValue) 전용.
+//  판정에 쓰는 open/high/low/close·vwapValue·밴드1은 모두 현재봉의 확정 성격 값이다(과거 봉은 이미 확정, 형성 중 현재봉만 실시간).
+//   → 과거 봉 색은 재계산돼도 값이 불변이라 리페인팅(과거 변조) 없음. 형성 중 현재봉은 고저·종가 확정 전 색이 바뀔 수 있으나(정상적 인트라바 갱신), 봉 마감 시 확정된다.
+//  근처 범위(밴드1 기준, p=vwapNearBand1Pct/100, 기본 0.10):
+//   nearUpper = vwapValue + p×(upperBandValue1 − vwapValue),  nearLower = vwapValue − p×(vwapValue − lowerBandValue1).
+//  시가 구간(실수 전체 커버·상호배타): open<nearLower / nearLower≤open<vwap / open==vwap(중립) / vwap<open≤nearUpper / open>nearUpper.
+//  ▸ 저항 계열(시가 VWAP 아래쪽 출발, 위로 시도):
+//     [A] open<nearLower :
+//         close>nearUpper                        → 저항실패(녹, CEO #2)
+//         vwap<close≤nearUpper                   → 중립(흰, CEO #3)
+//         high≤vwap AND nearLower≤close≤vwap     → 저항(빨강, CEO #4). 종가가 하단근처 범위(nearLower~vwap)까지 올라온 저항만 인정.
+//         close<nearLower                        → 중립(흰, CEO 추가규칙) ← open<nearLower AND close<nearLower: 하단근처 아래에서 시작→아래로 마감, 근처 미진입 → 지지/저항 아님
+//         high>vwap AND close≤vwap               → 중립(흰, 구멍 X-A) ← 위꼬리 되밀림, CEO 미정의 → (i) 중립 채택
+//     [B] nearLower≤open<vwap :
+//         close>nearUpper                  → 저항실패(녹, CEO #5)
+//         vwap<close≤nearUpper             → 중립(흰, CEO #6은 close≤vwap만 정의 → 이 구간 미정의 → 중립)
+//         high≤vwap AND close≤vwap         → 저항(빨강, CEO #6)
+//         high>vwap AND close≤vwap         → 중립(흰, 구멍 X-B) ← 위꼬리 되밀림 → (i) 중립
+//  ▸ 지지 계열(시가 VWAP 위쪽 출발, 아래로 시도 — 저항의 정확한 거울상: 고↔저, 상↔하, 돌파↔이탈, 녹↔빨강 규약만 지지=녹/지지실패=빨강):
+//     [C] open>nearUpper :
+//         close<nearLower                        → 지지실패(빨강, #2 거울)
+//         nearLower≤close<vwap                   → 중립(흰, #3 거울)
+//         low≥vwap AND vwap≤close≤nearUpper      → 지지(녹, #4 거울). 종가가 상단근처 범위(vwap~nearUpper)까지 내려온 지지만 인정.
+//         close>nearUpper                        → 중립(흰, CEO 추가규칙) ← open>nearUpper AND close>nearUpper: 상단근처 위에서 시작→위로 마감, 근처 미진입 → 지지/저항 아님
+//         low<vwap AND close≥vwap                → 중립(흰, 구멍 X-C, 아래꼬리 되밀림) → (i) 중립
+//     [D] vwap<open≤nearUpper :
+//         close<nearLower                  → 지지실패(빨강, #5 거울)
+//         nearLower≤close<vwap             → 중립(흰, #6 거울 미정의 구간)
+//         low≥vwap AND close≥vwap          → 지지(녹, #6 거울)
+//         low<vwap AND close≥vwap          → 중립(흰, 구멍 X-D, 아래꼬리 되밀림) → (i) 중립
+//  색 규약: 지지=녹 / 지지실패=빨강 / 저항=빨강 / 저항실패=녹 / 그 외 전부 중립(흰).
+//  ★ 구멍 처리(CEO 지시): 위꼬리/아래꼬리 되밀림(구멍 X-A~D) 및 "VWAP은 넘었으나 근처 미달"(B·D의 중립 구간)은 전부 (i) 중립(흰)으로 명시 채움.
+//  ★ CEO 추가규칙(근처 미진입 → 중립): [A] open<nearLower AND close<nearLower(하단근처 아래서 시작→아래로 마감) → 흰색. [C] open>nearUpper AND close>nearUpper(상단근처 위서 시작→위로 마감) → 흰색.
+//     취지: 지지/저항으로 인정하려면 종가가 최소한 근처 구간 안(또는 반대편)까지 와야 함. → [A]저항(빨강)은 close≥nearLower, [C]지지(녹)은 close≤nearUpper 가드로 반영. [B]·[D]는 대상 아님(기존 유지).
+//   → 모든 (시가,고가,저가,종가) 조합이 정확히 한 색으로 결정(상호배타·구멍 없음). strict/등호는 아래 부등호대로 엄밀히 적용.
+//  엣지케이스: (a) open==vwap(경계) → 어느 계열도 아님 → 흰색. (b) 밴드1/vwap na(워밍업) → 흰색. (c) 밴드1 편차 0(도지) → nearUpper==vwap 또는 nearLower==vwap이라 시가 근처 구간이 소멸, 구간 부등호가 strict라 자연 판정 불가 → 흰색.
+//  enableDynamicLineColor(밴드2 이탈 녹/빨강)와 독립한 별도 VWAP 선 전용 색이다.
 // =========================
 color vwapSRColor = DEFAULT_LINE_COLOR
-if enableVwapSRColor and shouldPlot and not na(vwapValue) and not na(upperBandValue2) and not na(lowerBandValue2)
-    float upDev = upperBandValue2 - vwapValue
-    float dnDev = vwapValue - lowerBandValue2
-    // #2 고저가 VWAP에 "닿음" 여부(근처 임계 반영).
-    bool lowTouch  = low  <= vwapValue + vwapSRProximityK * dnDev
-    bool highTouch = high >= vwapValue - vwapSRProximityK * upDev
-    // 종가/시가의 VWAP 대비 위치(경계 == 는 어느 쪽도 아님 → strict 부등호).
-    bool closeAbove = close > vwapValue
-    bool closeBelow = close < vwapValue
-    bool openAbove  = open > vwapValue
-    bool openBelow  = open < vwapValue
-    // CEO 규칙 3·4·6·7.
-    bool isSupport     = lowTouch and closeAbove              // #3 지지: 저가 근처/아래 후 종가 위
-    bool isResistance  = highTouch and closeBelow             // #4 저항: 고가 근처/위 후 종가 아래
-    bool isSupportFail = openAbove and closeBelow             // #6 지지 실패: 시가 위 → 종가 아래
-    bool isResistFail  = openBelow and closeAbove             // #7 저항 실패: 시가 아래 → 종가 위
-    // 규칙 8·9. 종가 위치로 배타적. 녹: 지지 또는 저항실패(둘 다 종가>vwap). 빨강: 저항 또는 지지실패(둘 다 종가<vwap).
-    if isSupport or isResistFail
-        vwapSRColor := LOWER_BREAK_LINE_COLOR                 // 녹색(#00FF00)
-    else if isResistance or isSupportFail
-        vwapSRColor := UPPER_BREAK_LINE_COLOR                 // 빨간색(#FF0000)
-    // 그 외(닿았지만 3·4·6·7 미해당, 종가==vwap 등) → 흰색 유지(폴백).
+if enableVwapSRColor and shouldPlot and not na(vwapValue) and not na(upperBandValue1) and not na(lowerBandValue1)
+    float p = vwapNearBand1Pct / 100.0
+    // 근처 범위 경계(밴드1 기준). 도지(편차 0)면 nearUpper==vwap / nearLower==vwap로 수렴 → 아래 strict 부등호가 자연 차단.
+    float nearUpper = vwapValue + p * (upperBandValue1 - vwapValue)
+    float nearLower = vwapValue - p * (vwapValue - lowerBandValue1)
+    // 시가 출발 구간(상호배타·전체 커버). open==vwap은 어디에도 안 들어감(중립).
+    bool openBelowNear = open < nearLower                        // [A] 하단 근처 범위 아래
+    bool openInLower   = open >= nearLower and open < vwapValue  // [B] 하단 근처 범위 안(경계 nearLower 포함 ~ vwap 미만)
+    bool openInUpper   = open > vwapValue and open <= nearUpper  // [D] 상단 근처 범위 안(vwap 초과 ~ nearUpper 포함)
+    bool openAboveNear = open > nearUpper                        // [C] 상단 근처 범위 위
+    // 저항 계열(시가 VWAP 아래쪽). 저항실패(녹)=close>nearUpper, 저항(빨강)=high≤vwap AND close≤vwap AND close≥nearLower, 그 외 중립(흰).
+    if openBelowNear                                             // [A] CEO #2·#3·#4 + 구멍 X-A + 추가규칙(하단근처 미진입)
+        if close > nearUpper
+            vwapSRColor := LOWER_BREAK_LINE_COLOR   // 저항실패(녹) — CEO #2
+        else if high <= vwapValue and close <= vwapValue and close >= nearLower
+            vwapSRColor := UPPER_BREAK_LINE_COLOR   // 저항(빨강) — CEO #4. 단 종가가 nearLower~vwap(하단근처 범위)까지 올라온 저항만.
+        // else: CEO #3(vwap<close≤nearUpper) 또는 구멍 X-A(high>vwap AND close≤vwap) 또는 추가규칙(open<nearLower AND close<nearLower: 근처 미진입) → 흰색(중립)
+    else if openInLower                                          // [B] CEO #5·#6 + 미정의 구간·구멍 X-B
+        if close > nearUpper
+            vwapSRColor := LOWER_BREAK_LINE_COLOR   // 저항실패(녹) — CEO #5
+        else if high <= vwapValue and close <= vwapValue
+            vwapSRColor := UPPER_BREAK_LINE_COLOR   // 저항(빨강) — CEO #6
+        // else: (vwap<close≤nearUpper) 또는 구멍 X-B(high>vwap AND close≤vwap) → 흰색(중립)
+    // 지지 계열(시가 VWAP 위쪽) — 저항 계열의 정확한 거울상(고↔저·상↔하·돌파↔이탈).
+    else if openAboveNear                                        // [C] #2·#3·#4 거울 + 구멍 X-C + 추가규칙(상단근처 미진입)
+        if close < nearLower
+            vwapSRColor := UPPER_BREAK_LINE_COLOR   // 지지실패(빨강) — #2 거울
+        else if low >= vwapValue and close >= vwapValue and close <= nearUpper
+            vwapSRColor := LOWER_BREAK_LINE_COLOR   // 지지(녹) — #4 거울. 단 종가가 vwap~nearUpper(상단근처 범위)까지 내려온 지지만.
+        // else: (#3 거울: nearLower≤close<vwap) 또는 구멍 X-C(low<vwap AND close≥vwap) 또는 추가규칙(open>nearUpper AND close>nearUpper: 근처 미진입) → 흰색(중립)
+    else if openInUpper                                          // [D] #5·#6 거울 + 미정의 구간·구멍 X-D
+        if close < nearLower
+            vwapSRColor := UPPER_BREAK_LINE_COLOR   // 지지실패(빨강) — #5 거울
+        else if low >= vwapValue and close >= vwapValue
+            vwapSRColor := LOWER_BREAK_LINE_COLOR   // 지지(녹) — #6 거울
+        // else: (nearLower≤close<vwap) 또는 구멍 X-D(low<vwap AND close≥vwap) → 흰색(중립)
+    // 그 외(open==vwap 경계 등) → 흰색 유지(중립).
 // 최종 VWAP 선 색: 지지/저항 규칙 ON이면 그 색, OFF면 기존 activeLineColor(동적색 옵션 거동 보존).
 color vwapLineColor = enableVwapSRColor ? vwapSRColor : activeLineColor
 
@@ -479,12 +538,30 @@ obvMinusDM = na(obvDown) ? na : obvDown > obvUp and obvDown > 0 ? obvDown : 0
 obvTrur = ta.rma(ta.stdev(obvValue, obvDiLen), obvDiLen)
 diPlus = fixnan(obvTrur == 0 ? 0 : 100 * ta.ema(obvPlusDM, obvDiLen) / obvTrur)
 diMinus = fixnan(obvTrur == 0 ? 0 : 100 * ta.ema(obvMinusDM, obvDiLen) / obvTrur)
+// OBV 방향 격차 |diPlus−diMinus|(=obv-adx의 |diDiff|) — ADX·에너지 채도 공용. 원본 obv-adx가 diDiff를 재사용하듯 여기서도 한 번만 계산(중복 제거).
+diEnergy = math.abs(diPlus - diMinus)
 // ADX(OBV-ADX 원본 lensig 사용) — input 정합용으로 계산만 유지. 변곡 마커 게이트엔 미사용.
 obvDiSum = diPlus + diMinus
-obvAdx = 100 * ta.ema(math.abs(diPlus - diMinus) / (obvDiSum == 0 ? 1 : obvDiSum), obvAdxSmooth)
+obvAdx = 100 * ta.ema(diEnergy / (obvDiSum == 0 ? 1 : obvDiSum), obvAdxSmooth)
 // DI 우위 게이트(na 가드 포함) — DI 값이 na면 해당 방향 억제.
 shortDiGate = not na(diMinus) and not na(diPlus) and diMinus > diPlus
 longDiGate = not na(diPlus) and not na(diMinus) and diPlus > diMinus
+// ── OBV 에너지 강/약 판정(변곡 마커 색 채도 전용) — OBV-ADX 상태판 energyFading 산식 이식 ──
+//  obv-adx-extreme-background.pine(L80-82): diEnergy=|diDiff|=|plus-minus|, diEnergyAvg=sma(diEnergy,obvEnergyLen),
+//   energyFading = diEnergy < diEnergyAvg or diEnergy < diEnergy[3]. diEnergy는 위(obvAdx 앞)에서 이미 계산해 재사용(중복 없음).
+//  평균 창은 obvEnergyLen(기본 5), 3봉 전 모멘텀 [3]은 평균과 무관한 독립 룩백(obv-adx와 동일한 고정 상수) → 평균이 짧아져도 시간축 부정합 없음.
+//  energyStrong = not energyFading → '강(선명색)', energyFading → '약(둔탁색)'. na면 약으로 취급(보수적: 둔탁).
+//  ⚠️ 확정 성격 값(ema/sma/과거참조[3])만 사용 → 신규 리페인팅 없음. 마커 색 채도만 바꿈(판정·표시 여부·y좌표 불변).
+diEnergyAvg = ta.sma(diEnergy, obvEnergyLen)
+energyFading = na(diEnergy) or na(diEnergyAvg) or diEnergy < diEnergyAvg or diEnergy < diEnergy[3]
+energyStrong = not energyFading
+// 채도 색 상수 — 선명색은 마커 기존 색(short/longClearLineColor), 둔탁색은 저장소 시그니처 팔레트(둔탁 녹/빨강, obv-adx 상태판과 동일).
+color DULL_LONG_COLOR  = #6E8F72   // 둔탁 녹(롱 약)
+color DULL_SHORT_COLOR = #A57A7A   // 둔탁 빨강(숏 약)
+// 마커 색(채도 반영): 롱=강→선명 녹(longClearLineColor)/약→둔탁 녹, 숏=강→선명 빨강(shortClearLineColor)/약→둔탁 빨강.
+//  ⚠️ 채도는 색만 바꾸며 마커 발동(upper2Marker/lower2Marker)에는 관여하지 않는다.
+color lowerMarkerColor = energyStrong ? longClearLineColor : DULL_LONG_COLOR
+color upperMarkerColor = energyStrong ? shortClearLineColor : DULL_SHORT_COLOR
 
 // 방향성 밴드워킹 억제(ipBwSuppress) AND 결합 — 후보·수평필터·DI 우위 게이트 위에 방향 억제만 얹는다.
 //  숏(빨강·상단) = 후보(3모드OR) AND 수평필터(숏) AND (DI- 우위) AND (not 상승 밴드워킹).
@@ -492,8 +569,15 @@ longDiGate = not na(diPlus) and not na(diMinus) and diPlus > diMinus
 //  토글 OFF면 억제 항이 항상 참 → 기존 동작 그대로.
 upperBwOk = not ipBwSuppress or not isUpBandWalking
 lowerBwOk = not ipBwSuppress or not isDownBandWalking
-upper2Marker = shortCand and ipUpperFlatOk and shortDiGate and upperBwOk
-lower2Marker = longCand and ipLowerFlatOk and longDiGate and lowerBwOk
+// ── VWAP 선색 AND 게이트(CEO 지시 A) — 최종 선색(vwapSRColor, 새 시가구간·종가돌파 규칙 결과) 기준 ──
+//  롱(하단) 마커: 선색이 흰색 또는 녹색일 때만 표시(빨강이면 억제). 숏(상단) 마커: 선색이 흰색 또는 빨강일 때만 표시(녹색이면 억제).
+//  구현: 최종 vwapSRColor를 색 상수와 비교한다(녹=LOWER_BREAK_LINE_COLOR, 빨강=UPPER_BREAK_LINE_COLOR, 흰=DEFAULT_LINE_COLOR).
+//  ⚠️ 선 지지/저항 색 옵션(enableVwapSRColor) OFF이면 선색 판정 자체가 없으므로 게이트를 적용하지 않는다(기존 마커 거동 유지). ON일 때만 억제 게이트 발동.
+//  선색은 확정 성격 값(open/close·vwap·밴드1) 기반이라 신규 리페인팅 없음(현재봉 실시간 변동 성격은 기존 선색과 동일).
+bool srcGateLong  = not enableVwapSRColor or vwapSRColor != UPPER_BREAK_LINE_COLOR  // 롱: 빨강만 억제(흰/녹 허용)
+bool srcGateShort = not enableVwapSRColor or vwapSRColor != LOWER_BREAK_LINE_COLOR  // 숏: 녹색만 억제(흰/빨강 허용)
+upper2Marker = shortCand and ipUpperFlatOk and shortDiGate and upperBwOk and srcGateShort
+lower2Marker = longCand and ipLowerFlatOk and longDiGate and lowerBwOk and srcGateLong
 // 요구사항 1: 밴드2 상/하단 선 색은 청산선 진입에 따른 색 변경을 제거하고 기본색(activeLineColor)으로 되돌린다.
 // CEO 재지시(강조 옵션 보정): "기본 vwap이 청산선 안으로 들어오고, 마커가 생길 때" 해당 밴드2를 마커색으로 강조.
 //  ⚠️ 후보/마커 판정은 변곡용 밴드2(ipUpperBandValue2/ipLowerBandValue2, window=ipRecentBars 기본 10)를 3모드 청산선과 비교한다(L405-410).
@@ -507,10 +591,11 @@ lower2Marker = longCand and ipLowerFlatOk and longDiGate and lowerBwOk
 baseUpperBand2InClear = shouldPlot and not na(upperBandValue2) and not na(shortClear) and upperBandValue2 < shortClear
 baseLowerBand2InClear = shouldPlot and not na(lowerBandValue2) and not na(longClear)  and lowerBandValue2 > longClear
 //  강조 = 옵션 ON AND 마커 발동 AND 화면 밴드2가 청산선 안. 셋 다 충족해야 마커색, 아니면 기본색(activeLineColor)으로 원복.
-//  마커 plotshape와 동일 색 변수(short/longClearLineColor)를 재사용해 강조색·마커색 불일치를 원천 차단.
+//  마커 plotshape와 동일 색 변수(upper/lowerMarkerColor)를 재사용해 강조색·마커색 불일치를 원천 차단.
+//   ⚠️ 마커색이 OBV 에너지 채도(강 선명/약 둔탁)로 나뉘므로 밴드2 강조색도 동일 채도를 따른다(같은 봉에서 마커=둔탁·밴드2=선명 불일치 방지 — 일관성).
 //  봉 단위 series color 지정이므로 리페인팅 없음(마커 조건·밴드2·청산선 모두 확정 성격 값 기반).
-color upperBand2LineColor = ipBand2MarkerColor and upper2Marker and baseUpperBand2InClear ? shortClearLineColor : activeLineColor
-color lowerBand2LineColor = ipBand2MarkerColor and lower2Marker and baseLowerBand2InClear ? longClearLineColor : activeLineColor
+color upperBand2LineColor = ipBand2MarkerColor and upper2Marker and baseUpperBand2InClear ? upperMarkerColor : activeLineColor
+color lowerBand2LineColor = ipBand2MarkerColor and lower2Marker and baseLowerBand2InClear ? lowerMarkerColor : activeLineColor
 
 // 사양 2(CEO 지시 변경): 마커 y좌표를 기본 화면 밴드2가 아니라 **화면에 실제 그려지는 청산선**(shortClear/longClear, ceMode 선택 결과선)에 얹는다.
 //  - 숏 변곡 마커(upper2Marker) y = shortClear(숏 청산선).  롱 변곡 마커(lower2Marker) y = longClear(롱 청산선).
@@ -549,8 +634,9 @@ fill(upperBand_2, lowerBand_2, title="Bands Fill #2", color=activeFillColor, dis
 //    location.top/bottom 은 첫 인자(값)가 무시되어 창 최상/최하단에 고정되므로 쓰지 않는다.
 // ⚠️ plotshape의 style은 const string만 받으므로, 모양 삼항을 style 인자에 **직접 인라인**한다(변수 저장 시 컴파일 에러).
 //    각 분기가 shape.* 리터럴이라 컴파일 타임 상수로 평가된다. 기본값(원)은 첫 분기(shape.circle).
-plotshape(ipShowMarkers and upper2Marker ? upper2MarkerY : na, title="변곡 지점(상단)", style=ipMarkerStyle == "원" ? shape.circle : ipMarkerStyle == "삼각형" ? shape.triangleup : ipMarkerStyle == "다이아몬드" ? shape.diamond : ipMarkerStyle == "네모" ? shape.square : shape.cross, location=location.absolute, color=shortClearLineColor, size=size.tiny, offset=offset, editable=true)
-plotshape(ipShowMarkers and lower2Marker ? lower2MarkerY : na, title="변곡 지점(하단)", style=ipMarkerStyle == "원" ? shape.circle : ipMarkerStyle == "삼각형" ? shape.triangleup : ipMarkerStyle == "다이아몬드" ? shape.diamond : ipMarkerStyle == "네모" ? shape.square : shape.cross, location=location.absolute, color=longClearLineColor, size=size.tiny, offset=offset, editable=true)
+//    ⚠️ 마커 색은 OBV 에너지 강/약 채도 반영: 숏=upperMarkerColor(강→선명 빨강/약→둔탁 빨강), 롱=lowerMarkerColor(강→선명 녹/약→둔탁 녹). 색만 채도로 나뉘고 발동·모양·y좌표는 불변.
+plotshape(ipShowMarkers and upper2Marker ? upper2MarkerY : na, title="변곡 지점(상단)", style=ipMarkerStyle == "원" ? shape.circle : ipMarkerStyle == "삼각형" ? shape.triangleup : ipMarkerStyle == "다이아몬드" ? shape.diamond : ipMarkerStyle == "네모" ? shape.square : shape.cross, location=location.absolute, color=upperMarkerColor, size=size.tiny, offset=offset, editable=true)
+plotshape(ipShowMarkers and lower2Marker ? lower2MarkerY : na, title="변곡 지점(하단)", style=ipMarkerStyle == "원" ? shape.circle : ipMarkerStyle == "삼각형" ? shape.triangleup : ipMarkerStyle == "다이아몬드" ? shape.diamond : ipMarkerStyle == "네모" ? shape.square : shape.cross, location=location.absolute, color=lowerMarkerColor, size=size.tiny, offset=offset, editable=true)
 
 // =========================
 // 샹들리에 청산선(직선=손절 기준선) 차트 페인팅 — 이치모쿠에서 이동(CEO 지시).
