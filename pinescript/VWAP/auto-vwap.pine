@@ -10,6 +10,14 @@ recentBars = input.int(defval=50, title="Recent Bars (기본 화면 VWAP)", minv
 src = input(title="Source", defval=hlc3, group="VWAP Settings", display=display.none)
 offset = input.int(0, title="Offset", group="VWAP Settings", display=display.none)
 enableDynamicLineColor = input.bool(false, title="Enable Dynamic Line Color", group="VWAP Settings", display=display.none)
+// VWAP 중앙선 지지/저항 색 규칙(CEO 지시). 화면 기본 VWAP 선(vwapValue)의 색을 봉 단위로 판정한다:
+//  · 흰색   = 캔들 고가·저가가 VWAP "근처"에 닿지 않음(중립).
+//  · 녹색   = 지지(저가가 VWAP 근처/아래 후 종가 VWAP 위) 또는 저항 실패(시가 VWAP 아래→종가 VWAP 위).
+//  · 빨간색 = 저항(고가가 VWAP 근처/위 후 종가 VWAP 아래) 또는 지지 실패(시가 VWAP 위→종가 VWAP 아래).
+//  녹/빨강 배타성은 "종가 위치"로 갈린다(종가>vwap→녹, 종가<vwap→빨강). 흰색은 폴백.
+//  "근처" 임계는 VWAP 밴드2 편차 기반(아래 vwapSRProximityK 참조). 이 규칙은 enableDynamicLineColor(밴드2 이탈 녹/빨강)와 독립한 별도 VWAP 선 전용 색이다.
+enableVwapSRColor = input.bool(true, title="VWAP 선 지지/저항 색(고저·시종가 기준)", group="VWAP Settings", tooltip="켜면 화면 VWAP 중앙선의 색을 봉 단위로 지지=녹/저항=빨강/중립=흰색으로 칠합니다. 지지=저가가 VWAP 근처·아래 후 종가가 VWAP 위, 저항=고가가 VWAP 근처·위 후 종가가 VWAP 아래. 지지 실패(시가 위→종가 아래)=빨강, 저항 실패(시가 아래→종가 위)=녹색. 고저가 VWAP 근처에 닿지 않으면 흰색. '근처'는 VWAP 밴드2 편차 × 근접 계수로 동적 계산합니다. 이 옵션은 아래 Enable Dynamic Line Color(밴드2 이탈 색)와 별개이며, 켜져 있으면 VWAP 선 색을 이 규칙이 담당합니다(밴드1·밴드2 등 다른 선 색은 기존대로).")
+vwapSRProximityK = input.float(0.25, title="VWAP 근처 임계(밴드2 편차 대비 배수)", minval=0.0, step=0.05, group="VWAP Settings", active=enableVwapSRColor, display=display.none, tooltip="'VWAP 근처' 판정 폭을 정합니다. 하단 근처 = 저가 ≤ VWAP + k×(VWAP−하단밴드2), 상단 근처 = 고가 ≥ VWAP − k×(상단밴드2−VWAP). k가 이 값입니다(기본 0.25 = 밴드2까지 편차의 25% 이내면 '근처'). 키우면 더 멀리서도 닿음 판정, 줄이면 VWAP 바로 옆만 닿음 판정. 밴드2가 na인 워밍업 구간에는 판정 불가로 흰색 폴백.")
 showBandPctLabels = input.bool(true, title="VWAP·밴드 간격 % 라벨 표시", group="VWAP Settings")
 
 BANDS_GROUP = "Bands Settings"
@@ -284,6 +292,43 @@ color activeLineColor = enableDynamicLineColor ? breakHighlightLineColor : DEFAU
 color activeFillColor = color.new(activeLineColor, 92)
 
 // =========================
+// VWAP 중앙선 지지/저항 색 판정(CEO 지시) — 화면 기본 VWAP 선(vwapValue) 전용.
+//  판정에 쓰는 open/high/low/close·vwapValue·밴드2는 모두 현재봉의 확정 성격 값이다(과거 봉은 이미 확정, 형성 중 현재봉만 실시간).
+//   → 과거 봉 색은 재계산돼도 값이 불변이라 리페인팅(과거 변조) 없음. 형성 중 현재봉은 종가/고저 확정 전 색이 바뀔 수 있으나(정상적 인트라바 갱신), 봉 마감 시 확정된다.
+//  "근처" 동적 임계(CEO 규칙 #5):
+//   상단 편차 upDev = upperBandValue2 - vwapValue,  하단 편차 dnDev = vwapValue - lowerBandValue2.
+//   하단 근처(지지 맥락) = low  <= vwapValue + k*dnDev   (VWAP에서 k×하단편차 위까지 저가가 내려오면 '닿음')
+//   상단 근처(저항 맥락) = high >= vwapValue - k*upDev   (VWAP에서 k×상단편차 아래까지 고가가 올라오면 '닿음')
+//   k = vwapSRProximityK(기본 0.25). 편차 기반이라 종목·변동성에 자동 적응.
+//  엣지케이스: (a) 닿았지만 3·4·6·7 어디에도 안 걸리는 봉 → 흰색 폴백. (b) 종가==vwap → 지지/저항 실패의 종가 부등호가 strict(>,<)라 녹/빨강 모두 불성립 → 흰색. (c) 밴드2/vwap na(워밍업) → 흰색.
+// =========================
+color vwapSRColor = DEFAULT_LINE_COLOR
+if enableVwapSRColor and shouldPlot and not na(vwapValue) and not na(upperBandValue2) and not na(lowerBandValue2)
+    float upDev = upperBandValue2 - vwapValue
+    float dnDev = vwapValue - lowerBandValue2
+    // #2 고저가 VWAP에 "닿음" 여부(근처 임계 반영).
+    bool lowTouch  = low  <= vwapValue + vwapSRProximityK * dnDev
+    bool highTouch = high >= vwapValue - vwapSRProximityK * upDev
+    // 종가/시가의 VWAP 대비 위치(경계 == 는 어느 쪽도 아님 → strict 부등호).
+    bool closeAbove = close > vwapValue
+    bool closeBelow = close < vwapValue
+    bool openAbove  = open > vwapValue
+    bool openBelow  = open < vwapValue
+    // CEO 규칙 3·4·6·7.
+    bool isSupport     = lowTouch and closeAbove              // #3 지지: 저가 근처/아래 후 종가 위
+    bool isResistance  = highTouch and closeBelow             // #4 저항: 고가 근처/위 후 종가 아래
+    bool isSupportFail = openAbove and closeBelow             // #6 지지 실패: 시가 위 → 종가 아래
+    bool isResistFail  = openBelow and closeAbove             // #7 저항 실패: 시가 아래 → 종가 위
+    // 규칙 8·9. 종가 위치로 배타적. 녹: 지지 또는 저항실패(둘 다 종가>vwap). 빨강: 저항 또는 지지실패(둘 다 종가<vwap).
+    if isSupport or isResistFail
+        vwapSRColor := LOWER_BREAK_LINE_COLOR                 // 녹색(#00FF00)
+    else if isResistance or isSupportFail
+        vwapSRColor := UPPER_BREAK_LINE_COLOR                 // 빨간색(#FF0000)
+    // 그 외(닿았지만 3·4·6·7 미해당, 종가==vwap 등) → 흰색 유지(폴백).
+// 최종 VWAP 선 색: 지지/저항 규칙 ON이면 그 색, OFF면 기존 activeLineColor(동적색 옵션 거동 보존).
+color vwapLineColor = enableVwapSRColor ? vwapSRColor : activeLineColor
+
+// =========================
 // 샹들리에 청산선(스윕/청산) — 이치모쿠 advanced-ichimoku.pine 의 로직을 그대로 이식(값 계산 전용).
 //  - longCE  : 가격 아래쪽 스윕(샹들리에, ta.highest - ATR, 상향 트레일). longClear = 그 너머(더 아래).
 //  - shortCE : 가격 위쪽 스윕(샹들리에, ta.lowest + ATR, 하향 트레일). shortClear = 그 너머(더 위).
@@ -476,8 +521,9 @@ color lowerBand2LineColor = ipBand2MarkerColor and lower2Marker and baseLowerBan
 float upper2MarkerY = shortClear
 float lower2MarkerY = longClear
 
-// VWAP 중앙선: 두께 1px(CEO 지시 요구사항 3) + 가격축 라벨은 이 선만 표시(display 기본=all). 밴드는 라벨 제외.
-plot(vwapValue, title="브이왑", color=activeLineColor, offset=offset, linewidth=1, editable=true, linestyle=plot.linestyle_solid)
+// VWAP 중앙선: 두께 2px(CEO 지시 — 지지/저항 색 규칙) + 가격축 라벨은 이 선만 표시(display 기본=all). 밴드는 라벨 제외.
+//  색 = vwapLineColor(지지/저항 규칙 ON이면 녹/빨강/흰색, OFF면 기존 activeLineColor).
+plot(vwapValue, title="브이왑", color=vwapLineColor, offset=offset, linewidth=2, editable=true, linestyle=plot.linestyle_solid)
 
 displayBand1 = showBand_1 ? display.all - display.price_scale : display.none
 upperBand_1 = plot(upperBandValue1, title="Upper Band #1", color=activeLineColor, offset=offset, display=displayBand1, editable=true, linestyle=plot.linestyle_dotted)
