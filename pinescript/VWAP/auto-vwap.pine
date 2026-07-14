@@ -18,10 +18,10 @@ enableDynamicLineColor = input.bool(false, title="Enable Dynamic Line Color", gr
 //  시가 구간(실수 전체 커버·상호배타): open<nearLower / nearLower≤open<vwap / open==vwap(중립) / vwap<open≤nearUpper / open>nearUpper.
 //  ▸ 저항 계열(시가가 VWAP 아래쪽 출발):
 //     [A] open<nearLower : close>nearUpper→저항실패(녹,#2) / close<nearLower&high≥nearLower→저항(빨강,규칙1 X-A확정 되밀림) / high≤vwap&nearLower≤close≤vwap→저항(빨강,#4) / vwap<close≤nearUpper→중립(#3) / nearLower≤close≤vwap&high>vwap위꼬리→중립(구멍X-A잔여) / close<nearLower&high<nearLower→중립(미진입).
-//     [B] nearLower≤open<vwap : close>nearUpper→저항실패(녹,#5) / close<nearLower→저항(빨강,B+,high무관) / nearLower≤close≤vwap&high≤vwap→저항(빨강,#6) / 그외(vwap<close≤nearUpper·nearLower≤close≤vwap위꼬리되밀림)→중립.
+//     [B] nearLower≤open<vwap : close>nearUpper→저항실패(녹,#5) / close≤vwap→저항(빨강,통합B,high무관·#6+B+ 흡수) / 그외(vwap<close≤nearUpper)→중립.
 //  ▸ 지지 계열(시가가 VWAP 위쪽 출발, 위 저항의 정확한 상하 대칭 — 고↔저·상↔하·돌파↔이탈):
 //     [C] open>nearUpper : close<nearLower→지지실패(빨강) / close>nearUpper&low≤nearUpper→지지(녹,규칙2 X-C확정 되밀림) / low≥vwap&vwap≤close≤nearUpper→지지(녹,#4거울) / nearLower≤close<vwap→중립 / vwap≤close≤nearUpper&low<vwap아래꼬리→중립(구멍X-C잔여) / close>nearUpper&low>nearUpper→중립(미진입).
-//     [D] vwap<open≤nearUpper : close<nearLower→지지실패(빨강) / close>nearUpper→지지(녹,D+,low무관) / vwap≤close≤nearUpper&low≥vwap→지지(녹) / 그외(nearLower≤close<vwap·vwap≤close≤nearUpper아래꼬리되밀림)→중립.
+//     [D] vwap<open≤nearUpper : close<nearLower→지지실패(빨강) / close≥vwap→지지(녹,통합D,low무관·#6+D+ 흡수) / 그외(nearLower≤close<vwap)→중립.
 //  색 규약: 지지=녹 / 지지실패=빨강 / 저항=빨강 / 저항실패=녹 / 그 외 전부 중립(흰).
 //  ★ 구멍: [A]/[C] 위/아래꼬리 되밀림 중 규칙1/2(X-A/X-C 확정, close가 근처 반대편 돌파 마감이면서 near 닿음)는 이제 저항/지지 확정. 나머지 잔여(nearLower≤close≤vwap 위꼬리 등)만 중립. [B]/[D]의 X-B/X-D는 규칙 B+/D+가 흡수. → 모든 (시가,고저,종가) 조합이 한 색으로 결정.
 //  enableDynamicLineColor(밴드2 이탈 녹/빨강)와 독립한 별도 VWAP 선 전용 색이다.
@@ -336,9 +336,8 @@ color activeFillColor = color.new(activeLineColor, 92)
 //         nearLower≤close≤vwap AND high>vwap     → 중립(흰, 구멍 X-A 잔여) ← 위꼬리로 VWAP 위 찔렀다 근처 범위로 되밀림, CEO 미정의 → (i) 중립 유지
 //     [B] nearLower≤open<vwap :
 //         close>nearUpper                        → 저항실패(녹, CEO #5)
-//         close<nearLower                        → 저항(빨강, CEO 규칙 B+) ← 하단근처 안 출발→하단근처 아래로 돌파 마감 → high 무관. (기존 구멍 X-B[high>vwap 위꼬리 되밀림 중 close<nearLower] 흡수)
-//         nearLower≤close≤vwap AND high≤vwap     → 저항(빨강, CEO #6)
-//         나머지(vwap<close≤nearUpper, 또는 nearLower≤close≤vwap AND high>vwap 위꼬리 되밀림) → 중립(흰)
+//         close≤vwap                             → 저항(빨강, CEO 통합규칙 B) ← 하단근처 안 출발 후 종가가 VWAP 이하면 high 무관 저항. 하단근처 위치(nearLower≤close≤vwap, 구 #6)와 하단근처 아래 이탈(close<nearLower, 구 B+) 모두 흡수. (기존 high≤vwap 위꼬리 가드 제거 → 위꼬리로 고가가 VWAP 넘어도 저항 유지)
+//         나머지(vwap<close≤nearUpper)           → 중립(흰) ← 종가가 VWAP 위·상단근처 이하 되밀림
 //  ▸ 지지 계열(시가 VWAP 위쪽 출발, 아래로 시도 — 저항의 정확한 거울상: 고↔저, 상↔하, 돌파↔이탈, 녹↔빨강 규약만 지지=녹/지지실패=빨강):
 //     [C] open>nearUpper :
 //         close<nearLower                        → 지지실패(빨강, #2 거울)
@@ -349,15 +348,14 @@ color activeFillColor = color.new(activeLineColor, 92)
 //         vwap≤close≤nearUpper AND low<vwap      → 중립(흰, 구멍 X-C 잔여, 아래꼬리 되밀림) → (i) 중립 유지
 //     [D] vwap<open≤nearUpper :
 //         close<nearLower                        → 지지실패(빨강, #5 거울)
-//         close>nearUpper                        → 지지(녹, CEO 규칙 D+) ← 상단근처 안 출발→상단근처 위로 돌파 마감 → low 무관. (기존 구멍 X-D[low<vwap 아래꼬리 되밀림 중 close>nearUpper] 흡수)
-//         vwap≤close≤nearUpper AND low≥vwap      → 지지(녹, #6 거울)
-//         나머지(nearLower≤close<vwap, 또는 vwap≤close≤nearUpper AND low<vwap 아래꼬리 되밀림) → 중립(흰)
+//         close≥vwap                             → 지지(녹, CEO 통합규칙 D) ← 상단근처 안 출발 후 종가가 VWAP 이상이면 low 무관 지지. 상단근처 위치(vwap≤close≤nearUpper, 구 #6 거울)와 상단근처 위 이탈(close>nearUpper, 구 D+) 모두 흡수. (기존 low≥vwap 아래꼬리 가드 제거 → 아래꼬리로 저가가 VWAP 밑으로 내려가도 지지 유지)
+//         나머지(nearLower≤close<vwap)           → 중립(흰) ← 종가가 VWAP 아래·하단근처 이상 되밀림
 //  색 규약: 지지=녹 / 지지실패=빨강 / 저항=빨강 / 저항실패=녹 / 그 외 전부 중립(흰).
-//  ★ 구멍 처리: [A]/[C]의 위/아래꼬리 되밀림 중 규칙1/2(close가 하단근처 아래/상단근처 위로 마감 AND high≥nearLower/low≤nearUpper 로 근처 닿음)는 저항/지지 확정(구멍 X-A/X-C 확정분). 잔여(nearLower≤close≤vwap 위꼬리·vwap≤close≤nearUpper 아래꼬리)만 (i) 중립. [B]/[D]의 X-B/X-D는 아래 규칙 B+/D+가 흡수.
+//  ★ 구멍 처리: [A]/[C]의 위/아래꼬리 되밀림 중 규칙1/2(close가 하단근처 아래/상단근처 위로 마감 AND high≥nearLower/low≤nearUpper 로 근처 닿음)는 저항/지지 확정(구멍 X-A/X-C 확정분). 잔여(nearLower≤close≤vwap 위꼬리·vwap≤close≤nearUpper 아래꼬리)만 (i) 중립. [B]/[D]는 통합규칙 B/D(close≤vwap·close≥vwap)가 고저 무관으로 전부 흡수(X-B/X-D 및 위/아래꼬리 되밀림 포함).
 //  ★ CEO 규칙1/2(되밀림 저항/지지 세분): [A] open<nearLower AND close<nearLower 를 high로 세분 → high≥nearLower(고가가 하단근처 닿음)면 저항(빨강), high<nearLower(못 닿음)면 중립(흰·미진입). [C] open>nearUpper AND close>nearUpper 를 low로 세분 → low≤nearUpper(저가가 상단근처 닿음)면 지지(녹), low>nearUpper(못 닿음)면 중립(흰·미진입).
 //     취지: 근처 아래/위로 마감했어도 고가/저가가 근처에 닿았다 되밀렸으면 되밀림 저항/지지로 인정. 근처 근처조차 못 닿았으면 미진입 중립. (기존 close<nearLower→일괄 흰 / close>nearUpper→일괄 흰 을 high/low 기준으로 세분)
-//  ★ CEO 추가규칙 B+/D+(근처 돌파 → 고저 무관 지지/저항 확정): [B] nearLower≤open<vwap AND close<nearLower → 저항(빨강, high 무관). [D] vwap<open≤nearUpper AND close>nearUpper → 지지(녹, low 무관).
-//     취지: 근처 안에서 출발해 근처 반대편(하단근처 아래/상단근처 위)까지 돌파 마감했으면 위/아래꼬리 되밀림과 무관하게 저항/지지로 확정. → [B]에 close<nearLower 우선 분기, [D]에 close>nearUpper 우선 분기 추가.
+//  ★ CEO 통합규칙 B/D(근처 안 출발 → 종가 VWAP 기준·고저 무관 저항/지지 확정): [B] nearLower≤open<vwap AND close≤vwap → 저항(빨강, high 무관). [D] vwap<open≤nearUpper AND close≥vwap → 지지(녹, low 무관).
+//     취지: 근처 안에서 출발해 종가가 VWAP를 넘지 못하면([B]) / 넘어서면([D]) 위/아래꼬리 되밀림과 무관하게 저항/지지로 확정. 구 #6(근처 위치)와 구 B+/D+(근처 반대편 이탈)를 하나로 통합, 기존 high≤vwap/low≥vwap 위·아래꼬리 가드 제거(위꼬리로 고가가 VWAP 넘어도 [B] 저항 유지·아래꼬리로 저가가 VWAP 밑이어도 [D] 지지 유지). → [B]는 close≤vwap 단일 분기, [D]는 close≥vwap 단일 분기.
 //   → 모든 (시가,고가,저가,종가) 조합이 정확히 한 색으로 결정(상호배타·구멍 없음). strict/등호는 아래 부등호대로 엄밀히 적용.
 //  엣지케이스: (a) open==vwap(경계) → 어느 계열도 아님 → 흰색. (b) 밴드1/vwap na(워밍업) → 흰색. (c) 밴드1 편차 0(도지) → bandWidth1=0 → r=0(≤rLow)이라 규칙3은 최대 % 반환하나 nearUpper==vwap·nearLower==vwap로 근처 구간이 소멸, strict 부등호가 자연 차단 → 흰색.
 //  [규칙3 폴백] rHigh≤rLow(임계 뒤집힘)나 vwap==0(r na)이면 보간 불가 → nearPct=최대 %(넓은 근처, 판정 보수화). 최종 p는 clamp[0,100]로 범위 보장.
@@ -383,7 +381,7 @@ if enableVwapSRColor and shouldPlot and not na(vwapValue) and not na(upperBandVa
     bool openInLower   = open >= nearLower and open < vwapValue  // [B] 하단 근처 범위 안(경계 nearLower 포함 ~ vwap 미만)
     bool openInUpper   = open > vwapValue and open <= nearUpper  // [D] 상단 근처 범위 안(vwap 초과 ~ nearUpper 포함)
     bool openAboveNear = open > nearUpper                        // [C] 상단 근처 범위 위
-    // 저항 계열(시가 VWAP 아래쪽). 저항실패(녹)=close>nearUpper, 저항(빨강)=high≤vwap AND close≤vwap AND close≥nearLower, 그 외 중립(흰).
+    // 저항 계열(시가 VWAP 아래쪽). [B] 저항실패(녹)=close>nearUpper, 저항(빨강)=close≤vwap(고저 무관·통합규칙 B), 그 외(vwap<close≤nearUpper) 중립(흰).
     if openBelowNear                                             // [A] CEO #2·#3·#4 + 규칙1(X-A 확정) + 구멍 잔여 + 추가규칙(하단근처 미진입)
         if close > nearUpper
             vwapSRColor := LOWER_BREAK_LINE_COLOR   // 저항실패(녹) — CEO #2
@@ -395,11 +393,9 @@ if enableVwapSRColor and shouldPlot and not na(vwapValue) and not na(upperBandVa
     else if openInLower                                          // [B] CEO #5·#6 + B+ + 미정의 구간
         if close > nearUpper
             vwapSRColor := LOWER_BREAK_LINE_COLOR   // 저항실패(녹) — CEO #5
-        else if close < nearLower
-            vwapSRColor := UPPER_BREAK_LINE_COLOR   // 저항(빨강) — CEO 규칙 B+. 하단근처 안에서 시작→하단근처를 아래로 돌파 마감 → high 무관 저항. (기존 구멍 X-B[high>vwap 되밀림] 흡수)
-        else if high <= vwapValue and close <= vwapValue
-            vwapSRColor := UPPER_BREAK_LINE_COLOR   // 저항(빨강) — CEO #6. 종가가 nearLower~vwap(하단근처 범위)에 마감한 저항.
-        // else: (vwap<close≤nearUpper) 또는 (nearLower≤close≤vwap AND high>vwap: 위꼬리 되밀림) → 흰색(중립)
+        else if close <= vwapValue
+            vwapSRColor := UPPER_BREAK_LINE_COLOR   // 저항(빨강) — CEO 통합규칙 B. 하단근처 안 출발 후 close≤vwap이면(하단근처 위치 #6 + 하단근처 아래 이탈 B+ 모두) high 무관 저항. (기존 high≤vwap 가드 제거·구멍 X-B 흡수)
+        // else: vwap<close≤nearUpper(종가가 VWAP 위·상단근처 이하 되밀림) → 흰색(중립)
     // 지지 계열(시가 VWAP 위쪽) — 저항 계열의 정확한 거울상(고↔저·상↔하·돌파↔이탈).
     else if openAboveNear                                        // [C] #2·#3·#4 거울 + 규칙2(X-C 확정, 규칙1 거울) + 구멍 잔여 + 추가규칙(상단근처 미진입)
         if close < nearLower
@@ -412,13 +408,11 @@ if enableVwapSRColor and shouldPlot and not na(vwapValue) and not na(upperBandVa
     else if openInUpper                                          // [D] #5·#6 거울 + D+ + 미정의 구간
         if close < nearLower
             vwapSRColor := UPPER_BREAK_LINE_COLOR   // 지지실패(빨강) — #5 거울
-        else if close > nearUpper
-            vwapSRColor := LOWER_BREAK_LINE_COLOR   // 지지(녹) — CEO 규칙 D+. 상단근처 안에서 시작→상단근처를 위로 돌파 마감 → low 무관 지지. (기존 구멍 X-D[low<vwap 되밀림] 흡수)
-        else if low >= vwapValue and close >= vwapValue
-            vwapSRColor := LOWER_BREAK_LINE_COLOR   // 지지(녹) — #6 거울. 종가가 vwap~nearUpper(상단근처 범위)에 마감한 지지.
-        // else: (nearLower≤close<vwap) 또는 (vwap≤close≤nearUpper AND low<vwap: 아래꼬리 되밀림) → 흰색(중립)
+        else if close >= vwapValue
+            vwapSRColor := LOWER_BREAK_LINE_COLOR   // 지지(녹) — CEO 통합규칙 D. 상단근처 안 출발 후 close≥vwap이면(상단근처 위치 #6 + 상단근처 위 이탈 D+ 모두) low 무관 지지. (기존 low≥vwap 가드 제거·구멍 X-D 흡수)
+        // else: nearLower≤close<vwap(종가가 VWAP 아래·하단근처 이상 되밀림) → 흰색(중립)
     // 그 외(open==vwap 경계 등) → 흰색 유지(중립).
-// 최종 VWAP 선 색: 지지/저항 규칙 ON이면 그 색, OFF면 기존 activeLineColor(동적색 옵션 거동 보존).
+// 최종 VWAP 선 색: 지지/저항 규칙 ON이면 그 색(중립이면 흰색), OFF면 기존 activeLineColor(동적색 옵션 거동 보존).
 color vwapLineColor = enableVwapSRColor ? vwapSRColor : activeLineColor
 
 // =========================
