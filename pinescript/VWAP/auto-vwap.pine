@@ -10,36 +10,26 @@ recentBars = input.int(defval=50, title="Recent Bars (기본 화면 VWAP)", minv
 src = input(title="Source", defval=hlc3, group="VWAP Settings", display=display.none)
 offset = input.int(0, title="Offset", group="VWAP Settings", display=display.none)
 enableDynamicLineColor = input.bool(false, title="Enable Dynamic Line Color", group="VWAP Settings", display=display.none)
-// VWAP 중앙선 지지/저항 색 규칙(CEO 개정 7규칙 — 전면 재작성). 화면 기본 VWAP 선(vwapValue)의 색을 봉 단위로 판정한다.
-//  판정 축: (1) 시가(open) 출발 구간 + (2) 고가/저가(high/low)의 VWAP 돌파 여부 + (3) 종가(close) 마감 위치. (개정판은 high/low를 다시 쓴다.)
-//  "근처 범위"는 **밴드1 기준 ±p%**로 정의(p는 규칙3 동적값, 기본 10~30%):
-//   상단 근처 상한 nearUpper = vwap + p×(upperBand1 − vwap),  하단 근처 하한 nearLower = vwap − p×(vwap − lowerBand1).
-//   [규칙3] p = 밴드폭 반비례 동적 %. r=(upperBand1−lowerBand1)/vwap 를 rLow~rHigh 사이 정규화 → 저변동성(좁은밴드)→max%(30)·고변동성(넓은밴드)→min%(10) 반비례 보간·clamp.
-//  시가 구간(실수 전체 커버·상호배타): open<nearLower / nearLower≤open<vwap / open==vwap(중립) / vwap<open≤nearUpper / open>nearUpper.
-//  ▸ 저항 계열(시가가 VWAP 아래쪽 출발):
-//     [A] open<nearLower : close>nearUpper→저항실패(녹,#2) / close<nearLower&high≥nearLower→저항(빨강,규칙1 X-A확정 되밀림) / high≤vwap&nearLower≤close≤vwap→저항(빨강,#4) / vwap<close≤nearUpper→중립(#3) / nearLower≤close≤vwap&high>vwap위꼬리→중립(구멍X-A잔여) / close<nearLower&high<nearLower→중립(미진입).
-//     [B] nearLower≤open<vwap : close>nearUpper→저항실패(녹,#5) / close≤vwap→저항(빨강,통합B,high무관·#6+B+ 흡수) / 그외(vwap<close≤nearUpper)→중립.
-//  ▸ 지지 계열(시가가 VWAP 위쪽 출발, 위 저항의 정확한 상하 대칭 — 고↔저·상↔하·돌파↔이탈):
-//     [C] open>nearUpper : close<nearLower→지지실패(빨강) / close>nearUpper&low≤nearUpper→지지(녹,규칙2 X-C확정 되밀림) / low≥vwap&vwap≤close≤nearUpper→지지(녹,#4거울) / nearLower≤close<vwap→중립 / vwap≤close≤nearUpper&low<vwap아래꼬리→중립(구멍X-C잔여) / close>nearUpper&low>nearUpper→중립(미진입).
-//     [D] vwap<open≤nearUpper : close<nearLower→지지실패(빨강) / close≥vwap→지지(녹,통합D,low무관·#6+D+ 흡수) / 그외(nearLower≤close<vwap)→중립.
-//  색 규약: 지지=녹 / 지지실패=빨강 / 저항=빨강 / 저항실패=녹 / 그 외 전부 중립(흰).
-//  ★ 구멍: [A]/[C] 위/아래꼬리 되밀림 중 규칙1/2(X-A/X-C 확정, close가 근처 반대편 돌파 마감이면서 near 닿음)는 이제 저항/지지 확정. 나머지 잔여(nearLower≤close≤vwap 위꼬리 등)만 중립. [B]/[D]의 X-B/X-D는 규칙 B+/D+가 흡수. → 모든 (시가,고저,종가) 조합이 한 색으로 결정.
+// VWAP 중앙선 지지/저항 색 규칙(CEO 확정 — near 구간 종가 + 꼬리 걸침 이탈). 화면 기본 VWAP 선(vwapValue)의 색을 봉 단위로 판정한다.
+//  "near 구간" = VWAP와 밴드1 사이의 **동적 %(pct) 범위**(밴드1 전체가 아님). 하단 near=[lowerNear, vwap], 상단 near=[vwap, upperNear].
+//   ▸ upperNear = vwap + pct×(upperBand1 − vwap),  lowerNear = vwap − pct×(vwap − lowerBand1). 하단 near 최저=lowerNear, 상단 near 최고=upperNear.
+//   ▸ pct = 밴드폭 반비례 동적(좁을 때 최대 0.60, 넓을 때 최소 0.20). r=(upperBand1−lowerBand1)/vwap 를 rLow~rHigh 사이 정규화 후 max~min 반비례 보간·clamp. (계산부는 vwapSRColor 블록 참조)
+//  ▸ 저항(빨강, UPPER_BREAK_LINE_COLOR) = ① lowerNear ≤ close ≤ vwap  OR  ② close < lowerNear AND high > lowerNear(종가 하단 near 이탈+고가 꼬리 걸침).
+//  ▸ 지지(녹, LOWER_BREAK_LINE_COLOR)   = ③ vwap ≤ close ≤ upperNear  OR  ④ close > upperNear AND low < upperNear(종가 상단 near 이탈+저가 꼬리 걸침).
+//  ▸ 그 외(완전 이탈: close 가 near 구간 밖 + 꼬리도 near 미접촉 / na 워밍업) → 중립(흰, DEFAULT_LINE_COLOR).
+//  ★ close==vwap은 ①③ 양쪽에 걸리므로 저항을 먼저 평가 → 저항(빨강)으로 확정. 부동소수라 실제 동일값은 드묾.
+//  na/밴드1 유효성 가드(shouldPlot·not na(vwap/upperBand1/lowerBand1))가 워밍업·도지 방어. 모두 확정봉 세트값(close/high/low/vwap/밴드1·near) → 리페인팅 없음.
 //  enableDynamicLineColor(밴드2 이탈 녹/빨강)와 독립한 별도 VWAP 선 전용 색이다.
-enableVwapSRColor = input.bool(true, title="VWAP 선 지지/저항 색(시가 구간·종가 돌파)", group="VWAP Settings", tooltip="켜면 화면 VWAP 중앙선의 색을 봉 단위로 지지=녹/지지실패=빨강/저항=빨강/저항실패=녹/중립=흰색으로 칠합니다(CEO 개정 7규칙). 판정은 시가가 VWAP 기준 어느 구간(하단근처 아래/안·상단근처 안/위)에서 출발했는지 + 고가/저가가 VWAP을 넘었는지 + 종가 마감 위치로 결정합니다. 위/아래꼬리로 찔렀다 되밀린 봉이나 VWAP은 넘었으나 근처엔 못 미친 봉은 중립(흰)으로 처리합니다. '근처 범위'는 VWAP↔밴드1 거리의 일정 % 이내(아래 근처 % 입력)로 정의합니다. 이 옵션은 아래 Enable Dynamic Line Color(밴드2 이탈 색)와 별개이며, 켜져 있으면 VWAP 선 색을 이 규칙이 담당합니다(밴드1·밴드2 등 다른 선 색은 기존대로).")
-// VWAP 중앙선 "근처 범위" 폭(밴드1 기준 %). CEO 새 정의: VWAP를 0%, 밴드1을 100%로 볼 때 이 %까지를 '근처'로 본다.
-//  상단 근처 상한 = vwap + (p/100)×(upperBand1 − vwap),  하단 근처 하한 = vwap − (p/100)×(vwap − lowerBand1).  p = 동적 근처 %(아래 규칙 3).
-//  ⚠️ 과거 규칙과 달리 밴드2가 아니라 밴드1 기준이다. 밴드1이 na(워밍업)·편차 0(도지)면 판정 불가로 흰색 폴백.
-// [규칙 3 — 근처 % 동적화(밴드폭 반비례)] 고정 10% 대신 밴드폭에 반비례하는 값을 쓴다.
-//  ▸ 밴드폭 측정: bandWidth1 = upperBand1 − lowerBand1 (밴드1 폭 = 2×stdev×bandMult_1). 근처가 밴드1 기준이므로 밴드1 폭을 사용.
-//  ▸ 정규화(종목·가격 무관): r = bandWidth1 / vwap (가격 대비 밴드폭 비율). 절대값이 아니라 비율이라 종목·가격대 무관.
-//  ▸ 매핑(반비례): r≤rLow(저변동성)→최대%(30), r≥rHigh(고변동성)→최소%(10), 사이는 선형보간. clamp로 [min,max] 보장.
-//      t = clamp((r − rLow)/(rHigh − rLow), 0, 1);  근처% = maxPct − t×(maxPct − minPct).
-//  ▸ 기본값 근거: 세션 VWAP 밴드1(≈1σ×배수)은 통상 가격의 0.5~2% 폭 → rLow=0.005(0.5%), rHigh=0.02(2.0%) 라운드넘버. min 10·max 30은 CEO 지정.
-//  ▸ 리페인팅 없음: upperBand1/lowerBand1/vwap 모두 확정봉 세트값(computeVwapSet, ta.cum 기반) → 미래참조 없음.
-vwapNearMinPct = input.float(10.0, title="VWAP 근처 범위 최소 %(고변동성)", minval=0.0, maxval=100.0, step=1.0, group="VWAP Settings", active=enableVwapSRColor, display=display.none, tooltip="밴드폭이 넓을 때(고변동성) 적용할 근처 범위 최소 %. 밴드폭/VWAP 비율이 '고변동성 임계' 이상이면 이 값으로 수렴합니다. 기본 10.")
-vwapNearMaxPct = input.float(30.0, title="VWAP 근처 범위 최대 %(저변동성)", minval=0.0, maxval=100.0, step=1.0, group="VWAP Settings", active=enableVwapSRColor, display=display.none, tooltip="밴드폭이 좁을 때(저변동성) 적용할 근처 범위 최대 %. 밴드폭/VWAP 비율이 '저변동성 임계' 이하이면 이 값으로 수렴합니다. 기본 30. 근처 %는 이 값과 최소 % 사이에서 밴드폭에 반비례로 결정됩니다.")
-vwapNearRLowPct = input.float(0.5, title="근처 % 저변동성 임계(밴드폭/VWAP, %)", minval=0.0, step=0.1, group="VWAP Settings", active=enableVwapSRColor, display=display.none, tooltip="밴드1 폭 ÷ VWAP 비율(%)이 이 값 이하이면 저변동성으로 보고 근처 %를 최대(기본 30)로 씁니다. 기본 0.5%(=밴드1 폭이 가격의 0.5% 이하일 때 저변동성). 세션 VWAP 밴드1(≈1σ×배수) 통상 하단.")
-vwapNearRHighPct = input.float(2.0, title="근처 % 고변동성 임계(밴드폭/VWAP, %)", minval=0.0, step=0.1, group="VWAP Settings", active=enableVwapSRColor, display=display.none, tooltip="밴드1 폭 ÷ VWAP 비율(%)이 이 값 이상이면 고변동성으로 보고 근처 %를 최소(기본 10)로 씁니다. 기본 2.0%. 저변동성 임계와 이 값 사이는 선형보간합니다(반비례). 저변동성 임계보다 커야 합니다.")
+enableVwapSRColor = input.bool(true, title="VWAP 선 지지/저항 색(구간 종가·꼬리 걸침 이탈)", group="VWAP Settings", tooltip="켜면 화면 VWAP 중앙선의 색을 봉 단위로 칠합니다(CEO 확정 규칙). 구간=VWAP와 밴드1 사이의 동적 near 범위(아래 '근처 구간 %' 참고). 하단 near 최저=lowerNear, 상단 near 최고=upperNear. 저항(빨강)=lowerNear≤종가≤VWAP(①), 또는 종가가 lowerNear 아래로 이탈했지만 고가가 lowerNear 위(② 꼬리 걸침). 지지(녹색)=VWAP≤종가≤upperNear(③), 또는 종가가 upperNear 위로 이탈했지만 저가가 upperNear 아래(④ 꼬리 걸침). 종가가 near 구간 밖이고 꼬리도 near에 안 걸치거나 워밍업(밴드1/VWAP na)이면 중립(흰색). 종가=VWAP 경계는 저항으로 처리합니다. 이 옵션은 아래 Enable Dynamic Line Color(밴드2 이탈 색)와 별개이며, 켜져 있으면 VWAP 선 색을 이 규칙이 담당합니다(밴드1·밴드2 등 다른 선 색은 기존대로).")
+// VWAP 선색 "근처(near) 구간" 동적 % — 저항/지지 판정 구간을 밴드1 전체가 아니라 VWAP~밴드1의 일부(pct)로 좁힌다(CEO 지시).
+//  상단 구간 최고 = upperNear = vwap + pct×(upperBand1 − vwap), 하단 구간 최저 = lowerNear = vwap − pct×(vwap − lowerBand1). 저항(하단)·지지(상단) 동일 pct 대칭.
+//  ▸ pct = 밴드폭 반비례 동적 %: 밴드폭 좁음(저변동성)→최대 %(기본 60), 밴드폭 넓음(고변동성)→최소 %(기본 20).
+//  ▸ 정규화: r = (upperBand1 − lowerBand1) / vwap (가격 대비 밴드1 폭 비율, 종목·가격 무관). r을 rLow~rHigh 사이에서 정규화 후 max~min으로 반비례 선형보간·clamp.
+//  ▸ 임계 기본값: rLow=0.5%(저변동성 하단)·rHigh=2.0%(고변동성 상단) — 세션 VWAP 밴드1(≈1σ×배수) 통상 폭. 과최적화 경계상 라운드넘버.
+vwapNearMinPct = input.float(20.0, title="VWAP 근처 구간 최소 %(넓을 때)", minval=0.0, maxval=100.0, step=1.0, group="VWAP Settings", active=enableVwapSRColor, display=display.none, tooltip="밴드폭이 넓을 때(고변동성) 적용할 근처 구간 비율의 최소 %. 밴드1폭/VWAP 비율이 '고변동성 임계' 이상이면 이 값으로 수렴합니다. 근처 구간이 VWAP 바로 옆으로 좁아집니다. 기본 20.")
+vwapNearMaxPct = input.float(60.0, title="VWAP 근처 구간 최대 %(좁을 때)", minval=0.0, maxval=100.0, step=1.0, group="VWAP Settings", active=enableVwapSRColor, display=display.none, tooltip="밴드폭이 좁을 때(저변동성) 적용할 근처 구간 비율의 최대 %. 밴드1폭/VWAP 비율이 '저변동성 임계' 이하이면 이 값으로 수렴합니다. 기본 60. 근처 %는 이 값과 최소 % 사이에서 밴드폭에 반비례로 결정됩니다.")
+vwapNearRLowPct = input.float(0.5, title="근처 % 저변동성 임계(밴드1폭/VWAP, %)", minval=0.0, step=0.1, group="VWAP Settings", active=enableVwapSRColor, display=display.none, tooltip="밴드1 폭 ÷ VWAP 비율(%)이 이 값 이하이면 저변동성으로 보고 근처 %를 최대(기본 60)로 씁니다. 기본 0.5%(=밴드1 폭이 가격의 0.5% 이하일 때 저변동성). 세션 VWAP 밴드1(≈1σ×배수) 통상 하단.")
+vwapNearRHighPct = input.float(2.0, title="근처 % 고변동성 임계(밴드1폭/VWAP, %)", minval=0.0, step=0.1, group="VWAP Settings", active=enableVwapSRColor, display=display.none, tooltip="밴드1 폭 ÷ VWAP 비율(%)이 이 값 이상이면 고변동성으로 보고 근처 %를 최소(기본 20)로 씁니다. 기본 2.0%. 저변동성 임계와 이 값 사이는 선형보간합니다(반비례). 저변동성 임계보다 커야 합니다.")
 showBandPctLabels = input.bool(true, title="VWAP·밴드 간격 % 라벨 표시", group="VWAP Settings")
 
 BANDS_GROUP = "Bands Settings"
@@ -318,100 +308,58 @@ color activeLineColor = enableDynamicLineColor ? breakHighlightLineColor : DEFAU
 color activeFillColor = color.new(activeLineColor, 92)
 
 // =========================
-// VWAP 중앙선 지지/저항 색 판정(CEO 개정 7규칙 — 전면 재작성). 화면 기본 VWAP 선(vwapValue) 전용.
-//  판정에 쓰는 open/high/low/close·vwapValue·밴드1은 모두 현재봉의 확정 성격 값이다(과거 봉은 이미 확정, 형성 중 현재봉만 실시간).
-//   → 과거 봉 색은 재계산돼도 값이 불변이라 리페인팅(과거 변조) 없음. 형성 중 현재봉은 고저·종가 확정 전 색이 바뀔 수 있으나(정상적 인트라바 갱신), 봉 마감 시 확정된다.
-//  근처 범위(밴드1 기준, p=규칙3 동적값 vwapNearMinPct~vwapNearMaxPct/100, 기본 0.10~0.30):
-//   nearUpper = vwapValue + p×(upperBandValue1 − vwapValue),  nearLower = vwapValue − p×(vwapValue − lowerBandValue1).
-//   [규칙3] p 산출: bandWidth1=upperBandValue1−lowerBandValue1; r=bandWidth1/vwapValue; t=clamp((r−rLow)/(rHigh−rLow),0,1); nearPct=maxPct−t×(maxPct−minPct); p=clamp(nearPct,0,100)/100.
-//    rLow=vwapNearRLowPct/100(저변동성 임계·기본 0.5%), rHigh=vwapNearRHighPct/100(고변동성 임계·기본 2.0%). r 작을수록(밴드 좁을수록) p 큼(넓은 근처), r 클수록 p 작음(좁은 근처) — 반비례.
-//  시가 구간(실수 전체 커버·상호배타): open<nearLower / nearLower≤open<vwap / open==vwap(중립) / vwap<open≤nearUpper / open>nearUpper.
-//  ▸ 저항 계열(시가 VWAP 아래쪽 출발, 위로 시도):
-//     [A] open<nearLower :
-//         close>nearUpper                        → 저항실패(녹, CEO #2)
-//         close<nearLower AND high≥nearLower     → 저항(빨강, CEO 규칙1). 되밀림 저항 확정: 종가는 하단근처 아래로 마감했으나 고가가 하단근처 이상 닿았다 되밀림(구멍 X-A 확정분).
-//         high≤vwap AND nearLower≤close≤vwap     → 저항(빨강, CEO #4). 종가가 하단근처 범위(nearLower~vwap)까지 올라온 저항만 인정.
-//         vwap<close≤nearUpper                   → 중립(흰, CEO #3)
-//         close<nearLower AND high<nearLower     → 중립(흰, CEO 추가규칙·미진입) ← 하단근처 근처조차 못 닿고 아래로 마감 → 지지/저항 아님. (규칙1로 세분: high≥nearLower면 저항, 미만이면 흰)
-//         nearLower≤close≤vwap AND high>vwap     → 중립(흰, 구멍 X-A 잔여) ← 위꼬리로 VWAP 위 찔렀다 근처 범위로 되밀림, CEO 미정의 → (i) 중립 유지
-//     [B] nearLower≤open<vwap :
-//         close>nearUpper                        → 저항실패(녹, CEO #5)
-//         close≤vwap                             → 저항(빨강, CEO 통합규칙 B) ← 하단근처 안 출발 후 종가가 VWAP 이하면 high 무관 저항. 하단근처 위치(nearLower≤close≤vwap, 구 #6)와 하단근처 아래 이탈(close<nearLower, 구 B+) 모두 흡수. (기존 high≤vwap 위꼬리 가드 제거 → 위꼬리로 고가가 VWAP 넘어도 저항 유지)
-//         나머지(vwap<close≤nearUpper)           → 중립(흰) ← 종가가 VWAP 위·상단근처 이하 되밀림
-//  ▸ 지지 계열(시가 VWAP 위쪽 출발, 아래로 시도 — 저항의 정확한 거울상: 고↔저, 상↔하, 돌파↔이탈, 녹↔빨강 규약만 지지=녹/지지실패=빨강):
-//     [C] open>nearUpper :
-//         close<nearLower                        → 지지실패(빨강, #2 거울)
-//         close>nearUpper AND low≤nearUpper      → 지지(녹, CEO 규칙2·규칙1 거울). 되밀림 지지 확정: 종가는 상단근처 위로 마감했으나 저가가 상단근처 이하 닿았다 되밀림(구멍 X-C 확정분).
-//         low≥vwap AND vwap≤close≤nearUpper      → 지지(녹, #4 거울). 종가가 상단근처 범위(vwap~nearUpper)까지 내려온 지지만 인정.
-//         nearLower≤close<vwap                   → 중립(흰, #3 거울)
-//         close>nearUpper AND low>nearUpper      → 중립(흰, CEO 추가규칙·미진입) ← 상단근처 근처조차 못 닿고 위로 마감 → 지지/저항 아님. (규칙2로 세분: low≤nearUpper면 지지, 초과면 흰)
-//         vwap≤close≤nearUpper AND low<vwap      → 중립(흰, 구멍 X-C 잔여, 아래꼬리 되밀림) → (i) 중립 유지
-//     [D] vwap<open≤nearUpper :
-//         close<nearLower                        → 지지실패(빨강, #5 거울)
-//         close≥vwap                             → 지지(녹, CEO 통합규칙 D) ← 상단근처 안 출발 후 종가가 VWAP 이상이면 low 무관 지지. 상단근처 위치(vwap≤close≤nearUpper, 구 #6 거울)와 상단근처 위 이탈(close>nearUpper, 구 D+) 모두 흡수. (기존 low≥vwap 아래꼬리 가드 제거 → 아래꼬리로 저가가 VWAP 밑으로 내려가도 지지 유지)
-//         나머지(nearLower≤close<vwap)           → 중립(흰) ← 종가가 VWAP 아래·하단근처 이상 되밀림
-//  색 규약: 지지=녹 / 지지실패=빨강 / 저항=빨강 / 저항실패=녹 / 그 외 전부 중립(흰).
-//  ★ 구멍 처리: [A]/[C]의 위/아래꼬리 되밀림 중 규칙1/2(close가 하단근처 아래/상단근처 위로 마감 AND high≥nearLower/low≤nearUpper 로 근처 닿음)는 저항/지지 확정(구멍 X-A/X-C 확정분). 잔여(nearLower≤close≤vwap 위꼬리·vwap≤close≤nearUpper 아래꼬리)만 (i) 중립. [B]/[D]는 통합규칙 B/D(close≤vwap·close≥vwap)가 고저 무관으로 전부 흡수(X-B/X-D 및 위/아래꼬리 되밀림 포함).
-//  ★ CEO 규칙1/2(되밀림 저항/지지 세분): [A] open<nearLower AND close<nearLower 를 high로 세분 → high≥nearLower(고가가 하단근처 닿음)면 저항(빨강), high<nearLower(못 닿음)면 중립(흰·미진입). [C] open>nearUpper AND close>nearUpper 를 low로 세분 → low≤nearUpper(저가가 상단근처 닿음)면 지지(녹), low>nearUpper(못 닿음)면 중립(흰·미진입).
-//     취지: 근처 아래/위로 마감했어도 고가/저가가 근처에 닿았다 되밀렸으면 되밀림 저항/지지로 인정. 근처 근처조차 못 닿았으면 미진입 중립. (기존 close<nearLower→일괄 흰 / close>nearUpper→일괄 흰 을 high/low 기준으로 세분)
-//  ★ CEO 통합규칙 B/D(근처 안 출발 → 종가 VWAP 기준·고저 무관 저항/지지 확정): [B] nearLower≤open<vwap AND close≤vwap → 저항(빨강, high 무관). [D] vwap<open≤nearUpper AND close≥vwap → 지지(녹, low 무관).
-//     취지: 근처 안에서 출발해 종가가 VWAP를 넘지 못하면([B]) / 넘어서면([D]) 위/아래꼬리 되밀림과 무관하게 저항/지지로 확정. 구 #6(근처 위치)와 구 B+/D+(근처 반대편 이탈)를 하나로 통합, 기존 high≤vwap/low≥vwap 위·아래꼬리 가드 제거(위꼬리로 고가가 VWAP 넘어도 [B] 저항 유지·아래꼬리로 저가가 VWAP 밑이어도 [D] 지지 유지). → [B]는 close≤vwap 단일 분기, [D]는 close≥vwap 단일 분기.
-//   → 모든 (시가,고가,저가,종가) 조합이 정확히 한 색으로 결정(상호배타·구멍 없음). strict/등호는 아래 부등호대로 엄밀히 적용.
-//  엣지케이스: (a) open==vwap(경계) → 어느 계열도 아님 → 흰색. (b) 밴드1/vwap na(워밍업) → 흰색. (c) 밴드1 편차 0(도지) → bandWidth1=0 → r=0(≤rLow)이라 규칙3은 최대 % 반환하나 nearUpper==vwap·nearLower==vwap로 근처 구간이 소멸, strict 부등호가 자연 차단 → 흰색.
-//  [규칙3 폴백] rHigh≤rLow(임계 뒤집힘)나 vwap==0(r na)이면 보간 불가 → nearPct=최대 %(넓은 근처, 판정 보수화). 최종 p는 clamp[0,100]로 범위 보장.
+// VWAP 중앙선 지지/저항 색 판정(CEO 확정 — near 구간 종가 + 꼬리 걸침 이탈). 화면 기본 VWAP 선(vwapValue) 전용.
+//  판정에 쓰는 close·high·low·vwapValue·밴드1(upperBandValue1/lowerBandValue1)은 모두 현재봉의 확정 성격 세트값이다.
+//   → 과거 봉 색은 재계산돼도 값이 불변이라 리페인팅(과거 변조) 없음. 형성 중 현재봉만 종가/고저 확정 전 색이 바뀔 수 있으나(정상적 인트라바 갱신) 봉 마감 시 확정된다.
+//  "near 구간" = VWAP와 밴드1 사이의 **동적 %(pct) 범위**. 하단 near=[lowerNear, vwap], 상단 near=[vwap, upperNear]. 하단 near 최저=lowerNear, 상단 near 최고=upperNear.
+//   ▸ upperNear = vwap + pct×(upperBand1 − vwap),  lowerNear = vwap − pct×(vwap − lowerBand1). 저항(하단)·지지(상단) 동일 pct 대칭.
+//  [pct 동적 산출 — 밴드폭 반비례, 범위 [0.20, 0.60]]
+//   ▸ 밴드폭 측정: bandWidth1 = upperBand1 − lowerBand1 (밴드1 폭 = 2×stdev×bandMult_1). near 가 밴드1 기준이므로 밴드1 폭 사용.
+//   ▸ 정규화(종목·가격 무관): r = bandWidth1 / vwap (가격 대비 밴드폭 비율). 절대값이 아닌 비율.
+//   ▸ 매핑(반비례): r≤rLow(저변동성·좁은밴드)→최대%(0.60), r≥rHigh(고변동성·넓은밴드)→최소%(0.20), 사이는 선형보간·clamp.
+//       t = clamp((r − rLow)/(rHigh − rLow), 0, 1);  nearPct = maxPct − t×(maxPct − minPct);  pct = clamp(nearPct, 0, 100)/100.
+//   ▸ rLow=vwapNearRLowPct/100(기본 0.5%), rHigh=vwapNearRHighPct/100(기본 2.0%). rHigh≤rLow(임계 뒤집힘)·vwap==0(r na)이면 t=0 → 최대%(넓은 near, 판정 보수화) 폴백.
+//  ▸ 저항(빨강, UPPER_BREAK_LINE_COLOR) =
+//     ① lowerNear ≤ close ≤ vwap                (하단 near 안에 종가 마감 → VWAP이 저항)  OR
+//     ② close < lowerNear AND high > lowerNear   (종가는 하단 near 아래로 이탈했으나 고가가 하단 near 최저 위 = 꼬리 걸침)
+//  ▸ 지지(녹, LOWER_BREAK_LINE_COLOR) =
+//     ③ vwap ≤ close ≤ upperNear                (상단 near 안에 종가 마감 → VWAP이 지지)  OR
+//     ④ close > upperNear AND low < upperNear    (종가는 상단 near 위로 이탈했으나 저가가 상단 near 최고 아래 = 꼬리 걸침)
+//  ▸ 그 외(완전 이탈: close가 near 구간 밖 + 꼬리도 near에 안 걸침 / na 워밍업) → 중립(흰, DEFAULT_LINE_COLOR).
+//  ★ close==vwap 경계: ①은 close≤vwap, ③은 close≥vwap이라 close==vwap이 양쪽에 걸린다. **저항을 먼저 평가**(if 저항 → else if 지지)해
+//    close==vwap이면 저항(빨강)으로 확정한다. 부동소수라 실제 동일값은 드묾.
+//  ★ 상호배타·구멍 없음 검증:
+//    · 저항 계열(close≤vwap[①] or close<lowerNear[②])과 지지 계열(close≥vwap[③] or close>upperNear[④])은 close==vwap 외엔 배타(위 우선순위로 close==vwap도 저항 단일 확정).
+//    · ②(close<lowerNear)와 ①(close≥lowerNear) 배타, ④(close>upperNear)와 ③(close≤upperNear) 배타.
+//    · lowerNear ≤ vwap ≤ upperNear(pct≥0·밴드 구조상 항상 성립)이므로 ②(close<lowerNear)와 ④(close>upperNear)도 동시 성립 불가.
+//  엣지케이스: (a) close==vwap → 저항(빨강, 위 우선순위). (b) 밴드1/vwap na(워밍업) → 진입 가드에서 걸러져 흰.
+//   (c) 밴드1 편차 0(도지) lowerBand1==upperBand1==vwap → bandWidth1=0 → r=0(≤rLow)이라 pct=최대나, upperNear==vwap·lowerNear==vwap로 near 구간 소멸.
+//       close==vwap이면 ① 해당(저항), close≠vwap이면 ②(high>vwap==lowerNear)/④(low<vwap==upperNear)의 꼬리 걸침으로 판정. 확정봉 세트값이라 리페인팅 없음.
 //  enableDynamicLineColor(밴드2 이탈 녹/빨강)와 독립한 별도 VWAP 선 전용 색이다.
 // =========================
 color vwapSRColor = DEFAULT_LINE_COLOR
 if enableVwapSRColor and shouldPlot and not na(vwapValue) and not na(upperBandValue1) and not na(lowerBandValue1)
-    // [규칙 3] 근처 % 동적화(밴드폭 반비례). 밴드폭/VWAP 비율 r을 rLow~rHigh 사이에서 정규화 → maxPct~minPct로 반비례 매핑.
-    //  r≤rLow(저변동성)→maxPct(넓은 근처), r≥rHigh(고변동성)→minPct(좁은 근처). clamp로 범위 보장. 모두 확정봉 세트값 → 리페인팅 없음.
+    // [pct 동적 산출] 밴드폭 반비례. 밴드폭/VWAP 비율 r을 rLow~rHigh 사이 정규화 → maxPct~minPct 반비례 매핑. 확정봉 세트값 → 리페인팅 없음.
     float bandWidth1 = upperBandValue1 - lowerBandValue1          // 밴드1 폭(= 2×stdev×bandMult_1)
     float rNear = vwapValue != 0 ? bandWidth1 / vwapValue : na    // 가격 대비 밴드폭 비율(종목·가격 무관 정규화)
     float rLow  = vwapNearRLowPct / 100.0                         // 저변동성 임계(입력 %→비율)
     float rHigh = vwapNearRHighPct / 100.0                        // 고변동성 임계(입력 %→비율)
-    // 임계가 뒤집혔거나 같으면(rHigh<=rLow) 보간 불가 → 최대 %로 폴백(넓은 근처, 판정 보수화). rNear na면(vwap 0) 최대 %.
+    // 임계 뒤집힘(rHigh<=rLow)·rNear na(vwap 0)면 보간 불가 → t=0 → 최대%(넓은 near, 판정 보수화) 폴백.
     float tNear = (na(rNear) or rHigh <= rLow) ? 0.0 : math.min(math.max((rNear - rLow) / (rHigh - rLow), 0.0), 1.0)
-    float nearPct = vwapNearMaxPct - tNear * (vwapNearMaxPct - vwapNearMinPct)  // 반비례: t=0(저변동)→max, t=1(고변동)→min
-    float p = math.min(math.max(nearPct, 0.0), 100.0) / 100.0     // 최종 clamp [0,100] 후 비율화
-    // 근처 범위 경계(밴드1 기준). 도지(편차 0)면 nearUpper==vwap / nearLower==vwap로 수렴 → 아래 strict 부등호가 자연 차단.
-    float nearUpper = vwapValue + p * (upperBandValue1 - vwapValue)
-    float nearLower = vwapValue - p * (vwapValue - lowerBandValue1)
-    // 시가 출발 구간(상호배타·전체 커버). open==vwap은 어디에도 안 들어감(중립).
-    bool openBelowNear = open < nearLower                        // [A] 하단 근처 범위 아래
-    bool openInLower   = open >= nearLower and open < vwapValue  // [B] 하단 근처 범위 안(경계 nearLower 포함 ~ vwap 미만)
-    bool openInUpper   = open > vwapValue and open <= nearUpper  // [D] 상단 근처 범위 안(vwap 초과 ~ nearUpper 포함)
-    bool openAboveNear = open > nearUpper                        // [C] 상단 근처 범위 위
-    // 저항 계열(시가 VWAP 아래쪽). [B] 저항실패(녹)=close>nearUpper, 저항(빨강)=close≤vwap(고저 무관·통합규칙 B), 그 외(vwap<close≤nearUpper) 중립(흰).
-    if openBelowNear                                             // [A] CEO #2·#3·#4 + 규칙1(X-A 확정) + 구멍 잔여 + 추가규칙(하단근처 미진입)
-        if close > nearUpper
-            vwapSRColor := LOWER_BREAK_LINE_COLOR   // 저항실패(녹) — CEO #2
-        else if close < nearLower and high >= nearLower
-            vwapSRColor := UPPER_BREAK_LINE_COLOR   // 저항(빨강) — CEO 규칙1. open<nearLower→종가도 nearLower 아래(close<nearLower)로 마감했지만 고가가 하단근처 이상(high≥nearLower) 닿았다 되밀림 → 되밀림 저항 확정.
-        else if high <= vwapValue and close <= vwapValue and close >= nearLower
-            vwapSRColor := UPPER_BREAK_LINE_COLOR   // 저항(빨강) — CEO #4. 단 종가가 nearLower~vwap(하단근처 범위)까지 올라온 저항만.
-        // else: CEO #3(vwap<close≤nearUpper) 또는 구멍 X-A(nearLower≤close≤vwap AND high>vwap 위꼬리 되밀림) 또는 규칙1 잔여(close<nearLower AND high<nearLower: 하단근처 근처조차 못 닿음 → 미진입 흰색) → 흰색(중립)
-    else if openInLower                                          // [B] CEO #5·#6 + B+ + 미정의 구간
-        if close > nearUpper
-            vwapSRColor := LOWER_BREAK_LINE_COLOR   // 저항실패(녹) — CEO #5
-        else if close <= vwapValue
-            vwapSRColor := UPPER_BREAK_LINE_COLOR   // 저항(빨강) — CEO 통합규칙 B. 하단근처 안 출발 후 close≤vwap이면(하단근처 위치 #6 + 하단근처 아래 이탈 B+ 모두) high 무관 저항. (기존 high≤vwap 가드 제거·구멍 X-B 흡수)
-        // else: vwap<close≤nearUpper(종가가 VWAP 위·상단근처 이하 되밀림) → 흰색(중립)
-    // 지지 계열(시가 VWAP 위쪽) — 저항 계열의 정확한 거울상(고↔저·상↔하·돌파↔이탈).
-    else if openAboveNear                                        // [C] #2·#3·#4 거울 + 규칙2(X-C 확정, 규칙1 거울) + 구멍 잔여 + 추가규칙(상단근처 미진입)
-        if close < nearLower
-            vwapSRColor := UPPER_BREAK_LINE_COLOR   // 지지실패(빨강) — #2 거울
-        else if close > nearUpper and low <= nearUpper
-            vwapSRColor := LOWER_BREAK_LINE_COLOR   // 지지(녹) — CEO 규칙2(규칙1 거울). open>nearUpper→종가도 nearUpper 위(close>nearUpper)로 마감했지만 저가가 상단근처 이하(low≤nearUpper) 닿았다 되밀림 → 되밀림 지지 확정.
-        else if low >= vwapValue and close >= vwapValue and close <= nearUpper
-            vwapSRColor := LOWER_BREAK_LINE_COLOR   // 지지(녹) — #4 거울. 단 종가가 vwap~nearUpper(상단근처 범위)까지 내려온 지지만.
-        // else: (#3 거울: nearLower≤close<vwap) 또는 구멍 X-C(vwap≤close≤nearUpper AND low<vwap 아래꼬리 되밀림) 또는 규칙2 잔여(close>nearUpper AND low>nearUpper: 상단근처 근처조차 못 닿음 → 미진입 흰색) → 흰색(중립)
-    else if openInUpper                                          // [D] #5·#6 거울 + D+ + 미정의 구간
-        if close < nearLower
-            vwapSRColor := UPPER_BREAK_LINE_COLOR   // 지지실패(빨강) — #5 거울
-        else if close >= vwapValue
-            vwapSRColor := LOWER_BREAK_LINE_COLOR   // 지지(녹) — CEO 통합규칙 D. 상단근처 안 출발 후 close≥vwap이면(상단근처 위치 #6 + 상단근처 위 이탈 D+ 모두) low 무관 지지. (기존 low≥vwap 가드 제거·구멍 X-D 흡수)
-        // else: nearLower≤close<vwap(종가가 VWAP 아래·하단근처 이상 되밀림) → 흰색(중립)
-    // 그 외(open==vwap 경계 등) → 흰색 유지(중립).
+    float nearPct = vwapNearMaxPct - tNear * (vwapNearMaxPct - vwapNearMinPct)  // 반비례: t=0(저변동·좁음)→max(0.60), t=1(고변동·넓음)→min(0.20)
+    float pct = math.min(math.max(nearPct, 0.0), 100.0) / 100.0   // 최종 clamp [0,100] 후 비율화
+    // near 구간 경계(밴드1 기준). 도지(편차 0)면 upperNear==vwap / lowerNear==vwap로 수렴 → strict 부등호가 꼬리 판정으로 자연 처리.
+    float upperNear = vwapValue + pct * (upperBandValue1 - vwapValue)
+    float lowerNear = vwapValue - pct * (vwapValue - lowerBandValue1)
+    // 저항 = ①(하단 near 안 종가) OR ②(종가 하단 near 아래 이탈 + 고가 꼬리 걸침). ② high>lowerNear로 꼬리가 하단 near 최저 위에 닿았는지 판정.
+    bool isResistance = (close >= lowerNear and close <= vwapValue) or (close < lowerNear and high > lowerNear)
+    // 지지 = ③(상단 near 안 종가) OR ④(종가 상단 near 위 이탈 + 저가 꼬리 걸침). ④ low<upperNear로 꼬리가 상단 near 최고 아래에 닿았는지 판정.
+    bool isSupport = (close >= vwapValue and close <= upperNear) or (close > upperNear and low < upperNear)
+    if isResistance
+        vwapSRColor := UPPER_BREAK_LINE_COLOR   // 저항(빨강). close==vwap은 여기서 우선 확정(지지보다 먼저 평가).
+    else if isSupport
+        vwapSRColor := LOWER_BREAK_LINE_COLOR   // 지지(녹).
+    // else: 완전 이탈(close near 구간 밖 + 꼬리도 near 미접촉) → 흰색(중립) 유지.
 // 최종 VWAP 선 색: 지지/저항 규칙 ON이면 그 색(중립이면 흰색), OFF면 기존 activeLineColor(동적색 옵션 거동 보존).
 color vwapLineColor = enableVwapSRColor ? vwapSRColor : activeLineColor
 
@@ -597,11 +545,11 @@ color upperMarkerColor = energyStrong ? shortClearLineColor : DULL_SHORT_COLOR
 //  토글 OFF면 억제 항이 항상 참 → 기존 동작 그대로.
 upperBwOk = not ipBwSuppress or not isUpBandWalking
 lowerBwOk = not ipBwSuppress or not isDownBandWalking
-// ── VWAP 선색 AND 게이트(CEO 지시 A) — 최종 선색(vwapSRColor, 새 시가구간·종가돌파 규칙 결과) 기준 ──
+// ── VWAP 선색 AND 게이트(CEO 지시 A) — 최종 선색(vwapSRColor, 구간 종가+꼬리 걸침 규칙 결과) 기준 ──
 //  롱(하단) 마커: 선색이 흰색 또는 녹색일 때만 표시(빨강이면 억제). 숏(상단) 마커: 선색이 흰색 또는 빨강일 때만 표시(녹색이면 억제).
 //  구현: 최종 vwapSRColor를 색 상수와 비교한다(녹=LOWER_BREAK_LINE_COLOR, 빨강=UPPER_BREAK_LINE_COLOR, 흰=DEFAULT_LINE_COLOR).
 //  ⚠️ 선 지지/저항 색 옵션(enableVwapSRColor) OFF이면 선색 판정 자체가 없으므로 게이트를 적용하지 않는다(기존 마커 거동 유지). ON일 때만 억제 게이트 발동.
-//  선색은 확정 성격 값(open/close·vwap·밴드1) 기반이라 신규 리페인팅 없음(현재봉 실시간 변동 성격은 기존 선색과 동일).
+//  선색은 확정 성격 값(close·high·low·vwap·밴드1) 기반이라 신규 리페인팅 없음(현재봉 실시간 변동 성격은 기존 선색과 동일).
 bool srcGateLong  = not enableVwapSRColor or vwapSRColor != UPPER_BREAK_LINE_COLOR  // 롱: 빨강만 억제(흰/녹 허용)
 bool srcGateShort = not enableVwapSRColor or vwapSRColor != LOWER_BREAK_LINE_COLOR  // 숏: 녹색만 억제(흰/빨강 허용)
 upper2Marker = shortCand and ipUpperFlatOk and shortDiGate and upperBwOk and srcGateShort
