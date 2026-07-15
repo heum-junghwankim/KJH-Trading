@@ -120,7 +120,7 @@ else if c_slow_bear_trend
     alignColor := dullRed
     alignDir := -1
 
-// --- 셀2(3행): 모멘텀/과열도 (band-walking 완화 반영) ---
+// --- 셀2(3행): 모멘텀 (band-walking 완화 반영) ---
 // 강추세(3중 정렬) 중의 과매수/과매도는 밴드워킹일 수 있어 반전으로 읽지 않고
 // "추세중"으로 회색 표기(강추세 구간 상태 서술).
 // 판정 텍스트/색과 함께, 1행 종합이 참조할 방향/유형 상태를 분류한다.
@@ -237,5 +237,5 @@ if barstate.islast
     table.cell(stochStatus, 1, 0, verdictText, text_color=color.white, bgcolor=verdictColor, text_size=size.small)
     table.cell(stochStatus, 0, 1, "정렬/추세", text_color=color.white, text_size=size.small)
     table.cell(stochStatus, 1, 1, alignText, text_color=color.white, bgcolor=alignColor, text_size=size.small)
-    table.cell(stochStatus, 0, 2, "모멘텀/과열도", text_color=color.white, text_size=size.small)
+    table.cell(stochStatus, 0, 2, "모멘텀", text_color=color.white, text_size=size.small)
     table.cell(stochStatus, 1, 2, setupText, text_color=color.white, bgcolor=setupColor, text_size=size.small)
