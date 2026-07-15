@@ -582,9 +582,12 @@ color lowerBand2LineColor = ipBand2MarkerColor and lower2Marker and baseLowerBan
 float upper2MarkerY = shortClear
 float lower2MarkerY = longClear
 
-// VWAP 중앙선: 두께 2px(CEO 지시 — 지지/저항 색 규칙) + 가격축 라벨은 이 선만 표시(display 기본=all). 밴드는 라벨 제외.
+// VWAP 중앙선: 두께 2px(CEO 지시 — 지지/저항 색 규칙). 선은 동적 색, 우측 가격축 라벨은 흰색 고정(CEO 지시).
 //  색 = vwapLineColor(지지/저항 규칙 ON이면 녹/빨강/흰색, OFF면 기존 activeLineColor).
-plot(vwapValue, title="브이왑", color=vwapLineColor, offset=offset, linewidth=2, editable=true, linestyle=plot.linestyle_solid)
+//  ▸ 동적 색 선: 가격축(price_scale)만 제외해 pane·상태줄·데이터윈도우에만 표시(밴드와 동일 패턴). 가격축 라벨이 선색을 따라가지 않게 함.
+//  ▸ 흰색 가격축 라벨: 같은 값을 흰색으로 price_scale에만 그려 라벨만 흰색으로 고정(선은 pane에 그리지 않음 → 중복선 없음). 선색 판정·계산 불변.
+plot(vwapValue, title="브이왑", color=vwapLineColor, offset=offset, linewidth=2, display=display.all - display.price_scale, editable=true, linestyle=plot.linestyle_solid)
+plot(vwapValue, title="VWAP 가격축 라벨", color=color.white, offset=offset, display=display.price_scale, editable=true)
 
 displayBand1 = showBand_1 ? display.all - display.price_scale : display.none
 upperBand_1 = plot(upperBandValue1, title="Upper Band #1", color=activeLineColor, offset=offset, display=displayBand1, editable=true, linestyle=plot.linestyle_dotted)
