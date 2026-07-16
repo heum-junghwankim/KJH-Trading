@@ -125,12 +125,24 @@ else if c_slow_bear_trend
 // "추세중"으로 회색 표기(강추세 구간 상태 서술).
 // 판정 텍스트/색과 함께, 1행 종합이 참조할 방향/유형 상태를 분류한다.
 //   setupDir: 1=상승, -1=하락, 0=없음/중립
-//   setupKind: "trigger"(웨이브+트리거·트리거) · "setup"(웨이브 셋업) · "exhaust"(과열/침체) · "none"
+//   setupKind: "reversal"(과매도·과매수 극단에서의 fast 크로스=추세 전환 초입) · "trigger"(웨이브+트리거·트리거) · "setup"(웨이브 셋업) · "exhaust"(과열/침체) · "none"
 setupText = "-"
 setupColor = neutralGray
 setupDir = 0
 setupKind = "none"
-if c_bull_wave_bg and c_fast_bull_trig
+// 최우선: 과매도/과매수 극단에서 fast 트리거 발생 = 추세 전환 초입(반등/하락 임박)
+// 위상(웨이브)만 보는 하위 분기보다 위에 두어, 위치(과매도·과매수)를 반영하지 못하는 오안내를 차단.
+if c_oversold and c_fast_bull_trig
+    setupText  := "상승 전환(반등 임박)"
+    setupColor := solidGreen
+    setupDir := 1
+    setupKind := "reversal"
+else if c_overbought and c_fast_bear_trig
+    setupText  := "하락 전환(하락 임박)"
+    setupColor := solidRed
+    setupDir := -1
+    setupKind := "reversal"
+else if c_bull_wave_bg and c_fast_bull_trig
     setupText  := "상승 웨이브+트리거"
     setupColor := solidGreen
     setupDir := 1
@@ -184,8 +196,17 @@ else if c_oversold
 // 색: 상승=녹(강 선명/약 둔탁 #6E8F72), 하락=적(강 선명/약 둔탁 #A57A7A), 중립=회색.
 verdictText  = "중립/관망"
 verdictColor = neutralGray
+// 최우선: 3행이 추세 전환(과매도/과매수 극단의 fast 크로스)이면 종합도 전환으로 확정.
+// 엇갈림 중립화(아래)보다 위에 두어야 2행 정렬(예: 하락 추세)이 전환을 덮어쓰지 못한다.
+// (예: 1행 "상승 전환" + 2행 "하락 추세" = 하락 추세 바닥에서의 반등 초입으로 읽히는 의도된 정보)
+if setupKind == "reversal" and setupDir == 1
+    verdictText  := "상승 전환"
+    verdictColor := solidGreen
+else if setupKind == "reversal" and setupDir == -1
+    verdictText  := "하락 전환"
+    verdictColor := solidRed
 // 강한 방향: 2행이 3중 정렬(강추세)이고 3행이 같은 방향 트리거 → 최강 종합
-if alignStrong and setupDir == 1 and setupKind == "trigger"
+else if alignStrong and setupDir == 1 and setupKind == "trigger"
     verdictText  := "강한 상승 우위"
     verdictColor := solidGreen
 else if alignStrong and setupDir == -1 and setupKind == "trigger"
