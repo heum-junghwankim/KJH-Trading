@@ -40,9 +40,9 @@ nearMargin      = input.float(5.0, minval=0.0, title="과매도/과매수 인근
 showExpandMarker = input.bool(true, title="확장 돌파 원 마커 표시", group="확장 돌파 마커", tooltip="밴드폭 확장(보라) 구간에서, cRSI가 하단밴드(LowBand)를 상향 돌파하면 하단밴드 위치에 골든(녹색 원), cRSI가 상단밴드(HighBand)를 하향 돌파하면 상단밴드 위치에 데드(빨강 원)를 표시. 수축(주황) 마커(원)와 모양·크기는 동일하며 배경색(주황 수축 / 보라 확장)으로 구분. 과매도/과매수 인근 조건 없음.")
 
 // 선 색상 (사용자 지정 가능, 기본값은 기존 하드코딩 색 유지)
-crsiColor = input.color(#FFFFFF, title="cRSI 선 색", group="선 색상")
+crsiColor = input.color(#E6B800, title="cRSI 선 색", group="선 색상")
 showCmfi = input.bool(false, title="cMFI 표시", group="선 색상", tooltip="순환 평활 MFI(cMFI) 선 표시 여부. 기본 미표시.")
-cmfiColor = input.color(#B388FF, title="cMFI 선 색", group="선 색상")
+cmfiColor = input.color(#E6B800, title="cMFI 선 색", group="선 색상")
 lowBandColor = input.color(#4DD0E1, title="하단밴드(LowBand) 색", group="선 색상")
 highBandColor = input.color(#4DD0E1, title="상단밴드(HighBand) 색", group="선 색상")
 
