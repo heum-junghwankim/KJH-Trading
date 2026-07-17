@@ -7,7 +7,7 @@
 
 > Pine Script **v6** 기준. 별도 패널(`overlay` 아님)에 그려지는 **모멘텀·타이밍 보조 지표**입니다.
 
-CEO 확정 제공 "Triple-Stochastic-Wave" 소스코드를 기반으로 하며, **계산·신호 로직·플롯·배경·alert는 원본 그대로 보존**합니다(CEO 확정 산식). 저장소 톤앤매너의 **우측 상단 상태 테이블만 추가**했습니다.
+CEO 확정 제공 "Triple-Stochastic-Wave" 소스코드를 기반으로 하며, **계산·신호 로직·플롯·배경·alert는 원본 그대로 보존**합니다(CEO 확정 산식). 저장소 톤앤매너의 **우측 상단 상태 테이블만 추가**했습니다. 이후 CEO 승인 하에 **Fast 트리거 게이트 버그 1건**(느린 선 min/max 기준 → 트리거 주체 `fast_k` 기준)을 수정했습니다([신호 로직](#신호-로직-ceo-확정--원본-보존-fast-트리거-게이트-1건-버그-수정) 참조).
 
 ## Pine 버전: v6 채택
 
@@ -33,13 +33,15 @@ d     = SMA(k, smooth_d)
 ```
 - `max(range, syminfo.mintick)`로 0으로 나누기를 방지합니다(횡보·갭 없는 구간 가드).
 
-## 신호 로직 (CEO 확정 — 원본 보존)
+## 신호 로직 (CEO 확정 — 원본 보존, Fast 트리거 게이트 1건 버그 수정)
 
 **Slow = 컨텍스트, Mid = 리셋, Fast = 트리거** 3단 구조입니다.
 
+> **버그 수정(CEO 승인):** Fast 트리거 게이트를 느린 선 기준(`math.min`/`math.max`)에서 **트리거 주체 `fast_k` 기준**으로 교정했습니다. 아래 `fast_bull_trigger`/`fast_bear_trigger` 항목 참조. 이 1건 외 계산·플롯·배경·alert는 원본 그대로 보존합니다.
+
 - **`slow_bull_trend` / `slow_bear_trend`** (컨텍스트): Slow %K가 %D 위/아래이고, 추세 미드라인(50)을 넘거나 최근 `slow_context_lookback`(8)봉 내 과매도/과매수를 찍은 상태.
 - **`mid_bull_reset` / `mid_bear_reset`** (리셋): Mid %K가 %D 위/아래로 2봉 연속 상승/하락(`ta.rising`/`ta.falling`)하고, 최근 `mid_pullback_lookback`(6)봉 내 미드라인까지 되돌림이 있었던 상태(눌림 후 재개).
-- **`fast_bull_trigger` / `fast_bear_trigger`** (트리거): Fast %K가 %D를 상향/하향 교차(`ta.crossover`/`ta.crossunder`)하면서 교차 지점이 과매도/과매수 영역인 상태.
+- **`fast_bull_trigger` / `fast_bear_trigger`** (트리거): Fast %K가 %D를 상향/하향 교차(`ta.crossover`/`ta.crossunder`)하면서 **트리거 주체인 Fast %K가** 과매도/과매수 영역인 상태(`fast_k <= oversold` / `fast_k >= overbought`). 교차 봉에서는 골든 시 항상 `fast_k > fast_d`라 `min(fast_k, fast_d) = fast_d`(후행 선)가 되므로, %K가 이미 과매도를 벗어나 상승 중이어도 %D가 아직 20 이하이면 골든이 성립하는 "하단인데 이미 상승한 골든" 오탐이 발생합니다. 그래서 게이트를 min/max(느린 선)가 아니라 **트리거 주체 `fast_k` 기준**으로 두어, %K가 실제 과매도/과매수일 때만 트리거가 성립하도록 합니다.
 - **`bull_wave_background` / `bear_wave_background`** (웨이브 셋업): 컨텍스트 + 리셋이 모두 성립(`slow_*_trend and mid_*_reset`). 배경색으로 강조됩니다.
 - **`all_bull_aligned` / `all_bear_aligned`** (3중 정렬): Slow·Mid·Fast **셋 다** %K > %D(또는 셋 다 < %D). alert 조건.
 
@@ -110,6 +112,7 @@ d     = SMA(k, smooth_d)
 ## 리페인팅 / 안전성
 
 - 전 계산이 확정 `ta.*`(`highest`/`lowest`/`sma`/`rising`/`falling`/`crossover`/`crossunder`)로 이뤄지며 **`request.security`·`lookahead` 없음**. 미래참조가 없습니다.
+- **Fast 트리거 게이트 수정도 리페인팅과 무관**합니다. 확정 `ta.crossover`/`ta.crossunder`에 현재봉 `fast_k`(확정 `sma` 시리즈) 조건을 곱한 형태로, 산식 타입은 series로 일관되며 미래참조·룩어헤드가 없습니다.
 - **테이블 판정은 확정봉(`[1]`) 기준**입니다. 미마감(실시간) 봉에서 Fast 크로스가 붙었다 떨어졌다 하며 테이블이 점멸하는 것을 막기 위해, crossover/정렬/셋업 판정을 **직전 확정봉 값**으로 읽습니다.
   - **주의:** 이 때문에 테이블 텍스트는 **차트의 원·배경보다 1봉 지연**되어 갱신됩니다. 원본 플롯·배경·alert(즉시 반영)와 테이블(확정봉)의 성격이 다름을 유의하세요. 지연은 의도된 안정화입니다.
 - 원본 플롯·배경·alert는 **원본 그대로**(실시간 봉에서 갱신될 수 있음 — 스토캐스틱 지표의 정상 거동).
