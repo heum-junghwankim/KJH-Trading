@@ -250,9 +250,11 @@ plot(deadBreak ? db : na, title="수축 데드크로스", style=plot.style_circl
 //  - cRSI가 하단밴드(db)를 상향 돌파(ta.crossover(crsi, db)) → 골든크로스(하단밴드 db 위치에 녹색 원)
 //  - cRSI가 상단밴드(ub)를 하향 돌파(ta.crossunder(crsi, ub)) → 데드크로스(상단밴드 ub 위치에 빨강 원)
 // 마진(과매도/과매수) 조건 없음. 크로스는 확정봉(barstate.isconfirmed) 기준으로만 확정해 미마감봉 점멸을 방지한다.
+// 진행방향 게이트: 골든은 crsi > crsi[1](cRSI 상향 진행), 데드는 crsi < crsi[1](cRSI 하향 진행)을 함께 요구한다.
+//  동적 밴드(db)가 재계산으로 밀려 올라오며 정체/하락 중인 cRSI를 스쳐 생기는 유사 교차를 억제하고, 진짜 돌파만 인정한다.
 // 수축(주황) 원 마커와 마커 모양·크기는 동일(원, linewidth=4)하며, 배경이 배타적이라 동시 발생은 없다. 구분은 배경색(주황 수축 / 보라 확장)으로만 한다.
-goldenExpand = showExpandMarker and barstate.isconfirmed and wideBw and ta.crossover(crsi, db)
-deadExpand   = showExpandMarker and barstate.isconfirmed and wideBw and ta.crossunder(crsi, ub)
+goldenExpand = showExpandMarker and barstate.isconfirmed and wideBw and ta.crossover(crsi, db) and crsi > crsi[1]
+deadExpand   = showExpandMarker and barstate.isconfirmed and wideBw and ta.crossunder(crsi, ub) and crsi < crsi[1]
 plot(goldenExpand ? db : na, title="확장 골든크로스", style=plot.style_circles, color=color.new(color.green, 0), linewidth=4, display=display.pane)
 plot(deadExpand ? ub : na, title="확장 데드크로스", style=plot.style_circles, color=color.new(color.red, 0), linewidth=4, display=display.pane)
 
