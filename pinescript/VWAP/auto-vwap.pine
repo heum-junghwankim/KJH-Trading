@@ -194,6 +194,9 @@ ipMarkerStyle = input.string("원", title="변곡 지점 마커 모양", options
 //  하단 밴드2(lowerBandValue2)는 롱 마커(lower2Marker)이면서 화면 하단 밴드2가 롱 청산선 안(lowerBandValue2 > longClear)일 때 롱 마커색(longClearLineColor)으로 강조한다.
 //  OFF·조건 미충족이면 기본색(activeLineColor)으로 원복. 봉 단위 색 지정이라 조건 봉만 강조되고 나머지는 기본색.
 ipBand2MarkerColor = input.bool(true, title="변곡 마커 봉 밴드2 강조 색", group=IP_GROUP, active=ipShowMarkers, tooltip="켜면 변곡 마커가 뜨면서 해당 방향 기본 화면 밴드2가 실제로 청산선 안으로 들어온 봉에서만 그 밴드2 선을 마커와 같은 색으로 강조합니다(상단=숏 마커색, 하단=롱 마커색). 그 봉에서만 색이 바뀌고 나머지 봉은 기본색을 유지합니다. 밴드2 위치·계산·마커 판정은 바뀌지 않는 표시 전용 옵션입니다.")
+// 변곡 마커 봉 캔들 색(CEO 지시, 기본 ON) — 마커가 표시된 봉의 캔들을 그 마커 색으로 칠한다(표시 전용).
+//  롱 마커 봉 → 캔들=롱 마커색(longMarkerColorFinal), 숏 마커 봉 → 캔들=숏 마커색(shortMarkerColorFinal). 마커 미표시 봉은 캔들 색 원복(na).
+ipMarkerCandleColor = input.bool(true, title="변곡 마커 캔들 색", group=IP_GROUP, active=ipShowMarkers, tooltip="켜면 변곡 마커가 표시된 봉의 캔들 색을 그 마커 색과 동일하게 칠합니다(롱=녹 계열, 숏=빨강 계열, OBV 에너지 채도 반영). 원 변곡·연장 마커 봉 모두 적용됩니다. 마커가 없는 봉은 원래 캔들 색을 유지합니다. 마커 판정·위치·색은 바뀌지 않는 표시 전용 옵션입니다.")
 // ⚠️ 변곡 전용 청산선 파라미터(ipCe*/ipSweep*)·변곡 전용 청산선 색(ipLong/ipShortClearLineColor)은 제거되었다(CEO 지시 #4).
 //  변곡 마커 판정은 이제 아래 "스윕/청산" 그룹(기본 청산 설정)을 그대로 쓴다. 마커 색도 기본 청산선 색(short/longClearLineColor)을 쓴다.
 // 요구사항 4: 밴드워킹 억제 필터 — 변곡 시점 청산선의 기울기가 "근사 수평"일 때만 마커를 표시한다.
@@ -552,8 +555,21 @@ lowerBwOk = not ipBwSuppress or not isDownBandWalking
 //  선색은 확정 성격 값(close·high·low·vwap·밴드1) 기반이라 신규 리페인팅 없음(현재봉 실시간 변동 성격은 기존 선색과 동일).
 bool srcGateLong  = not enableVwapSRColor or vwapSRColor != UPPER_BREAK_LINE_COLOR  // 롱: 빨강만 억제(흰/녹 허용)
 bool srcGateShort = not enableVwapSRColor or vwapSRColor != LOWER_BREAK_LINE_COLOR  // 숏: 녹색만 억제(흰/빨강 허용)
-upper2Marker = shortCand and ipUpperFlatOk and shortDiGate and upperBwOk and srcGateShort
-lower2Marker = longCand and ipLowerFlatOk and longDiGate and lowerBwOk and srcGateLong
+// ── 캔들 형태 게이트(CEO 지시) — 원 변곡 마커(upper2Marker/lower2Marker)에만 AND 결합 ──
+//  방향(양봉/음봉)만으로 게이트한다(CEO 지시: 몸통↔꼬리 비교 제거). 모두 확정봉 OHLC 기반 → 신규 리페인팅 없음.
+bool  ipBull      = close > open                        // 양봉
+bool  ipBear      = close < open                        // 음봉  (도지: close==open → 둘 다 false)
+//  ▸ 숏 변곡 유효 = 음봉.  제외 = "양봉 OR 도지".
+//     도지(close==open)는 음봉이 아니므로 자동 제외(방향성 미확정 → 오탐 방지·자본 보존).
+bool  shortShapeOk = ipBear
+//  ▸ 롱 변곡 유효 = 양봉.  제외 = "음봉 OR 도지".
+//     도지는 양봉이 아니므로 자동 제외.
+bool  longShapeOk  = ipBull
+//  ⚠️ 캔들 형태 게이트는 원 변곡(upper2Marker/lower2Marker)에 AND 결합하고, 연장(shortExt/longExt)에도 **현재봉 방향** 게이트를 별도 결합한다(아래 L582 인근).
+//     원 변곡은 이전봉 게이트가 아니라 "그 봉 자신"의 방향을 보장하지만, 연장은 이전봉([1]) 원 변곡에서 파생되므로 **현재봉** 방향이 반대일 수 있다.
+//     따라서 CEO 원칙(양봉엔 숏 금지·음봉엔 롱 금지)을 화면에 그려지는 모든 마커에 일관 적용하려면 연장에도 현재봉 방향(ipBull/ipBear) 게이트가 필요하다.
+upper2Marker = shortCand and ipUpperFlatOk and shortDiGate and upperBwOk and srcGateShort and shortShapeOk
+lower2Marker = longCand and ipLowerFlatOk and longDiGate and lowerBwOk and srcGateLong and longShapeOk
 
 // =========================
 // 변곡 마커 연장(follow-through) — CEO 신규 규칙. 원 변곡 마커가 뜬 다음 봉에서 방향이 유지되면(추세 지속) 동일 색 마커를 이어 표시한다.
@@ -563,8 +579,11 @@ lower2Marker = longCand and ipLowerFlatOk and longDiGate and lowerBwOk and srcGa
 //     근거: CEO 문언이 "이전봉에 (원) 변곡 마커"를 명시했고, 연장까지 트리거로 삼으면 게이트(DI·수평·밴드워킹)가 모두 꺼진 뒤에도 저점/고점만 갱신되면 무한 연쇄되어
 //     추세 소멸 후에도 마커가 붙는다(자본 보존·오탐 방지). 따라서 연장은 원 변곡 직후 1봉만 이어진다.
 //  ⚠️ 표시 전용 — 마커 발동 판정(shortCand/longCand·게이트·채도)·청산선·계산은 불변. low/high·마커[1]은 확정봉 값 → 신규 리페인팅 없음(현재봉 실시간 low/high 변동 성격은 기존 마커와 동일).
-longExt  = lower2Marker[1] and low  > low[1]
-shortExt = upper2Marker[1] and high < high[1]
+//  ⚠️ 캔들 형태 게이트(CEO 지시)를 **연장에도 결합**: 롱 연장은 현재봉이 양봉(ipBull)일 때만, 숏 연장은 현재봉이 음봉(ipBear)일 때만 성립.
+//     근거: 연장은 "추세 지속" 신호이므로 반대 방향 봉(음봉인데 롱 연장 / 양봉인데 숏 연장)에서 이어지는 것은 CEO 원칙(양봉엔 숏 금지·음봉엔 롱 금지) 위배이자 의미상 모순.
+//     도지(close==open)는 ipBull·ipBear 둘 다 false → 양쪽 연장 자동 제외(원 변곡과 동일 규칙). 이 게이트 한 곳으로 표시식·색 상속·캔들색까지 자동 정합.
+longExt  = lower2Marker[1] and low  > low[1]  and ipBull
+shortExt = upper2Marker[1] and high < high[1] and ipBear
 // 우선순위(숨김) — 연장은 방향 유지 신호이므로 반대 원 마커보다 우선한다.
 //  ▸ longExt 성립 봉: 숏 표시 억제(롱 우선). ▸ shortExt 성립 봉: 롱 표시 억제(숏 우선).
 //  ▸ 동시 성립(longExt and shortExt): inside bar(고점↓·저점↑)에서 이전봉에 롱·숏 원 마커가 둘 다 떴을 때만 가능(드묾). → **롱 우선**(규칙 #1과 방향 일치): 롱 연장 표시, 숏 억제.
@@ -638,6 +657,16 @@ fill(upperBand_2, lowerBand_2, title="Bands Fill #2", color=activeFillColor, dis
 //    ⚠️ 표시 조건은 연장 포함(showShortMarker/showLongMarker) — 원 변곡(upper2Marker/lower2Marker) OR 연장(shortExt/longExt), 반대 방향 연장 우선 억제 반영. 색은 연장 봉이면 이전봉 색(shortMarkerColorFinal/longMarkerColorFinal) 상속.
 plotshape(ipShowMarkers and showShortMarker ? upper2MarkerY : na, title="변곡 지점(상단)", style=ipMarkerStyle == "원" ? shape.circle : ipMarkerStyle == "삼각형" ? shape.triangleup : ipMarkerStyle == "다이아몬드" ? shape.diamond : ipMarkerStyle == "네모" ? shape.square : shape.cross, location=location.absolute, color=shortMarkerColorFinal, size=size.tiny, offset=offset, editable=true)
 plotshape(ipShowMarkers and showLongMarker ? lower2MarkerY : na, title="변곡 지점(하단)", style=ipMarkerStyle == "원" ? shape.circle : ipMarkerStyle == "삼각형" ? shape.triangleup : ipMarkerStyle == "다이아몬드" ? shape.diamond : ipMarkerStyle == "네모" ? shape.square : shape.cross, location=location.absolute, color=longMarkerColorFinal, size=size.tiny, offset=offset, editable=true)
+
+// 변곡 마커 봉 캔들 색(CEO 지시, ipMarkerCandleColor 기본 ON) — 표시된 마커 봉의 캔들을 마커색으로 칠한다.
+//  ▸ 조건·색 모두 plotshape 마커와 동일 변수 재사용: 롱=showLongMarker→longMarkerColorFinal, 숏=showShortMarker→shortMarkerColorFinal.
+//    (연장 봉은 상속색까지 마커와 정확히 일치. 마커 y·판정·채도·다른 로직 불변.)
+//  ▸ plotshape 표시 정합: plotshape은 y좌표(upper2MarkerY=shortClear/lower2MarkerY=longClear)가 na면 그 봉 마커를 미표시한다.
+//    barcolor는 y좌표를 안 쓰므로, "실제로 마커가 그려진 봉"에만 칠하도록 청산선 not na 가드를 AND로 얹어 plotshape 표시 조건과 일치시킨다(청산선 na 봉에서 캔들만 칠해지는 불일치 방지).
+//  ▸ 롱·숏 동시 표시는 우선순위 억제(showLong/ShortMarker의 not shortExt/not longExt)로 이미 상호배타지만,
+//    barcolor 단일 인자이므로 방어적으로 롱을 먼저 평가한다(규칙 #1 롱 우선과 방향 일치). 미표시 봉은 na → 캔들 원색 유지.
+//  ▸ auto-vwap에 기존 barcolor 없음 → 신규 도입(중복·충돌 없음). 확정봉 마커 조건 기반이라 신규 리페인팅 없음.
+barcolor(ipShowMarkers and ipMarkerCandleColor and showLongMarker and not na(lower2MarkerY) ? longMarkerColorFinal : ipShowMarkers and ipMarkerCandleColor and showShortMarker and not na(upper2MarkerY) ? shortMarkerColorFinal : na, title="변곡 마커 캔들 색", editable=true)
 
 // =========================
 // 샹들리에 청산선(직선=손절 기준선) 차트 페인팅 — 이치모쿠에서 이동(CEO 지시).
