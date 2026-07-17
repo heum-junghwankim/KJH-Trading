@@ -1311,16 +1311,16 @@ vwWalkSlopeLen = 3
 vwLowerRising = vwHasVwap and not na(vwLower2[vwWalkSlopeLen]) and vwLower2 > vwLower2[vwWalkSlopeLen]
 vwUpperFalling = vwHasVwap and not na(vwUpper2[vwWalkSlopeLen]) and vwUpper2 < vwUpper2[vwWalkSlopeLen]
 var int vwWalk = 0
-if vwWalk == 1 and (not vwHasVwap or vwUpperFalling or not vwAbove)
+if vwWalk == 1 and (not vwHasVwap or vwUpperFalling or not vwAbove or not vwSlopeUp)
     vwWalk := 0
-if vwWalk == -1 and (not vwHasVwap or vwLowerRising or vwAbove)
+if vwWalk == -1 and (not vwHasVwap or vwLowerRising or vwAbove or not vwSlopeDown)
     vwWalk := 0
 if vwUpBreakout
     vwWalk := 1
 if vwDownBreakout
     vwWalk := -1
-vwUpperWalk = (vwWalk == 1 or (vwBwExpanding and vwSlopeUp and vwNearUpper)) and vwAbove
-vwLowerWalk = (vwWalk == -1 or (vwBwExpanding and vwSlopeDown and vwNearLower)) and (not vwAbove)
+vwUpperWalk = (vwWalk == 1 or (vwBwExpanding and vwSlopeUp and vwNearUpper)) and vwAbove and vwSlopeUp
+vwLowerWalk = (vwWalk == -1 or (vwBwExpanding and vwSlopeDown and vwNearLower)) and (not vwAbove) and vwSlopeDown
 vwSupport = not vwUpperWalk and not vwLowerWalk and (vwBwContracting or vwSlopeFlat) and vwNearLower
 vwResistance = not vwUpperWalk and not vwLowerWalk and (vwBwContracting or vwSlopeFlat) and vwNearUpper
 vwSlopeText = not vwHasVwap ? "-" : vwSlopeUp ? "상승" : vwSlopeDown ? "하락" : "평탄(중심)"
