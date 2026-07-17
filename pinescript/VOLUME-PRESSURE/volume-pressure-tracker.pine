@@ -29,6 +29,12 @@ avgLineLength    = input.int(20, "평균선 봉 수", minval=1, group="Average L
 totalAvgColor    = input.color(color.orange, "전체 주문량 평균선", group="Average Lines")
 
 // =========================
+// 압력 판정 설정 (테이블 2·3행 공용)
+// =========================
+pressureLen = input.int(5, "압력/추진 비교 봉 수 (N)", minval=1, group="압력 판정")
+neutralK    = input.float(1.2, "중립/보통 비율 임계 k", minval=1.0, step=0.05, group="압력 판정")
+
+// =========================
 // 비정상 거래량 계산
 // =========================
 avgVol           = ta.sma(volume, length)
@@ -59,10 +65,36 @@ shortFavored = aboveAvg and not buyDominant
 posText  = longFavored ? "롱 유리" : shortFavored ? "숏 유리" : "중립"
 posColor = longFavored ? color.new(color.green, 0) : shortFavored ? color.new(color.red, 0) : color.new(color.gray, 40)
 
-// 압력 방향에 비정상 거래량 여부를 녹여서 표기. 비정상이면 '비정상 매수/매도 우세' + 진한 색,
-// 일반이면 '매수/매도 우세' + 약한(투명도 높은) 색.
-pressureText  = abnormal ? (buyDominant ? "비정상 매수 우세" : "비정상 매도 우세") : (buyDominant ? "매수 우세" : "매도 우세")
-pressureColor = buyDominant ? color.new(color.green, abnormal ? 0 : 55) : color.new(color.red, abnormal ? 0 : 55)
+// ---- 2행: 압력 방향 (최근 N봉 매수/매도량 합의 비율) ----
+// 전역 스코프에서 series 계산(리페인팅 없음: math.sum은 확정봉 누적).
+sumBuy  = math.sum(buyVolume, pressureLen)
+sumSell = math.sum(sellVolume, pressureLen)
+maxSum  = math.max(sumBuy, sumSell)
+minSum  = math.min(sumBuy, sumSell)
+// 0 나눗셈 가드: 작은쪽 합이 0이면 비율 산출 불가 → 안전 분기
+pressureValid = minSum > 0
+R2 = pressureValid ? maxSum / minSum : na
+// 판정: R ≤ k → 중립, 아니면 방향
+p2Buy  = pressureValid and R2 > neutralK and sumBuy > sumSell
+p2Sell = pressureValid and R2 > neutralK and sumBuy <= sumSell
+// (R2 ≤ neutralK 또는 방향 불명확은 아래 삼항의 else = 중립으로 흡수)
+// 표기(소수 1자리). 큰쪽/작은쪽 위치로 방향을 드러냄.
+rStr2 = pressureValid ? str.tostring(R2, "0.0") : "-"
+pressureText = not pressureValid ? "중립 (-)" : p2Buy ? "매수 (" + rStr2 + " : 1.0)" : p2Sell ? "매도 (1.0 : " + rStr2 + ")" : "중립 (" + rStr2 + " : 1.0)"
+pressureColor = not pressureValid ? color.new(color.gray, 40) : p2Buy ? color.new(color.green, 0) : p2Sell ? color.new(color.red, 0) : color.new(color.gray, 40)
+
+// ---- 3행: 평균선(SMA) — 최근 N봉 평균 vs 기준 평균(20봉) ----
+recentAvg = ta.sma(volume, pressureLen)   // 최근 N봉 평균(1봉 스케일)
+baseAvg   = avgTotalVolume                 // 기존 ta.sma(volume, avgLineLength) 재사용
+avgValid  = baseAvg > 0                     // 0 나눗셈 가드
+ratio3 = avgValid ? recentAvg / baseAvg : na
+p3Above = avgValid and ratio3 > neutralK
+p3Below = avgValid and ratio3 < 1 / neutralK
+// 표기: 오른쪽 항상 평균선 = 1.0 고정, 왼쪽에 ratio3 원값. 소수 1자리.
+rStr3 = avgValid ? str.tostring(ratio3, "0.0") : "-"
+avgText = not avgValid ? "보통 (-)" : p3Above ? "상회 (" + rStr3 + " : 1.0)" : p3Below ? "하회 (" + rStr3 + " : 1.0)" : "보통 (" + rStr3 + " : 1.0)"
+// 색: 상회=녹, 보통=회, 하회=회 계열(빨강 금지 — 매도 오독 방지, 보통보다 약간 어둡게)
+avgColor = not avgValid ? color.new(color.gray, 50) : p3Above ? color.new(color.green, 30) : p3Below ? color.new(color.gray, 30) : color.new(color.gray, 50)
 
 var table volStatus = table.new(position.top_right, 2, 3, border_width=1, border_color=color.new(color.gray, 50))
 if barstate.islast
@@ -71,4 +103,4 @@ if barstate.islast
     table.cell(volStatus, 0, 1, "압력 방향", text_color=color.white, text_size=size.small)
     table.cell(volStatus, 1, 1, pressureText, text_color=color.white, bgcolor=pressureColor, text_size=size.small)
     table.cell(volStatus, 0, 2, "평균선(SMA)", text_color=color.white, text_size=size.small)
-    table.cell(volStatus, 1, 2, aboveAvg ? "상회" : "하회", text_color=color.white, bgcolor=aboveAvg ? color.new(color.green, 30) : color.new(color.gray, 50), text_size=size.small)
+    table.cell(volStatus, 1, 2, avgText, text_color=color.white, bgcolor=avgColor, text_size=size.small)

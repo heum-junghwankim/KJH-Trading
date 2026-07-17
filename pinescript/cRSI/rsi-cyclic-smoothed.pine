@@ -30,14 +30,24 @@ narrowBandThreshold = input.float(20.0, minval=0.0, title="Narrow Band Width Thr
 wideBandThreshold = input.float(35.0, minval=0.0, title="Wide Band Width Threshold")
 bgOpacity = input.int(15, minval=0, maxval=100, title="밴드 배경 불투명성 (0=투명, 100=진함)")
 
-// 선 색상 (사용자 지정 가능, 기본값은 기존 하드코딩 색 유지)
-crsiColor = input.color(#FDD835, title="cRSI 선 색", group="선 색상")
-cmfiColor = input.color(#2962FF, title="cMFI 선 색", group="선 색상")
-lowBandColor = input.color(#26A69A, title="하단밴드(LowBand) 색", group="선 색상")
-highBandColor = input.color(#EF5350, title="상단밴드(HighBand) 색", group="선 색상")
+// 수축 구간 밴드 돌파 원 마커 옵션
+oversoldLevel   = input.float(30.0, minval=0.0, maxval=100.0, title="과매도 참고 레벨", group="수축 돌파 마커")
+overboughtLevel = input.float(70.0, minval=0.0, maxval=100.0, title="과매수 참고 레벨", group="수축 돌파 마커")
+showBreakMarker = input.bool(true, title="수축 돌파 원 마커 표시", group="수축 돌파 마커", tooltip="밴드폭 수축(주황) 구간에서, 하단밴드가 과매도 인근일 때 cRSI가 상단밴드를 상향 돌파하면 상단밴드 위치에 골든(녹색 원), 상단밴드가 과매수 인근일 때 cRSI가 하단밴드를 하향 돌파하면 하단밴드 위치에 데드(빨강 원)를 표시.")
+nearMargin      = input.float(5.0, minval=0.0, title="과매도/과매수 인근 마진", group="수축 돌파 마커", tooltip="하단밴드가 (과매도 레벨 ±마진) 범위, 상단밴드가 (과매수 레벨 ±마진) 범위일 때 '인근'으로 판정(선 위·아래 양방향). 기본 5.0.")
 
-h1 = hline(30, color=color.silver, linestyle=hline.style_dashed)
-h2 = hline(70, color=color.silver, linestyle=hline.style_dashed)
+// 확장 구간 밴드 돌파 원 마커 옵션
+showExpandMarker = input.bool(true, title="확장 돌파 원 마커 표시", group="확장 돌파 마커", tooltip="밴드폭 확장(보라) 구간에서, cRSI가 하단밴드(LowBand)를 상향 돌파하면 하단밴드 위치에 골든(녹색 원), cRSI가 상단밴드(HighBand)를 하향 돌파하면 상단밴드 위치에 데드(빨강 원)를 표시. 수축(주황) 마커(원)와 모양·크기는 동일하며 배경색(주황 수축 / 보라 확장)으로 구분. 과매도/과매수 인근 조건 없음.")
+
+// 선 색상 (사용자 지정 가능, 기본값은 기존 하드코딩 색 유지)
+crsiColor = input.color(#E6B800, title="cRSI 선 색", group="선 색상")
+showCmfi = input.bool(false, title="cMFI 표시", group="선 색상", tooltip="순환 평활 MFI(cMFI) 선 표시 여부. 기본 미표시.")
+cmfiColor = input.color(#E6B800, title="cMFI 선 색", group="선 색상")
+lowBandColor = input.color(#4DD0E1, title="하단밴드(LowBand) 색", group="선 색상")
+highBandColor = input.color(#4DD0E1, title="상단밴드(HighBand) 색", group="선 색상")
+
+h1 = hline(oversoldLevel, color=color.silver, linestyle=hline.style_dashed)
+h2 = hline(overboughtLevel, color=color.silver, linestyle=hline.style_dashed)
 
 torque = 2.0 / (vibration + 1)
 phasingLag = int((vibration - 1) / 2)
@@ -117,7 +127,9 @@ bgcolor(color.new(bandBgColor, 100 - bgOpacity))
 lowband = plot(db, "LowBand", lowBandColor, display = display.all)
 highband = plot(ub, "HighBand", highBandColor, display = display.all)
 plot(crsi, "CRSI", crsiColor, display = display.all)
-plot(cmfi, "cMFI", cmfiColor, display = display.all - display.price_scale)
+// Pine v6 plot()은 dashed 라인을 직접 지원하지 않음(style은 line/stepline/histogram/cross/circles/area/columns/linebr).
+// cMFI는 매 봉 갱신되는 동적 series라 line.new(dashed)는 비효율 → plot.style_circles로 점선(작은 원 연속) 느낌을 낸다.
+plot(cmfi, "cMFI", cmfiColor, style = plot.style_circles, display = showCmfi ? display.all - display.price_scale : display.none)
 
 // =========================
 // 우측 상단 상태판 (매수 신호 신뢰도)
@@ -126,8 +138,12 @@ atLowCrsi  = crsi <= db
 atHighCrsi = crsi >= ub
 narrowBw   = bandWidth <= narrowLimit
 wideBw     = bandWidth >= wideLimit
-posText    = atLowCrsi ? "LowBand(과매도)" : atHighCrsi ? "HighBand(과열)" : "중립"
 bwText     = narrowBw ? "수축" : wideBw ? "확장" : "중립"
+
+// 모멘텀(기울기) 계산: 확정 과거참조(crsi[phasingLag])만 사용 → 리페인팅 없음
+// phasingLag = int((vibration-1)/2) = 4봉(vibration=10). 평활 지연값 재사용.
+crsiSlope = crsi - crsi[phasingLag]
+slopeEps  = 2.0
 
 // 수축(주황) 상태에서의 밴드 돌파는 "추세 돌파"로 보고, 밴드 안으로 복귀할 때까지 방향 유지
 // (돌파 이후 밴드가 확장(보라)되어도 복귀 전까지는 같은 방향)
@@ -145,6 +161,26 @@ if narrowRecently and brokeDown
     crsiBreak := -1
 if narrowRecently and brokeUp
     crsiBreak := 1
+
+// =========================
+// 모멘텀 5분류 (테이블 3행 표시용)
+// 우선순위: 크로스 지속(crsiBreak) > 위치+기울기 조합.
+//  판정 소스는 지속 래치 crsiBreak (goldenBreak/deadBreak 1회 이벤트는 사용하지 않음 — 원 마커로 별도 표현).
+//  "강" 게이트: 크로스 지속이면 무조건 강. 크로스 없으면 위치가 극단(과매도에서 상승/과매수에서 하락=반전)이거나
+//   밴드 안(중립 위치)일 때만 강, 그 외(반대 극단)엔 일반 상승/하락.
+// 상태 서술만 하며 매매 지시어는 쓰지 않는다.
+upStrong   = crsiBreak == 1  or ((atLowCrsi or (not atLowCrsi and not atHighCrsi)) and crsiSlope > slopeEps)
+downStrong = crsiBreak == -1 or ((atHighCrsi or (not atLowCrsi and not atHighCrsi)) and crsiSlope < -slopeEps)
+momoText  = crsiBreak == 1 ? "상승 강" :
+     crsiBreak == -1 ? "하락 강" :
+     math.abs(crsiSlope) <= slopeEps ? "중립" :
+     crsiSlope > slopeEps ? (upStrong ? "상승 강" : "상승") :
+     crsiSlope < -slopeEps ? (downStrong ? "하락 강" : "하락") : "중립"
+momoColor = crsiBreak == 1 ? color.new(color.green, 0) :
+     crsiBreak == -1 ? color.new(color.red, 0) :
+     math.abs(crsiSlope) <= slopeEps ? color.new(color.gray, 40) :
+     crsiSlope > slopeEps ? (upStrong ? color.new(color.green, 0) : #6E8F72) :
+     crsiSlope < -slopeEps ? (downStrong ? color.new(color.red, 0) : #A57A7A) : color.new(color.gray, 40)
 
 // cRSI 다이버전스 (확장(보라) 구간에서만 신뢰): 상승=롱, 하락=숏
 divLbL = 5
@@ -193,8 +229,35 @@ if narrowBw
 plotshape(bullDiv and wideBw ? crsi[divLbR] : na, title="cRSI 상승 다이버전스", style=shape.triangleup, location=location.absolute, color=color.green, size=size.tiny, offset=-divLbR)
 plotshape(bearDiv and wideBw ? crsi[divLbR] : na, title="cRSI 하락 다이버전스", style=shape.triangledown, location=location.absolute, color=color.red, size=size.tiny, offset=-divLbR)
 
+// =========================
+// 수축(주황) 구간 밴드 돌파 원 마커
+// =========================
+// 밴드폭 수축(narrowBw, 당봉 주황) 상태에서:
+//  - 하단밴드(db)가 과매도 인근(과매도 레벨 ±마진 = 선 위·아래 근처) + cRSI가 상단밴드(ub)를 상향 돌파 → 골든크로스(상단밴드 ub 위치에 녹색 원)
+//  - 상단밴드(ub)가 과매수 인근(과매수 레벨 ±마진 = 선 위·아래 근처) + cRSI가 하단밴드(db)를 하향 돌파 → 데드크로스(하단밴드 db 위치에 빨강 원)
+// 크로스는 확정봉(barstate.isconfirmed) 기준으로만 확정해 미마감봉 점멸을 방지한다.
+lowBandOversold   = oversoldLevel - nearMargin <= db and db <= oversoldLevel + nearMargin
+highBandOverbought = overboughtLevel - nearMargin <= ub and ub <= overboughtLevel + nearMargin
+goldenBreak = showBreakMarker and barstate.isconfirmed and narrowBw and ta.crossover(crsi, ub) and lowBandOversold
+deadBreak   = showBreakMarker and barstate.isconfirmed and narrowBw and ta.crossunder(crsi, db) and highBandOverbought
+plot(goldenBreak ? ub : na, title="수축 골든크로스", style=plot.style_circles, color=color.new(color.green, 0), linewidth=4, display=display.pane)
+plot(deadBreak ? db : na, title="수축 데드크로스", style=plot.style_circles, color=color.new(color.red, 0), linewidth=4, display=display.pane)
+
+// =========================
+// 확장(보라) 구간 밴드 돌파 원 마커
+// =========================
+// 밴드폭 확장(wideBw, 당봉 보라) 상태에서:
+//  - cRSI가 하단밴드(db)를 상향 돌파(ta.crossover(crsi, db)) → 골든크로스(하단밴드 db 위치에 녹색 원)
+//  - cRSI가 상단밴드(ub)를 하향 돌파(ta.crossunder(crsi, ub)) → 데드크로스(상단밴드 ub 위치에 빨강 원)
+// 마진(과매도/과매수) 조건 없음. 크로스는 확정봉(barstate.isconfirmed) 기준으로만 확정해 미마감봉 점멸을 방지한다.
+// 수축(주황) 원 마커와 마커 모양·크기는 동일(원, linewidth=4)하며, 배경이 배타적이라 동시 발생은 없다. 구분은 배경색(주황 수축 / 보라 확장)으로만 한다.
+goldenExpand = showExpandMarker and barstate.isconfirmed and wideBw and ta.crossover(crsi, db)
+deadExpand   = showExpandMarker and barstate.isconfirmed and wideBw and ta.crossunder(crsi, ub)
+plot(goldenExpand ? db : na, title="확장 골든크로스", style=plot.style_circles, color=color.new(color.green, 0), linewidth=4, display=display.pane)
+plot(deadExpand ? ub : na, title="확장 데드크로스", style=plot.style_circles, color=color.new(color.red, 0), linewidth=4, display=display.pane)
+
 // 우선순위: 수축 돌파 지속 > 확장 다이버전스 > 일반 과매수·과매도 되돌림
-posVerdict = crsiBreak == -1 ? "숏 유리(하단돌파 지속)" : crsiBreak == 1 ? "롱 유리(상단돌파 지속)" : crsiDiv == 1 ? "롱 유리(상승 다이버전스)" : crsiDiv == -1 ? "숏 유리(하락 다이버전스)" : atHighCrsi ? "숏 유리(과매수)" : atLowCrsi ? "롱 유리(과매도)" : narrowBw ? "중립(수축)" : "중립"
+posVerdict = crsiBreak == -1 ? "숏 유리(하단돌파)" : crsiBreak == 1 ? "롱 유리(상단돌파)" : crsiDiv == 1 ? "롱 유리(상승 다이버전스)" : crsiDiv == -1 ? "숏 유리(하락 다이버전스)" : atHighCrsi ? "숏 유리(과매수)" : atLowCrsi ? "롱 유리(과매도)" : narrowBw ? "중립(수축)" : "중립"
 posColor   = crsiBreak == -1 ? color.new(color.red, 0) : crsiBreak == 1 ? color.new(color.green, 0) : crsiDiv == 1 ? color.new(color.green, 0) : crsiDiv == -1 ? color.new(color.red, 0) : atHighCrsi ? color.new(color.red, 0) : atLowCrsi ? color.new(color.green, 0) : color.new(color.gray, 40)
 
 var table crsiStatus = table.new(position.top_right, 2, 3, border_width=1, border_color=color.new(color.gray, 50))
@@ -203,5 +266,5 @@ if barstate.islast
     table.cell(crsiStatus, 1, 0, posVerdict, text_color=color.white, bgcolor=posColor, text_size=size.small)
     table.cell(crsiStatus, 0, 1, "cRSI 값", text_color=color.white, text_size=size.small)
     table.cell(crsiStatus, 1, 1, str.tostring(crsi, "#.0") + " (" + str.tostring(bandWidth, "#.0") + " " + bwText + ")", text_color=color.white, bgcolor=narrowBw ? color.new(#D35400, 0) : wideBw ? color.new(color.purple, 0) : color.new(color.gray, 50), text_size=size.small)
-    table.cell(crsiStatus, 0, 2, "밴드 위치", text_color=color.white, text_size=size.small)
-    table.cell(crsiStatus, 1, 2, posText, text_color=color.white, bgcolor=atLowCrsi ? color.new(color.green, 30) : atHighCrsi ? color.new(color.red, 30) : color.new(color.gray, 50), text_size=size.small)
+    table.cell(crsiStatus, 0, 2, "모멘텀", text_color=color.white, text_size=size.small)
+    table.cell(crsiStatus, 1, 2, momoText, text_color=color.white, bgcolor=momoColor, text_size=size.small)
