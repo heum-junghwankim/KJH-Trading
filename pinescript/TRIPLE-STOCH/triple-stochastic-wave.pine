@@ -39,8 +39,8 @@ slow_bear_trend = slow_k < slow_d and (slow_k <= trend_midline or ta.highest(slo
 mid_bull_reset = mid_k > mid_d and ta.rising(mid_k, 2) and ta.lowest(mid_k, mid_pullback_lookback) <= trend_midline
 mid_bear_reset = mid_k < mid_d and ta.falling(mid_k, 2) and ta.highest(mid_k, mid_pullback_lookback) >= trend_midline
 
-fast_bull_trigger = ta.crossover(fast_k, fast_d) and fast_k <= oversold
-fast_bear_trigger = ta.crossunder(fast_k, fast_d) and fast_k >= overbought
+fast_bull_trigger = ta.crossover(fast_k, fast_d) and math.min(fast_k, fast_d) <= oversold
+fast_bear_trigger = ta.crossunder(fast_k, fast_d) and math.max(fast_k, fast_d) >= overbought
 
 all_bull_aligned = slow_k > slow_d and mid_k > mid_d and fast_k > fast_d
 all_bear_aligned = slow_k < slow_d and mid_k < mid_d and fast_k < fast_d
