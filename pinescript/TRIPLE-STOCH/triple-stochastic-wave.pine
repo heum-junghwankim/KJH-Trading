@@ -26,18 +26,14 @@ oversold = input.int(20, "Oversold", minval=0, maxval=50, group="Wave Rules", in
 overbought = input.int(80, "Overbought", minval=50, maxval=100, group="Wave Rules", inline="rule1")
 trend_midline = input.int(50, "Trend Midline", minval=0, maxval=100, group="Wave Rules", inline="rule1")
 slow_context_lookback = input.int(8, "Slow Context Lookback", minval=2, group="Wave Rules", inline="rule2")
-mid_pullback_lookback = input.int(6, "Mid Pullback Lookback", minval=2, group="Wave Rules", inline="rule2")
 
 [fast_k, fast_d] = stoch_pair(fast_length, fast_smooth_k, fast_smooth_d)
 [mid_k, mid_d] = stoch_pair(mid_length, mid_smooth_k, mid_smooth_d)
 [slow_k, slow_d] = stoch_pair(slow_length, slow_smooth_k, slow_smooth_d)
 
-// Slow = context, mid = reset, fast = trigger.
+// Slow = context, fast = trigger. (mid는 정배열/역배열 서열 판정에 사용)
 slow_bull_trend = slow_k > slow_d and (slow_k >= trend_midline or ta.lowest(slow_k, slow_context_lookback) <= oversold)
 slow_bear_trend = slow_k < slow_d and (slow_k <= trend_midline or ta.highest(slow_k, slow_context_lookback) >= overbought)
-
-mid_bull_reset = mid_k > mid_d and ta.rising(mid_k, 2) and ta.lowest(mid_k, mid_pullback_lookback) <= trend_midline
-mid_bear_reset = mid_k < mid_d and ta.falling(mid_k, 2) and ta.highest(mid_k, mid_pullback_lookback) >= trend_midline
 
 fast_bull_trigger = ta.crossover(fast_k, fast_d) and math.min(fast_k, fast_d) <= oversold
 fast_bear_trigger = ta.crossunder(fast_k, fast_d) and math.max(fast_k, fast_d) >= overbought
@@ -45,8 +41,14 @@ fast_bear_trigger = ta.crossunder(fast_k, fast_d) and math.max(fast_k, fast_d) >
 all_bull_aligned = slow_k > slow_d and mid_k > mid_d and fast_k > fast_d
 all_bear_aligned = slow_k < slow_d and mid_k < mid_d and fast_k < fast_d
 
-bull_wave_background = slow_bull_trend and mid_bull_reset
-bear_wave_background = slow_bear_trend and mid_bear_reset
+// 스토캐스틱 간 서열(정배열/역배열): fast %K가 mid %K 위, mid %K가 slow %K 위이면 정배열(상승 서열).
+// 각 스토캐스틱의 %K를 대표값으로 비교(엄격 부등호). all_*_aligned(각 %K vs 자기 %D)와는 다른 개념.
+stoch_bull_order = fast_k > mid_k and mid_k > slow_k
+stoch_bear_order = fast_k < mid_k and mid_k < slow_k
+
+// 웨이브 배경 = 스토캐스틱이 정확히 정배열/역배열일 때만.
+bull_wave_background = stoch_bull_order
+bear_wave_background = stoch_bear_order
 
 bgcolor(bull_wave_background ? color.new(#2E7D32, 80) : na, title="Bull Wave Background", editable=true)
 bgcolor(bear_wave_background ? color.new(#C62828, 80) : na, title="Bear Wave Background", editable=true)

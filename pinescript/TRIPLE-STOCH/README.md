@@ -7,7 +7,9 @@
 
 > Pine Script **v6** 기준. 별도 패널(`overlay` 아님)에 그려지는 **모멘텀·타이밍 보조 지표**입니다.
 
-CEO 확정 제공 "Triple-Stochastic-Wave" 소스코드를 기반으로 하며, **계산·신호 로직·플롯·배경·alert는 원본 그대로 보존**합니다(CEO 확정 산식). 저장소 톤앤매너의 **우측 상단 상태 테이블만 추가**했습니다.
+CEO 확정 제공 "Triple-Stochastic-Wave" 소스코드를 기반으로 합니다. 저장소 톤앤매너의 **우측 상단 상태 테이블**을 추가했으며, **웨이브 배경 조건은 CEO 지시로 스토캐스틱 정배열/역배열(세 %K 서열)로 재정의**했습니다. 그 외 계산·플롯·트리거·alert는 원본 로직을 보존합니다.
+
+> **웨이브 배경 재정의 (CEO 지시):** 기존 배경 조건 `slow_*_trend and mid_*_reset`(컨텍스트+리셋)을 **정확한 정배열/역배열**로 교체했습니다. 상승 배경 = `fast_k > mid_k > slow_k`(정배열), 하락 배경 = `fast_k < mid_k < slow_k`(역배열). 이에 따라 `mid_bull_reset`/`mid_bear_reset` 및 `Mid Pullback Lookback` 입력이 제거되었습니다. 배경 색·투명도·테이블·마커·플롯·alert는 불변입니다.
 
 ## Pine 버전: v6 채택
 
@@ -22,7 +24,7 @@ CEO 확정 제공 "Triple-Stochastic-Wave" 소스코드를 기반으로 하며, 
 | 스토캐스틱 | 기본 (Length/K/D) | 역할 | 색 |
 | --- | --- | --- | --- |
 | **Slow** | 20 / 9 / 9 | **컨텍스트**(큰 추세·국면) | 파랑 `#1565C0` |
-| **Mid** | 10 / 6 / 6 | **리셋**(눌림·되돌림 후 재개) | 청록 `#00897B` |
+| **Mid** | 10 / 6 / 6 | **중간축**(정배열/역배열 서열의 가운데) | 청록 `#00897B` |
 | **Fast** | 5 / 3 / 3 | **트리거**(진입 타이밍 크로스) | 주황 `#FB8C00` |
 
 각 스토캐스틱은 표준 정의로 계산합니다(`stoch_pair` 헬퍼):
@@ -35,18 +37,18 @@ d     = SMA(k, smooth_d)
 
 ## 신호 로직 (CEO 확정 — 원본 보존)
 
-**Slow = 컨텍스트, Mid = 리셋, Fast = 트리거** 3단 구조입니다.
+**Slow = 컨텍스트, Fast = 트리거** 구조이며, 웨이브 배경은 세 스토캐스틱 %K의 **정배열/역배열 서열**로 판정합니다.
 
-- **`slow_bull_trend` / `slow_bear_trend`** (컨텍스트): Slow %K가 %D 위/아래이고, 추세 미드라인(50)을 넘거나 최근 `slow_context_lookback`(8)봉 내 과매도/과매수를 찍은 상태.
-- **`mid_bull_reset` / `mid_bear_reset`** (리셋): Mid %K가 %D 위/아래로 2봉 연속 상승/하락(`ta.rising`/`ta.falling`)하고, 최근 `mid_pullback_lookback`(6)봉 내 미드라인까지 되돌림이 있었던 상태(눌림 후 재개).
+- **`slow_bull_trend` / `slow_bear_trend`** (컨텍스트): Slow %K가 %D 위/아래이고, 추세 미드라인(50)을 넘거나 최근 `slow_context_lookback`(8)봉 내 과매도/과매수를 찍은 상태. (테이블 정렬/추세 행에서 사용)
 - **`fast_bull_trigger` / `fast_bear_trigger`** (트리거): Fast %K가 %D를 상향/하향 교차(`ta.crossover`/`ta.crossunder`)하면서 교차 지점이 과매도/과매수 영역인 상태.
-- **`bull_wave_background` / `bear_wave_background`** (웨이브 셋업): 컨텍스트 + 리셋이 모두 성립(`slow_*_trend and mid_*_reset`). 배경색으로 강조됩니다.
-- **`all_bull_aligned` / `all_bear_aligned`** (3중 정렬): Slow·Mid·Fast **셋 다** %K > %D(또는 셋 다 < %D). alert 조건.
+- **`stoch_bull_order` / `stoch_bear_order`** (정배열/역배열 서열): 세 스토캐스틱의 **%K 값 서열**로 판정. 정배열 = `fast_k > mid_k > slow_k`(위에서 아래로 fast→mid→slow, 상승 서열), 역배열 = `fast_k < mid_k < slow_k`(하락 서열). 엄격 부등호로 "정확히" 순서대로 정렬된 상태만 참.
+- **`bull_wave_background` / `bear_wave_background`** (웨이브 배경): 스토캐스틱이 **정확히 정배열/역배열**일 때만(`stoch_bull_order` / `stoch_bear_order`). 배경색으로 강조됩니다.
+- **`all_bull_aligned` / `all_bear_aligned`** (3중 시그널 정렬): Slow·Mid·Fast **각각** %K > 자기 %D(또는 셋 다 < 자기 %D). alert 조건. *(주의: 각 스토캐스틱의 %K vs 자기 %D 비교이며, 스토캐스틱 간 서열인 `stoch_*_order`와는 다른 개념입니다.)*
 
 ### 플롯·배경·alert (원본)
 - 6개 라인(각 스토캐스틱의 %K·%D). %K는 진하게, %D는 반투명·얇게.
 - Fast 트리거 성립 봉에 큰 원(circles) 마커.
-- 웨이브 셋업 성립 시 배경색(상승=녹, 하락=적, 투명 80).
+- 스토캐스틱 정배열/역배열 성립 시 배경색(정배열=녹, 역배열=적, 투명 80).
 - 과매수(80)·미드라인(50)·과매도(20) 수평선.
 - 3중 정렬 alert 2종.
 
@@ -145,7 +147,6 @@ d     = SMA(k, smooth_d)
 | Overbought | 80 | 과매수 임계 |
 | Trend Midline | 50 | 추세 미드라인 |
 | Slow Context Lookback | 8 | Slow 컨텍스트 룩백(과매수/과매도 흔적 확인 구간) |
-| Mid Pullback Lookback | 6 | Mid 되돌림(리셋) 확인 구간 |
 
 ## 주의사항
 
