@@ -250,8 +250,8 @@ bool newNarrow = narrowBw and not narrowBw[1]   // 수축 구간 시작(직전 �
 if newNarrow
     goldenFiredNarrow := false
     deadFiredNarrow := false
-bool rawGolden = narrowBw and ta.crossover(crsi, ub)
-bool rawDead   = narrowBw and ta.crossunder(crsi, db)
+bool rawGolden = narrowBw and ta.crossover(crsi, ub)  and crsi > crsi[1]
+bool rawDead   = narrowBw and ta.crossunder(crsi, db) and crsi < crsi[1]
 goldenBreak = showBreakMarker and barstate.isconfirmed and rawGolden and not goldenFiredNarrow
 deadBreak   = showBreakMarker and barstate.isconfirmed and rawDead   and not deadFiredNarrow
 if goldenBreak
