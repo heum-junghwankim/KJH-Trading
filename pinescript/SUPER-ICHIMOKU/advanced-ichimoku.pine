@@ -1589,7 +1589,7 @@ plotshape(showSellSignal and sigVw and vwSell20, title="매도 2× (거래량)",
 //  골든(VWAP가 100선 상향 돌파)·데드(하향 돌파) 모두 100선(ltMa1) 가격 위치에 십자로 표시(골든=녹, 데드=빨강).
 //  plot(조건 ? ltMa1 : na, style=plot.style_cross) — plotshape은 location.absolute로 특정 가격 지정 불가라 plot으로 전환.
 //  조건 미충족 봉은 na → 해당 크로스 봉에만 십자 1개 표시(cross 스타일은 na로 끊겨 선 연결 없음). ltMa1 워밍업 na도 자동 미표시.
-plot(vwMaGolden ? ltMa1 : na, title="VWAP×100선 골든 크로스", style=plot.style_cross, color=color.green, linewidth=4)
-plot(vwMaDead ? ltMa1 : na, title="VWAP×100선 데드 크로스", style=plot.style_cross, color=color.red, linewidth=4)
+plot(vwMaGolden ? ltMa1 : na, title="VWAP×100선 골든 크로스", style=plot.style_cross, color=color.green, linewidth=4, display=display.all - display.price_scale)
+plot(vwMaDead ? ltMa1 : na, title="VWAP×100선 데드 크로스", style=plot.style_cross, color=color.red, linewidth=4, display=display.all - display.price_scale)
 alertcondition(vwMaGolden, title="VWAP×100선 골든 크로스", message="VWAP(50) crossed above MA100 — mid-term golden cross.")
 alertcondition(vwMaDead, title="VWAP×100선 데드 크로스", message="VWAP(50) crossed below MA100 — mid-term dead cross.")
