@@ -1,5 +1,10 @@
 //@version=6
-indicator(title="Advanced Ichimoku", shorttitle="Adv Ichimoku", overlay=true, max_bars_back=5000)
+// [성능 리팩토링 ①] max_bars_back 5000 → 1000. 실측 최대 히스토리 참조(기본값 기준): ta.vwma(close, ltLen2=200)=200봉이 지배적.
+//  기타: donchian(leadingSpanBPeriods=44)=44, [displacement=22]/[cloudOffset=21] 오프셋, vwCumPV[vwapRecentBars=50]=50,
+//  f_nbarsToCross need=max(convLen,baseLen)≤88(b20=basePeriods×2)·prefix len=min(bar_index+1,need). → 기본값 최대 lookback ≈ 200.
+//  1000은 그 5배 헤드룸(보수적 안전마진): 사용자가 장기 MA·recentBars 등 전략 파라미터를 1000까지 올려도 견딤. 계산식 무변경, 버퍼만 축소.
+//  ⚠️ 초기 봉 런타임 안전은 TradingView 실측 필요(특히 장기 input을 대폭 상향한 경우). 부족 시 재상향 검토.
+indicator(title="Advanced Ichimoku", shorttitle="Adv Ichimoku", overlay=true, max_bars_back=1000)
 
 donchian(len) =>
     math.avg(ta.lowest(len), ta.highest(len))
@@ -77,7 +82,7 @@ abnVolume = not na(abnVolAvg) and volume > abnVolAvg * (1 + abnVolMult)
 
 // =========================
 // [옵션 패널 재배치] 리본 추세(수축·분출) input 선언 — 테이블 섹션1(추세 확인)에 맞춰 여기로 이동(선언만).
-//  ★ 실제 리본 계산 로직은 원위치 그대로다(하단 "이평 수축/확장 판정" 블록). 여기는 input 선언만 있어 패널 순서를 섹션1에 위치시킨다.
+//  ★ [④ 사멸코드 제거 후] 리본 계산부는 전부 제거됐고 하단 블록엔 rAtr(구름대 지지/저항용)만 남는다. 아래 input들은 옵션 패널 UI 자산으로 보존(대부분 미사용, 컴파일 무해).
 // =========================
 ribbonMode = input.string("리본+구름", title="수축/확장 판정 모드", options=["이평 리본", "구름 두께", "리본+구름"], group="리본 추세(수축·분출)")
 ribbonMaType = input.string("SMA", title="리본 이동평균 종류(A)", options=["SMA", "EMA", "WMA", "VWMA"], group="리본 추세(수축·분출)")
@@ -146,7 +151,10 @@ f_scaleSignals(float conv, float base, int convP, int baseP, int dispP) =>
     // vRbEff/vRsEff = VWMA '원시' 신호(내부 vLastDir 래치 이전). 혼합 모드가 일반 파이프라인(게이트→pending→확정)에
     //  정합적으로 편입되려면 vbSig/vsSig(자체 래치 우회 경로)가 아니라 이 원시 신호를 소스로 써야 한다.
     //  (거래량 가중 전용 모드는 vbSig/vsSig를 계속 쓴다 — 기존 동작 무변경.)
-    [bSig, sSig, vbSig, vsSig, vRbEff, vRsEff]
+    // [성능 리팩토링 ③] VWMA 트리거 관문가(vLagRefN = vBase[refIdx], refIdx=max(lagOff-1,0))를 함께 반환한다.
+    //  이 값은 구 f_triggerVw가 별도로 ta.vwma(close, baseP)를 4스케일 재계산해 산출하던 lagBaseTrig와 바이트 단위 동일
+    //  (같은 baseP·dispP로 같은 vBase의 같은 refIdx 참조). f_triggerVw 중복 VWMA 계산을 제거하기 위해 여기서 재사용.
+    [bSig, sSig, vbSig, vsSig, vRbEff, vRsEff, vLagRefN]
 
 // 스케일 기간·donchian — 정상 0.25/0.5/1/2× (1×=전역 재사용). 모멘텀 모드는 표시 스케일을 한 단계 빠른 기간으로 시프트.
 c025 = f_scale(conversionPeriods, 0.25)
@@ -165,10 +173,11 @@ donB05 = donchian(b05)
 donC20 = donchian(c20)
 donB20 = donchian(b20)
 // 원시 신호 세트(정상 로직): A=0.25× B=0.5× C=1× D=2×. vrbX/vrsX = VWMA 원시신호(혼합 소스용).
-[bA, sA, vbA, vsA, vrbA, vrsA] = f_scaleSignals(donC025, donB025, c025, b025, d025)
-[bB, sB, vbB, vsB, vrbB, vrsB] = f_scaleSignals(donC05, donB05, c05, b05, d05)
-[bC, sC, vbC, vsC, vrbC, vrsC] = f_scaleSignals(conversionLine, baseLine, conversionPeriods, basePeriods, displacement)
-[bD, sD, vbD, vsD, vrbD, vrsD] = f_scaleSignals(donC20, donB20, c20, b20, d20)
+//  vwtX(마지막) = VWMA 트리거 관문가(구 f_triggerVw lagBaseTrig와 동일) — ③ 중복 VWMA 계산 제거로 여기서 함께 수신.
+[bA, sA, vbA, vsA, vrbA, vrsA, vwtA] = f_scaleSignals(donC025, donB025, c025, b025, d025)
+[bB, sB, vbB, vsB, vrbB, vrsB, vwtB] = f_scaleSignals(donC05, donB05, c05, b05, d05)
+[bC, sC, vbC, vsC, vrbC, vrsC, vwtC] = f_scaleSignals(conversionLine, baseLine, conversionPeriods, basePeriods, displacement)
+[bD, sD, vbD, vsD, vrbD, vrsD, vwtD] = f_scaleSignals(donC20, donB20, c20, b20, d20)
 
 // 혼합 원시신호(봉별 소스 스위칭) — 이 봉이 비정상 거래량이면 VWMA 원시(vrbX/vrsX), 아니면 일반 원시(bX/sX).
 //  혼합 모드(sigHybrid)일 때만 아래 파이프라인 입력(buy05 등)이 이 값을 참조한다. 예측/확정은 각 소스가 이미 isPredict 반영.
@@ -595,29 +604,29 @@ f_trigger(float conv, float base, int convP, int baseP, int dispP) =>
     sTrig = cBear ? lagBaseTrig : math.min(lagBaseTrig, cSellP)
     [bTrig, sTrig]
 // [C-1] VWMA 트리거 — 혼합 모드에서 abnVolume 봉이 VWMA 원시신호(vrbX/vrsX)를 쓸 때, 트리거·확정 관문도
-//  같은 VWMA 소스로 정합시키기 위한 경로. VWMA 신호(f_scaleSignals의 VWMA 경로)와 동일한 vBase(=ta.vwma(close,baseP))를
-//  재계산해 트리거 가격을 산출한다 → 게이트(신호)·pending·확정이 모두 같은 소스.
-//   · 트리거 = vBase[refIdx](VWMA 기준선의 후행 관문가). 일반 f_trigger의 lagBaseTrig=base[refIdx]를 VWMA 선으로 치환한 것과 대칭.
-//     이는 VWMA 신호의 후행스팬 조건 기준가(예측 경로 vLagRefN=vBase[refIdx])와 정확히 동일하다.
+//  같은 VWMA 소스로 정합시키기 위한 경로. 트리거 = VWMA 기준선의 후행 관문가 vBase[refIdx](refIdx=max(dispP-2,0)) →
+//  게이트(신호)·pending·확정이 모두 같은 소스. 일반 f_trigger의 lagBaseTrig=base[refIdx]를 VWMA 선으로 치환한 것과 대칭이며,
+//  VWMA 신호의 후행스팬 조건 기준가(예측 경로 vLagRefN=vBase[refIdx])와 정확히 동일하다.
 //   · VWMA 게이트 방향(vConv vs vBase)은 신호(gate) 단계에서 이미 판정되어 pending 등록 시점에 반영되므로,
-//     트리거 함수는 후행스팬 관문가만 산출하면 정합에 충분하다(일반 f_trigger의 극값 폴백 cBuyP/cSellP는 VWMA에 직접
-//     대응물이 없어 도입하지 않음 — 게이트가 관문에 이미 반영됨). 미래참조/리페인팅 없음(과거·현재봉 vBase만).
-//  매수·매도 트리거 값이 동일(vBase[refIdx])하나, 파이프라인 대칭(buyTrig/sellTrig 별도 래치)을 위해 둘로 반환한다.
-f_triggerVw(int convP, int baseP, int dispP) =>
-    vBase = ta.vwma(close, baseP)
-    lagOff = math.max(dispP - 1, 0)
-    refIdx = math.max(lagOff - 1, 0)
-    lagBaseTrig = vBase[refIdx]
-    [lagBaseTrig, lagBaseTrig]
+//     트리거는 후행스팬 관문가만 있으면 정합에 충분하다(일반 f_trigger의 극값 폴백 cBuyP/cSellP는 VWMA에 대응물이
+//     없어 도입하지 않음 — 게이트가 관문에 이미 반영됨). 미래참조/리페인팅 없음(과거·현재봉 vBase만).
+// [성능 리팩토링 ③] 구 f_triggerVw는 각 스케일마다 ta.vwma(close, baseP)를 재계산해 vBase[refIdx]만 산출했다. 이 값은
+//  f_scaleSignals 내부 vLagRefN(= vBase[math.max(lagOff-1,0)], lagOff=max(dispP-1,0))와 바이트 단위 동일(같은 baseP·dispP → 같은
+//  vBase·같은 refIdx)이므로, f_scaleSignals가 반환하는 vwtX를 재사용해 VWMA 4스케일 중복 계산(ta.vwma 4회)을 제거한다. 결과값 불변.
+//  매수·매도 트리거 값(관문가)은 동일하나 파이프라인 대칭(buyTrig/sellTrig 별도 래치)을 위해 둘로 둔다(구 [lagBaseTrig, lagBaseTrig]와 동일).
 [btA, stA] = f_trigger(donC025, donB025, c025, b025, d025)
 [btB, stB] = f_trigger(donC05, donB05, c05, b05, d05)
 [btC, stC] = f_trigger(conversionLine, baseLine, conversionPeriods, basePeriods, displacement)
 [btD, stD] = f_trigger(donC20, donB20, c20, b20, d20)
-// VWMA 트리거 4세트(혼합 소스용). 매수·매도 트리거 값(래깅 관문가)은 동일하나 파이프라인 대칭을 위해 둘로 받는다.
-[vbtA, vstA] = f_triggerVw(c025, b025, d025)
-[vbtB, vstB] = f_triggerVw(c05, b05, d05)
-[vbtC, vstC] = f_triggerVw(conversionPeriods, basePeriods, displacement)
-[vbtD, vstD] = f_triggerVw(c20, b20, d20)
+// VWMA 트리거 4세트(혼합 소스용) — f_scaleSignals가 이미 계산한 vwtX 재사용(③ 중복 제거). 구 f_triggerVw(a,b,c) == [vwtX, vwtX].
+vbtA = vwtA
+vstA = vwtA
+vbtB = vwtB
+vstB = vwtB
+vbtC = vwtC
+vstC = vwtC
+vbtD = vwtD
+vstD = vwtD
 // 봉별 소스 스위칭 — 혼합 모드(sigHybrid)이고 이 봉이 비정상 거래량(abnVolume)이면 VWMA 트리거, 아니면 일반 트리거.
 //  ⚠️ 정합 핵심: 신호 소스(bXe/sXe = abnVolume ? VWMA : 일반)와 완전히 같은 조건(sigHybrid and abnVolume)으로 스위칭 →
 //   그 봉에 VWMA 신호가 났으면 트리거·확정도 VWMA 기준. 정상 봉·비혼합 모드는 일반 트리거(기존 4모드 동작 무변경).
@@ -705,6 +714,7 @@ f_nbarsToCross(int convLen, int baseLen, bool isBuy, float[] pHi, float[] pLo) =
             bool crossed = isBuy ? convProj > baseProj : convProj < baseProj
             if crossed and na(found)
                 found := k
+                break   // [성능 리팩토링 ⑤] 최소 k(첫 크로스)만 필요 → 발견 즉시 종료. found는 na(found) 가드로 이미 1회만 세팅되므로 결과 불변.
         result := found
     result
 
@@ -949,14 +959,19 @@ ltDownColor = #C2185B // 하락계열 = 보라기+빨강기 혼합 자홍(crimso
 ltCellTransp = not ltEstablished ? 30 : (ltNearCross or ltNarrowing) ? 55 : ltWidening ? 0 : 30
 ltCellColor = ltGoldCross ? color.new(ltUpColor, 0) : ltDeadCross ? color.new(ltDownColor, 0) : ltUp ? color.new(ltUpColor, ltCellTransp) : color.new(ltDownColor, ltCellTransp)
 
-// 100선/200선 지지/저항 — 각 장기선(MA100·MA200) 대비 현재가 위치를 VWAP 지지/저항과 동일 포맷·색으로 2행 분리 표기.
-//  ★ VWAP 지지/저항 이식: 상태(가격이 선 위=지지·아래=저항) + "(이격도 | N봉)" + 배경색(지지=녹·저항=빨강, 이격 과대=둔탁).
-//   - 상태: close > 해당선 = 지지(+1), close < 해당선 = 저항(-1), 선 없음 = 0. (VWAP의 vwAbove=close>vwapValue와 동일 정의)
-//   - 이격도(점수): close / 해당선 × 100(기준 100, 소수1자리). VWAP의 close/vwapValue×100과 동일 관례.
-//   - N봉: 지지/저항(위/아래) 상태가 유지된 봉수. VWAP의 vwSrBars(상태 반전 시 1로 리셋)와 동일 정의(선별 var 카운터).
-//   - 색 '이격 과대'(VWAP의 vwSrTooFar=±2σ 밖 대체): MA는 표준편차 밴드가 없어 이격도 절대편차 |disp−100| ≥ ltSrFarPct(%)면 둔탁. (본부장 보고 대상: VWAP는 ±2σ 밴드 기준이나 MA엔 밴드 없어 이격도 % 임계로 대체)
+// 100선/200선 지지/저항 — 각 장기선(MA100·MA200) 대비 현재가 위치+실제 지지/저항 발생을 VWAP 지지/저항과 동일 포맷·색으로 2행 분리 표기.
+//  ★ [4상태 세분화] 위치(위/아래)와 실제 지지/저항 발생을 구분(VWAP 지지/저항과 동일 방식):
+//   - 위   : close > 해당선(단순 위치) → 텍스트 "위",  둔탁 녹(#6E8F72)
+//   - 아래 : close < 해당선(단순 위치) → 텍스트 "아래", 둔탁 빨강(#A57A7A)
+//   - 지지 : 저가가 선×(1+srTouchPct%) 이하로 눌렸다가 종가가 선 위로 마감(반등) → 텍스트 "지지", 선명 녹(color.green)
+//   - 저항 : 고가가 선×(1−srTouchPct%) 이상 닿았다가 종가가 선 아래로 마감(거절) → 텍스트 "저항", 선명 빨강(color.red)
+//   - 이격도(점수): close / 해당선 × 100(기준 100, 소수1자리) — 불변. N봉: 위/아래(위치) 상태 유지 봉수(반전 시 1 리셋) — 불변.
 //   ⚠️ 별도 '이격도 (N)' 행(disparity, 기본 MA20)과 무관 — 여기는 장기선(ltMa1=100·ltMa2=200) 기준. 장기추세 소스(ltMa1/ltMa2)를 그대로 재사용(새 MA 생성 없음).
-ltSrFarPct = input.float(5.0, minval=0.1, step=0.1, title="장기선 지지/저항 이격 과대 임계(%)", group="장기 추세", tooltip="현재가가 MA100·MA200에서 이 %보다 멀어지면(|이격도−100|≥임계) 셀 색을 둔탁하게. VWAP 지지/저항의 ±2σ 밖(vwSrTooFar) 둔탁 규칙을 MA용 이격도 %로 대체한 값.")
+// [제거] ltSrFarPct(구 '이격 과대→둔탁' 임계)는 4상태 색 체계로 대체돼 사용처 0 → input·잔여 변수 완전 제거(옵션 패널에서도 삭제).
+// [4상태 세분화] VWAP·100선·200선 지지/저항 행 공통 근접 마진(%) — 선 '부근'에서 실제 지지(반등)/저항(거절)이 발생했는지 판정하는 근접폭.
+//  지지 = 저가가 선×(1+마진%) 이하로 눌렸다가 종가가 선 위로 마감(반등). 저항 = 고가가 선×(1−마진%) 이상 닿았다가 종가가 선 아래로 마감(거절).
+//  세 행 공통 사용(VWAP/MA100/MA200). 이 조건 미충족이면 단순 위치(위/아래)만 판정 → 둔탁색. 리페인팅 없음(현재봉 low/high/close·과거 변조 없음, 기존 셀들과 동일 수준).
+srTouchPct = input.float(0.3, minval=0.0, step=0.05, title="지지/저항 발생 근접 마진(%)", group="장기 추세", tooltip="VWAP·100선·200선 지지/저항 행 공통. 선 부근 이 %폭 이내로 저가(고가)가 닿았다가 종가가 선 위(아래)로 반등(거절)하면 '지지'/'저항'(선명색), 아니면 단순 위치 '위'/'아래'(둔탁색). 값 포맷 (이격도 | 봉수)은 불변.")
 // 100선(MA100)
 ltM1Above = not na(ltMa1) and close > ltMa1   // 가격이 MA100 위 = 지지
 ltM1HasMa = not na(ltMa1)
@@ -969,9 +984,13 @@ else if ltM1Int == ltM1Int[1]
 else
     ltM1Bars := 1
 ltM1Disp = (na(ltMa1) or ltMa1 == 0) ? na : close / ltMa1 * 100
-ltM1Far = not na(ltM1Disp) and math.abs(ltM1Disp - 100.0) >= ltSrFarPct
-ltM1SrText = not ltM1HasMa ? "-" : (ltM1Above ? "지지" : "저항") + " (" + str.tostring(ltM1Disp, "0.0") + " | " + str.tostring(ltM1Bars) + "봉)"
-ltM1SrColor = not ltM1HasMa ? color.new(color.gray, 50) : ltM1Above ? (ltM1Far ? color.new(#6E8F72, 0) : color.new(color.green, 30)) : (ltM1Far ? color.new(#A57A7A, 0) : color.new(color.red, 30))
+// [4상태] 실제 지지(반등)/저항(거절) 발생 판정 — 저가가 선 부근 이하로 눌렸다가 종가가 선 위로 마감=지지 / 고가가 선 부근 이상 닿았다가 종가가 선 아래로 마감=저항.
+ltM1Support = ltM1HasMa and low <= ltMa1 * (1 + srTouchPct / 100) and close > ltMa1
+ltM1Resist  = ltM1HasMa and high >= ltMa1 * (1 - srTouchPct / 100) and close < ltMa1
+ltM1SrState = not ltM1HasMa ? "-" : ltM1Support ? "지지" : ltM1Resist ? "저항" : ltM1Above ? "위" : "아래"
+ltM1SrText = not ltM1HasMa ? "-" : ltM1SrState + " (" + str.tostring(ltM1Disp, "0.0") + " | " + str.tostring(ltM1Bars) + "봉)"
+// 색: 지지 발생=선명 녹 / 저항 발생=선명 빨강 / 단순 위=둔탁 녹(#6E8F72) / 단순 아래=둔탁 빨강(#A57A7A).
+ltM1SrColor = not ltM1HasMa ? color.new(color.gray, 50) : ltM1Support ? color.new(color.green, 0) : ltM1Resist ? color.new(color.red, 0) : ltM1Above ? color.new(#6E8F72, 0) : color.new(#A57A7A, 0)
 // 200선(MA200)
 ltM2Above = not na(ltMa2) and close > ltMa2   // 가격이 MA200 위 = 지지
 ltM2HasMa = not na(ltMa2)
@@ -984,9 +1003,13 @@ else if ltM2Int == ltM2Int[1]
 else
     ltM2Bars := 1
 ltM2Disp = (na(ltMa2) or ltMa2 == 0) ? na : close / ltMa2 * 100
-ltM2Far = not na(ltM2Disp) and math.abs(ltM2Disp - 100.0) >= ltSrFarPct
-ltM2SrText = not ltM2HasMa ? "-" : (ltM2Above ? "지지" : "저항") + " (" + str.tostring(ltM2Disp, "0.0") + " | " + str.tostring(ltM2Bars) + "봉)"
-ltM2SrColor = not ltM2HasMa ? color.new(color.gray, 50) : ltM2Above ? (ltM2Far ? color.new(#6E8F72, 0) : color.new(color.green, 30)) : (ltM2Far ? color.new(#A57A7A, 0) : color.new(color.red, 30))
+// [4상태] 실제 지지(반등)/저항(거절) 발생 판정 — MA100과 동일 정의(선=ltMa2).
+ltM2Support = ltM2HasMa and low <= ltMa2 * (1 + srTouchPct / 100) and close > ltMa2
+ltM2Resist  = ltM2HasMa and high >= ltMa2 * (1 - srTouchPct / 100) and close < ltMa2
+ltM2SrState = not ltM2HasMa ? "-" : ltM2Support ? "지지" : ltM2Resist ? "저항" : ltM2Above ? "위" : "아래"
+ltM2SrText = not ltM2HasMa ? "-" : ltM2SrState + " (" + str.tostring(ltM2Disp, "0.0") + " | " + str.tostring(ltM2Bars) + "봉)"
+// 색: 지지 발생=선명 녹 / 저항 발생=선명 빨강 / 단순 위=둔탁 녹 / 단순 아래=둔탁 빨강. (MA100과 동일)
+ltM2SrColor = not ltM2HasMa ? color.new(color.gray, 50) : ltM2Support ? color.new(color.green, 0) : ltM2Resist ? color.new(color.red, 0) : ltM2Above ? color.new(#6E8F72, 0) : color.new(#A57A7A, 0)
 
 // 신호 삼각형은 리본 압축/분출 다이아몬드보다 **뒤(코드상 나중)** 에 그려 삼각형이 위 레이어에 오도록
 // 파일 하단(다이아몬드 plotshape 다음)에서 그린다.
@@ -1001,78 +1024,16 @@ alertcondition(sSell10, title="Advanced Ichimoku Sell Signal", message="Advanced
 // A(이평 리본): 입력값 기반 리본(전환선~리딩B 길이)의 폭이 ATR 대비 좁으면 수축, 다시 벌어지는 첫 봉에 빠른선 vs 느린선 방향으로 확장.
 // B(구름 두께): 선행스팬 A·B 간격(구름 두께)이 ATR 대비 좁으면 수축, 벌어지는 첫 봉에 구름 색(양운/음운) 방향으로 확장.
 // A and B(기본): 두 기준이 모두 수축/확장(방향 일치)할 때만. 압축 → 분출 → 압축 … 순서.
-// [옵션 패널 재배치] 리본 추세 input 선언은 상단(멀티스케일 신호 앞, 섹션1 추세)으로 이동했다. 아래는 그 input을 쓰는 계산 로직(원위치 유지).
-ribbonMa(length) =>
-    switch ribbonMaType
-        "SMA" => ta.sma(close, length)
-        "EMA" => ta.ema(close, length)
-        "WMA" => ta.wma(close, length)
-        "VWMA" => ta.vwma(close, length)
-
+// [옵션 패널 재배치] 리본 추세 input 선언은 상단(멀티스케일 신호 앞, 섹션1 추세)으로 이동했다. 아래는 그중 rAtr만 남긴 계산(원위치 유지).
+// [성능 리팩토링 ④ — 리본 사멸코드 제거] 리본 표시 산출물(ribbonChop/ribbonBull/ribbonBear·테이블 '리본 추세' 행·plotshape·alertcondition)이
+//  이전 작업에서 모두 제거되면서, 그 산출물만 소비하던 리본 계산 전체가 사멸코드가 됐다. grep 전수 추적 결과 아래 심볼들은
+//  블록 밖 소비처가 0(주석 언급만 존재): ribbonMa 함수·7개 이평(aMaFast/aMa1~5/aMaSlow)·aStep·aTop/aBottom/aHeight·
+//  aCompressed/aExpanding/aBull·bWidth/bCompressed/bExpanding/bBull·isAMode/isBMode·compNow/expNow/bullNow/bearNow·rHeight·
+//  rConfirmed/rChopEnter·상태머신(rArmed/rLastExpDir/ribbonState/ribbonEventClose/ribbonEventBar/rBullExpansion/rBearExpansion).
+//  → 전부 제거. rAtr(=ta.atr(ribbonAtrLength))만 보존: 구름대 지지/저항(srRev·cloudThickAtr·srSlopeAtr·nearSupport/nearResist)이 실제 소비.
+//  ⚠️ 리본 관련 input(ribbonMode/ribbonMaType/showChopWarn/showExpansion/ribbonConfirmOnClose/ribbonExpandBars/ribbonCompressAtrMult)은
+//     옵션 패널 UI 자산이므로 상단 선언 그대로 보존(계산 결과·표시 불변, 컴파일 무해). rAtr 산출값은 리본 제거 전후 완전 동일.
 rAtr = ta.atr(ribbonAtrLength)
-
-// A 모드: 이치모쿠 입력값(전환선~리딩B)에 맞춘 7개 이평 리본
-aStep = (leadingSpanBPeriods - conversionPeriods) / 6.0
-aMaFast = ribbonMa(math.max(1, conversionPeriods))
-aMa1 = ribbonMa(math.max(1, int(math.round(conversionPeriods + aStep))))
-aMa2 = ribbonMa(math.max(1, int(math.round(conversionPeriods + aStep * 2))))
-aMa3 = ribbonMa(math.max(1, int(math.round(conversionPeriods + aStep * 3))))
-aMa4 = ribbonMa(math.max(1, int(math.round(conversionPeriods + aStep * 4))))
-aMa5 = ribbonMa(math.max(1, int(math.round(conversionPeriods + aStep * 5))))
-aMaSlow = ribbonMa(math.max(1, leadingSpanBPeriods))
-aTop = math.max(aMaFast, math.max(aMa1, math.max(aMa2, math.max(aMa3, math.max(aMa4, math.max(aMa5, aMaSlow))))))
-aBottom = math.min(aMaFast, math.min(aMa1, math.min(aMa2, math.min(aMa3, math.min(aMa4, math.min(aMa5, aMaSlow))))))
-aHeight = math.max(aTop - aBottom, syminfo.mintick)
-aCompressed = aHeight < rAtr * ribbonCompressAtrMult
-aExpanding = aHeight > aHeight[ribbonExpandBars]
-aBull = aMaFast >= aMaSlow
-
-// B 모드: 구름 두께(선행스팬 A vs B)
-bWidth = math.max(kumoUpper - kumoLower, syminfo.mintick)
-bCompressed = bWidth < rAtr * ribbonCompressAtrMult
-bExpanding = bWidth > bWidth[ribbonExpandBars]
-bBull = leadingSpanA >= leadingSpanB
-
-// 모드별 수축/확장/방향 결합
-isAMode = ribbonMode == "이평 리본"
-isBMode = ribbonMode == "구름 두께"
-compNow = isAMode ? aCompressed : isBMode ? bCompressed : (aCompressed and bCompressed)
-expNow = isAMode ? aExpanding : isBMode ? bExpanding : (aExpanding and bExpanding)
-bullNow = isAMode ? aBull : isBMode ? bBull : (aBull and bBull)
-bearNow = isAMode ? not aBull : isBMode ? not bBull : (not aBull and not bBull)
-rHeight = isBMode ? bWidth : aHeight   // 테이블 폭/ATR 표시용
-
-rConfirmed = not ribbonConfirmOnClose or barstate.isconfirmed
-rChopEnter = compNow and not compNow[1]
-
-// 수축 진입 시 무장 → 확장 첫 봉에 방향 확정. 또한 직전 분출과 **반대 방향** 확장이면 압축 없이 바로 반전 분출.
-var bool rArmed = false
-var int rLastExpDir = 0   // 직전 분출 방향(1=상승, -1=하락, 0=없음)
-var string ribbonState = "대기"
-var float ribbonEventClose = na   // 마지막 이벤트(압축/분출) 발생 봉의 종가 — 이후 가격 변화% 기준
-var int ribbonEventBar = na       // 마지막 이벤트 발생 봉 인덱스 — 몇 봉째인지 표시용
-bool rBullExpansion = false
-bool rBearExpansion = false
-if rConfirmed
-    if rChopEnter
-        rArmed := true
-        ribbonState := "횡보"
-        ribbonEventClose := close
-        ribbonEventBar := bar_index
-    else if expNow and (bullNow or bearNow)
-        expDir = bullNow ? 1 : -1
-        // 발화 조건: 압축 후 무장(rArmed) 또는 직전 분출과 반대 방향(압축 없이 직접 반전)
-        if rArmed or (rLastExpDir != 0 and expDir != rLastExpDir)
-            rBullExpansion := bullNow
-            rBearExpansion := bearNow
-            ribbonState := bullNow ? "상승" : "하락"
-            rArmed := false
-            rLastExpDir := expDir
-            ribbonEventClose := close
-            ribbonEventBar := bar_index
-
-// [제거] 리본 표시 산출물(ribbonChop/ribbonBull/ribbonBear) — 테이블 '리본 추세' 행·plotshape·alertcondition이 모두 제거돼 소비처 없음.
-//  ★ 위 리본 상태머신(rArmed/ribbonState/rBullExpansion 등)과 계산부(aMa~/bWidth~/compNow~)는 rAtr(구름대 지지/저항 재사용) 산출과 얽혀 있어 보존한다(얽힌 연쇄 삭제 회피=회귀 방지). showChopWarn/showExpansion input은 표시 산출물 제거로 이제 미사용이나(옵션 패널엔 잔존) 컴파일 무해라 그대로 둔다.
 
 // 현재 봉 아래 구름(displacement 밀림 → cloudOffset 과거 선행스팬으로 평가).
 curSpanA = leadingSpanA[cloudOffset]
@@ -1168,7 +1129,7 @@ cloudContextColor = priceAboveCloud ? (cloudColorText == "양운" ? color.new(co
 cloudCellColor = isSupport ? f_srColor(true) : isResist ? f_srColor(false) : cloudContextColor
 
 // [제거] 리본 셀 텍스트/색(ribbonMovePct·ribbonBars·ribbonStateLabel·ribbonCellText·ribbonCellColor) — 테이블 '리본 추세' 행이 '중기 추세'로 교체돼 소비처 없음.
-//  ribbonEventClose/ribbonEventBar(상태머신 var)는 위 상태머신에 남아 있으나(rAtr 얽힘 보존 방침) 여기 표시 파생만 잘라낸다.
+//  ★ [④ 사멸코드 제거 후] 리본 상태머신(ribbonEventClose/ribbonEventBar 등)은 계산부와 함께 제거됐다(rAtr만 잔존).
 
 // 이격도(Disparity)·비정상 캔들 블록은 모멘텀 모드 즉시 반영을 위해 상단(멀티스케일 신호 앞)에서 계산한다.
 
@@ -1297,9 +1258,8 @@ vwHasVwap = vwShouldCalc and not na(vwapValue)
 vwAbove = vwHasVwap and close > vwapValue
 vwGapPct = vwHasVwap and vwapValue != 0 ? (close / vwapValue - 1.0) * 100.0 : na
 vwPosText = not vwHasVwap ? "-" : vwAbove ? "VWAP 위" : "VWAP 아래"
-// VWAP 지지/저항 — 위=지지·아래=저항, 괄호는 이격도(기준 100: 종가÷VWAP×100)와 유지 봉수. 이격도가 ±2σ 밖이면(너무 큼) 둔탁 색.
-vwSrTooFar = vwHasVwap and (vwAbove ? (not na(vwUpper2) and close > vwUpper2) : (not na(vwLower2) and close < vwLower2))
-vwAboveInt = vwHasVwap ? (vwAbove ? 1 : -1) : 0   // 1=VWAP 위(지지), -1=아래(저항), 0=없음
+// VWAP 지지/저항 — [4상태 세분화] 단순 위/아래(위치, 둔탁색) + 실제 지지/저항 발생(반등/거절, 선명색). 괄호는 이격도(기준 100: 종가÷VWAP×100)와 유지 봉수(불변).
+vwAboveInt = vwHasVwap ? (vwAbove ? 1 : -1) : 0   // 1=VWAP 위, -1=아래, 0=없음 (봉수 카운터 유지용 — 위/아래 위치 기준 그대로)
 var int vwSrBars = 0   // 현재 지지/저항(위/아래) 상태가 유지된 봉수
 if vwAboveInt == 0
     vwSrBars := 0
@@ -1307,8 +1267,13 @@ else if vwAboveInt == vwAboveInt[1]
     vwSrBars := vwSrBars + 1
 else
     vwSrBars := 1
-vwSrText = not vwHasVwap ? "-" : (vwAbove ? "지지" : "저항") + " (" + str.tostring(close / vwapValue * 100, "0.0") + " | " + str.tostring(vwSrBars) + "봉)"
-vwSrColor = not vwHasVwap ? color.new(color.gray, 50) : vwAbove ? (vwSrTooFar ? color.new(#6E8F72, 0) : color.new(color.green, 30)) : (vwSrTooFar ? color.new(#A57A7A, 0) : color.new(color.red, 30))
+// [4상태] 실제 지지(반등)/저항(거절) 발생 판정 — 저가가 VWAP 부근 이하로 눌렸다가 종가가 VWAP 위로 마감=지지 / 고가가 VWAP 부근 이상 닿았다가 종가가 VWAP 아래로 마감=저항. (MA100/200과 동일 정의, 선=vwapValue)
+vwSrSupport = vwHasVwap and low <= vwapValue * (1 + srTouchPct / 100) and close > vwapValue
+vwSrResist  = vwHasVwap and high >= vwapValue * (1 - srTouchPct / 100) and close < vwapValue
+vwSrState = not vwHasVwap ? "-" : vwSrSupport ? "지지" : vwSrResist ? "저항" : vwAbove ? "위" : "아래"
+vwSrText = not vwHasVwap ? "-" : vwSrState + " (" + str.tostring(close / vwapValue * 100, "0.0") + " | " + str.tostring(vwSrBars) + "봉)"
+// 색: 지지 발생=선명 녹 / 저항 발생=선명 빨강 / 단순 위=둔탁 녹(#6E8F72) / 단순 아래=둔탁 빨강(#A57A7A). (기존 vwSrTooFar 둔탁 규칙은 4상태 색 체계로 대체 — 단순 위/아래가 곧 둔탁색)
+vwSrColor = not vwHasVwap ? color.new(color.gray, 50) : vwSrSupport ? color.new(color.green, 0) : vwSrResist ? color.new(color.red, 0) : vwAbove ? color.new(#6E8F72, 0) : color.new(#A57A7A, 0)
 // 중기 추세 — VWAP(50)과 100선(MA100)의 "배열 상태" 추세. 장기 추세(MA100 vs MA200)와 **완전히 동일한 로직·포맷·색**을
 //  VWAP(vwapValue, 빠른 선) vs 100선(ltMa1, 느린 선)에 이식한다. (CEO 정정: 지지/저항 포맷 폐기 → 장기 추세와 동일 포맷)
 //  방향: VWAP > 100선 = 상승 배열(mtUp) / VWAP < 100선 = 하락 배열. 두 선 간격(mtGap) 확대=강한·축소=약한·평탄대=상승/하락.
@@ -1532,7 +1497,7 @@ if barstate.islast
     table.cell(triggerTable, 0, 14, "되돌림 가격", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
     table.cell(triggerTable, 1, 14, na(disparityPullbackPrice) ? "-" : f_price(disparityPullbackPrice) + " (" + f_pct(disparityPullbackPrice) + ")", text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
 
-    // ── 섹션 3: [지지/저항 확인] (row 15, 병합 헤더) — 구름대 → VWAP 지지/저항 → VWAP 상태 → 100선 지지/저항 → 200선 지지/저항. (장기 추세는 섹션1로 이동, 장기 지지/저항은 100선/200선 2행 분리)
+    // ── 섹션 3: [지지/저항 확인] (row 15, 병합 헤더) — 구름대 → VWAP 상태 → VWAP 지지/저항 → 100선 지지/저항 → 200선 지지/저항. (VWAP 상태를 구름대 바로 아래로 이동: 셀 값·색·산식 그대로, 행 순서만 변경. 장기 추세는 섹션1로 이동, 장기 지지/저항은 100선/200선 2행 분리)
     table.cell(triggerTable, 0, 15, "지지/저항 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.cell(triggerTable, 1, 15, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.merge_cells(triggerTable, 0, 15, 1, 15)
@@ -1540,11 +1505,13 @@ if barstate.islast
     table.cell(triggerTable, 0, 16, "구름대", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
     table.cell(triggerTable, 1, 16, cloudCellText, text_color=color.white, bgcolor=cloudCellColor, text_size=size.small)
 
-    table.cell(triggerTable, 0, 17, "VWAP 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 17, vwSrText, text_color=color.white, bgcolor=vwSrColor, text_size=size.small)
+    // VWAP 상태 (row 17) — [이동] 구름대 바로 아래로 이동(VWAP 지지/저항보다 위). 값·색·산식 불변.
     // VWAP 상태 = 모양값(기울기 | 확장·수축(밴드폭%) | 상태값). 셀 색은 밴드 상태 기준(밴드워킹 상단=초록·하단=빨강).
-    table.cell(triggerTable, 0, 18, "VWAP 상태", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 18, vwSlopeText + " | " + vwBwStateText + " | " + vwBandStateShort, text_color=color.white, bgcolor=vwBandColor, text_size=size.small)
+    table.cell(triggerTable, 0, 17, "VWAP 상태", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 17, vwSlopeText + " | " + vwBwStateText + " | " + vwBandStateShort, text_color=color.white, bgcolor=vwBandColor, text_size=size.small)
+
+    table.cell(triggerTable, 0, 18, "VWAP 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 18, vwSrText, text_color=color.white, bgcolor=vwSrColor, text_size=size.small)
 
     // 100선/200선 지지/저항 (row 19·20) — [분리] 기존 '장기 지지/저항' 1행을 MA100·MA200 2행으로. 포맷·색은 VWAP 지지/저항과 동일(상태 + (이격도 | N봉), 지지=녹·저항=빨강·이격 과대=둔탁).
     table.cell(triggerTable, 0, 19, "100선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
@@ -1553,7 +1520,7 @@ if barstate.islast
     table.cell(triggerTable, 1, 20, ltM2SrText, text_color=color.white, bgcolor=ltM2SrColor, text_size=size.small)
 
 // [제거] 리본 추세 화면 표식(횡보 압축·상승/하락 분출 + 모양) plotshape 삭제 — 테이블 '리본 추세' 행이 '중기 추세'로 교체되며 리본 표시를 전부 제거.
-//  ★ 리본 계산 로직(rAtr·ribbonState 상태머신)은 rAtr이 구름대 지지/저항(srRev·nearSupport 등)에서 재사용되므로 보존한다. 화면 표시(plotshape·alertcondition)만 제거.
+//  ★ [④ 사멸코드 제거 후] 리본 계산부(상태머신 포함)는 전부 제거됐고 rAtr(=ta.atr)만 남아 구름대 지지/저항(srRev·nearSupport 등)에서 재사용된다.
 
 // 신호 삼각형 — (구 리본 표식 자리) 아래 레이어 순서 유지 위해 여기서 그린다. 스케일별 크기: 0.5×=가장 작음, 1×=작음, 2×=보통
 // 모멘텀 모드로 발생한 신호는 전용 색(롱=파랑, 숏=크림슨)으로 정상 신호(매수=아쿠아, 매도=핑크)와 구분.
