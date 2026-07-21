@@ -949,21 +949,44 @@ ltDownColor = #C2185B // 하락계열 = 보라기+빨강기 혼합 자홍(crimso
 ltCellTransp = not ltEstablished ? 30 : (ltNearCross or ltNarrowing) ? 55 : ltWidening ? 0 : 30
 ltCellColor = ltGoldCross ? color.new(ltUpColor, 0) : ltDeadCross ? color.new(ltDownColor, 0) : ltUp ? color.new(ltUpColor, ltCellTransp) : color.new(ltDownColor, ltCellTransp)
 
-// 장기 지지/저항 — 각 장기선(MA100·MA200) 대비 현재가 이격도를 표기. 글자는 흰색, 셀 배경색으로 지지/저항 상태 구분.
-//  200선(장기) 기준 지지=파랑·저항=빨강, 100선이 일치하면 선명·엇갈리면 둔탁.
-//  둘 다 지지=파랑 / 둘 다 저항=빨강 / 100저항·200지지=둔탁 파랑 / 100지지·200저항=둔탁 빨강.
-// ★ 셀 색 판정용 상태(ltM1St/ltM2St)는 무변경 — 몸통(min/max(open,close))이 선을 완전히 이탈한 경우만 지지(+1)/저항(-1), 걸치면 중립(0).
-//   텍스트만 지지/저항 단어 대신 이격도 값으로 표기: 이격도 = 종가 ÷ 해당선 × 100(기준 100). 100 초과=현재가가 그 선 위(지지 성격)·미만=아래(저항 성격). 소수점 1자리.
+// 100선/200선 지지/저항 — 각 장기선(MA100·MA200) 대비 현재가 위치를 VWAP 지지/저항과 동일 포맷·색으로 2행 분리 표기.
+//  ★ VWAP 지지/저항 이식: 상태(가격이 선 위=지지·아래=저항) + "(이격도 | N봉)" + 배경색(지지=녹·저항=빨강, 이격 과대=둔탁).
+//   - 상태: close > 해당선 = 지지(+1), close < 해당선 = 저항(-1), 선 없음 = 0. (VWAP의 vwAbove=close>vwapValue와 동일 정의)
+//   - 이격도(점수): close / 해당선 × 100(기준 100, 소수1자리). VWAP의 close/vwapValue×100과 동일 관례.
+//   - N봉: 지지/저항(위/아래) 상태가 유지된 봉수. VWAP의 vwSrBars(상태 반전 시 1로 리셋)와 동일 정의(선별 var 카운터).
+//   - 색 '이격 과대'(VWAP의 vwSrTooFar=±2σ 밖 대체): MA는 표준편차 밴드가 없어 이격도 절대편차 |disp−100| ≥ ltSrFarPct(%)면 둔탁. (본부장 보고 대상: VWAP는 ±2σ 밴드 기준이나 MA엔 밴드 없어 이격도 % 임계로 대체)
 //   ⚠️ 별도 '이격도 (N)' 행(disparity, 기본 MA20)과 무관 — 여기는 장기선(ltMa1=100·ltMa2=200) 기준. 장기추세 소스(ltMa1/ltMa2)를 그대로 재사용(새 MA 생성 없음).
-ltBodyHi = math.max(open, close)
-ltBodyLo = math.min(open, close)
-ltM1St = na(ltMa1) ? 0 : (ltBodyLo > ltMa1 ? 1 : ltBodyHi < ltMa1 ? -1 : 0)
-ltM2St = na(ltMa2) ? 0 : (ltBodyLo > ltMa2 ? 1 : ltBodyHi < ltMa2 ? -1 : 0)
-ltM1Disp = (na(ltMa1) or ltMa1 == 0) ? na : close / ltMa1 * 100   // 100선 이격도(=종가÷MA100×100)
-ltM2Disp = (na(ltMa2) or ltMa2 == 0) ? na : close / ltMa2 * 100   // 200선 이격도(=종가÷MA200×100)
-ltSrText = (na(ltM1Disp) or na(ltM2Disp)) ? "-" : "100선 (" + str.tostring(ltM1Disp, "0") + ") | 200선 (" + str.tostring(ltM2Disp, "0") + ")"
-// 색: 200선 기준 지지=파랑·저항=빨강·중립=회색, 100선 일치=선명·엇갈림=둔탁. (지지/저항 판정 ltM1St/ltM2St 기반 — 텍스트를 이격도로 바꿔도 색 규칙 무변경)
-ltSrColor = (na(ltMa1) or na(ltMa2)) ? color.new(color.gray, 40) : ltM2St == 1 ? (ltM1St == 1 ? color.new(#2979FF, 0) : color.new(#6E7E9F, 0)) : ltM2St == -1 ? (ltM1St == -1 ? color.new(color.red, 30) : color.new(#A57A7A, 0)) : color.new(color.gray, 40)
+ltSrFarPct = input.float(5.0, minval=0.1, step=0.1, title="장기선 지지/저항 이격 과대 임계(%)", group="장기 추세", tooltip="현재가가 MA100·MA200에서 이 %보다 멀어지면(|이격도−100|≥임계) 셀 색을 둔탁하게. VWAP 지지/저항의 ±2σ 밖(vwSrTooFar) 둔탁 규칙을 MA용 이격도 %로 대체한 값.")
+// 100선(MA100)
+ltM1Above = not na(ltMa1) and close > ltMa1   // 가격이 MA100 위 = 지지
+ltM1HasMa = not na(ltMa1)
+ltM1Int = ltM1HasMa ? (ltM1Above ? 1 : -1) : 0
+var int ltM1Bars = 0
+if ltM1Int == 0
+    ltM1Bars := 0
+else if ltM1Int == ltM1Int[1]
+    ltM1Bars := ltM1Bars + 1
+else
+    ltM1Bars := 1
+ltM1Disp = (na(ltMa1) or ltMa1 == 0) ? na : close / ltMa1 * 100
+ltM1Far = not na(ltM1Disp) and math.abs(ltM1Disp - 100.0) >= ltSrFarPct
+ltM1SrText = not ltM1HasMa ? "-" : (ltM1Above ? "지지" : "저항") + " (" + str.tostring(ltM1Disp, "0.0") + " | " + str.tostring(ltM1Bars) + "봉)"
+ltM1SrColor = not ltM1HasMa ? color.new(color.gray, 50) : ltM1Above ? (ltM1Far ? color.new(#6E8F72, 0) : color.new(color.green, 30)) : (ltM1Far ? color.new(#A57A7A, 0) : color.new(color.red, 30))
+// 200선(MA200)
+ltM2Above = not na(ltMa2) and close > ltMa2   // 가격이 MA200 위 = 지지
+ltM2HasMa = not na(ltMa2)
+ltM2Int = ltM2HasMa ? (ltM2Above ? 1 : -1) : 0
+var int ltM2Bars = 0
+if ltM2Int == 0
+    ltM2Bars := 0
+else if ltM2Int == ltM2Int[1]
+    ltM2Bars := ltM2Bars + 1
+else
+    ltM2Bars := 1
+ltM2Disp = (na(ltMa2) or ltMa2 == 0) ? na : close / ltMa2 * 100
+ltM2Far = not na(ltM2Disp) and math.abs(ltM2Disp - 100.0) >= ltSrFarPct
+ltM2SrText = not ltM2HasMa ? "-" : (ltM2Above ? "지지" : "저항") + " (" + str.tostring(ltM2Disp, "0.0") + " | " + str.tostring(ltM2Bars) + "봉)"
+ltM2SrColor = not ltM2HasMa ? color.new(color.gray, 50) : ltM2Above ? (ltM2Far ? color.new(#6E8F72, 0) : color.new(color.green, 30)) : (ltM2Far ? color.new(#A57A7A, 0) : color.new(color.red, 30))
 
 // 신호 삼각형은 리본 압축/분출 다이아몬드보다 **뒤(코드상 나중)** 에 그려 삼각형이 위 레이어에 오도록
 // 파일 하단(다이아몬드 plotshape 다음)에서 그린다.
@@ -1048,9 +1071,8 @@ if rConfirmed
             ribbonEventClose := close
             ribbonEventBar := bar_index
 
-ribbonChop = showChopWarn and rConfirmed and rChopEnter
-ribbonBull = showExpansion and rBullExpansion
-ribbonBear = showExpansion and rBearExpansion
+// [제거] 리본 표시 산출물(ribbonChop/ribbonBull/ribbonBear) — 테이블 '리본 추세' 행·plotshape·alertcondition이 모두 제거돼 소비처 없음.
+//  ★ 위 리본 상태머신(rArmed/ribbonState/rBullExpansion 등)과 계산부(aMa~/bWidth~/compNow~)는 rAtr(구름대 지지/저항 재사용) 산출과 얽혀 있어 보존한다(얽힌 연쇄 삭제 회피=회귀 방지). showChopWarn/showExpansion input은 표시 산출물 제거로 이제 미사용이나(옵션 패널엔 잔존) 컴파일 무해라 그대로 둔다.
 
 // 현재 봉 아래 구름(displacement 밀림 → cloudOffset 과거 선행스팬으로 평가).
 curSpanA = leadingSpanA[cloudOffset]
@@ -1145,14 +1167,8 @@ cloudInsideColor = cloudEnterSupport ? color.new(#6E8F72, 40) : cloudEnterResist
 cloudContextColor = priceAboveCloud ? (cloudColorText == "양운" ? color.new(color.green, 0) : color.new(#6E8F72, 55)) : priceBelowCloud ? (cloudColorText == "음운" ? color.new(color.red, 0) : color.new(#A57A7A, 55)) : cloudInsideColor
 cloudCellColor = isSupport ? f_srColor(true) : isResist ? f_srColor(false) : cloudContextColor
 
-// 리본 상태 = 마지막으로 발생한 다이아몬드(상태머신) 기준이라 차트 표시와 동기화된다.
-// 괄호 숫자 = 마지막 이벤트(압축/분출) 발생 봉 종가 대비 현재 종가의 가격 변화 %.
-ribbonMovePct = not na(ribbonEventClose) and ribbonEventClose != 0 ? (close / ribbonEventClose - 1) * 100 : na
-ribbonBars = not na(ribbonEventBar) ? bar_index - ribbonEventBar + 1 : na   // 이벤트 봉=1봉째
-// 표시 라벨만 매핑(내부값 ribbonState는 비교/색 로직에서 그대로 사용). "횡보"→"횡보 수축", "상승"→"상승 분출", "하락"→"하락 분출", 그 외("대기")는 유지.
-ribbonStateLabel = ribbonState == "상승" ? "상승 분출" : ribbonState == "하락" ? "하락 분출" : ribbonState == "횡보" ? "횡보 수축" : ribbonState
-ribbonCellText = ribbonStateLabel + (na(ribbonMovePct) ? "" : " (" + (ribbonMovePct > 0 ? "+" : "") + str.tostring(ribbonMovePct, "0.0") + "%" + (na(ribbonBars) ? "" : " | " + str.tostring(ribbonBars) + "봉") + ")")
-ribbonCellColor = ribbonState == "상승" ? color.new(color.blue, 30) : ribbonState == "하락" ? color.new(color.red, 30) : ribbonState == "횡보" ? color.new(color.purple, 30) : color.new(color.gray, 40)
+// [제거] 리본 셀 텍스트/색(ribbonMovePct·ribbonBars·ribbonStateLabel·ribbonCellText·ribbonCellColor) — 테이블 '리본 추세' 행이 '중기 추세'로 교체돼 소비처 없음.
+//  ribbonEventClose/ribbonEventBar(상태머신 var)는 위 상태머신에 남아 있으나(rAtr 얽힘 보존 방침) 여기 표시 파생만 잘라낸다.
 
 // 이격도(Disparity)·비정상 캔들 블록은 모멘텀 모드 즉시 반영을 위해 상단(멀티스케일 신호 앞)에서 계산한다.
 
@@ -1293,6 +1309,45 @@ else
     vwSrBars := 1
 vwSrText = not vwHasVwap ? "-" : (vwAbove ? "지지" : "저항") + " (" + str.tostring(close / vwapValue * 100, "0.0") + " | " + str.tostring(vwSrBars) + "봉)"
 vwSrColor = not vwHasVwap ? color.new(color.gray, 50) : vwAbove ? (vwSrTooFar ? color.new(#6E8F72, 0) : color.new(color.green, 30)) : (vwSrTooFar ? color.new(#A57A7A, 0) : color.new(color.red, 30))
+// 중기 추세 — VWAP(50)과 100선(MA100)의 "배열 상태" 추세. 장기 추세(MA100 vs MA200)와 **완전히 동일한 로직·포맷·색**을
+//  VWAP(vwapValue, 빠른 선) vs 100선(ltMa1, 느린 선)에 이식한다. (CEO 정정: 지지/저항 포맷 폐기 → 장기 추세와 동일 포맷)
+//  방향: VWAP > 100선 = 상승 배열(mtUp) / VWAP < 100선 = 하락 배열. 두 선 간격(mtGap) 확대=강한·축소=약한·평탄대=상승/하락.
+//  값 포맷: "상승/하락 (±변화율% | N봉)" — 마지막 골든/데드 크로스 시점 이후 VWAP 변화율과 경과 봉수(장기 추세와 동일).
+//  색: 상승계열=청록(ltUpColor)·하락계열=자홍(ltDownColor), 크로스 순간·강함=선명·약함=옅음·추세=중간(장기 추세 규칙 그대로).
+//  na 가드: VWAP 워밍업(vwHasVwap) + MA100 워밍업(not na(ltMa1)) 완료 전에는 크로스·강약 판정 안 함(오탐 방지). 리페인팅 없음(확정 크로스·과거 참조).
+mtReady = vwHasVwap and not na(ltMa1)
+mtUp = mtReady and vwapValue > ltMa1                  // 상승 배열(VWAP > 100선)
+mtGap = mtReady ? math.abs(vwapValue - ltMa1) : na
+mtGapPct = mtReady and close != 0 ? mtGap / close * 100 : na
+mtGoldCross = mtReady and ta.crossover(vwapValue, ltMa1)   // VWAP가 100선 상향 돌파(하락→상승). 아래 vwMaGolden과 동일 산식(선언 순서상 여기서 직접 계산).
+mtDeadCross = mtReady and ta.crossunder(vwapValue, ltMa1)  // VWAP가 100선 하향 돌파(상승→하락). 아래 vwMaDead와 동일 산식.
+// 확립 = 크로스 후 ltTrendLook 봉 경과. 그 전(빌드업)은 폭변화 룩백이 크로스를 가로질러 왜곡되므로 강/약 안 함.
+mtBarsSince = ta.barssince(mtGoldCross or mtDeadCross)
+mtFresh = na(mtBarsSince) or mtBarsSince < ltTrendLook
+mtEstablished = not mtFresh
+mtGapChg = (mtEstablished and not na(mtGap) and not na(mtGap[ltTrendLook])) ? mtGap - mtGap[ltTrendLook] : na   // 폭 변화(양=확대, 음=축소)
+mtWidening = not na(mtGapChg) and mtGapChg > ltDeadBand    // 확대 = 강함 (장기 추세와 동일 데드밴드 ltDeadBand 재사용)
+mtNarrowing = not na(mtGapChg) and mtGapChg < -ltDeadBand  // 축소 = 약함
+// 반대 크로스 임박 = 확립 후 + 간격이 좁고(≤주의%) 확대 중이 아님 → '약한'으로 고정(크로스 직전 블립 방지).
+mtNearCross = mtEstablished and not na(mtGapPct) and mtGapPct <= ltCrossWarnPct and not mtWidening
+mtDir = mtUp ? "상승" : "하락"
+mtStateBase = not mtEstablished ? mtDir : mtNearCross ? (mtUp ? "약한 상승" : "약한 하락") : mtWidening ? (mtUp ? "강한 상승" : "강한 하락") : mtNarrowing ? (mtUp ? "약한 상승" : "약한 하락") : mtDir
+// 마지막 크로스(골든/데드) 시점의 VWAP 값 기준 이후 변화율(%). 골든 후 상승%·데드 후 하락%.
+var float mtCrossVwap = na
+if mtGoldCross or mtDeadCross
+    mtCrossVwap := vwapValue
+mtMovePct = not na(mtCrossVwap) and mtCrossVwap != 0 and mtReady ? (vwapValue / mtCrossVwap - 1) * 100 : na
+mtInfoTxt = (na(mtMovePct) or na(mtBarsSince)) ? "" : " (" + (mtMovePct >= 0 ? "+" : "") + str.tostring(mtMovePct, "0.0") + "% | " + str.tostring(mtBarsSince) + "봉)"
+mtCellText = not mtReady ? "-" : mtDeadCross ? "데드 크로스" : mtGoldCross ? "골든 크로스" : mtStateBase + mtInfoTxt
+// 색: 장기 추세와 동일 그라데이션 — 크로스 순간=선명(0)·강함(확대)=선명(0)·약함(축소/임박)=옅음(55)·추세=중간(30). ltUpColor/ltDownColor 재사용.
+mtCellTransp = not mtEstablished ? 30 : (mtNearCross or mtNarrowing) ? 55 : mtWidening ? 0 : 30
+mtCellColor = not mtReady ? color.new(color.gray, 50) : mtGoldCross ? color.new(ltUpColor, 0) : mtDeadCross ? color.new(ltDownColor, 0) : mtUp ? color.new(ltUpColor, mtCellTransp) : color.new(ltDownColor, mtCellTransp)
+// VWAP(50) × 100선(MA100) 크로스 — 중기 추세 골든/데드. 확정 ta.crossover/crossunder만 사용(리페인팅 없음).
+//  vwHasVwap(VWAP 워밍업 완료) and not na(ltMa1)(MA100 워밍업 완료)로 na 가드 — 워밍업 중 오탐 크로스 방지.
+//  골든(vwapValue가 MA100 상향 돌파) → 차트 하단 녹색 십자. 데드(하향 돌파) → 차트 상단 붉은 십자.
+vwMaCross = vwHasVwap and not na(ltMa1)
+vwMaGolden = vwMaCross and ta.crossover(vwapValue, ltMa1)
+vwMaDead = vwMaCross and ta.crossunder(vwapValue, ltMa1)
 vwNearLower = vwHasVwap and not na(vwLower2) and not na(vwLower1) and math.abs(close - vwLower2) < math.abs(close - vwLower1) and math.abs(close - vwLower2) < math.abs(close - vwapValue)
 vwNearUpper = vwHasVwap and not na(vwUpper2) and not na(vwUpper1) and math.abs(close - vwUpper2) < math.abs(close - vwUpper1) and math.abs(close - vwUpper2) < math.abs(close - vwapValue)
 vwSlopeLen = 5
@@ -1411,7 +1466,7 @@ candleStopCellColor = candleClsName == "혼조" ? color.new(color.gray, 40) : ca
 //  실시간 모드(candleConfirmOnClose=false)면 봉 완성 전 색 변동(리페인팅) — 표시 전용이라 감수.
 barcolor(candleColorOn ? candleBarColor : na, title="캔들 상태 바색")
 
-var table triggerTable = table.new(position.top_right, 2, 20, border_width=1, border_color=color.new(color.gray, 50))
+var table triggerTable = table.new(position.top_right, 2, 21, border_width=1, border_color=color.new(color.gray, 50))
 if barstate.islast
     // ── 섹션 1: [추세 확인] (row 0, 병합 헤더) — 기존 "항목|값" 헤더를 섹션 헤더로 대체.
     //    스타일 통일: merge_cells · 딥 네이비 배경 #1B2A4A · 흰 글자 · size.small (값 열은 빈 문자열 후 병합).
@@ -1447,57 +1502,60 @@ if barstate.islast
     table.cell(triggerTable, 0, 6, "하락 전환(2×)", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
     table.cell(triggerTable, 1, 6, f_trigCell(sellBlocked20, sellTrig20, false, donB20, momentum, f_nbarsToCross(nbConv20, nbBase20, false, nbPHi, nbPLo), vwTrig20), text_color=color.white, bgcolor=f_trigBg(sellBlocked20, sellTrig20, false), text_size=size.small)
 
-    table.cell(triggerTable, 0, 7, "리본 추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 7, ribbonCellText, text_color=color.white, bgcolor=ribbonCellColor, text_size=size.small)
+    // 중기 추세 (row 7) — [교체] 리본 추세 자리(전환 6행 다음)에 배치. VWAP(50) vs 100선(MA100) 배열 상태 추세.
+    //  장기 추세(MA100 vs MA200)와 **동일 로직·포맷·색**(상승/하락 (±% | N봉), 상승=청록·하락=자홍, 강약 그라데이션). 지지/저항 포맷 아님.
+    table.cell(triggerTable, 0, 7, "중기 추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 7, mtCellText, text_color=color.white, bgcolor=mtCellColor, text_size=size.small)
 
-    // ── 섹션 2: [캔들 및 되돌림 확인] (row 8, 병합 헤더) — 캔들 상태 → 비정상 → 이격도 → 되돌림.
-    table.cell(triggerTable, 0, 8, "캔들 및 되돌림 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.cell(triggerTable, 1, 8, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.merge_cells(triggerTable, 0, 8, 1, 8)
+    // 장기 추세 (row 8) — [이동] 지지/저항 확인 섹션에서 추세 확인 섹션의 중기 추세 바로 아래로 이동(값·색·산식 그대로).
+    table.cell(triggerTable, 0, 8, "장기 추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 8, ltCellText, text_color=color.white, bgcolor=ltCellColor, text_size=size.small)
 
-    // 캔들 상태 (3) — 표시 전용. 이 섹션 맨 앞(비정상 매수/매도 바로 위, row 9). 우열은 "분류명 | 근거패턴" + 7분류 배경색(현재봉 캔들 바색과 동일).
+    // ── 섹션 2: [캔들 및 되돌림 확인] (row 9, 병합 헤더) — 캔들 상태 → 비정상 → 이격도 → 되돌림.
+    table.cell(triggerTable, 0, 9, "캔들 및 되돌림 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
+    table.cell(triggerTable, 1, 9, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
+    table.merge_cells(triggerTable, 0, 9, 1, 9)
+
+    // 캔들 상태 (3) — 표시 전용. 이 섹션 맨 앞(비정상 매수/매도 바로 위, row 10). 우열은 "분류명 | 근거패턴" + 7분류 배경색(현재봉 캔들 바색과 동일).
     if candleShowState
-        table.cell(triggerTable, 0, 9, "캔들 상태 (3)", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-        table.cell(triggerTable, 1, 9, candleCellText, text_color=color.white, bgcolor=candleCellColor, text_size=size.small)
+        table.cell(triggerTable, 0, 10, "캔들 상태 (3)", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+        table.cell(triggerTable, 1, 10, candleCellText, text_color=color.white, bgcolor=candleCellColor, text_size=size.small)
 
-    // 캔들 손절라인 (row 10) — 표시 전용. 캔들 상태(3) 바로 아래. 방향은 캔들 상태 7분류 재사용(하락=3봉 최고점 S+·상승=3봉 최저점 L−·혼조 −). 셀 색 = 캔들 상태(3)와 동일.
-    table.cell(triggerTable, 0, 10, "캔들 손절라인", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 10, candleStopCellText, text_color=color.white, bgcolor=candleStopCellColor, text_size=size.small)
+    // 캔들 손절라인 (row 11) — 표시 전용. 캔들 상태(3) 바로 아래. 방향은 캔들 상태 7분류 재사용(하락=3봉 최고점 S+·상승=3봉 최저점 L−·혼조 −). 셀 색 = 캔들 상태(3)와 동일.
+    table.cell(triggerTable, 0, 11, "캔들 손절라인", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 11, candleStopCellText, text_color=color.white, bgcolor=candleStopCellColor, text_size=size.small)
 
-    table.cell(triggerTable, 0, 11, "비정상 매수/매도", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 11, abnCellText, text_color=color.white, bgcolor=abnCellColor, text_size=size.small)
-    table.cell(triggerTable, 0, 12, "이격도 (" + str.tostring(disparityMaLen) + ")", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 12, disparityCellText, text_color=color.white, bgcolor=disparityCellColor, text_size=size.small)
-    table.cell(triggerTable, 0, 13, "되돌림 가격", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 13, na(disparityPullbackPrice) ? "-" : f_price(disparityPullbackPrice) + " (" + f_pct(disparityPullbackPrice) + ")", text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
+    table.cell(triggerTable, 0, 12, "비정상 매수/매도", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 12, abnCellText, text_color=color.white, bgcolor=abnCellColor, text_size=size.small)
+    table.cell(triggerTable, 0, 13, "이격도 (" + str.tostring(disparityMaLen) + ")", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 13, disparityCellText, text_color=color.white, bgcolor=disparityCellColor, text_size=size.small)
+    table.cell(triggerTable, 0, 14, "되돌림 가격", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 14, na(disparityPullbackPrice) ? "-" : f_price(disparityPullbackPrice) + " (" + f_pct(disparityPullbackPrice) + ")", text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
 
-    // ── 섹션 3: [지지/저항 확인] (row 14, 병합 헤더) — 구름대 → VWAP 지지/저항 → VWAP 상태 → 장기 추세 → 장기 지지/저항.
-    table.cell(triggerTable, 0, 14, "지지/저항 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.cell(triggerTable, 1, 14, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.merge_cells(triggerTable, 0, 14, 1, 14)
+    // ── 섹션 3: [지지/저항 확인] (row 15, 병합 헤더) — 구름대 → VWAP 지지/저항 → VWAP 상태 → 100선 지지/저항 → 200선 지지/저항. (장기 추세는 섹션1로 이동, 장기 지지/저항은 100선/200선 2행 분리)
+    table.cell(triggerTable, 0, 15, "지지/저항 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
+    table.cell(triggerTable, 1, 15, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
+    table.merge_cells(triggerTable, 0, 15, 1, 15)
 
-    table.cell(triggerTable, 0, 15, "구름대", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 15, cloudCellText, text_color=color.white, bgcolor=cloudCellColor, text_size=size.small)
+    table.cell(triggerTable, 0, 16, "구름대", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 16, cloudCellText, text_color=color.white, bgcolor=cloudCellColor, text_size=size.small)
 
-    table.cell(triggerTable, 0, 16, "VWAP 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 16, vwSrText, text_color=color.white, bgcolor=vwSrColor, text_size=size.small)
+    table.cell(triggerTable, 0, 17, "VWAP 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 17, vwSrText, text_color=color.white, bgcolor=vwSrColor, text_size=size.small)
     // VWAP 상태 = 모양값(기울기 | 확장·수축(밴드폭%) | 상태값). 셀 색은 밴드 상태 기준(밴드워킹 상단=초록·하단=빨강).
-    table.cell(triggerTable, 0, 17, "VWAP 상태", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 17, vwSlopeText + " | " + vwBwStateText + " | " + vwBandStateShort, text_color=color.white, bgcolor=vwBandColor, text_size=size.small)
+    table.cell(triggerTable, 0, 18, "VWAP 상태", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 18, vwSlopeText + " | " + vwBwStateText + " | " + vwBandStateShort, text_color=color.white, bgcolor=vwBandColor, text_size=size.small)
 
-    table.cell(triggerTable, 0, 18, "장기 추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 18, ltCellText, text_color=color.white, bgcolor=ltCellColor, text_size=size.small)
-    table.cell(triggerTable, 0, 19, "장기 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 19, ltSrText, text_color=color.white, bgcolor=ltSrColor, text_size=size.small)
+    // 100선/200선 지지/저항 (row 19·20) — [분리] 기존 '장기 지지/저항' 1행을 MA100·MA200 2행으로. 포맷·색은 VWAP 지지/저항과 동일(상태 + (이격도 | N봉), 지지=녹·저항=빨강·이격 과대=둔탁).
+    table.cell(triggerTable, 0, 19, "100선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 19, ltM1SrText, text_color=color.white, bgcolor=ltM1SrColor, text_size=size.small)
+    table.cell(triggerTable, 0, 20, "200선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 20, ltM2SrText, text_color=color.white, bgcolor=ltM2SrColor, text_size=size.small)
 
-// 이평 기반 상태 표식(+ 모양) (압축=보라 #9C27B0[상승·하락과 확실히 구분], 상승 분출=파랑, 하락 분출=빨강)
-// 먼저 그려서 아래 신호 삼각형보다 뒤(아래 레이어)에 오게 한다.
-plotshape(series=ribbonChop, title="횡보 압축 (아래)", style=shape.cross, location=location.belowbar, color=color.new(#9C27B0, 0), size=size.tiny)
-plotshape(series=ribbonChop, title="횡보 압축 (위)", style=shape.cross, location=location.abovebar, color=color.new(#9C27B0, 0), size=size.tiny)
-plotshape(series=ribbonBull, title="상승 분출", style=shape.cross, location=location.belowbar, color=color.new(color.blue, 0), size=size.tiny)
-plotshape(series=ribbonBear, title="하락 분출", style=shape.cross, location=location.abovebar, color=color.new(color.red, 0), size=size.tiny)
+// [제거] 리본 추세 화면 표식(횡보 압축·상승/하락 분출 + 모양) plotshape 삭제 — 테이블 '리본 추세' 행이 '중기 추세'로 교체되며 리본 표시를 전부 제거.
+//  ★ 리본 계산 로직(rAtr·ribbonState 상태머신)은 rAtr이 구름대 지지/저항(srRev·nearSupport 등)에서 재사용되므로 보존한다. 화면 표시(plotshape·alertcondition)만 제거.
 
-// 신호 삼각형 — 리본 표식 뒤에(나중에) 그려 위 레이어로. 스케일별 크기: 0.5×=가장 작음, 1×=작음, 2×=보통
+// 신호 삼각형 — (구 리본 표식 자리) 아래 레이어 순서 유지 위해 여기서 그린다. 스케일별 크기: 0.5×=가장 작음, 1×=작음, 2×=보통
 // 모멘텀 모드로 발생한 신호는 전용 색(롱=파랑, 숏=크림슨)으로 정상 신호(매수=아쿠아, 매도=핑크)와 구분.
 //  (구: 스윕/청산 블록의 청산선 색을 재사용했으나, 청산선 페인팅이 auto-vwap 으로 이동하며 그 input이 제거돼
 //   여기 전용 색 input 으로 분리. 기본값(#2979FF/#FF1744)은 종전과 동일해 외관 불변.)
@@ -1527,6 +1585,11 @@ plotshape(showSellSignal and sigVw and vwSell05, title="매도 0.5× (거래량)
 plotshape(showSellSignal and sigVw and vwSell10, title="매도 1× (거래량)", style=shape.triangledown, location=location.abovebar, color=momSellColor, size=size.small)
 plotshape(showSellSignal and sigVw and vwSell20, title="매도 2× (거래량)", style=shape.triangledown, location=location.abovebar, color=momSellColor, size=size.normal)
 
-alertcondition(ribbonChop, title="횡보 압축", message="Ribbon compressed (chop) — Ichimoku signals unreliable.")
-alertcondition(ribbonBull, title="상승 분출", message="Ribbon bullish expansion after compression.")
-alertcondition(ribbonBear, title="하락 분출", message="Ribbon bearish expansion after compression.")
+// VWAP(50) × 100선(MA100) 크로스 마커 — 중기 추세 골든/데드. 확정 크로스(vwMaGolden/vwMaDead)라 리페인팅 없음.
+//  골든(VWAP가 100선 상향 돌파)·데드(하향 돌파) 모두 100선(ltMa1) 가격 위치에 십자로 표시(골든=녹, 데드=빨강).
+//  plot(조건 ? ltMa1 : na, style=plot.style_cross) — plotshape은 location.absolute로 특정 가격 지정 불가라 plot으로 전환.
+//  조건 미충족 봉은 na → 해당 크로스 봉에만 십자 1개 표시(cross 스타일은 na로 끊겨 선 연결 없음). ltMa1 워밍업 na도 자동 미표시.
+plot(vwMaGolden ? ltMa1 : na, title="VWAP×100선 골든 크로스", style=plot.style_cross, color=color.green, linewidth=4)
+plot(vwMaDead ? ltMa1 : na, title="VWAP×100선 데드 크로스", style=plot.style_cross, color=color.red, linewidth=4)
+alertcondition(vwMaGolden, title="VWAP×100선 골든 크로스", message="VWAP(50) crossed above MA100 — mid-term golden cross.")
+alertcondition(vwMaDead, title="VWAP×100선 데드 크로스", message="VWAP(50) crossed below MA100 — mid-term dead cross.")
