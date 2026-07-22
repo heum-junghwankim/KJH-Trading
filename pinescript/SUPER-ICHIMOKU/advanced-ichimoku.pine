@@ -1340,8 +1340,29 @@ if vwUpBreakout
     vwWalk := 1
 if vwDownBreakout
     vwWalk := -1
-vwUpperWalk = (vwWalk == 1 or (vwBwExpanding and vwSlopeUp and vwNearUpper)) and vwAbove and vwSlopeUp
-vwLowerWalk = (vwWalk == -1 or (vwBwExpanding and vwSlopeDown and vwNearLower)) and (not vwAbove) and vwSlopeDown
+// [평탄 밴드워킹 포착] 레일 추종(rail-following) 판정 — 밴드폭 확장·중심선 기울기가 없어도(평탄) 가격이
+//  밴드2 레일을 N봉 지속 추종(접촉)하면 밴드워킹으로 인정한다. 기존 vwWalk 상태머신은 돌파(vwUp/DownBreakout)
+//  후 slope로 유지하는 방식이라, 밴드폭 확장 없이 레일에 붙어 걷는(slope≈0) 국면을 놓쳤다. 이를 보완.
+//  - 봉수 3(현재봉 + [1] + [2], vwWalkSlopeLen과 동일 스케일 = '지속'의 최소 창).
+//  - 근접 마진 vwRailMargin = vwBw2 * 0.10(밴드 총폭 10% ≈ 밴드2 근방 0.2σ) — 심볼·가격대 무관 정규화, 신규 입력 없음.
+//  - 하단 = 매 봉 저가가 하단 밴드2 부근 이하로 지속 접촉(low <= vwLower2*(1+마진%)) / 상단 = 매 봉 고가가 상단 밴드2 부근 이상 접촉(high >= vwUpper2*(1-마진%)).
+//  - 전부 과거·확정 봉값([1]/[2]) + 현재 확정 low/high·확정 밴드값 참조 → 리페인팅 없음. na 가드(과거 밴드값 na면 미성립).
+vwRailMargin = not na(vwBw2) and vwapValue != 0 ? vwBw2 / vwapValue * 0.10 : na   // 밴드2 근접 마진(비율)
+vwLowerRail0 = vwHasVwap and not na(vwLower2) and not na(vwRailMargin) and low <= vwLower2 * (1 + vwRailMargin)
+vwLowerRail1 = not na(vwLower2[1]) and not na(vwRailMargin) and low[1] <= vwLower2[1] * (1 + vwRailMargin)
+vwLowerRail2 = not na(vwLower2[2]) and not na(vwRailMargin) and low[2] <= vwLower2[2] * (1 + vwRailMargin)
+vwUpperRail0 = vwHasVwap and not na(vwUpper2) and not na(vwRailMargin) and high >= vwUpper2 * (1 - vwRailMargin)
+vwUpperRail1 = not na(vwUpper2[1]) and not na(vwRailMargin) and high[1] >= vwUpper2[1] * (1 - vwRailMargin)
+vwUpperRail2 = not na(vwUpper2[2]) and not na(vwRailMargin) and high[2] >= vwUpper2[2] * (1 - vwRailMargin)
+// N봉 지속 추종 + 위치 정합(하단=중앙선 아래·상단=중앙선 위). 방향 오판 방지 게이트(vwAbove)는 slope 대신 여기서 유지.
+vwLowerRailWalk = vwHasVwap and (not vwAbove) and vwLowerRail0 and vwLowerRail1 and vwLowerRail2
+vwUpperRailWalk = vwHasVwap and vwAbove and vwUpperRail0 and vwUpperRail1 and vwUpperRail2
+// 밴드워킹 = (기존: 돌파 래치 vwWalk·확장+근접) OR (신규: 레일 추종). slope gate는 기존 경로에만 유지,
+//  레일 추종 경로는 slope 평탄이어도 성립(평탄 케이스 포착). 위치 정합(vwAbove)은 두 경로 공통으로 유지 → 방향 오판 방지.
+vwUpperWalk = ((vwWalk == 1 or (vwBwExpanding and vwSlopeUp and vwNearUpper)) and vwSlopeUp) or vwUpperRailWalk
+vwUpperWalk := vwUpperWalk and vwAbove
+vwLowerWalk = ((vwWalk == -1 or (vwBwExpanding and vwSlopeDown and vwNearLower)) and vwSlopeDown) or vwLowerRailWalk
+vwLowerWalk := vwLowerWalk and (not vwAbove)
 vwSupport = not vwUpperWalk and not vwLowerWalk and (vwBwContracting or vwSlopeFlat) and vwNearLower
 vwResistance = not vwUpperWalk and not vwLowerWalk and (vwBwContracting or vwSlopeFlat) and vwNearUpper
 // 이탈(밴드2 밖) — 밴드워킹이 아니면서 종가가 ±2σ 밴드(vwLower2/vwUpper2) 바깥. 지지/저항(밴드2 최근접)보다 상위 우선.
