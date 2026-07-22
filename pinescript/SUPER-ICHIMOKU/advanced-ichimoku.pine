@@ -960,18 +960,71 @@ ltCellTransp = not ltEstablished ? 30 : (ltNearCross or ltNarrowing) ? 55 : ltWi
 ltCellColor = ltGoldCross ? color.new(ltUpColor, 0) : ltDeadCross ? color.new(ltDownColor, 0) : ltUp ? color.new(ltUpColor, ltCellTransp) : color.new(ltDownColor, ltCellTransp)
 
 // 100선/200선 지지/저항 — 각 장기선(MA100·MA200) 대비 현재가 위치+실제 지지/저항 발생을 VWAP 지지/저항과 동일 포맷·색으로 2행 분리 표기.
-//  ★ [4상태 세분화] 위치(위/아래)와 실제 지지/저항 발생을 구분(VWAP 지지/저항과 동일 방식):
-//   - 위   : close > 해당선(단순 위치) → 텍스트 "위",  둔탁 녹(#6E8F72)
-//   - 아래 : close < 해당선(단순 위치) → 텍스트 "아래", 둔탁 빨강(#A57A7A)
-//   - 지지 : 저가가 선×(1+srTouchPct%) 이하로 눌렸다가 종가가 선 위로 마감(반등) → 텍스트 "지지", 선명 녹(color.green)
-//   - 저항 : 고가가 선×(1−srTouchPct%) 이상 닿았다가 종가가 선 아래로 마감(거절) → 텍스트 "저항", 선명 빨강(color.red)
+//  ★ [auto-vwap 이식] 위치(위/아래)와 실제 지지/저항 발생을 구분(VWAP 지지/저항과 동일 방식·아래 f_srSupportResist 사용):
+//   - 위   : close ≥ 해당선(단순 위치, 지지/저항 미발생) → 텍스트 "위",  둔탁 녹(#6E8F72)
+//   - 아래 : close < 해당선(단순 위치, 지지/저항 미발생) → 텍스트 "아래", 둔탁 빨강(#A57A7A)
+//   - 지지 : f_srSupportResist 지지(상단 near 안 종가 또는 저가 꼬리 걸침) → 텍스트 "지지", 선명 녹(color.green)
+//   - 저항 : f_srSupportResist 저항(하단 near 안 종가 또는 고가 꼬리 걸침) → 텍스트 "저항", 선명 빨강(color.red)
 //   - 이격도(점수): close / 해당선 × 100(기준 100, 소수1자리) — 불변. N봉: 위/아래(위치) 상태 유지 봉수(반전 시 1 리셋) — 불변.
 //   ⚠️ 별도 '이격도 (N)' 행(disparity, 기본 MA20)과 무관 — 여기는 장기선(ltMa1=100·ltMa2=200) 기준. 장기추세 소스(ltMa1/ltMa2)를 그대로 재사용(새 MA 생성 없음).
-// [제거] ltSrFarPct(구 '이격 과대→둔탁' 임계)는 4상태 색 체계로 대체돼 사용처 0 → input·잔여 변수 완전 제거(옵션 패널에서도 삭제).
-// [4상태 세분화] VWAP·100선·200선 지지/저항 행 공통 근접 마진(%) — 선 '부근'에서 실제 지지(반등)/저항(거절)이 발생했는지 판정하는 근접폭.
-//  지지 = 저가가 선×(1+마진%) 이하로 눌렸다가 종가가 선 위로 마감(반등). 저항 = 고가가 선×(1−마진%) 이상 닿았다가 종가가 선 아래로 마감(거절).
-//  세 행 공통 사용(VWAP/MA100/MA200). 이 조건 미충족이면 단순 위치(위/아래)만 판정 → 둔탁색. 리페인팅 없음(현재봉 low/high/close·과거 변조 없음, 기존 셀들과 동일 수준).
-srTouchPct = input.float(0.3, minval=0.0, step=0.05, title="지지/저항 발생 근접 마진(%)", group="장기 추세", tooltip="VWAP·100선·200선 지지/저항 행 공통. 선 부근 이 %폭 이내로 저가(고가)가 닿았다가 종가가 선 위(아래)로 반등(거절)하면 '지지'/'저항'(선명색), 아니면 단순 위치 '위'/'아래'(둔탁색). 값 포맷 (이격도 | 봉수)은 불변.")
+//   ⚠️ MA100/200도 거래량 가중 평균(VWMA)이므로, VWAP(50)과 **동일한 거래량 가중 표준편차 밴드**(VWMA ± k·σ_vw)를 판정 전용으로
+//      생성해(화면 표시 없음) near 밴드1로 helper에 투입한다. VWAP 행은 내부 밴드1(vwUpper1/vwLower1)을 그대로 사용.
+// [제거] ltSrFarPct(구 '이격 과대→둔탁' 임계)·srTouchPct(구 단일 근접폭 4상태)는 auto-vwap 이식으로 대체돼 사용처 0 → 완전 제거.
+// =========================
+// [이식] VWAP·100선·200선 지지/저항 판정 — auto-vwap.pine의 "VWAP 선색(vwapSRColor) 지지/저항" 로직을 그대로 이식(포팅).
+//  ⚠️ 기존 srTouchPct(선×(1±마진%) 단일 근접폭 4상태) 판정을 **폐기**하고, auto-vwap의 "동적 near 구간 + 종가/꼬리 걸침 4규칙"으로 교체한다.
+//  원본 로직(auto-vwap.pine L446-467, 화면 VWAP 선색 vwapSRColor 판정) 요약:
+//   ▸ near 구간 = 중앙선(center)과 밴드1(up1/lo1) 사이의 **동적 %(pct) 범위**(밴드1 전체가 아님).
+//      upperNear = center + pct×(up1 − center),  lowerNear = center − pct×(center − lo1).
+//   ▸ pct = 밴드폭 반비례 동적: r = (up1 − lo1)/center 를 rLow~rHigh 정규화(t) 후 maxPct→minPct 반비례 보간·clamp.
+//      좁을 때(저변동, t=0) → 최대%(넓은 near), 넓을 때(고변동, t=1) → 최소%(좁은 near).
+//   ▸ 저항(빨강) = ① lowerNear ≤ close ≤ center  OR  ② close < lowerNear AND high > lowerNear(종가 하단 near 이탈 + 고가 꼬리 걸침).
+//   ▸ 지지(녹)   = ③ center ≤ close ≤ upperNear  OR  ④ close > upperNear AND low < upperNear(종가 상단 near 이탈 + 저가 꼬리 걸침).
+//   ▸ close==center 경계는 저항 우선(원본 우선순위 동일). 그 외(near 밖+꼬리 미접촉/워밍업) → 지지·저항 모두 false → 단순 위/아래(둔탁색).
+//  ⚠️ MA100/200 near 밴드 이식(CEO 지침): MA100/200도 VWMA(거래량 가중 평균)이므로, VWAP(50)과 **완전히 동일한 산식**의
+//   거래량 가중 표준편차 밴드(VWMA ± k·σ_vw, k=vwapBandMult1=VWAP 밴드1 배수 공유, length는 각각 100/200)를 **판정 전용으로만 계산**(plot/표시 없음)해
+//   합성 밴드1로 helper에 투입한다. σ_vw = sqrt(max( Σ(p²·v)/Σv − VWMA² , 0))로 VWAP의 vwStdAbs와 동일 정의(윈도우만 rolling length).
+//   ATR·이격%가 아니라 VWAP 밴드1과 동일한 표준편차 밴드 산식이라 지표 전체가 일관된 지지/저항 개념을 공유한다.
+//  ⚠️ 확정봉 세트값(close/high/low·center·밴드1·near)만 참조 → 리페인팅 없음. 값 포맷(이격도 | 봉수)은 불변.
+// =========================
+// near 구간 동적 % (auto-vwap와 동일 명명/기본값) — 저항/지지 판정 구간을 밴드1 전체가 아니라 center~밴드1의 일부(pct)로 좁힌다.
+srNearMinPct = input.float(20.0, title="지지/저항 근처 구간 최소 %(넓을 때)", minval=0.0, maxval=100.0, step=1.0, group="장기 추세", display=display.none, tooltip="VWAP·100선·200선 지지/저항 행 공통(auto-vwap 이식). 밴드폭이 넓을 때(고변동성) 적용할 근처 구간 비율의 최소 %. 근처 구간이 선 바로 옆으로 좁아집니다. 기본 20.")
+srNearMaxPct = input.float(60.0, title="지지/저항 근처 구간 최대 %(좁을 때)", minval=0.0, maxval=100.0, step=1.0, group="장기 추세", display=display.none, tooltip="VWAP·100선·200선 지지/저항 행 공통(auto-vwap 이식). 밴드폭이 좁을 때(저변동성) 적용할 근처 구간 비율의 최대 %. 기본 60. 근처 %는 이 값과 최소 % 사이에서 밴드폭에 반비례로 결정됩니다.")
+srNearRLowPct = input.float(0.5, title="근처 % 저변동성 임계(밴드1폭/기준선, %)", minval=0.0, step=0.1, group="장기 추세", display=display.none, tooltip="밴드1 폭 ÷ 기준선 비율(%)이 이 값 이하이면 저변동성으로 보고 근처 %를 최대(기본 60)로 씁니다. 기본 0.5%. auto-vwap 이식.")
+srNearRHighPct = input.float(2.0, title="근처 % 고변동성 임계(밴드1폭/기준선, %)", minval=0.0, step=0.1, group="장기 추세", display=display.none, tooltip="밴드1 폭 ÷ 기준선 비율(%)이 이 값 이상이면 고변동성으로 보고 근처 %를 최소(기본 20)로 씁니다. 기본 2.0%. 저변동성 임계와 이 값 사이는 선형보간(반비례). auto-vwap 이식.")
+// 지지/저항 판정 helper(auto-vwap.pine vwapSRColor 로직 이식) — center·밴드1(up1/lo1)로 [isSupport, isResistance] 반환.
+//  워밍업/밴드 na면 둘 다 false(→ 단순 위/아래). close==center는 저항 우선(원본 동일).
+f_srSupportResist(float center, float up1, float lo1) =>
+    bool isSup = false
+    bool isRes = false
+    if not na(center) and not na(up1) and not na(lo1)
+        float bandWidth1 = up1 - lo1
+        float rNear = center != 0 ? bandWidth1 / center : na
+        float rLow  = srNearRLowPct / 100.0
+        float rHigh = srNearRHighPct / 100.0
+        float tNear = (na(rNear) or rHigh <= rLow) ? 0.0 : math.min(math.max((rNear - rLow) / (rHigh - rLow), 0.0), 1.0)
+        float nearPct = srNearMaxPct - tNear * (srNearMaxPct - srNearMinPct)
+        float pct = math.min(math.max(nearPct, 0.0), 100.0) / 100.0
+        float upperNear = center + pct * (up1 - center)
+        float lowerNear = center - pct * (center - lo1)
+        // 저항 = ①(하단 near 안 종가) OR ②(종가 하단 near 아래 이탈 + 고가 꼬리 걸침).
+        isRes := (close >= lowerNear and close <= center) or (close < lowerNear and high > lowerNear)
+        // 지지 = ③(상단 near 안 종가) OR ④(종가 상단 near 위 이탈 + 저가 꼬리 걸침). close==center는 저항 우선이므로 지지에서 제외.
+        isSup := not isRes and ((close >= center and close <= upperNear) or (close > upperNear and low < upperNear))
+    [isSup, isRes]
+// [이식·CEO 지침] MA100/200 near 밴드 배수 — VWAP 밴드1과 동일 산식(VWMA ± k·σ_vw)의 표준편차 배수 k.
+//  VWAP(50) 밴드1 배수(vwapBandMult1, 기본 1.0)와 동일 개념이나, 밴드 계산부보다 선언이 앞서므로(선언 순서 안전) 여기 별도 입력으로 노출한다.
+//  기본값 1.0은 VWAP 밴드1(1σ)과 동일 — 세 행(VWAP/MA100/MA200)이 모두 "±1σ 밴드1" 기준 지지/저항을 공유한다.
+srBandStdMult = input.float(1.0, minval=0.1, step=0.5, title="100·200선 지지/저항 near 밴드 σ 배수", group="장기 추세", display=display.none, tooltip="100선·200선도 거래량 가중 평균(VWMA)이므로, VWAP(50)과 동일하게 VWMA ± (이 배수 × 거래량 가중 표준편차 σ)로 판정 전용 밴드1을 만들어(화면 표시 없음) VWAP와 동일한 동적 near·꼬리 걸침 4규칙 지지/저항 판정을 적용합니다. VWAP 밴드1 배수와 동일 개념이라 기본 1.0(=±1σ). 키우면 near 밴드가 넓어져 지지/저항 판정이 관대해집니다.")
+// [이식·CEO 지침] 거래량 가중 표준편차 σ_vw 계산 — VWAP의 vwStdAbs와 동일 정의(rolling length 윈도우).
+//   σ_vw(L) = sqrt(max( Σ(close²·vol, L)/Σ(vol, L) − VWMA(L)² , 0)).  VWMA(vwma 인자)는 이미 계산된 ltMa1/ltMa2를 재사용(중복 계산 없음).
+//   Σ(close²·vol)/Σ(vol) = ta.sma(close²·vol, L)/ta.sma(vol, L) (rolling 가중 평균). ta.sma 2회(분자·분모)만 추가.
+//   ⚠️ ta.* 는 함수 밖에서 무조건(매 봉) 호출해야 series 일관성이 보장된다(삼항 분기 안 호출 금지). 아래 ltM1/ltM2SrSigma 참조.
+f_vwStdev(float vwma, int len) =>
+    float p2v = ta.sma(close * close * volume, len)   // Σ(close²·vol)/L
+    float vAvg = ta.sma(volume, len)                  // Σ(vol)/L
+    float ex2 = (na(vAvg) or vAvg == 0) ? na : p2v / vAvg   // 거래량 가중 E[close²]
+    (na(ex2) or na(vwma)) ? na : math.sqrt(math.max(ex2 - vwma * vwma, 0.0))
 // 100선(MA100)
 ltM1Above = not na(ltMa1) and close > ltMa1   // 가격이 MA100 위 = 지지
 ltM1HasMa = not na(ltMa1)
@@ -984,9 +1037,10 @@ else if ltM1Int == ltM1Int[1]
 else
     ltM1Bars := 1
 ltM1Disp = (na(ltMa1) or ltMa1 == 0) ? na : close / ltMa1 * 100
-// [4상태] 실제 지지(반등)/저항(거절) 발생 판정 — 저가가 선 부근 이하로 눌렸다가 종가가 선 위로 마감=지지 / 고가가 선 부근 이상 닿았다가 종가가 선 아래로 마감=저항.
-ltM1Support = ltM1HasMa and low <= ltMa1 * (1 + srTouchPct / 100) and close > ltMa1
-ltM1Resist  = ltM1HasMa and high >= ltMa1 * (1 - srTouchPct / 100) and close < ltMa1
+// [이식·CEO 지침] 지지/저항 발생 판정 — auto-vwap 동적 near·꼬리 걸침 4규칙. MA100도 VWMA이므로 VWAP과 동일 산식의
+//  거래량 가중 표준편차 밴드 MA100 ± (srBandStdMult × σ_vw(100))를 **판정 전용**(plot 없음)으로 만들어 helper에 투입.
+ltM1SrSigma = f_vwStdev(ltMa1, ltLen1)   // 무조건 호출(내부 ta.sma 일관성). vwma na면 na 반환.
+[ltM1Support, ltM1Resist] = f_srSupportResist(ltMa1, na(ltM1SrSigma) ? na : ltMa1 + srBandStdMult * ltM1SrSigma, na(ltM1SrSigma) ? na : ltMa1 - srBandStdMult * ltM1SrSigma)
 ltM1SrState = not ltM1HasMa ? "-" : ltM1Support ? "지지" : ltM1Resist ? "저항" : ltM1Above ? "위" : "아래"
 ltM1SrText = not ltM1HasMa ? "-" : ltM1SrState + " (" + str.tostring(ltM1Disp, "0.0") + " | " + str.tostring(ltM1Bars) + "봉)"
 // 색: 지지 발생=선명 녹 / 저항 발생=선명 빨강 / 단순 위=둔탁 녹(#6E8F72) / 단순 아래=둔탁 빨강(#A57A7A).
@@ -1003,9 +1057,9 @@ else if ltM2Int == ltM2Int[1]
 else
     ltM2Bars := 1
 ltM2Disp = (na(ltMa2) or ltMa2 == 0) ? na : close / ltMa2 * 100
-// [4상태] 실제 지지(반등)/저항(거절) 발생 판정 — MA100과 동일 정의(선=ltMa2).
-ltM2Support = ltM2HasMa and low <= ltMa2 * (1 + srTouchPct / 100) and close > ltMa2
-ltM2Resist  = ltM2HasMa and high >= ltMa2 * (1 - srTouchPct / 100) and close < ltMa2
+// [이식·CEO 지침] 지지/저항 발생 판정 — MA100과 동일 방식(선=ltMa2, 판정 전용 밴드1=ltMa2 ± srBandStdMult×σ_vw(200), plot 없음).
+ltM2SrSigma = f_vwStdev(ltMa2, ltLen2)   // 무조건 호출(내부 ta.sma 일관성). vwma na면 na 반환.
+[ltM2Support, ltM2Resist] = f_srSupportResist(ltMa2, na(ltM2SrSigma) ? na : ltMa2 + srBandStdMult * ltM2SrSigma, na(ltM2SrSigma) ? na : ltMa2 - srBandStdMult * ltM2SrSigma)
 ltM2SrState = not ltM2HasMa ? "-" : ltM2Support ? "지지" : ltM2Resist ? "저항" : ltM2Above ? "위" : "아래"
 ltM2SrText = not ltM2HasMa ? "-" : ltM2SrState + " (" + str.tostring(ltM2Disp, "0.0") + " | " + str.tostring(ltM2Bars) + "봉)"
 // 색: 지지 발생=선명 녹 / 저항 발생=선명 빨강 / 단순 위=둔탁 녹 / 단순 아래=둔탁 빨강. (MA100과 동일)
@@ -1267,9 +1321,8 @@ else if vwAboveInt == vwAboveInt[1]
     vwSrBars := vwSrBars + 1
 else
     vwSrBars := 1
-// [4상태] 실제 지지(반등)/저항(거절) 발생 판정 — 저가가 VWAP 부근 이하로 눌렸다가 종가가 VWAP 위로 마감=지지 / 고가가 VWAP 부근 이상 닿았다가 종가가 VWAP 아래로 마감=저항. (MA100/200과 동일 정의, 선=vwapValue)
-vwSrSupport = vwHasVwap and low <= vwapValue * (1 + srTouchPct / 100) and close > vwapValue
-vwSrResist  = vwHasVwap and high >= vwapValue * (1 - srTouchPct / 100) and close < vwapValue
+// [이식] 지지/저항 발생 판정 — auto-vwap 동적 near·꼬리 걸침 4규칙. VWAP는 내부 밴드1(vwUpper1/vwLower1)을 그대로 helper에 투입(원본과 동일 밴드1 기반).
+[vwSrSupport, vwSrResist] = f_srSupportResist(vwHasVwap ? vwapValue : na, vwHasVwap ? vwUpper1 : na, vwHasVwap ? vwLower1 : na)
 vwSrState = not vwHasVwap ? "-" : vwSrSupport ? "지지" : vwSrResist ? "저항" : vwAbove ? "위" : "아래"
 vwSrText = not vwHasVwap ? "-" : vwSrState + " (" + str.tostring(close / vwapValue * 100, "0.0") + " | " + str.tostring(vwSrBars) + "봉)"
 // 색: 지지 발생=선명 녹 / 저항 발생=선명 빨강 / 단순 위=둔탁 녹(#6E8F72) / 단순 아래=둔탁 빨강(#A57A7A). (기존 vwSrTooFar 둔탁 규칙은 4상태 색 체계로 대체 — 단순 위/아래가 곧 둔탁색)
@@ -1531,7 +1584,7 @@ if barstate.islast
     table.cell(triggerTable, 0, 17, "VWAP 상태", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
     table.cell(triggerTable, 1, 17, vwSlopeText + " | " + vwBwStateText + " | " + vwBandStateShort, text_color=color.white, bgcolor=vwBandColor, text_size=size.small)
 
-    table.cell(triggerTable, 0, 18, "VWAP 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 0, 18, "50선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
     table.cell(triggerTable, 1, 18, vwSrText, text_color=color.white, bgcolor=vwSrColor, text_size=size.small)
 
     // 100선/200선 지지/저항 (row 19·20) — [분리] 기존 '장기 지지/저항' 1행을 MA100·MA200 2행으로. 포맷·색은 VWAP 지지/저항과 동일(상태 + (이격도 | N봉), 지지=녹·저항=빨강·이격 과대=둔탁).
