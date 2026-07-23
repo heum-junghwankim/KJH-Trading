@@ -278,6 +278,45 @@ obvAdxSmooth = input.int(5, minval=1, maxval=50, title="ADX Smoothing", group=DI
 //  ⚠️ 산식 구조는 obv-adx-extreme-background.pine 상태판(L79-82)의 energyFading과 동일(평균 대비 OR 3봉 전 모멘텀). 평균 창만 obvEnergyLen(auto-vwap 기본 5, obv-adx 기본 14)로 다르게 두고, 3봉 전 [3] 룩백은 obv-adx와 동일한 고정 상수. 표시 전용(마커 색 채도만) — 판정·표시 여부와 무관.
 obvEnergyLen = input.int(5, minval=1, title="OBV 에너지 평균 길이", group=DI_GROUP, active=ipShowMarkers, display=display.none, tooltip="변곡 마커 색 채도(강/약) 판정용. OBV 방향 격차 |DI+−DI-|가 이 길이의 평균 이상이고 3봉 전보다 줄지 않았으면 '강(선명)', 아니면 '약(둔탁)'으로 마커 채도를 나눕니다. 평균만 obvEnergyLen(기본 5)로 짧게, 3봉 전 대비 모멘텀은 obv-adx 상태판과 동일한 고정 [3] 룩백입니다. 마커 표시 여부·판정은 바뀌지 않는 표시 전용 옵션입니다.")
 
+// =========================
+// 비정상 매수/매도 — SUPER-ICHIMOKU 메인 지표(advanced-ichimoku.pine)의 "비정상 캔들"(비정상 매수/매도) 판정을 이식(포팅).
+//  판정: cRSI 과매수/과매도(도미넌트 사이클) + 볼린저 밴드 이탈(고가/저가 기준). 두 조건이 동시 성립하면 비정상.
+//   ▸ 비정상 매수(과매수 구간, abnCandleState==-1) = cRSI 과매수(abnIsOB) AND 고가가 볼린저 상단 밴드를 초과(초과폭÷캔들범위 ≥ 비율). → 빨강 배경.
+//   ▸ 비정상 매도(과매도 구간, abnCandleState== 1) = cRSI 과매도(abnIsOS) AND 저가가 볼린저 하단 밴드를 이탈(이탈폭÷캔들범위 ≥ 비율). → 파랑 배경.
+//   ⚠️ 이치모쿠 원본과 매핑: "비정상 매수 = 과매수(cRSI≥OB + 상단밴드 돌파)"·"비정상 매도 = 과매도(cRSI≤OS + 하단밴드 이탈)". 지시 매핑(비정상매수=과매수·비정상매도=과매도)과 정확히 일치.
+//  ⚠️ 자기완결 포팅(이치모쿠 의존 제거):
+//   (1) 원본은 기준 길이를 베이스 라인(basePeriods)에 연동(abnLen=basePeriods)했으나, auto-vwap엔 이치모쿠 input이 없으므로 **전용 input(abnBaseLen)** 로 동일 기본값(22)을 자기완결 선언한다.
+//       원본 basePeriods 기본값이 22이므로 abnBaseLen 기본 22 → cRSI 사이클 길이(basePeriods/2)·볼린저·ATR·RSI·추적 lookback이 모두 원본과 동일한 값으로 재현된다.
+//   (2) 원본은 래치 리셋 트리거로 '이격도 중립 복귀'(abnDisparityNeutral = overCount==0 and underCount==0)를 썼으나, auto-vwap엔 이격도 블록이 없으므로 **이치모쿠 이격도(Disparity) 계산을 그대로 자기완결 이식**한다.
+//       이격도 = 종가 ÷ 선택 이평 × 100, 고정 임계(±%)+적응형(σ 배수)로 되돌림 판정. overCount/underCount==0(중립)이면 abnDisparityNeutral=true. input(이격도 MA 종류·길이·임계·통계 구간·σ 배수)도 원본 명칭/기본값/툴팁 그대로 이식.
+//       ⚠️ 이 이격도는 오직 비정상 상태 래치 리셋(원본과 동일한 종료 조건)에만 쓰이며, 테이블·다른 표시를 새로 만들지 않는다(표시 전용 최소 이식).
+//  ⚠️ 배경(bgcolor)은 확정 성격 래치(abnCandleState) 기반 — cRSI/볼린저는 현재봉 close/high/low를 쓰므로 형성 중 현재봉은 실시간 변동(원본과 동일 거동), 과거봉은 확정. 원본과 동일한 리페인팅 특성(신규 리페인팅 추가 없음).
+//  ⚠️ 표시 전용(배경색 + 아래 과매수/과매도 수평선) — 변곡 마커·게이트·밴드·청산선·횡보 압축 로직과 무관. 매매 전략(진입·청산·임계)과 무관.
+// =========================
+ABN_GROUP = "비정상 매수/매도"
+// 기준 길이 — 원본은 basePeriods(베이스 라인, 기본 22)에 연동. auto-vwap엔 이치모쿠 input이 없어 전용 input으로 동일 기본값 자기완결 선언.
+abnBaseLen = input.int(22, minval=1, title="비정상 기준 길이(베이스 라인 대응)", group=ABN_GROUP, tooltip="비정상 매수/매도 판정 기준 길이. 이치모쿠 메인 지표는 베이스 라인 길이(기본 22)에 연동했으나, auto-vwap엔 그 input이 없어 전용 입력으로 동일 기본값(22)을 둡니다. cRSI 사이클 길이(이 값÷2)·볼린저·ATR·RSI·추적 lookback이 모두 이 값에 연동됩니다. 전략성 파라미터(수학자 리뷰 대상).")
+abnVibration = input.int(10, minval=1, title="비정상 캔들 cRSI Vibration", group=ABN_GROUP)
+abnOB = input.float(70.0, title="비정상 절대 과매수", group=ABN_GROUP)
+abnOS = input.float(30.0, title="비정상 절대 과매도", group=ABN_GROUP)
+abnBbMult = input.float(2.0, minval=0.1, step=0.1, title="비정상 볼린저 배수", group=ABN_GROUP)
+abnBodyRatio = input.float(0.3, minval=0.0, step=0.05, title="비정상 밴드 초과 비율(고저 기준)", group=ABN_GROUP)
+abnShowBg = input.bool(true, title="비정상 매수/매도 배경 표시", group=ABN_GROUP, tooltip="비정상 매도=파랑, 비정상 매수=빨강 배경으로 세로 스트립을 칠합니다. (반등 감시 배경은 CEO 지시로 제거됨)")
+// 비정상 매수/매도 세로 배경색(CEO 명시: 매도=파랑, 매수=빨강 — 방향 직관과 반대지만 지시대로)
+abnSellBgColor = input.color(color.blue, title="비정상 매도 배경 색(파랑)", group=ABN_GROUP)
+abnBuyBgColor = input.color(color.red, title="비정상 매수 배경 색(빨강)", group=ABN_GROUP)
+abnBgTransp = input.int(82, minval=0, maxval=100, title="비정상 배경 투명도", group=ABN_GROUP)
+// 과매수/과매도 수평선(신규, CEO 지시) — 가장 최근 비정상 이벤트 방향에 따라 항상 1개만 표시.
+abnShowLevelLines = input.bool(true, title="과매수/과매도 수평선 표시", group=ABN_GROUP, tooltip="가장 최근 비정상 이벤트 방향에 따라 수평선을 항상 1개만 표시합니다(2개 동시 표시 안 함). 최근이 비정상 매수(과매수)면 그 구간의 최고가에 빨강(비정상 매수 배경색) 수평선 1개, 최근이 비정상 매도(과매도)면 그 구간의 최저가에 파랑(비정상 매도 배경색) 수평선 1개를 그립니다. 얇은 점선·화면 전체 가로이며, 새 구간이 나오거나 방향이 바뀌면 그 방향의 극값·색으로 갱신합니다. 확정봉 구간 추적이라 리페인팅이 없습니다. 표시 전용 옵션입니다.")
+
+// 이격도(Disparity) 자기완결 이식 — 비정상 상태 래치 리셋(원본 abnDisparityNeutral)에만 사용. 이치모쿠 원본 산식·input 그대로.
+DISP_GROUP = "이격도"
+disparityMaType = input.string("SMA", title="이격도 MA 종류", options=["SMA", "EMA", "WMA", "VWMA"], group=DISP_GROUP)
+disparityMaLen = input.int(20, minval=1, title="이격도 MA 길이", group=DISP_GROUP)
+disparityThreshold = input.float(10.0, minval=0.1, step=0.1, title="이격도 임계(±%, 고정)", group=DISP_GROUP)
+disparityStatLen = input.int(50, minval=5, title="이격도 통계 구간(적응형)", group=DISP_GROUP)
+disparityStatMult = input.float(1.5, minval=0.1, step=0.1, title="이격도 통계 시그마 배수", group=DISP_GROUP)
+
 // 기본 화면용 VWAP 세트(length=50, 소스=src) — 화면 plot·밴드·라벨의 기준. 소스는 기존 화면 VWAP src(기본 hlc3) 유지 → 거동 불변.
 [vwapValue, upperBandValue1, lowerBandValue1, upperBandValue2, lowerBandValue2, shouldPlot] = computeVwapSet(recentBars, src)
 // 변곡 지점 판정용 VWAP 세트 — 숏/롱 2세트로 분리(CEO 지시). window(length=ipRecentBars)·밴드 배수·calcMode는 공통, 소스만 다르다.
@@ -290,6 +329,112 @@ obvEnergyLen = input.int(5, minval=1, title="OBV 에너지 평균 길이", group
 // 밴드워킹 판정 전용 VWAP 세트(length=bwRecentBars, 소스=src) — 화면 세트와 독립(CEO 지시 판단 A). window는 기본 14봉(화면 세트 recentBars=50과 독립), 소스만 화면과 동일 src.
 //  ⚠️ 튜플 변수는 bw* 접두어로 명명해 화면 세트(vwapValue/…)·변곡 세트(ipVwapValueShort/Long/…)와 이름 충돌 없음. 아래 밴드워킹 블록이 이 세트를 참조한다.
 [bwVwapValue, bwUpperBandValue1, bwLowerBandValue1, bwUpperBandValue2, bwLowerBandValue2, bwShouldPlot] = computeVwapSet(bwRecentBars, src)
+
+// =========================
+// 비정상 매수/매도 판정 — advanced-ichimoku.pine "비정상 캔들" 블록의 이식(포팅). 산식·기본값 동일.
+//  원본 abnLen/abnLookback=basePeriods → auto-vwap은 abnBaseLen(전용 input, 기본 22)로 자기완결. cRSI/볼린저/ATR/RSI 산식은 100% 동일.
+//  원본 abnDisparityNeutral(이격도 중립 복귀)은 아래 이격도 자기완결 이식으로 재현 → 래치 리셋 트리거로만 사용.
+// =========================
+// 이격도(Disparity) — 종가 ÷ 이평 × 100. 고정 임계(±%) + 적응형(σ 배수)로 되돌림 판정. 원본과 동일 산식(중립 여부만 사용).
+disparityMa = switch disparityMaType
+    "SMA" => ta.sma(close, disparityMaLen)
+    "EMA" => ta.ema(close, disparityMaLen)
+    "WMA" => ta.wma(close, disparityMaLen)
+    "VWMA" => ta.vwma(close, disparityMaLen)
+disparity = not na(disparityMa) and disparityMa != 0 ? close / disparityMa * 100 : na
+disparityStd = ta.stdev(disparity, disparityStatLen)
+disparityStatOk = not na(disparity) and not na(disparityStd) and disparityStd > 0
+overFixed  = not na(disparity) and disparity - 100 >= disparityThreshold
+overStat   = disparityStatOk and disparity - 100 >= disparityStatMult * disparityStd
+underFixed = not na(disparity) and 100 - disparity >= disparityThreshold
+underStat  = disparityStatOk and 100 - disparity >= disparityStatMult * disparityStd
+overCount  = (overFixed ? 1 : 0) + (overStat ? 1 : 0)
+underCount = (underFixed ? 1 : 0) + (underStat ? 1 : 0)
+
+// 기준 길이 = abnBaseLen(원본 basePeriods 대응) — 비정상 캔들 신호 최적화
+abnLen = abnBaseLen
+abnLookback = abnBaseLen
+// cRSI (도미넌트 사이클 = 베이스 라인) → 절대 과매수/과매도
+abnCycleLen = math.max(1, int(abnBaseLen / 2))
+abnTorque = 2.0 / (abnVibration + 1.0)
+abnPhasingLag = int((abnVibration - 1) / 2.0)
+abnUp = ta.rma(math.max(ta.change(close), 0), abnCycleLen)
+abnDown = ta.rma(-math.min(ta.change(close), 0), abnCycleLen)
+abnRsiRaw = abnDown == 0 ? 100.0 : abnUp == 0 ? 0.0 : 100.0 - 100.0 / (1.0 + abnUp / abnDown)
+var float abnCrsi = na
+abnCrsi := abnTorque * (2.0 * abnRsiRaw - nz(abnRsiRaw[abnPhasingLag])) + (1.0 - abnTorque) * nz(abnCrsi[1])
+abnIsOB = abnCrsi >= abnOB
+abnIsOS = abnCrsi <= abnOS
+
+// 볼린저 밴드 이탈 = 비정상 캔들. 고가/저가 기준(원본과 동일). 비정상 매수=고가가 상단 초과, 비정상 매도=저가가 하단 이탈.
+abnBbBasis = ta.sma(close, abnLen)
+abnBbDev = ta.stdev(close, abnLen) * abnBbMult
+abnBbUpper = abnBbBasis + abnBbDev
+abnBbLower = abnBbBasis - abnBbDev
+abnRangeSpan = math.max(high - low, syminfo.mintick)
+abnUpperOut = math.max(high - abnBbUpper, 0.0)
+abnLowerOut = math.max(abnBbLower - low, 0.0)
+abnBearExt = abnUpperOut > 0 and abnUpperOut / abnRangeSpan >= abnBodyRatio
+abnBullExt = abnLowerOut > 0 and abnLowerOut / abnRangeSpan >= abnBodyRatio
+abnBearCandle = abnIsOB and abnBearExt   // 비정상 매수(과매수): cRSI 과매수 + 상단밴드 돌파
+abnBullCandle = abnIsOS and abnBullExt   // 비정상 매도(과매도): cRSI 과매도 + 하단밴드 이탈
+
+// 상태 래치: 이격도 중립 복귀 시 리셋. (원본 advanced-ichimoku.pine 동일 — 반등 감시 abnWatch는 auto-vwap 미이식, 배경이 안 쓰므로 생략)
+abnDisparityNeutral = overCount == 0 and underCount == 0
+var int abnCandleState = 0   // 1=비정상 매도(과매도), -1=비정상 매수(과매수), 0=없음
+if abnDisparityNeutral
+    abnCandleState := 0
+if abnBullCandle
+    abnCandleState := 1
+if abnBearCandle
+    abnCandleState := -1
+
+// 세로 배경색(원본 동일): 비정상 매도(abnCandleState==1)=파랑, 비정상 매수(abnCandleState==-1)=빨강.
+abnBg = abnCandleState == 1 ? color.new(abnSellBgColor, abnBgTransp) : abnCandleState == -1 ? color.new(abnBuyBgColor, abnBgTransp) : na
+
+// =========================
+// 과매수/과매도 수평선(CEO 지시) — 항상 var line 1개만 유지·갱신(2개 동시 표시 금지).
+//  가장 최근 비정상 이벤트 방향(lastAbnDir)에 따라 그 방향의 극값·색으로 라인 1개의 y·color를 스위칭한다.
+//   ▸ 최근이 비정상 매수(lastAbnDir==-1) → y=가장 최근 과매수 구간 high 최댓값, color=비정상 매수 배경색(abnBuyBgColor, 빨강). 파랑선 미표시.
+//   ▸ 최근이 비정상 매도(lastAbnDir== 1) → y=가장 최근 과매도 구간 low 최솟값, color=비정상 매도 배경색(abnSellBgColor, 파랑). 빨강선 미표시.
+//  ▸ 방향 래치(lastAbnDir): 비정상 매수/매도가 뜬 봉에서 그 방향으로 갱신되고, 이후 이격도 중립 복귀(abnCandleState==0)가 와도 "가장 최근 방향"으로 유지된다.
+//    → 라인은 항상 최근 이벤트 방향 1개만 그린다(어느 쪽도 없었던 초기(0)에는 미표시).
+//  구간 추적(유지): 비정상 매수/매도가 연속되는 봉을 한 "구간"으로 본다. 상태가 그 방향으로 새로 진입하는 봉(진입 엣지)에서 누적 극값을 그 봉 값으로 초기화하고,
+//   같은 방향이 지속되는 동안 high 최댓값/low 최솟값을 누적한다. 매 진행 봉마다 라인 y를 갱신 → "진행 중 구간도 최신 극값으로 갱신"(CEO: 진행 중 갱신).
+//  ▸ 라인 오브젝트는 1개(var line). 최초 1회만 line.new, 이후 line.set_xy1/2 + line.set_color로 갱신 → 오브젝트 누적 없음(항상 1개, max_lines_count 무관).
+//  ▸ extend=extend.both + xloc.bar_index로 화면 전체 가로. 점선(line.style_dotted)·width=1(얇게)은 유지.
+//  ⚠️ abnCandleState/lastAbnDir는 확정 성격 래치(진입 엣지 판정)라 신규 리페인팅 없음(원본 배경과 동일 특성). 형성 중 현재봉의 high/low 갱신은 원본 배경 실시간성과 동일.
+// =========================
+// 진입 엣지: 이번 봉이 그 방향 비정상인데 직전 봉은 그 방향이 아니었으면 = 새 구간 시작.
+abnBuyEnter = abnCandleState == -1 and (na(abnCandleState[1]) or abnCandleState[1] != -1)   // 과매수 구간 진입
+abnSellEnter = abnCandleState == 1 and (na(abnCandleState[1]) or abnCandleState[1] != 1)     // 과매도 구간 진입
+var float abnBuyRunHigh = na    // 현재(가장 최근) 과매수 구간의 누적 최고가
+var float abnSellRunLow = na    // 현재(가장 최근) 과매도 구간의 누적 최저가
+if abnBuyEnter
+    abnBuyRunHigh := high
+else if abnCandleState == -1
+    abnBuyRunHigh := math.max(nz(abnBuyRunHigh, high), high)
+if abnSellEnter
+    abnSellRunLow := low
+else if abnCandleState == 1
+    abnSellRunLow := math.min(nz(abnSellRunLow, low), low)
+// 가장 최근 비정상 이벤트 방향 래치 — 매수(-1)/매도(1)가 뜬 봉에서 갱신, 중립 복귀(0)에도 유지.
+var int lastAbnDir = 0   // -1=최근 비정상 매수(과매수), 1=최근 비정상 매도(과매도), 0=아직 없음
+if abnCandleState == -1
+    lastAbnDir := -1
+else if abnCandleState == 1
+    lastAbnDir := 1
+// 최근 방향에 따라 라인 1개의 y·color를 선택(2개 동시 금지). na 가드.
+abnLevelY = lastAbnDir == -1 ? abnBuyRunHigh : lastAbnDir == 1 ? abnSellRunLow : na
+abnLevelColor = lastAbnDir == -1 ? abnBuyBgColor : abnSellBgColor
+var line abnLevelLine = na    // 과매수/과매도 수평선(항상 1개만 유지)
+if abnShowLevelLines and lastAbnDir != 0 and not na(abnLevelY)
+    if na(abnLevelLine)
+        abnLevelLine := line.new(bar_index, abnLevelY, bar_index + 1, abnLevelY, xloc=xloc.bar_index, extend=extend.both, color=abnLevelColor, style=line.style_dotted, width=1)
+    else
+        line.set_xy1(abnLevelLine, bar_index, abnLevelY)
+        line.set_xy2(abnLevelLine, bar_index + 1, abnLevelY)
+        line.set_color(abnLevelLine, abnLevelColor)
 
 // =========================
 // 밴드워킹(추세 국면) 판정 — 이치모쿠 advanced-ichimoku.pine "VWAP 상태" 알고리즘(원본 vwUpperWalk/vwLowerWalk)의 이식(포팅).
@@ -831,6 +976,11 @@ barcolor(ipShowMarkers and ipMarkerCandleColor and showLongMarker and not na(low
 //  스윕라인(longCE/shortCE)은 여기로 옮기지 않는다(CEO: "청산선 스윕라인은 옮기지 않음") → plot 하지 않는다.
 plot(showClearLines ? longClear : na, title="롱 청산선", color=longClearLineColor, linewidth=clearLineWidth, offset=offset, editable=true, linestyle=plot.linestyle_solid)
 plot(showClearLines ? shortClear : na, title="숏 청산선", color=shortClearLineColor, linewidth=clearLineWidth, offset=offset, editable=true, linestyle=plot.linestyle_solid)
+
+// 비정상 매수/매도 세로 배경(bgcolor) — 이치모쿠 이식. 매도=파랑, 매수=빨강. 표시 전용.
+//  ⚠️ 횡보 압축 배경(밴드2 영역 한정 fill, 투명도 78)과 시각 충돌 확인: 비정상 배경은 화면 전체 세로 스트립(bgcolor)이고 반투명(기본 투명도 82로 더 옅음)이라
+//   밴드2 회색 fill과 겹쳐도 각자 반투명으로 합성될 뿐 서로 덮어쓰지 않는다(원본 이치모쿠도 bgcolor+fill 공존). 색도 회색 vs 파랑/빨강으로 구분된다.
+bgcolor(abnShowBg ? abnBg : na, title="비정상 매수/매도 배경")
 
 if barstate.islast
     lineEndX = bar_index + offset
