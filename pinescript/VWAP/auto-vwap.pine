@@ -306,8 +306,8 @@ abnShowBg = input.bool(true, title="비정상 매수/매도 배경 표시", grou
 abnSellBgColor = input.color(color.blue, title="비정상 매도 배경 색(파랑)", group=ABN_GROUP)
 abnBuyBgColor = input.color(color.red, title="비정상 매수 배경 색(빨강)", group=ABN_GROUP)
 abnBgTransp = input.int(82, minval=0, maxval=100, title="비정상 배경 투명도", group=ABN_GROUP)
-// 과매수/과매도 수평선(신규, CEO 지시) — 가장 최근 비정상 이벤트 방향에 따라 항상 1개만 표시.
-abnShowLevelLines = input.bool(true, title="과매수/과매도 수평선 표시", group=ABN_GROUP, tooltip="가장 최근 비정상 이벤트 방향에 따라 수평선을 항상 1개만 표시합니다(2개 동시 표시 안 함). 최근이 비정상 매수(과매수)면 그 구간의 최고가에 빨강(수평선 매수 색) 수평선 1개, 최근이 비정상 매도(과매도)면 그 구간의 최저가에 파랑(수평선 매도 색) 수평선 1개를 그립니다. 화면 전체 가로이며(굵기·점선/실선은 아래 옵션), 새 구간이 나오거나 방향이 바뀌면 그 방향의 극값·색으로 갱신합니다. 확정봉 구간 추적이라 리페인팅이 없습니다. 표시 전용 옵션입니다.")
+// 과매수/과매도 수평선(CEO 지시) — 최근 2개 비정상 이벤트(구간) 방향 조합으로 매수선/매도선을 표시.
+abnShowLevelLines = input.bool(true, title="과매수/과매도 수평선 표시", group=ABN_GROUP, tooltip="가장 최근 2개의 비정상 이벤트(구간) 방향을 보고 수평선을 표시합니다. 최근 2개에 매도(과매도)가 포함되면 가장 최근 과매도 구간의 최저가에 파랑(수평선 매도 색) 수평선을, 매수(과매수)가 포함되면 가장 최근 과매수 구간의 최고가에 빨강(수평선 매수 색) 수평선을 그립니다. 따라서 둘 다 매도면 매도선 1개, 둘 다 매수면 매수선 1개, 매도 1+매수 1(순서 무관)이면 두 선 모두(총 2개) 표시합니다. 각 선은 그 방향 가장 최근 1건 구간의 극값입니다. 화면 전체 가로이며(굵기·점선/실선은 아래 옵션), 새 구간이 나올 때마다 극값으로 갱신합니다. 확정봉 구간 추적이라 리페인팅이 없습니다. 표시 전용 옵션입니다.")
 // 과매수/과매도 수평선 전용 색(CEO 지시: 옵션화) — 배경색(abnBuyBgColor/abnSellBgColor)과 독립으로 바꿀 수 있게 별도 input을 둔다.
 //  기본값은 배경색과 동일(매수=빨강 color.red / 매도=파랑 color.blue) → 기존 동작 그대로. 사용자가 배경색과 다르게 지정하려면 이 값을 조정한다.
 abnLevelBuyColor = input.color(color.red, title="과매수 수평선 색(매수)", group=ABN_GROUP, active=abnShowLevelLines, tooltip="가장 최근 비정상 매수(과매수) 방향일 때 그리는 수평선 색. 기본 빨강(비정상 매수 배경색과 동일). 비정상 배경색과 독립적으로 조정할 수 있습니다.")
@@ -400,19 +400,21 @@ if abnBearCandle
 abnBg = abnCandleState == 1 ? color.new(abnSellBgColor, abnBgTransp) : abnCandleState == -1 ? color.new(abnBuyBgColor, abnBgTransp) : na
 
 // =========================
-// 과매수/과매도 수평선(CEO 지시) — 항상 var line 1개만 유지·갱신(2개 동시 표시 금지).
-//  가장 최근 비정상 이벤트 방향(lastAbnDir)에 따라 그 방향의 극값·색으로 라인 1개의 y·color를 스위칭한다.
-//   ▸ 최근이 비정상 매수(lastAbnDir==-1) → y=가장 최근 과매수 구간 high 최댓값, color=비정상 매수 배경색(abnBuyBgColor, 빨강). 파랑선 미표시.
-//   ▸ 최근이 비정상 매도(lastAbnDir== 1) → y=가장 최근 과매도 구간 low 최솟값, color=비정상 매도 배경색(abnSellBgColor, 파랑). 빨강선 미표시.
-//  ▸ 방향 래치(lastAbnDir): 비정상 매수/매도가 뜬 봉에서 그 방향으로 갱신되고, 이후 이격도 중립 복귀(abnCandleState==0)가 와도 "가장 최근 방향"으로 유지된다.
-//    → 라인은 항상 최근 이벤트 방향 1개만 그린다(어느 쪽도 없었던 초기(0)에는 미표시).
-//  구간 추적(유지): 비정상 매수/매도가 연속되는 봉을 한 "구간"으로 본다. 상태가 그 방향으로 새로 진입하는 봉(진입 엣지)에서 누적 극값을 그 봉 값으로 초기화하고,
-//   같은 방향이 지속되는 동안 high 최댓값/low 최솟값을 누적한다. 매 진행 봉마다 라인 y를 갱신 → "진행 중 구간도 최신 극값으로 갱신"(CEO: 진행 중 갱신).
-//  ▸ 라인 오브젝트는 1개(var line). 최초 1회만 line.new, 이후 line.set_xy1/2 + line.set_color로 갱신 → 오브젝트 누적 없음(항상 1개, max_lines_count 무관).
-//  ▸ extend=extend.both + xloc.bar_index로 화면 전체 가로. 점선(line.style_dotted)·width=1(얇게)은 유지.
-//  ⚠️ abnCandleState/lastAbnDir는 확정 성격 래치(진입 엣지 판정)라 신규 리페인팅 없음(원본 배경과 동일 특성). 형성 중 현재봉의 high/low 갱신은 원본 배경 실시간성과 동일.
+// 과매수/과매도 수평선(CEO 지시) — 최근 2개 비정상 이벤트(구간) 방향 조합으로 매수선/매도선을 각각 표시.
+//  "이벤트(구간)" 정의: 비정상 매수/매도가 연속되는 봉을 한 "구간"으로 본다. 상태가 그 방향으로 새로 진입하는 봉(진입 엣지)이 새 이벤트의 시작이다.
+//   → 방향 히스토리(curEvtDir=최근 이벤트, prevEvtDir=직전 이벤트)를 이 진입 엣지에서만 shift한다(방향 전환/중립 복귀 후 재진입도 각각 새 이벤트).
+//  표시 규칙(최근 2개 이벤트에 그 방향이 포함되면 그 방향 선 표시):
+//   ▸ 매도선(파랑) 표시 = (curEvtDir==1 or prevEvtDir==1) — 최근 2개 중 매도 포함. y=가장 최근 과매도 구간 low 최솟값(abnSellRunLow).
+//   ▸ 매수선(빨강) 표시 = (curEvtDir==-1 or prevEvtDir==-1) — 최근 2개 중 매수 포함. y=가장 최근 과매수 구간 high 최댓값(abnBuyRunHigh).
+//   → 둘 다 매도면 매도선 1개, 둘 다 매수면 매수선 1개, 매도1+매수1(순서 무관)이면 두 선 모두(총 2개). 각 선은 그 방향 가장 최근 1건 구간의 극값.
+//  구간 극값(유지): 진입 엣지에서 그 방향 극값을 그 봉 값으로 초기화하고, 같은 방향 지속 시 high 최댓값/low 최솟값을 누적 → 진행 중 구간도 최신 극값으로 갱신.
+//   각 방향 극값(abnBuyRunHigh/abnSellRunLow)은 방향별 독립 var라 항상 그 방향 "가장 최근 1건"을 담는다(혼합이면 두 값이 각자 최근 매수·매도 구간을 유지).
+//  ▸ 라인 오브젝트는 방향별 1개씩(var line abnBuyLine/abnSellLine). 최초 1회만 line.new, 이후 set_*로 갱신 → 오브젝트 누적 없음(항상 최대 2개, max_lines_count 무관).
+//   미표시 방향은 line.delete + na로 잔상 제거(앞서 1개 통합 때의 잔상 교정 방식과 동일).
+//  ▸ extend=extend.both + xloc.bar_index로 화면 전체 가로. 점선(abnLevelDashed)·굵기(abnLevelWidth) 옵션을 두 선에 각각 연결.
+//  ⚠️ abnCandleState/이벤트 방향 히스토리는 확정 성격 래치(진입 엣지 판정)라 신규 리페인팅 없음(원본 배경과 동일 특성). 형성 중 현재봉의 high/low 갱신은 원본 배경 실시간성과 동일.
 // =========================
-// 진입 엣지: 이번 봉이 그 방향 비정상인데 직전 봉은 그 방향이 아니었으면 = 새 구간 시작.
+// 진입 엣지: 이번 봉이 그 방향 비정상인데 직전 봉은 그 방향이 아니었으면 = 새 구간(이벤트) 시작.
 abnBuyEnter = abnCandleState == -1 and (na(abnCandleState[1]) or abnCandleState[1] != -1)   // 과매수 구간 진입
 abnSellEnter = abnCandleState == 1 and (na(abnCandleState[1]) or abnCandleState[1] != 1)     // 과매도 구간 진입
 var float abnBuyRunHigh = na    // 현재(가장 최근) 과매수 구간의 누적 최고가
@@ -425,35 +427,52 @@ if abnSellEnter
     abnSellRunLow := low
 else if abnCandleState == 1
     abnSellRunLow := math.min(nz(abnSellRunLow, low), low)
-// 가장 최근 비정상 이벤트 방향 래치 — 매수(-1)/매도(1)가 뜬 봉에서 갱신, 중립 복귀(0)에도 유지.
-var int lastAbnDir = 0   // -1=최근 비정상 매수(과매수), 1=최근 비정상 매도(과매도), 0=아직 없음
-if abnCandleState == -1
-    lastAbnDir := -1
-else if abnCandleState == 1
-    lastAbnDir := 1
-// 최근 방향에 따라 라인 1개의 y·color를 선택(2개 동시 금지). na 가드.
-//  ▸ 색은 수평선 전용 옵션(abnLevelBuyColor/abnLevelSellColor)을 쓴다(기본값=배경색과 동일 → 거동 불변). 스타일=abnLevelDashed(기본 점선), 굵기=abnLevelWidth(기본 1).
-abnLevelY = lastAbnDir == -1 ? abnBuyRunHigh : lastAbnDir == 1 ? abnSellRunLow : na
-abnLevelColor = lastAbnDir == -1 ? abnLevelBuyColor : abnLevelSellColor
+// 이벤트 방향 히스토리 — 진입 엣지에서만 shift. curEvtDir=최근 이벤트 방향, prevEvtDir=직전 이벤트 방향(-1=매수, 1=매도, 0=아직 없음).
+//  ▸ 새 이벤트가 시작될 때(진입 엣지) 직전 최근값을 prev로 밀고(shift) 새 방향을 cur에 넣는다. 같은 방향 연속 봉(구간 내부)은 새 이벤트가 아니므로 shift하지 않는다.
+var int curEvtDir = 0
+var int prevEvtDir = 0
+if abnBuyEnter
+    prevEvtDir := curEvtDir
+    curEvtDir := -1
+else if abnSellEnter
+    prevEvtDir := curEvtDir
+    curEvtDir := 1
+// 최근 2개 이벤트에 그 방향이 포함되면 그 방향 선을 표시(혼합이면 둘 다). na·표시토글 가드.
+showBuyLevel  = abnShowLevelLines and (curEvtDir == -1 or prevEvtDir == -1) and not na(abnBuyRunHigh)
+showSellLevel = abnShowLevelLines and (curEvtDir == 1 or prevEvtDir == 1) and not na(abnSellRunLow)
 abnLevelStyle = abnLevelDashed ? line.style_dotted : line.style_solid
-var line abnLevelLine = na    // 과매수/과매도 수평선(항상 1개만 유지)
-if abnShowLevelLines and lastAbnDir != 0 and not na(abnLevelY)
-    if na(abnLevelLine)
-        abnLevelLine := line.new(bar_index, abnLevelY, bar_index + 1, abnLevelY, xloc=xloc.bar_index, extend=extend.both, color=abnLevelColor, style=abnLevelStyle, width=abnLevelWidth)
+// 매수선(빨강, high 최댓값) — 표시 조건 충족 시 그림/갱신, 미충족 시 삭제+na(잔상 제거).
+var line abnBuyLine = na
+if showBuyLevel
+    if na(abnBuyLine)
+        abnBuyLine := line.new(bar_index, abnBuyRunHigh, bar_index + 1, abnBuyRunHigh, xloc=xloc.bar_index, extend=extend.both, color=abnLevelBuyColor, style=abnLevelStyle, width=abnLevelWidth)
     else
-        line.set_xy1(abnLevelLine, bar_index, abnLevelY)
-        line.set_xy2(abnLevelLine, bar_index + 1, abnLevelY)
-        line.set_color(abnLevelLine, abnLevelColor)
-        line.set_style(abnLevelLine, abnLevelStyle)
-        line.set_width(abnLevelLine, abnLevelWidth)
-else if not na(abnLevelLine)
-    // 표시 OFF(또는 방향 미확정으로 회귀) 시 이미 생성된 라인이 남지 않도록 삭제하고 na로 되돌린다.
-    line.delete(abnLevelLine)
-    abnLevelLine := na
-// 과매수/과매도 수평선 값(abnLevelY)을 우측 가격축 라벨로만 표기(CEO 지시). display.price_scale 전용 plot이라 차트엔 선을 그리지 않는다
-//  → 차트 수평선은 위 abnLevelLine(line 오브젝트)이 이미 그리므로 중복 선 없음. 표시 토글 OFF·방향 미확정·워밍업(abnLevelY na)이면 라벨도 없음.
-//  라벨 색은 최근 이벤트 색(abnLevelColor: 매수=빨강/매도=파랑)과 일치. 확정 성격 값(abnLevelY)이라 신규 리페인팅 없음.
-plot(abnShowLevelLines ? abnLevelY : na, title="과매수/과매도선", color=abnLevelColor, display=display.price_scale, editable=true)
+        line.set_xy1(abnBuyLine, bar_index, abnBuyRunHigh)
+        line.set_xy2(abnBuyLine, bar_index + 1, abnBuyRunHigh)
+        line.set_color(abnBuyLine, abnLevelBuyColor)
+        line.set_style(abnBuyLine, abnLevelStyle)
+        line.set_width(abnBuyLine, abnLevelWidth)
+else if not na(abnBuyLine)
+    line.delete(abnBuyLine)
+    abnBuyLine := na
+// 매도선(파랑, low 최솟값) — 표시 조건 충족 시 그림/갱신, 미충족 시 삭제+na(잔상 제거).
+var line abnSellLine = na
+if showSellLevel
+    if na(abnSellLine)
+        abnSellLine := line.new(bar_index, abnSellRunLow, bar_index + 1, abnSellRunLow, xloc=xloc.bar_index, extend=extend.both, color=abnLevelSellColor, style=abnLevelStyle, width=abnLevelWidth)
+    else
+        line.set_xy1(abnSellLine, bar_index, abnSellRunLow)
+        line.set_xy2(abnSellLine, bar_index + 1, abnSellRunLow)
+        line.set_color(abnSellLine, abnLevelSellColor)
+        line.set_style(abnSellLine, abnLevelStyle)
+        line.set_width(abnSellLine, abnLevelWidth)
+else if not na(abnSellLine)
+    line.delete(abnSellLine)
+    abnSellLine := na
+// 각 방향 수평선 값을 우측 가격축 라벨로만 표기(CEO 지시). display.price_scale 전용 plot이라 차트엔 선을 그리지 않는다(차트 선은 위 line 오브젝트가 그림 → 중복 없음).
+//  → 표시되는 선만 라벨(표시 조건 미충족·워밍업 na이면 라벨도 없음). 라벨 색은 각 방향 전용 색과 일치. 확정 성격 값이라 신규 리페인팅 없음.
+plot(showBuyLevel ? abnBuyRunHigh : na, title="과매수선(매수)", color=abnLevelBuyColor, display=display.price_scale, editable=true)
+plot(showSellLevel ? abnSellRunLow : na, title="과매도선(매도)", color=abnLevelSellColor, display=display.price_scale, editable=true)
 
 // =========================
 // 밴드워킹(추세 국면) 판정 — 이치모쿠 advanced-ichimoku.pine "VWAP 상태" 알고리즘(원본 vwUpperWalk/vwLowerWalk)의 이식(포팅).
