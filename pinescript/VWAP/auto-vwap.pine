@@ -1080,66 +1080,6 @@ fill(upperBand_2, lowerBand_2, color=(showChopBg and chopBgOn and showBand_2 and
 plotshape(ipShowMarkers and showShortMarker ? upper2MarkerY : na, title="변곡 지점(상단)", style=ipMarkerStyle == "원" ? shape.circle : ipMarkerStyle == "삼각형" ? shape.triangleup : ipMarkerStyle == "다이아몬드" ? shape.diamond : ipMarkerStyle == "네모" ? shape.square : shape.cross, location=location.absolute, color=shortMarkerColorFinal, size=size.tiny, offset=offset, editable=true)
 plotshape(ipShowMarkers and showLongMarker ? lower2MarkerY : na, title="변곡 지점(하단)", style=ipMarkerStyle == "원" ? shape.circle : ipMarkerStyle == "삼각형" ? shape.triangleup : ipMarkerStyle == "다이아몬드" ? shape.diamond : ipMarkerStyle == "네모" ? shape.square : shape.cross, location=location.absolute, color=longMarkerColorFinal, size=size.tiny, offset=offset, editable=true)
 
-// =========================
-// Long/Short 표시(역삼각형 — 이치모쿠 상승/하락 전환 규약 이식) — CEO 지시.
-//  ▸ 이치모쿠(advanced-ichimoku.pine) 전환 삼각형 규약: 상승 전환(매수)=shape.triangleup·location.belowbar·색 defaultBuyColor(#00ACC1 청록),
-//    하락 전환(매도)=shape.triangledown·location.abovebar·색 defaultSellColor(#FF5FA2 핑크). 그 모양·색·위치를 그대로 이식한다.
-//    (지시서 "역삼각형"은 색·위치 규약 이식 취지 — 이치모쿠 규약 동일 적용상 롱=triangleup/belowbar, 숏=triangledown/abovebar가 정합.)
-//    투명도 0(선명)·size.small.
-//  ▸ 롱 표시 = 3조건 AND: ① SAR 종가 아래(sarBelow=상승세) ② 롱 변곡 마커(showLongMarker, 색 무관) ③ VWAP 선 지지 — 최근 3봉 중 **가장 최근** 지지/저항 이벤트가 지지일 때(recentSupport).
-//    숏 표시 = 반대 3조건 AND: sarAbove·숏 변곡 마커 showShortMarker(색 무관)·VWAP 선 저항 — 최근 3봉 중 **가장 최근** 지지/저항 이벤트가 저항일 때(recentResistance).
-//    ⚠️ [CEO 지시 — 변곡 항을 화면 마커 전체로 확대(버그 수정)] 변곡 항을 원 변곡(upper2Marker/lower2Marker) → **화면에 실제 그려지는 숏/롱 변곡 마커(showShortMarker/showLongMarker)** 로 바꿨다.
-//       근거: CEO "숏 변곡 마크가 뜨면 매도"는 화면 마커 기준인데, showShortMarker는 원 변곡(upper2Marker) OR 연장(shortExt) OR VWAP 관통 연장(shortVwapExt)의 합이라, 마지막 봉의 화면 마커가 연장이면 upper2Marker=false여서 매도 신호가 억제되던 버그가 있었다. 화면 마커 전체로 확대해 "SAR 하락 + 숏 변곡 마크 + 최근 3봉 저항"이면 매도 신호가 확실히 뜨게 한다(롱 대칭). 교대 래치(중복 금지)는 유지된다.
-//    ⚠️ [CEO 지시 — 3봉 완화·종가조건 제거] 기존 ④ 종가>VWAP(롱 close>vwapValue)/종가<VWAP(숏 close<vwapValue)는 제거했다. 근거: CEO 예시(직전봉 vwap 선 지지 + 현재봉 롱 변곡 + 파라볼릭 롱 → 현재봉 매수)에서 현재봉은 롱 변곡(밴드2 하단 부근) 봉이라 종가가 vwap 아래일 수 있어, close>vwapValue를 유지하면 예시가 깨진다.
-//    ⚠️ [CEO 지시 — 3봉 "가장 최근 이벤트 채택"(버그 수정)] 지지/저항은 현재봉 포함 최근 3봉(현재→[1]→[2]) 중 **가장 최근에 발생한 지지/저항 이벤트**로 판정한다(recentSupport/recentResistance). 종전 단순 OR(하나라도 성립하면 인정)은 최근에 상태가 번복돼도 과거 이벤트로 오발동하던 버그가 있었다(예: [2]저항→[1]지지→현재무관이면 매도 오탐). 스캔 우선순위 현재→[1]→[2], 봉당 저항 우선. (산식·판정부는 아래 lsLongCond/lsShortCond 앞 블록 참조.)
-//    ※ 채도 무관(CEO 지시): energyStrong(진한/둔탁 채도) 게이트를 제거해 변곡 마커면 색과 상관없이 조건 충족. 변곡 판정은 **화면 변곡 마커 전체**(showLongMarker/showShortMarker — 원 변곡 + 고저 연장 + VWAP 관통 연장, 반대방향 우선 억제 반영)를 쓴다(버그 수정, 위 참조).
-//  ▸ 교대 래치(중복 방지): var int lastSignal(0=없음/1=롱/-1=숏). 직전과 다른 방향일 때만 표시하고 그 방향으로 래치를 갱신한다.
-//    같은 방향 연속(중복) 억제. 확정봉(barstate.isconfirmed)에서만 래치를 갱신해 리페인팅을 회피한다.
-//  ⚠️ na 가드: sarBelow/sarAbove는 sarVal na면 둘 다 false(not na 가드). vwapValue na면 close 비교가 false. 워밍업엔 조건 미충족 → 표시 없음.
-//  ⚠️ 기존 SAR·변곡 마커·VWAP 선색·게이트 로직 불변(읽기·재사용만). plot 상한 여유 충분(현 plotshape/plot 9개 → +2).
-// Long/Short 표시 조건 — 3조건 AND(SAR 방향 + 변곡 마커 + 최근 3봉 지지/저항).
-//  ▸ 롱 = sarBelow(파라볼릭 상승세) AND showLongMarker(롱 변곡 마커) AND recentSupport(최근 3봉 가장 최근 이벤트=지지).
-//    숏 = sarAbove(파라볼릭 하락세) AND showShortMarker(숏 변곡 마커) AND recentResistance(최근 3봉 가장 최근 이벤트=저항).
-//  ▸ 파라볼릭 상승세 = sarBelow(SAR 종가 아래), 하락세 = sarAbove(SAR 종가 이상) — [C] 종가 기준. 아래 교대 래치로 방향 중복은 그대로 차단.
-//  ⚠️ (롤백) 비정상 수평선 돌파 OR 항(매수=ta.crossover(close, abnSellRunLow)·매도=ta.crossunder(close, abnBuyRunHigh))은 제거했다(CEO 지시).
-//  ⚠️ (제거) 50×100선 골든/데드 크로스 OR 항(goldenCross/deadCross + 파라볼릭 방향)도 제거했다(본부장 지시). 관련 ma100 계산·input(ma100Type/ma100Len)·MA100_GROUP·주석까지 dead code로 함께 정리.
-//  ⚠️ na 가드: sarBelow/sarAbove·showShortMarker/showLongMarker·recentSupport/recentResistance 모두 boolean. sarVal na면 sarBelow/sarAbove 둘 다 false.
-//  ⚠️ vwap 지지/저항 3봉 "가장 최근 이벤트 채택": vwapSupport[1]/[2]·vwapResistance[1]/[2]는 확정봉 과거값 → 리페인팅 무관(현재봉만 형성 중 변동, 기존 선색과 동일 성격). 워밍업엔 과거 참조가 false(중립) → recentSupport/recentResistance 모두 false → 억제 없음.
-//  ⚠️ 선언순서: sarBelow/sarAbove(L978-979)·showLongMarker/showShortMarker(L984-985)·vwapValue(L359)·vwapSupport/vwapResistance(L657-658, 판정 L660-681)
-//     모두 이 지점보다 앞서 선언됨 → forward-reference 없음(CE10272류 재발 없음). vwapSupport/vwapResistance 및 [1]/[2] 과거 참조도 선언 이후라 안전. showShortMarker/showLongMarker는 원 변곡·연장 모두 확정봉 기반(low/high/close·마커[1]) → 리페인팅 성격 불변.
-// ★ [CEO 지시 — 3봉 완화 버그 수정] 단순 OR(vwapSupport|[1]|[2] / vwapResistance|[1]|[2])는 3봉 중 하나만 성립해도 인정돼,
-//   "이전2봉 저항 → 이전1봉 지지 → 현재봉 무관"처럼 최근에 상태가 번복됐는데도 과거 이벤트([2])로 잘못 발동하는 오탐이 있었다.
-//   → "3봉(현재→[1]→[2]) 중 가장 최근(현재봉에 가장 가까이) 발생한 지지/저항 이벤트"를 현재봉 상태로 채택하고, 그보다 과거 이벤트는 무시(번복)한다.
-//   스캔 우선순위: 현재봉 → [1] → [2]. 각 봉 안에서는 판정 블록(L677-681)과 동일하게 **저항 우선**(close==vwap 등 경계 처리 정합).
-//    (vwapSupport/vwapResistance는 if isResistance / else if isSupport 로 봉당 상호배타이나, 삼항에서도 저항을 먼저 평가해 우선순위를 일관 유지.)
-//   ⚠️ vwapSupport[1]/[2]·vwapResistance[1]/[2]는 확정봉 과거값 → 리페인팅 무관. 3봉 모두 무관(중립)이면 supResRecent==0 → 지지·저항 항 모두 false(신호 억제, 종전 중립 거동과 정합).
-int supResRecent =
-     vwapResistance    ? -1 : vwapSupport    ? 1 :
-     vwapResistance[1] ? -1 : vwapSupport[1] ? 1 :
-     vwapResistance[2] ? -1 : vwapSupport[2] ? 1 : 0
-bool recentSupport    = supResRecent == 1     // 최근 3봉 중 가장 가까운 이벤트가 지지
-bool recentResistance = supResRecent == -1    // 최근 3봉 중 가장 가까운 이벤트가 저항
-// ★ [CEO 지시 — 진한 색(강한 에너지) 변곡 게이트] 매수/매도 신호(역삼각형)는 변곡 마커가 진한 색일 때만 발동한다.
-//   변곡 마커 색 채도는 energyStrong(L843, OBV 방향 격차 |DI+−DI-| 평균/3봉 모멘텀 기준)이 갈랐다. energyStrong=true→진한 색(강), false→둔탁 색(약, na 포함).
-//   → 롱·숏 신호식에 energyStrong를 AND로 추가해, 둔탁 색 변곡(energyStrong=false)에서는 lsLongCond/lsShortCond가 false가 되게 한다.
-//   ⚠️ 방향 공통: energyStrong는 방향 무관 단일 boolean(롱/숏 마커 색이 이 값을 공유하되 색 상수만 다름) → 롱·숏 모두 동일 energyStrong를 참조한다.
-//   ⚠️ 변곡 마커 자체의 표시(showLong/ShortMarker)·색 로직(lower/upperMarkerColor)은 불변 — 둔탁 색 마커는 계속 뜨고, 신호(역삼각형)만 진한 색에서 발동.
-//   ⚠️ 선언순서: energyStrong(L843) < 여기(신호식) → forward-reference 없음. energyStrong는 ta.sma·과거참조[3]만 사용(확정봉 기반) → 리페인팅 성격 불변.
-bool lsLongCond  = sarBelow and showLongMarker  and recentSupport    and energyStrong
-bool lsShortCond = sarAbove and showShortMarker and recentResistance and energyStrong
-// 교대 래치 — 직전과 다른 방향일 때만 발화. 확정봉에서만 상태 갱신(리페인팅 회피).
-var int lastSignal = 0
-bool lsLongShow  = lsLongCond  and lastSignal != 1
-bool lsShortShow = lsShortCond and lastSignal != -1
-if barstate.isconfirmed
-    if lsLongShow
-        lastSignal := 1
-    else if lsShortShow
-        lastSignal := -1
-// 롱 = 이치모쿠 상승 전환 규약(triangleup·belowbar·defaultBuyColor). 숏 = 하락 전환 규약(triangledown·abovebar·defaultSellColor). 투명도 0·size.small.
-plotshape(lsLongShow,  title="Long 표시",  style=shape.triangleup,   location=location.belowbar, color=color.new(#00ACC1, 0), size=size.small, offset=offset, editable=true)
-plotshape(lsShortShow, title="Short 표시", style=shape.triangledown, location=location.abovebar, color=color.new(#FF5FA2, 0), size=size.small, offset=offset, editable=true)
-
 // 변곡 마커 봉 캔들 색(CEO 지시, ipMarkerCandleColor 기본 ON) — 표시된 마커 봉의 캔들을 마커색으로 칠한다.
 //  ▸ 조건·색 모두 plotshape 마커와 동일 변수 재사용: 롱=showLongMarker→longMarkerColorFinal, 숏=showShortMarker→shortMarkerColorFinal.
 //    (연장 봉은 상속색까지 마커와 정확히 일치. 마커 y·판정·채도·다른 로직 불변.)
