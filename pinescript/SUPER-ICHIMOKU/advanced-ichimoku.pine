@@ -1652,6 +1652,10 @@ momSellSignalColor = input.color(#FF1744, title="모멘텀 매도 신호 색", g
 // Pine color.new(col, transp)의 transp는 '투명도'이므로 transp = 100 - opacity 로 변환해 적용. 표시 전용.
 trendSignalOpacity = input.int(50, title="역삼각형 추세 신호 불투명도", minval=0, maxval=100, group="신호 표시", tooltip="매수(상승)/매도(하락) 역삼각형 신호 마커의 불투명도(%). 100=완전 불투명, 0=완전 투명. 색상(hue)·모양·위치·신호 조건은 불변, 표시 전용.")
 trendSignalTransp = 100 - trendSignalOpacity
+// 역삼각형(매수/매도 추세) 신호 마커 전체를 켜고 끄는 마스터 보기 토글. 기본 OFF(표시 안 함).
+//  ON일 때만 아래 신호 삼각형 6종(매수/매도 × 일반/거래량)이 그려진다. 방향별 토글(showBuySignal·showSellSignal)과 AND 결합.
+//  표시(보기)만 제어 — 신호 판정·발화 로직(sBuyXX/sSellXX·vwBuyXX/vwSellXX)·색·모양·위치는 불변.
+showTrendSignal = input.bool(false, title="역삼각형 추세 신호 표시", group="신호 표시", tooltip="상승(매수)/하락(매도) 역삼각형 추세 신호 마커의 전체 표시 여부. 기본 OFF. ON일 때만 신호 삼각형(0.5×/1×/2× · 일반/거래량)이 차트에 그려집니다. 방향별 토글(매수 신호 표시·매도 신호 표시)과 함께 적용(둘 다 ON이어야 표시). 신호 판정·색·모양·위치는 불변, 표시 전용.")
 momBuyColor = color.new(momentum ? momBuySignalColor : defaultBuyColor, trendSignalTransp)
 momSellColor = color.new(momentum ? momSellSignalColor : defaultSellColor, trendSignalTransp)
 // 신호 삼각형은 최종 발화(sBuyXX/sSellXX) 기준 — 정상 봉은 확정봉(fBuyXX, 다음 봉 확정 시·1봉 지연·휩쏘 필터), 혼합 비정상 봉은 그 봉 즉시(iBuyXX).
@@ -1659,18 +1663,18 @@ momSellColor = color.new(momentum ? momSellSignalColor : defaultSellColor, trend
 //  혼합 모드(sigHybrid)는 sigVw=false라 여기서 not sigVw 경로로 sBuyXX/sSellXX 삼각형을 그린다. 비정상 봉은 sBuyXX=iBuyXX(즉시), 정상 봉은 sBuyXX=fBuyXX.
 //  sBuyXX는 혼합 파이프라인/즉시 발화 dir을 함께 반영하므로 차트 삼각형과 테이블 추세(dirXX)가 같은 소스를 참조 → 정합.
 //  예측/확정 방식은 sigPredict(=isPredict)가 신호 계산 단계에서 이미 반영 — 여기선 소스 택일만. 계산식·파이프라인 무변경(비정상 봉 즉시 발화 경로만 신규).
-plotshape(showBuySignal and not sigVw and sBuy05, title="매수 0.5×", style=shape.triangleup, location=location.belowbar, color=momBuyColor, size=size.tiny)
-plotshape(showBuySignal and not sigVw and sBuy10, title="매수 1×", style=shape.triangleup, location=location.belowbar, color=momBuyColor, size=size.small)
-plotshape(showBuySignal and not sigVw and sBuy20, title="매수 2×", style=shape.triangleup, location=location.belowbar, color=momBuyColor, size=size.normal)
-plotshape(showSellSignal and not sigVw and sSell05, title="매도 0.5×", style=shape.triangledown, location=location.abovebar, color=momSellColor, size=size.tiny)
-plotshape(showSellSignal and not sigVw and sSell10, title="매도 1×", style=shape.triangledown, location=location.abovebar, color=momSellColor, size=size.small)
-plotshape(showSellSignal and not sigVw and sSell20, title="매도 2×", style=shape.triangledown, location=location.abovebar, color=momSellColor, size=size.normal)
-plotshape(showBuySignal and sigVw and vwBuy05, title="매수 0.5× (거래량)", style=shape.triangleup, location=location.belowbar, color=momBuyColor, size=size.tiny)
-plotshape(showBuySignal and sigVw and vwBuy10, title="매수 1× (거래량)", style=shape.triangleup, location=location.belowbar, color=momBuyColor, size=size.small)
-plotshape(showBuySignal and sigVw and vwBuy20, title="매수 2× (거래량)", style=shape.triangleup, location=location.belowbar, color=momBuyColor, size=size.normal)
-plotshape(showSellSignal and sigVw and vwSell05, title="매도 0.5× (거래량)", style=shape.triangledown, location=location.abovebar, color=momSellColor, size=size.tiny)
-plotshape(showSellSignal and sigVw and vwSell10, title="매도 1× (거래량)", style=shape.triangledown, location=location.abovebar, color=momSellColor, size=size.small)
-plotshape(showSellSignal and sigVw and vwSell20, title="매도 2× (거래량)", style=shape.triangledown, location=location.abovebar, color=momSellColor, size=size.normal)
+plotshape(showTrendSignal and showBuySignal and not sigVw and sBuy05, title="매수 0.5×", style=shape.triangleup, location=location.belowbar, color=momBuyColor, size=size.tiny)
+plotshape(showTrendSignal and showBuySignal and not sigVw and sBuy10, title="매수 1×", style=shape.triangleup, location=location.belowbar, color=momBuyColor, size=size.small)
+plotshape(showTrendSignal and showBuySignal and not sigVw and sBuy20, title="매수 2×", style=shape.triangleup, location=location.belowbar, color=momBuyColor, size=size.normal)
+plotshape(showTrendSignal and showSellSignal and not sigVw and sSell05, title="매도 0.5×", style=shape.triangledown, location=location.abovebar, color=momSellColor, size=size.tiny)
+plotshape(showTrendSignal and showSellSignal and not sigVw and sSell10, title="매도 1×", style=shape.triangledown, location=location.abovebar, color=momSellColor, size=size.small)
+plotshape(showTrendSignal and showSellSignal and not sigVw and sSell20, title="매도 2×", style=shape.triangledown, location=location.abovebar, color=momSellColor, size=size.normal)
+plotshape(showTrendSignal and showBuySignal and sigVw and vwBuy05, title="매수 0.5× (거래량)", style=shape.triangleup, location=location.belowbar, color=momBuyColor, size=size.tiny)
+plotshape(showTrendSignal and showBuySignal and sigVw and vwBuy10, title="매수 1× (거래량)", style=shape.triangleup, location=location.belowbar, color=momBuyColor, size=size.small)
+plotshape(showTrendSignal and showBuySignal and sigVw and vwBuy20, title="매수 2× (거래량)", style=shape.triangleup, location=location.belowbar, color=momBuyColor, size=size.normal)
+plotshape(showTrendSignal and showSellSignal and sigVw and vwSell05, title="매도 0.5× (거래량)", style=shape.triangledown, location=location.abovebar, color=momSellColor, size=size.tiny)
+plotshape(showTrendSignal and showSellSignal and sigVw and vwSell10, title="매도 1× (거래량)", style=shape.triangledown, location=location.abovebar, color=momSellColor, size=size.small)
+plotshape(showTrendSignal and showSellSignal and sigVw and vwSell20, title="매도 2× (거래량)", style=shape.triangledown, location=location.abovebar, color=momSellColor, size=size.normal)
 
 // VWAP(50) × 100선(MA100) 크로스 마커 — 중기 추세 골든/데드. 확정 크로스(vwMaGolden/vwMaDead)라 리페인팅 없음.
 //  골든(VWAP가 100선 상향 돌파)·데드(하향 돌파) 모두 100선(ltMa1) 가격 위치에 십자로 표시(골든=녹, 데드=빨강).
