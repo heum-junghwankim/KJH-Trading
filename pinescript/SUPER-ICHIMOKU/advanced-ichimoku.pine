@@ -1484,8 +1484,8 @@ vwBandStateShort = (vwUpperWalk or vwLowerWalk) ? "밴드워킹" : vwBandState
 //  · 상단 이탈 → 약한 녹회색 #6D8A70 / 하단 이탈 → 약한 적회색 #8A6D6D (방향만 잔존한 경고색).
 //  · 밴드워킹 → 방향(기울기 아닌 밴드 방향)색: 상단=선명 green / 하단=선명 red.
 //  · 상단 저항 → 둔탁 빨강 #A57A7A(저항=빨강) / 하단 지지 → 둔탁 녹 #6E8F72(지지=녹).
-//  · 중앙 공방 → 회색. VWAP 없음 → 회색.
-vwBandColor = not vwHasVwap ? color.new(color.gray, 40) : vwBreakUpper ? color.new(#6D8A70, 0) : vwBreakLower ? color.new(#8A6D6D, 0) : vwUpperWalk ? color.new(color.green, 0) : vwLowerWalk ? color.new(color.red, 0) : vwResistNear ? color.new(#A57A7A, 0) : vwSupportNear ? color.new(#6E8F72, 0) : color.new(color.gray, 30)
+//  · 중앙 공방 → 국면색: 하락(vwSlopeDown)=둔탁 빨강 #A57A7A / 상승(vwSlopeUp)=둔탁 녹 #6E8F72 / 평탄(vwSlopeFlat)=회색. VWAP 없음 → 회색.
+vwBandColor = not vwHasVwap ? color.new(color.gray, 40) : vwBreakUpper ? color.new(#6D8A70, 0) : vwBreakLower ? color.new(#8A6D6D, 0) : vwUpperWalk ? color.new(color.green, 0) : vwLowerWalk ? color.new(color.red, 0) : vwResistNear ? color.new(#A57A7A, 0) : vwSupportNear ? color.new(#6E8F72, 0) : vwSlopeDown ? color.new(#A57A7A, 0) : vwSlopeUp ? color.new(#6E8F72, 0) : color.new(color.gray, 30)
 
 // =========================
 // 비정상 캔들 상태/색/텍스트는 상단(멀티스케일 신호 앞)에서 이미 계산했다(모멘텀 즉시 반영). 여기선 생략.
