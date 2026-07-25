@@ -235,7 +235,7 @@ ipMarkerCandleColor = input.bool(true, title="변곡 마커 캔들 색", group=I
 //  변곡 전용 청산선이 제거됐으므로(CEO 지시 #4), flat 판정은 **후보 3모드(기본·거래량 가중·최근봉 가중) 청산선** 기준으로 한다.
 //  ⚠️ 화면 페인팅용(ceMode) 청산선 shortClear/longClear는 flat 판정에 쓰지 않는다 — 스윕 모드 선택이 마커에 관여하면 안 되기 때문(사양 1). 후보에 기여한 모드의 청산선 flat만 본다.
 //  ⚠️ 청산선 계산·전략 로직과 무관한 표시 전용 필터다(마커 억제만).
-ipFlatFilter = input.bool(true, title="변곡 시 청산선 수평 필터(밴드워킹 억제)", group=IP_GROUP, active=ipShowMarkers, tooltip="켜면 변곡 시점 청산선 기울기가 근사 수평일 때만 마커를 표시합니다. 판정은 후보에 기여한 모드(기본·거래량 가중·최근봉 가중 중 밴드2가 들어온 모드)의 청산선 기울기로 하며, 스윕 가격 모드(ceMode) 선택과는 무관합니다. 청산선이 추세로 기울어(밴드워킹 중) 있으면 변곡이어도 억제합니다.")
+ipFlatFilter = input.bool(false, title="변곡 시 청산선 수평 필터(밴드워킹 억제)", group=IP_GROUP, active=ipShowMarkers, tooltip="켜면 변곡 시점 청산선 기울기가 근사 수평일 때만 마커를 표시합니다. 판정은 후보에 기여한 모드(기본·거래량 가중·최근봉 가중 중 밴드2가 들어온 모드)의 청산선 기울기로 하며, 스윕 가격 모드(ceMode) 선택과는 무관합니다. 청산선이 추세로 기울어(밴드워킹 중) 있으면 변곡이어도 억제합니다.")
 ipFlatLookback = input.int(3, title="[변곡] 수평 판정 lookback 봉수", minval=1, group=IP_GROUP, active=ipShowMarkers and ipFlatFilter, display=display.none, tooltip="청산선 기울기를 측정할 과거 봉 수(N). 최근 N봉 사이 청산선 값 변화량으로 기울기를 판정합니다. 기본 3.")
 ipFlatSlopeMax = input.float(0.15, title="[변곡] 수평 허용 기울기(ATR 대비 배수)", minval=0.0, step=0.01, group=IP_GROUP, active=ipShowMarkers and ipFlatFilter, display=display.none, tooltip="N봉 사이 청산선 변화량 ÷ ATR 이 이 값 이하이면 '수평'으로 간주합니다. 기본 0.15(=ATR의 15%). 값을 키우면 더 기울어도 표시, 줄이면 더 엄격히 수평만 표시.")
 // 방향성 밴드워킹 억제 — 이치모쿠 메인 지표 "VWAP 상태"의 밴드워킹 판정 알고리즘을 이식(포팅)한다.
@@ -257,9 +257,9 @@ ipBwFlatPct = input.float(0.03, title="[밴드워킹] VWAP 평탄 임계(밴드�
 //  ⚠️ 기본값 14 — 화면 세트(recentBars 기본 50)와 독립인 별도 window다. 소스만 화면과 동일한 src를 그대로 쓴다.
 //  ipBwSlopeLen/ipBwWalkSlopeLen(기울기 lookback)은 그대로 유지(이미 별도 파라미터).
 bwRecentBars = input.int(defval=14, title="[밴드워킹] Recent Bars (판정 전용 VWAP)", minval=1, group=IP_GROUP, active=ipShowMarkers and ipBwSuppress and anchorMode == "Recent Bars", display=display.none, tooltip="밴드워킹 억제 판정 전용 window. 화면 VWAP의 Recent Bars와 독립.")
-// 캔들 형태 게이트(옵션) — 원 변곡 마커(upper2Marker/lower2Marker)에만 AND 결합. 기본 OFF.
+// 캔들 형태 게이트(옵션) — 원 변곡 마커(upper2Marker/lower2Marker)에만 AND 결합. 기본 ON.
 //  ⚠️ flat/선색 게이트와 동일 패턴: OFF면 게이트가 항상 통과(방향·형태 무관), ON이면 숏=음봉·롱=양봉 + 반전형 제외 + 반대방향 긴꼬리 거부.
-ipShapeFilter = input.bool(false, title="캔들 형태 게이트", group=IP_GROUP, active=ipShowMarkers, tooltip="숏=음봉·롱=양봉 + 반전형 제외 + 반대방향 긴꼬리 거부(롱=윗꼬리≥몸통2배 제외/숏=아랫꼬리≥몸통2배 제외). OFF면 방향·형태 무관")
+ipShapeFilter = input.bool(true, title="캔들 형태 게이트", group=IP_GROUP, active=ipShowMarkers, tooltip="숏=음봉·롱=양봉 + 반전형 제외 + 반대방향 긴꼬리 거부(롱=윗꼬리≥몸통2배 제외/숏=아랫꼬리≥몸통2배 제외). OFF면 방향·형태 무관")
 
 // =========================
 // OBV DI 게이트 설정 — 변곡 마커 표시 게이트(3봉 hlc3 평균 게이트를 대체). CEO 지시.
@@ -866,7 +866,7 @@ lowerBwOk = not ipBwSuppress or not isDownBandWalking
 //  선색은 확정 성격 값(close·high·low·vwap·밴드1) 기반이라 신규 리페인팅 없음(현재봉 실시간 변동 성격은 기존 선색과 동일).
 bool srcGateLong  = not enableVwapSRColor or vwapSRColor != UPPER_BREAK_LINE_COLOR  // 롱: 빨강만 억제(흰/녹 허용)
 bool srcGateShort = not enableVwapSRColor or vwapSRColor != LOWER_BREAK_LINE_COLOR  // 숏: 녹색만 억제(흰/빨강 허용)
-// ── 캔들 형태 게이트(옵션 ipShapeFilter, 기본 OFF) — 원 변곡 마커(upper2Marker/lower2Marker)에만 AND 결합 ──
+// ── 캔들 형태 게이트(옵션 ipShapeFilter, 기본 ON) — 원 변곡 마커(upper2Marker/lower2Marker)에만 AND 결합 ──
 //  ON이면 방향(양봉/음봉)을 기본으로, 여기에 몸통↔꼬리 형태 제외 조건을 추가한다. OFF면 게이트가 항상 통과(방향·형태 무관). 모두 확정봉 OHLC 기반 → 신규 리페인팅 없음.
 bool  ipBull      = close > open                        // 양봉
 bool  ipBear      = close < open                        // 음봉  (도지: close==open → 둘 다 false)
@@ -888,7 +888,7 @@ bool  longRejectShape  = lowerWick < body * 0.25 and upperWick > body
 //        단 도지 자체는 이미 위 방향 게이트(ipBull/ipBear=false)에서 원천 제외되므로, body>0 가드는 "명목상 방향은 있으나 몸통이 0"인 경계를 이론적으로 막는 이중 안전장치다.
 bool  longTailReject  = body > 0 and upperWick >= body * 2
 bool  shortTailReject = body > 0 and lowerWick >= body * 2
-//  ▸ 옵션(ipShapeFilter, 기본 OFF): OFF면 게이트가 항상 통과 → 원 변곡이 방향·형태 무관하게 발동(도지 포함). ON이면 아래 기존 동작 그대로.
+//  ▸ 옵션(ipShapeFilter, 기본 ON): OFF면 게이트가 항상 통과 → 원 변곡이 방향·형태 무관하게 발동(도지 포함). ON이면 아래 기존 동작 그대로.
 //  ▸ 숏 변곡 유효 = 음봉.  제외 = "양봉 OR 도지".
 //     도지(close==open)는 음봉이 아니므로 자동 제외(방향성 미확정 → 오탐 방지·자본 보존).
 //  ▸ [개선 1] 음봉 숏 변곡 형태 제외: 하방 반전형(shortRejectShape) OR 하방 거부 긴 아랫꼬리(shortTailReject)는 숏에서 제외.
