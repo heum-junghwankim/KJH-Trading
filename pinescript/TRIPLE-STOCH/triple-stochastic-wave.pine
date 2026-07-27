@@ -196,7 +196,7 @@ else if c_oversold
 // --- 1행(종합): 2행·3행 상태의 조합 함수 = f(align*, setup*) ---
 // 하위 두 행 결과만 입력으로 삼아 "포지션 관점" 종합 상태를 서술한다(매매 지시어 없음).
 // 색: 상승=녹(강 선명/약 둔탁 #6E8F72), 하락=적(강 선명/약 둔탁 #A57A7A), 중립=회색.
-verdictText  = "중립/관망"
+verdictText  = "중립"
 verdictColor = neutralGray
 // 최우선: 3행이 추세 전환(과매도/과매수 극단의 fast 크로스)이면 종합도 전환으로 확정.
 // 엇갈림 중립화(아래)보다 위에 두어야 2행 정렬(예: 하락 추세)이 전환을 덮어쓰지 못한다.
@@ -214,9 +214,9 @@ else if alignStrong and setupDir == 1 and setupKind == "trigger"
 else if alignStrong and setupDir == -1 and setupKind == "trigger"
     verdictText  := "강한 하락 우위"
     verdictColor := solidRed
-// 2·3행 방향 엇갈림 → 중립/관망(우선 차단)
+// 2·3행 방향 엇갈림 → 중립(우선 차단)
 else if alignDir != 0 and setupDir != 0 and alignDir != setupDir
-    verdictText  := "중립/관망"
+    verdictText  := "중립"
     verdictColor := neutralGray
 // 상승 계열 종합
 else if alignDir == 1 or setupDir == 1
