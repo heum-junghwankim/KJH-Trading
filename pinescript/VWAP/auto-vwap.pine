@@ -303,9 +303,8 @@ sarMaximum   = input.float(0.3,  title="파라볼릭 SAR Max", group=SAR_GROUP, 
 //   ▸ 비정상 매도(과매도 구간, abnCandleState== 1) = cRSI 과매도(abnIsOS) AND 저가가 볼린저 하단 밴드를 이탈(이탈폭÷캔들범위 ≥ 비율). → 파랑 배경.
 //   ⚠️ 이치모쿠 원본과 매핑: "비정상 매수 = 과매수(cRSI≥OB + 상단밴드 돌파)"·"비정상 매도 = 과매도(cRSI≤OS + 하단밴드 이탈)". 지시 매핑(비정상매수=과매수·비정상매도=과매도)과 정확히 일치.
 //  ⚠️ 자기완결 포팅(이치모쿠 의존 제거):
-//   (1) 원본은 기준 길이를 베이스 라인(basePeriods)에 연동(abnLen=basePeriods)했으나, auto-vwap엔 이치모쿠 input이 없으므로 **전용 input(abnBaseLen)** 로 동일 기본값(22)을 자기완결 선언한다.
-//       원본 basePeriods 기본값이 22이므로 abnBaseLen 기본 22 → cRSI 사이클 길이(basePeriods/2)·ATR·RSI·추적 lookback이 모두 원본과 동일한 값으로 재현된다.
-//       ⚠️ 볼린저 밴드 길이만 별도 input(abnBbLen, 기본 20)으로 분리한다(CEO 지시·이치모쿠 메인 지표와 동일). basis/dev만 이 길이를 쓰고 나머지(cRSI·ATR·RSI·lookback)는 abnBaseLen 연동 유지.
+//   (1) 원본은 기준 길이를 베이스 라인(basePeriods)에 연동(abnLen=basePeriods)했으나, auto-vwap엔 이치모쿠 input이 없다. CEO 지시로 **비정상 전체 기준 길이를 abnBbLen(기본 20) 하나로 단일화**한다(구 전용 input abnBaseLen 삭제).
+//       abnBbLen(기본 20) → 볼린저 basis/dev + cRSI 사이클 길이(abnBbLen/2=10)·ATR·RSI·추적 lookback이 모두 이 값 하나에 연동된다(전 기준 길이 22→20으로 통일).
 //   (2) 원본은 래치 리셋 트리거로 '이격도 중립 복귀'(abnDisparityNeutral = overCount==0 and underCount==0)를 썼으나, auto-vwap엔 이격도 블록이 없으므로 **이치모쿠 이격도(Disparity) 계산을 그대로 자기완결 이식**한다.
 //       이격도 = 종가 ÷ 선택 이평 × 100, 고정 임계(±%)+적응형(σ 배수)로 되돌림 판정. overCount/underCount==0(중립)이면 abnDisparityNeutral=true. input(이격도 MA 종류·길이·임계·통계 구간·σ 배수)도 원본 명칭/기본값/툴팁 그대로 이식.
 //       ⚠️ 이 이격도는 오직 비정상 상태 래치 리셋(원본과 동일한 종료 조건)에만 쓰이며, 테이블·다른 표시를 새로 만들지 않는다(표시 전용 최소 이식).
@@ -313,14 +312,19 @@ sarMaximum   = input.float(0.3,  title="파라볼릭 SAR Max", group=SAR_GROUP, 
 //  ⚠️ 표시 전용(배경색 + 아래 과매수/과매도 수평선) — 변곡 마커·게이트·밴드·청산선·횡보 압축 로직과 무관. 매매 전략(진입·청산·임계)과 무관.
 // =========================
 ABN_GROUP = "비정상 매수/매도"
-// 기준 길이 — 원본은 basePeriods(베이스 라인, 기본 22)에 연동. auto-vwap엔 이치모쿠 input이 없어 전용 input으로 동일 기본값 자기완결 선언.
-abnBaseLen = input.int(22, minval=1, title="비정상 기준 길이(베이스 라인 대응)", group=ABN_GROUP, tooltip="비정상 매수/매도 판정 기준 길이. 이치모쿠 메인 지표는 베이스 라인 길이(기본 22)에 연동했으나, auto-vwap엔 그 input이 없어 전용 입력으로 동일 기본값(22)을 둡니다. cRSI 사이클 길이(이 값÷2)·볼린저·ATR·RSI·추적 lookback이 모두 이 값에 연동됩니다. 전략성 파라미터(수학자 리뷰 대상).")
 abnVibration = input.int(10, minval=1, title="비정상 캔들 cRSI Vibration", group=ABN_GROUP)
 abnOB = input.float(70.0, title="비정상 절대 과매수", group=ABN_GROUP)
 abnOS = input.float(30.0, title="비정상 절대 과매도", group=ABN_GROUP)
-abnBbLen = input.int(20, minval=1, title="비정상 볼린저 길이", group=ABN_GROUP, tooltip="비정상 캔들 판정용 볼린저 밴드(basis=SMA·dev=STDEV) 전용 길이. 기준 길이(abnBaseLen)와 독립인 별도 길이로 기본 20(표준 볼린저 관례). 이치모쿠 메인 지표와 동일 개념·기본값. cRSI 사이클은 abnBaseLen에 연동됩니다. 전략성 파라미터(수학자 리뷰 대상).")
+// 비정상 전체 기준 길이 — CEO 지시로 abnBaseLen(구 기본 22)을 삭제하고 이 볼린저 길이(기본 20) 하나로 단일화. 볼린저뿐 아니라 cRSI 사이클·RSI·ATR·반등 추적 lookback이 모두 이 값에 연동된다.
+abnBbLen = input.int(20, minval=1, title="비정상 기준 길이(볼린저 등)", group=ABN_GROUP, tooltip="비정상 매수/매도 판정의 전체 기준 길이(기본 20, 표준 볼린저 관례). 볼린저 밴드(basis=SMA·dev=STDEV)뿐 아니라 cRSI 사이클 길이(이 값÷2)·RSI·ATR·반등 추적 lookback이 모두 이 값에 연동됩니다(CEO 지시로 기존 별도 기준 길이 abnBaseLen을 삭제·통합). 전략성 파라미터(수학자 리뷰 대상).")
 abnBbMult = input.float(2.0, minval=0.1, step=0.1, title="비정상 볼린저 배수", group=ABN_GROUP)
 abnBodyRatio = input.float(0.3, minval=0.0, step=0.05, title="비정상 밴드 초과 비율(고저 기준)", group=ABN_GROUP)
+// 반등 감시(abnWatch) 게이트 입력 2개 — advanced-ichimoku.pine 반등 감시와 title 일치(일관성). CEO 지시.
+//  ⚠️ group: 이치모쿠 원본 그룹은 "비정상 캔들"이나, auto-vwap의 모든 비정상 입력은 ABN_GROUP("비정상 매수/매도")에 모여 있어
+//   두 입력만 별도 그룹으로 떼면 auto-vwap 자체의 UI 일관성이 깨진다 → 기존 ABN_GROUP에 배치한다(title은 원본과 동일). (자기완결 이식 관례와 동일 판단.)
+//  ⚠️ 전략성 파라미터(수학자 리뷰 대상): 임계·배수 변경은 반등 감시 민감도(전략)를 바꾼다.
+abnAtrMult = input.float(1.5, minval=0.1, step=0.1, title="비정상 반등 감시 ATR 배수", group=ABN_GROUP, tooltip="비정상 캔들 이후 그 방향과 반대되는 가격 되돌림(반등)이 이 ATR 배수 이상이면 '롱/숏 감시'(abnWatch)로 판정합니다. 기본 1.5(이치모쿠 반등 감시와 동일 — 기본/강화 2단은 단일 감시로 통합됨). 전략성 파라미터(수학자 리뷰 대상).")
+abnRsiMoveLimit = input.float(15.0, minval=0.1, step=0.1, title="비정상 RSI 이동 제한", group=ABN_GROUP, tooltip="반등 감시 게이트의 RSI 이동 상한. 가격 되돌림이 ATR 조건을 충족해도, 그 사이 RSI 되돌림 폭이 이 값 이하일 때만 '감시'로 인정합니다(가격은 되돌렸는데 RSI 과열은 아직 안 풀린 반등 초기 국면). 기본 15(이치모쿠 반등 감시와 동일). 전략성 파라미터(수학자 리뷰 대상).")
 abnShowBg = input.bool(true, title="비정상 매수/매도 배경 표시", group=ABN_GROUP, tooltip="비정상 매도=파랑, 비정상 매수=빨강 배경으로 세로 스트립을 칠합니다. (반등 감시 배경은 CEO 지시로 제거됨)")
 // 비정상 매수/매도 세로 배경색(CEO 명시: 매도=파랑, 매수=빨강 — 방향 직관과 반대지만 지시대로)
 abnSellBgColor = input.color(color.blue, title="비정상 매도 배경 색(파랑)", group=ABN_GROUP)
@@ -359,7 +363,7 @@ disparityStatMult = input.float(1.5, minval=0.1, step=0.1, title="이격도 통�
 
 // =========================
 // 비정상 매수/매도 판정 — advanced-ichimoku.pine "비정상 캔들" 블록의 이식(포팅). 산식·기본값 동일.
-//  원본 abnLen/abnLookback=basePeriods → auto-vwap은 abnBaseLen(전용 input, 기본 22)로 자기완결. cRSI/ATR/RSI 산식은 100% 동일. 볼린저 길이만 전용 input(abnBbLen, 기본 20) 분리(이치모쿠 메인 지표와 동일).
+//  원본 abnLen/abnLookback=basePeriods → auto-vwap은 CEO 지시로 abnBbLen(비정상 전체 기준 길이, 기본 20) 하나로 단일화. cRSI/ATR/RSI 산식은 100% 동일(길이만 20으로 통일).
 //  원본 abnDisparityNeutral(이격도 중립 복귀)은 아래 이격도 자기완결 이식으로 재현 → 래치 리셋 트리거로만 사용.
 // =========================
 // 이격도(Disparity) — 종가 ÷ 이평 × 100. 고정 임계(±%) + 적응형(σ 배수)로 되돌림 판정. 원본과 동일 산식(중립 여부만 사용).
@@ -378,11 +382,11 @@ underStat  = disparityStatOk and 100 - disparity >= disparityStatMult * disparit
 overCount  = (overFixed ? 1 : 0) + (overStat ? 1 : 0)
 underCount = (underFixed ? 1 : 0) + (underStat ? 1 : 0)
 
-// 기준 길이 = abnBaseLen(원본 basePeriods 대응) — 비정상 캔들 신호 최적화
-abnLen = abnBaseLen
-abnLookback = abnBaseLen
-// cRSI (도미넌트 사이클 = 베이스 라인) → 절대 과매수/과매도
-abnCycleLen = math.max(1, int(abnBaseLen / 2))
+// 기준 길이 = abnBbLen(비정상 전체 기준 길이, 기본 20) — CEO 지시로 abnBaseLen 삭제·통합. 비정상 캔들 신호 최적화
+abnLen = abnBbLen
+abnLookback = abnBbLen
+// cRSI (도미넌트 사이클) → 절대 과매수/과매도
+abnCycleLen = math.max(1, int(abnBbLen / 2))
 abnTorque = 2.0 / (abnVibration + 1.0)
 abnPhasingLag = int((abnVibration - 1) / 2.0)
 abnUp = ta.rma(math.max(ta.change(close), 0), abnCycleLen)
@@ -406,15 +410,76 @@ abnBullExt = abnLowerOut > 0 and abnLowerOut / abnRangeSpan >= abnBodyRatio
 abnBearCandle = abnIsOB and abnBearExt   // 비정상 매수(과매수): cRSI 과매수 + 상단밴드 돌파
 abnBullCandle = abnIsOS and abnBullExt   // 비정상 매도(과매도): cRSI 과매도 + 하단밴드 이탈
 
-// 상태 래치: 이격도 중립 복귀 시 리셋. (원본 advanced-ichimoku.pine 동일 — 반등 감시 abnWatch는 auto-vwap 미이식, 배경이 안 쓰므로 생략)
+// =========================
+// 비정상 반등 감시(abnWatch) — advanced-ichimoku.pine "반등 감시" 로직의 이식(포팅). CEO 지시.
+//  목적: 비정상 캔들(과매수/과매도 극단) 발생 뒤, 그 방향과 **반대되는 되돌림(반등)** 이 ATR 대비 유의미하게 나오면
+//   "롱 감시"(과매도 뒤 아래→위 반등 조짐, +2) / "숏 감시"(과매수 뒤 위→아래 반등 조짐, −2)로 상태를 래치한다.
+//  ▸ 기준점 저장: 비정상 캔들이 뜬 봉에서 그 방향 극단가(롱=low, 숏=high)·RSI·ATR을 var로 스냅샷(RefPrice/RefRsi/RefAtr).
+//  ▸ 되돌림 추적: RefPrice 대비 반대방향 가격 이동(priceMove)이 RefAtr×abnAtrMult(기본 1.5) 이상 + RSI 이동(rsiMove)이 abnRsiMoveLimit(기본 15) 이하이면 감시 ON.
+//    (rsiMove ≤ 제한: 가격은 되돌렸는데 RSI 과열은 아직 안 풀린 = 반등 초기 국면을 잡는 이치모쿠 원본 게이트 그대로.)
+//  ⚠️ RSI/ATR 소스: 이치모쿠 원본은 abnOsc=ta.rsi(close, abnLen)·abnAtr=ta.atr(abnLen), abnLen=basePeriods.
+//    auto-vwap은 abnLen=abnBbLen(비정상 전체 기준 길이, 기본 20 — CEO 지시 단일화). lookback(abnLookback=abnBbLen)도 동일 값에 연동.
+//  ⚠️ 리셋: 이치모쿠 원본과 동일하게 이격도 중립 복귀(abnDisparityNeutral) 시 abnCandleState·abnWatch를 함께 0으로 리셋한다.
+//  ⚠️ 리페인팅 방지(CEO 명시 지시 — 본 이식의 게이트): 이치모쿠 원본은 abnWatch 갱신에 barstate.isconfirmed 가드를 **의도적으로 안 걸었으나**(실시간 빠른 캐치),
+//    본 이식은 CEO 지시("상태 갱신은 확정봉에서만")에 따라 **확정봉(barstate.isconfirmed)에서만** abnWatch·기준점을 갱신한다.
+//    → 형성 중 현재봉이 감시 래치를 흔들지 않음(신규 리페인팅 없음). 이치모쿠와의 이 실시간성 차이는 CEO 보고 대상(전략 성격).
+//  ⚠️ 표시 방식 보류(CEO 보고): auto-vwap엔 상태 테이블/셀이 없다(README "상태판 없음" — CEO가 완전 제거). 이치모쿠는 셀 텍스트("롱 감시"/"숏 감시")로 표기하나
+//    auto-vwap엔 대응 UI가 없으므로 **로직만 이식(abnWatch 계산까지)** 하고 화면 표시는 채택하지 않았다. 억지 신규 UI를 만들지 않음(CEO 판단 대기).
+//    abnWatch 상태는 계산·래치되어 있어 추후 표시 방식(예: 마커/라벨/셀) 확정 시 즉시 연결 가능하다.
+//  ⚠️ 표시 전용 국면 표식이며 매매 전략(진입·청산·임계)과 무관. abnAtrMult·abnRsiMoveLimit은 전략성 파라미터(수학자 리뷰 대상).
+// =========================
+// 반등 감시용 RSI·ATR — 비정상 전체 기준 길이(abnLen=abnBbLen, 기본 20). 기준점(RefRsi/RefAtr) 스냅샷과 되돌림 추적에 쓴다.
+abnOsc = ta.rsi(close, abnLen)
+abnAtr = ta.atr(abnLen)
+// 상태 래치: 이격도 중립 복귀 시 리셋. (원본 advanced-ichimoku.pine 동일 — abnCandleState + 반등 감시 abnWatch 함께 리셋)
 abnDisparityNeutral = overCount == 0 and underCount == 0
 var int abnCandleState = 0   // 1=비정상 매도(과매도), -1=비정상 매수(과매수), 0=없음
-if abnDisparityNeutral
-    abnCandleState := 0
-if abnBullCandle
-    abnCandleState := 1
-if abnBearCandle
-    abnCandleState := -1
+var int abnWatch = 0         // 2=롱 감시, -2=숏 감시, 0=없음 (이치모쿠 원본과 동일 부호 체계)
+// 기준점 스냅샷 — 비정상 캔들이 뜬 봉의 극단가·RSI·ATR. 롱(과매도 abnBullCandle)=low 기준, 숏(과매수 abnBearCandle)=high 기준.
+var int abnBullBar = na
+var int abnBearBar = na
+var float abnBullRefPrice = na
+var float abnBullRefRsi = na
+var float abnBullRefAtr = na
+var float abnBearRefPrice = na
+var float abnBearRefRsi = na
+var float abnBearRefAtr = na
+// ⚠️ CEO 지시: 상태 갱신은 확정봉(barstate.isconfirmed)에서만. 기준점·감시 래치·정상 복귀 리셋을 모두 이 가드 안에서 갱신한다.
+if barstate.isconfirmed
+    if abnDisparityNeutral
+        abnCandleState := 0
+        abnWatch := 0
+    if abnBullCandle
+        abnCandleState := 1
+        abnBullBar := bar_index
+        abnBullRefPrice := low
+        abnBullRefRsi := abnOsc
+        abnBullRefAtr := abnAtr
+    if abnBearCandle
+        abnCandleState := -1
+        abnBearBar := bar_index
+        abnBearRefPrice := high
+        abnBearRefRsi := abnOsc
+        abnBearRefAtr := abnAtr
+    // 되돌림 추적 — 기준점 이후 abnLookback 봉 이내에서만 유효. 롱=아래 극단(low)에서 가격이 위로(RefPrice−low는 저가 기준 되돌림), 숏=위 극단(high)에서 아래로.
+    //  ⚠️ 이치모쿠 원본 산식 그대로: 롱 priceMove=RefPrice−low, 숏 priceMove=high−RefPrice. rsiMove는 각 방향 RSI 되돌림 폭.
+    abnBullBars = not na(abnBullBar) ? bar_index - abnBullBar : na
+    abnBearBars = not na(abnBearBar) ? bar_index - abnBearBar : na
+    abnHasBull = not na(abnBullBars) and abnBullBars >= 0 and abnBullBars <= abnLookback
+    abnHasBear = not na(abnBearBars) and abnBearBars >= 0 and abnBearBars <= abnLookback
+    abnBullPriceMove = abnHasBull and not na(abnBullRefPrice) ? abnBullRefPrice - low : na
+    abnBullRsiMove = abnHasBull and not na(abnBullRefRsi) ? abnBullRefRsi - abnOsc : na
+    abnBullAtrNeed = abnHasBull and not na(abnBullRefAtr) ? abnBullRefAtr * abnAtrMult : na
+    abnBearPriceMove = abnHasBear and not na(abnBearRefPrice) ? high - abnBearRefPrice : na
+    abnBearRsiMove = abnHasBear and not na(abnBearRefRsi) ? abnOsc - abnBearRefRsi : na
+    abnBearAtrNeed = abnHasBear and not na(abnBearRefAtr) ? abnBearRefAtr * abnAtrMult : na
+    // 반등 감시 게이트(단일 — 이치모쿠 기본/강화 통합 후 단일 감시): 가격 되돌림 ≥ ATR×abnAtrMult(기본 1.5) AND RSI 이동 ≤ abnRsiMoveLimit(기본 15).
+    abnBullBgOn = abnHasBull and abnBullBars > 0 and not na(abnBullPriceMove) and not na(abnBullAtrNeed) and abnBullPriceMove >= abnBullAtrNeed and abnBullRsiMove <= abnRsiMoveLimit
+    abnBearBgOn = abnHasBear and abnBearBars > 0 and not na(abnBearPriceMove) and not na(abnBearAtrNeed) and abnBearPriceMove >= abnBearAtrNeed and abnBearRsiMove <= abnRsiMoveLimit
+    if abnBullBgOn
+        abnWatch := 2
+    if abnBearBgOn
+        abnWatch := -2
 
 // 세로 배경색(원본 동일): 비정상 매도(abnCandleState==1)=파랑, 비정상 매수(abnCandleState==-1)=빨강.
 abnBg = abnCandleState == 1 ? color.new(abnSellBgColor, abnBgTransp) : abnCandleState == -1 ? color.new(abnBuyBgColor, abnBgTransp) : na
@@ -688,15 +753,15 @@ color vwapLineColor = enableVwapSRColor ? vwapSRColor : activeLineColor
 //    · 변곡 마커 후보 판정: 같은 파라미터로 mode만 "기본"·"거래량 가중"·"최근봉 가중" 3가지로 각각 계산해 OR로 확인한다(#1·#2).
 //    스윕라인(longCE/shortCE)은 여기로 옮기지 않는다(그리지 않음).
 // =========================
-ceLength = input.int(14, title="스윕 룩백 길이", minval=1, group="스윕/청산")
-ceAtrLen = input.int(14, title="스윕 ATR 길이", minval=1, group="스윕/청산")
+ceLength = input.int(7, title="스윕 룩백 길이", minval=1, group="스윕/청산")
+ceAtrLen = input.int(7, title="스윕 ATR 길이", minval=1, group="스윕/청산")
 ceMult = input.float(3.0, title="스윕 ATR 배수", minval=0.0, step=0.01, group="스윕/청산")
 // 스윕 가격 모드(샹들리에 기반):
 //  - 기본: 표준 샹들리에(룩백 고가/저가 − ATR)
 //  - 거래량 가중: 거래량 큰 봉(VWMA)에 가중 → 거래 몰린 봉에서 스윕가를 끌어올림
 //  - 최근봉 가중: 최근봉(WMA)에 가중 → 휩쏘 급등/급락 봉에서 스윕가를 빠르게·높게
 //  - 거래량+최근봉: 두 가중을 함께(거래량 × 선형 최근봉)
-ceMode = input.string("최근봉 가중", title="스윕 가격 모드", options=["기본", "거래량 가중", "최근봉 가중", "거래량+최근봉"], group="스윕/청산")
+ceMode = input.string("기본", title="스윕 가격 모드", options=["기본", "거래량 가중", "최근봉 가중", "거래량+최근봉"], group="스윕/청산")
 ceWeightLen = input.int(14, title="가중 트레일 길이", minval=1, group="스윕/청산")
 ceWeightMult = input.float(3.0, title="가중 트레일 ATR 배수", minval=0.0, step=0.01, group="스윕/청산")
 sweepBufferMult = input.float(1.0, title="청산 버퍼 ATR 배수(스윕 너머)", minval=0.0, step=0.1, group="스윕/청산")
@@ -710,6 +775,9 @@ showClearLines = input.bool(true, title="청산선 표시(전 히스토리 봉)"
 clearLineWidth = input.int(1, title="청산 선 두께", minval=1, group="스윕/청산", active=showClearLines)
 longClearLineColor = input.color(#00C853, title="롱 청산선 색", group="스윕/청산", active=showClearLines, tooltip="청산선(직선=손절 기준선)의 롱 색. 값 계산·밴드2 색 판정에는 영향 없는 표시 옵션입니다.")
 shortClearLineColor = input.color(#FF1744, title="숏 청산선 색", group="스윕/청산", active=showClearLines, tooltip="청산선(직선=손절 기준선)의 숏 색. 값 계산·밴드2 색 판정에는 영향 없는 표시 옵션입니다.")
+// 청산선 EMA 스무딩(표시 전용) — 그려지는 선의 시각적 출렁임만 매끄럽게 한다. ON이어도 longClear/shortClear 원본 값은 불변이라 마커 y좌표·flat 판정·래치·손익비 로직에 영향이 없다(손절 지연 부작용을 신호 로직에서 회피).
+clearSmoothOn = input.bool(true, title="청산선 EMA 스무딩(표시 전용)", group="스윕/청산", active=showClearLines, tooltip="청산선 plot에만 ta.ema를 적용해 선을 매끄럽게 합니다. 판정·마커·손익비 값은 원본 청산선 그대로 사용(손절 판정 불변). OFF면 원본 청산선을 그대로 그립니다.")
+clearSmoothLen = input.int(5, title="청산선 EMA 스무딩 길이", minval=1, group="스윕/청산", active=showClearLines and clearSmoothOn, tooltip="청산선 표시용 EMA 길이. 클수록 더 매끄럽지만 선이 실제 손절 기준선보다 시각적으로 더 지연돼 보입니다(표시만, 판정 불변).")
 
 // 거래량 × 최근봉(선형) 가중 평균
 f_volRecencyMa(src, len) =>
@@ -1002,7 +1070,7 @@ showShortMarker = ((upper2Marker or shortExt) and not longExt and not shortUpMov
 color longMarkerColorFinal  = longExt  and not lower2Marker ? lowerMarkerColor[1] : lowerMarkerColor
 color shortMarkerColorFinal = shortExt and not upper2Marker ? upperMarkerColor[1] : upperMarkerColor
 // ── "가장 최근 변곡 방향" 래치 갱신 — 장대봉 VWAP 관통 연장의 트리거 상태를 확정봉에서 갱신한다. ──
-//  ▸ 기준: 화면에 실제 그려진 마커. plotshape은 y좌표(upper2MarkerY=shortClear/lower2MarkerY=longClear, 선언은 아래 L1029-1030)가 na면 미표시하므로, 래치도 그 원본인 청산선(longClear/shortClear, L774에서 선언·여기서 유효) not na 가드를 AND해 "그려진 마커"와 일치시킨다. (별칭 upper2MarkerY/lower2MarkerY는 이 지점보다 뒤에 선언되므로 여기서 직접 참조 불가 → 원본 청산선 참조.)
+//  ▸ 기준: 화면에 실제 그려진 마커. plotshape은 y좌표(upper2MarkerY=shortClearSm/lower2MarkerY=longClearSm, 스무딩 값)가 na면 미표시한다. 래치 가드는 CEO 지시대로 **원본 청산선(longClear/shortClear, L774에서 선언·여기서 유효) not na**로 유지한다(판정 로직 불변). 스무딩 OFF면 *Sm==원본이라 na 여부 완전 동일; ON이어도 ta.ema는 원본이 na인 동안 결과도 na라 워밍업 이후 실질 정합. (별칭 upper2MarkerY/lower2MarkerY는 이 지점보다 뒤에 선언되므로 여기서 직접 참조 불가 → 원본 청산선 참조.)
 //  ▸ 확정봉(barstate.isconfirmed)에서만 갱신 → 형성 중 현재봉의 실시간 값이 래치를 흔들지 않음(리페인팅 방지). 관통 연장 조건은 lastInflectDir[1](직전봉 확정값)을 보므로 갱신을 뒤에 둬도 정합.
 //  ▸ 롱·숏 동시 표시는 위 표시식 우선 억제로 상호배타이나, 방어적으로 롱을 먼저 평가(규칙 #1 롱 우선과 일치). 둘 다 아니면 방향 유지(직전값 hold) — CEO "가장 최근 변곡 방향"은 마지막으로 나온 마커 방향을 계속 기억한다.
 if barstate.isconfirmed
@@ -1031,14 +1099,22 @@ baseLowerBand2InClear = shouldPlot and not na(lowerBandValue2) and not na(longCl
 color upperBand2LineColor = ipBand2MarkerColor and upper2Marker and baseUpperBand2InClear and not vwapSupport ? upperMarkerColor : activeLineColor
 color lowerBand2LineColor = ipBand2MarkerColor and lower2Marker and baseLowerBand2InClear and not vwapResistance ? lowerMarkerColor : activeLineColor
 
-// 사양 2(CEO 지시 변경): 마커 y좌표를 기본 화면 밴드2가 아니라 **화면에 실제 그려지는 청산선**(shortClear/longClear, ceMode 선택 결과선)에 얹는다.
-//  - 숏 변곡 마커(upper2Marker) y = shortClear(숏 청산선).  롱 변곡 마커(lower2Marker) y = longClear(롱 청산선).
-//  - shortClear/longClear 는 computeClearLines(ceMode 반영, 위 L367)의 확정 성격 값(ta.*·과거참조 [1] 트레일) → 신규 리페인팅 없음.
+// 청산선 EMA 스무딩(표시 전용, clearSmoothOn) — 마커 y좌표보다 앞에서 계산한다(마커 y가 이 값을 참조 → forward-reference 회피).
+//  ▸ 원본 longClear/shortClear 값은 불변. 스무딩은 그리기/마커 위치(표시)에만 반영되고, flat 판정·래치·밴드2 InClear·손익비 등 판정 로직에는 전파되지 않는다(손절 판정 불변).
+//  ▸ ta.ema는 전역 최상위 흐름(조건 블록 밖)에서 매 봉 평가되며 과거값 평활이라 미래참조 없음 → 신규 리페인팅 없음. OFF면 *Sm == 원본이라 기존과 자동 정합.
+//  ▸ clearSmoothOn/clearSmoothLen input 선언은 위 "스윕/청산" 그룹(L779-780)에 있어 이 지점보다 앞선다.
+longClearSm = clearSmoothOn ? ta.ema(longClear, clearSmoothLen) : longClear
+shortClearSm = clearSmoothOn ? ta.ema(shortClear, clearSmoothLen) : shortClear
+
+// 사양 2(CEO 지시 변경): 마커 y좌표를 기본 화면 밴드2가 아니라 **화면에 실제 그려지는 청산선**(스무딩 반영 shortClearSm/longClearSm, ceMode 선택 결과선)에 얹는다.
+//  - 숏 변곡 마커(upper2Marker) y = shortClearSm(화면 숏 청산선).  롱 변곡 마커(lower2Marker) y = longClearSm(화면 롱 청산선).
+//  - 버그 교정: 이전에는 y가 원본 shortClear/longClear라, 청산선 plot이 스무딩 값(shortClearSm/longClearSm)을 그리면 마커가 선 위에 안 붙었다. y를 스무딩 값으로 맞춰 화면 청산선 위에 정확히 얹는다(스무딩 OFF면 원본과 동일 → 자동 정합).
+//  - longClearSm/shortClearSm 는 위에서 계산한 확정 성격 값(ta.ema는 과거값 평활) → 신규 리페인팅 없음.
 //  ⚠️ na 가드: 청산선이 na인 봉에서는 y를 na로 두어 그 봉의 마커를 **미표시**한다(밴드2 등 다른 선으로 폴백하지 않음).
 //   폴백 미채택 이유: 지시 취지가 "마커를 청산선 위에 정렬"이므로 청산선이 없는데 다른 값에 얹으면 정렬이 깨진다.
-//   마커 발동 조건(upper2Marker/lower2Marker)은 불변 — 위치 y좌표만 청산선으로 이동하고 na일 때만 미표시.
-float upper2MarkerY = shortClear
-float lower2MarkerY = longClear
+//   마커 발동 조건(upper2Marker/lower2Marker)·래치·밴드2 InClear 판정은 원본 longClear/shortClear 그대로 유지(불변) — 위치 y좌표만 스무딩 값으로 이동하고 na일 때만 미표시.
+float upper2MarkerY = shortClearSm
+float lower2MarkerY = longClearSm
 
 // VWAP 중앙선: 두께 2px(CEO 지시 — 지지/저항 색 규칙). 선은 동적 색, 우측 가격축 라벨은 흰색 고정(CEO 지시).
 //  색 = vwapLineColor(지지/저항 규칙 ON이면 녹/빨강/흰색, OFF면 기존 activeLineColor).
@@ -1073,7 +1149,7 @@ fill(upperBand_2, lowerBand_2, color=(showChopBg and chopBgOn and showBand_2 and
 // =========================
 // ⚠️ location=location.absolute + size.tiny 로 series 값 좌표에 정확히 그린다(직전 커밋 유지).
 //    판정(발동 조건)은 변곡용 밴드2(ipUpperBandValue2/ipLowerBandValue2, length=14) vs 기본 청산선 3모드(shortClear_*/longClear_*)로 그대로 유지.
-//    다만 y위치(그려지는 좌표)는 화면에 페인트되는 청산선(upper2MarkerY=shortClear, lower2MarkerY=longClear)에 놓아 마커가 실제 화면 청산선 위에 얹힌다(na면 미표시).
+//    다만 y위치(그려지는 좌표)는 화면에 페인트되는 청산선(스무딩 반영 upper2MarkerY=shortClearSm, lower2MarkerY=longClearSm)에 놓아 마커가 실제 화면 청산선(스무딩 값) 위에 얹힌다(na면 미표시).
 //    location.top/bottom 은 첫 인자(값)가 무시되어 창 최상/최하단에 고정되므로 쓰지 않는다.
 // ⚠️ plotshape의 style은 const string만 받으므로, 모양 삼항을 style 인자에 **직접 인라인**한다(변수 저장 시 컴파일 에러).
 //    각 분기가 shape.* 리터럴이라 컴파일 타임 상수로 평가된다. 기본값(원)은 첫 분기(shape.circle).
@@ -1085,8 +1161,8 @@ plotshape(ipShowMarkers and showLongMarker ? lower2MarkerY : na, title="변곡 �
 // 변곡 마커 봉 캔들 색(CEO 지시, ipMarkerCandleColor 기본 ON) — 표시된 마커 봉의 캔들을 마커색으로 칠한다.
 //  ▸ 조건·색 모두 plotshape 마커와 동일 변수 재사용: 롱=showLongMarker→longMarkerColorFinal, 숏=showShortMarker→shortMarkerColorFinal.
 //    (연장 봉은 상속색까지 마커와 정확히 일치. 마커 y·판정·채도·다른 로직 불변.)
-//  ▸ plotshape 표시 정합: plotshape은 y좌표(upper2MarkerY=shortClear/lower2MarkerY=longClear)가 na면 그 봉 마커를 미표시한다.
-//    barcolor는 y좌표를 안 쓰므로, "실제로 마커가 그려진 봉"에만 칠하도록 청산선 not na 가드를 AND로 얹어 plotshape 표시 조건과 일치시킨다(청산선 na 봉에서 캔들만 칠해지는 불일치 방지).
+//  ▸ plotshape 표시 정합: plotshape은 y좌표(upper2MarkerY=shortClearSm/lower2MarkerY=longClearSm)가 na면 그 봉 마커를 미표시한다.
+//    barcolor는 y좌표를 안 쓰므로, "실제로 마커가 그려진 봉"에만 칠하도록 스무딩 청산선(*Sm) not na 가드를 AND로 얹어 plotshape 표시 조건과 일치시킨다(청산선 na 봉에서 캔들만 칠해지는 불일치 방지). 스무딩 OFF면 *Sm==원본이라 na 여부 동일.
 //  ▸ 롱·숏 동시 표시는 우선순위 억제(showLong/ShortMarker의 not shortExt/not longExt)로 이미 상호배타지만,
 //    barcolor 단일 인자이므로 방어적으로 롱을 먼저 평가한다(규칙 #1 롱 우선과 방향 일치). 미표시 봉은 na → 캔들 원색 유지.
 //  ▸ auto-vwap에 기존 barcolor 없음 → 신규 도입(중복·충돌 없음). 확정봉 마커 조건 기반이라 신규 리페인팅 없음.
@@ -1099,8 +1175,9 @@ barcolor(ipShowMarkers and ipMarkerCandleColor and showLongMarker and not na(low
 //   plot 으로 전 구간에 그려도 신규 리페인팅이 없다(그리기 전환 시에도 값 자체는 불변).
 //  스윕라인(longCE/shortCE)은 여기로 옮기지 않는다(CEO: "청산선 스윕라인은 옮기지 않음") → plot 하지 않는다.
 //  ⚠️ 가격축 라벨 제거(CEO 지시): 차트 선은 유지하되 우측 가격축의 숫자 라벨만 끈다(display.all - display.price_scale). 선·색·굵기·스타일 불변.
-plot(showClearLines ? longClear : na, title="롱 청산선", color=longClearLineColor, linewidth=clearLineWidth, offset=offset, editable=true, linestyle=plot.linestyle_solid, display=display.all - display.price_scale)
-plot(showClearLines ? shortClear : na, title="숏 청산선", color=shortClearLineColor, linewidth=clearLineWidth, offset=offset, editable=true, linestyle=plot.linestyle_solid, display=display.all - display.price_scale)
+//  ▸ EMA 스무딩(표시 전용, clearSmoothOn): 스무딩 값(longClearSm/shortClearSm)은 위 마커 y좌표 선언부(upper2MarkerY/lower2MarkerY, forward-reference 회피 위해 그 앞에서 미리 계산됨)에서 정의된다. 여기서는 그 값을 plot에 재사용한다.
+plot(showClearLines ? longClearSm : na, title="롱 청산선", color=longClearLineColor, linewidth=clearLineWidth, offset=offset, editable=true, linestyle=plot.linestyle_solid, display=display.all - display.price_scale)
+plot(showClearLines ? shortClearSm : na, title="숏 청산선", color=shortClearLineColor, linewidth=clearLineWidth, offset=offset, editable=true, linestyle=plot.linestyle_solid, display=display.all - display.price_scale)
 
 // 파라볼릭 SAR 화면 표시(십자) — 필터(ipSarFilter)와 독립으로 항상 그린다(CEO 지시).
 //  ▸ 색: SAR 종가 아래(상승, sarBelow)=롱 마커 기본색(longClearLineColor, 선명 녹)·SAR 종가 이상(하락, sarAbove)=숏 마커 기본색(shortClearLineColor, 선명 빨강). ([C] 종가 기준)
