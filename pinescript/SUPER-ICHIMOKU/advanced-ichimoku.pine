@@ -424,19 +424,17 @@ disparityPullbackPrice = overCount >= 1 ? disparityUpperEdge : underCount >= 1 ?
 abnVibration = input.int(10, minval=1, title="비정상 캔들 cRSI Vibration", group="비정상 캔들")
 abnOB = input.float(70.0, title="비정상 절대 과매수", group="비정상 캔들")
 abnOS = input.float(30.0, title="비정상 절대 과매도", group="비정상 캔들")
+abnBbLen = input.int(20, minval=1, title="비정상 볼린저 길이", group="비정상 캔들", tooltip="비정상 캔들 판정용 볼린저 밴드(basis=SMA·dev=STDEV) 전용 길이. 베이스 라인(basePeriods)과 독립인 별도 길이로 기본 20(표준 볼린저 관례). cRSI 사이클·ATR·RSI·추적 봉수는 이 값과 무관하게 베이스 라인 길이에 연동됩니다. 전략성 파라미터(수학자 리뷰 대상).")
 abnBbMult = input.float(2.0, minval=0.1, step=0.1, title="비정상 볼린저 배수", group="비정상 캔들")
 abnBodyRatio = input.float(0.3, minval=0.0, step=0.05, title="비정상 밴드 초과 비율(고저 기준)", group="비정상 캔들")
-abnAtrMult = input.float(1.2, minval=0.1, step=0.1, title="비정상 배경 ATR 배수", group="비정상 캔들")
-abnStrongAtrMult = input.float(1.8, minval=1.0, step=0.1, title="비정상 강한 배경 ATR 배수", group="비정상 캔들")
+abnAtrMult = input.float(1.5, minval=0.1, step=0.1, title="비정상 반등 감시 ATR 배수", group="비정상 캔들", tooltip="비정상 캔들 이후 가격 되돌림(반등)이 이 ATR 배수 이상이면 '롱/숏 감시'로 판정합니다. 기본 1.5. (기본/강화 2단 감시는 CEO 지시로 단일 감시로 통합됨.)")
 abnRsiMoveLimit = input.float(15.0, minval=0.1, step=0.1, title="비정상 RSI 이동 제한", group="비정상 캔들")
 abnShowBg = input.bool(false, title="비정상 매수/매도 배경 표시", group="비정상 캔들", tooltip="비정상 매도=파랑, 비정상 매수=빨강 배경으로 세로 스트립을 칠합니다. (반등 감시 배경은 CEO 지시로 제거됨)")
 // 비정상/감시 셀 색(테이블 '비정상 매수/매도' 셀 배경 전용 — 차트 캔들 바색·반등 감시 배경은 제거됨)
 abnOverboughtColor = input.color(color.red, title="비정상 매수 셀 색", group="비정상 캔들")
 abnOversoldColor = input.color(color.aqua, title="비정상 매도 셀 색", group="비정상 캔들")
 abnBullBaseColor = input.color(color.green, title="롱 감시 셀 색", group="비정상 캔들")
-abnBullStrongColor = input.color(color.blue, title="롱 감시 강화 셀 색", group="비정상 캔들")
 abnBearBaseColor = input.color(#E65100, title="숏 감시 셀 색(어두운 주황)", group="비정상 캔들")
-abnBearStrongColor = input.color(color.red, title="숏 감시 강화 셀 색", group="비정상 캔들")
 // 비정상 매수/매도 세로 배경색(CEO 명시: 매도=파랑, 매수=빨강 — 방향 직관과 반대지만 지시대로)
 abnSellBgColor = input.color(color.blue, title="비정상 매도 배경 색(파랑)", group="비정상 캔들")
 abnBuyBgColor = input.color(color.red, title="비정상 매수 배경 색(빨강)", group="비정상 캔들")
@@ -459,8 +457,8 @@ abnIsOS = abnCrsi <= abnOS
 
 // 볼린저 밴드 이탈 = 비정상 캔들. 종가(몸통)는 실시간 변동이 커서 **고가/저가** 기준으로 판정.
 //  비정상 매수=현재봉 고가가 상단 밴드 초과, 비정상 매도=현재봉 저가가 하단 밴드 초과. 초과폭÷캔들 범위 비율로 강도 판정.
-abnBbBasis = ta.sma(close, abnLen)
-abnBbDev = ta.stdev(close, abnLen) * abnBbMult
+abnBbBasis = ta.sma(close, abnBbLen)
+abnBbDev = ta.stdev(close, abnBbLen) * abnBbMult
 abnBbUpper = abnBbBasis + abnBbDev
 abnBbLower = abnBbBasis - abnBbDev
 abnRangeSpan = math.max(high - low, syminfo.mintick)
@@ -510,14 +508,13 @@ abnBullAtrNeed = abnHasBull and not na(abnBullRefAtr) ? abnBullRefAtr * abnAtrMu
 abnBearPriceMove = abnHasBear and not na(abnBearRefPrice) ? high - abnBearRefPrice : na
 abnBearRsiMove = abnHasBear and not na(abnBearRefRsi) ? abnOsc - abnBearRefRsi : na
 abnBearAtrNeed = abnHasBear and not na(abnBearRefAtr) ? abnBearRefAtr * abnAtrMult : na
+// 반등 감시 게이트(단일) — 가격 되돌림 ≥ ATR × abnAtrMult(기본 1.5). 기본/강화 2단은 CEO 지시로 단일 감시로 통합됨.
 abnBullBgOn = abnHasBull and abnBullBars > 0 and not na(abnBullPriceMove) and not na(abnBullAtrNeed) and abnBullPriceMove >= abnBullAtrNeed and abnBullRsiMove <= abnRsiMoveLimit
 abnBearBgOn = abnHasBear and abnBearBars > 0 and not na(abnBearPriceMove) and not na(abnBearAtrNeed) and abnBearPriceMove >= abnBearAtrNeed and abnBearRsiMove <= abnRsiMoveLimit
-abnBullBgStrong = abnBullBgOn and abnBullPriceMove >= abnBullRefAtr * abnStrongAtrMult
-abnBearBgStrong = abnBearBgOn and abnBearPriceMove >= abnBearRefAtr * abnStrongAtrMult
 
-// 상태 래치: 이격도 중립 복귀 시 리셋. 비정상 캔들(±1)과 반등 감시(±2/±3)를 **각각** 래치해 동시 표시 가능.
+// 상태 래치: 이격도 중립 복귀 시 리셋. 비정상 캔들(±1)과 반등 감시(±2)를 **각각** 래치해 동시 표시 가능.
 var int abnCandleState = 0   // 1=비정상 매도, -1=비정상 매수, 0=없음
-var int abnWatch = 0         // 2/3=롱 감시(강), -2/-3=숏 감시(강), 0=없음
+var int abnWatch = 0         // 2=롱 감시, -2=숏 감시, 0=없음
 if abnDisparityNeutral
     abnCandleState := 0
     abnWatch := 0
@@ -525,13 +522,9 @@ if abnBullCandle
     abnCandleState := 1
 if abnBearCandle
     abnCandleState := -1
-if abnBullBgStrong
-    abnWatch := 3
-else if abnBullBgOn
+if abnBullBgOn
     abnWatch := 2
-if abnBearBgStrong
-    abnWatch := -3
-else if abnBearBgOn
+if abnBearBgOn
     abnWatch := -2
 // 방향(빠른 신호용) = 캔들 우선, 없으면 감시 부호
 abnSig = abnCandleState != 0 ? (abnCandleState > 0 ? 1 : -1) : abnWatch > 0 ? 1 : abnWatch < 0 ? -1 : 0
@@ -546,9 +539,9 @@ bgcolor(abnShowBg ? abnBg : na, title="비정상 매수/매도 배경")
 
 // 비정상 캔들 + 감시를 함께 표기(예: "비정상 매수 | 숏 감시"). 셀 색은 캔들(비정상) 우선, 없으면 감시, 없으면 정상.
 abnCandleTxt = abnCandleState == 1 ? "비정상 매도" : abnCandleState == -1 ? "비정상 매수" : ""
-abnWatchTxt = abnWatch == 3 ? "롱 감시 강화" : abnWatch == 2 ? "롱 감시" : abnWatch == -3 ? "숏 감시 강화" : abnWatch == -2 ? "숏 감시" : ""
+abnWatchTxt = abnWatch == 2 ? "롱 감시" : abnWatch == -2 ? "숏 감시" : ""
 abnCellText = (abnCandleTxt != "" and abnWatchTxt != "") ? abnCandleTxt + " | " + abnWatchTxt : abnCandleTxt != "" ? abnCandleTxt : abnWatchTxt != "" ? abnWatchTxt : close > open ? "정상 매수" : close < open ? "정상 매도" : "정상"
-abnCellColor = abnCandleState == 1 ? color.new(abnOversoldColor, 20) : abnCandleState == -1 ? color.new(abnOverboughtColor, 20) : abnWatch == 3 ? color.new(abnBullStrongColor, 0) : abnWatch == 2 ? color.new(abnBullBaseColor, 0) : abnWatch == -3 ? color.new(abnBearStrongColor, 0) : abnWatch == -2 ? color.new(abnBearBaseColor, 0) : color.new(color.gray, 40)
+abnCellColor = abnCandleState == 1 ? color.new(abnOversoldColor, 20) : abnCandleState == -1 ? color.new(abnOverboughtColor, 20) : abnWatch == 2 ? color.new(abnBullBaseColor, 0) : abnWatch == -2 ? color.new(abnBearBaseColor, 0) : color.new(color.gray, 40)
 
 // 모멘텀 모드 래치: 비정상 캔들/반등 감시 진입(컨텍스트 시작 엣지) 시 매수·매도 양방향 모두 무장, 정상 이격도 복귀(상태 종료, abnDirSig==0) 시 해제.
 var bool momentum = false
