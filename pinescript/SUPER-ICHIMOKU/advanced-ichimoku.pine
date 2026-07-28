@@ -1,7 +1,7 @@
 //@version=6
 // [성능 리팩토링 ①] max_bars_back 5000 → 1000. 실측 최대 히스토리 참조(기본값 기준): ta.vwma(close, ltLen2=200)=200봉이 지배적.
-//  기타: donchian(leadingSpanBPeriods=44)=44, [displacement=22]/[cloudOffset=21] 오프셋, vwCumPV[vwapRecentBars=50]=50,
-//  f_nbarsToCross need=max(convLen,baseLen)≤88(b20=basePeriods×2)·prefix len=min(bar_index+1,need). → 기본값 최대 lookback ≈ 200.
+//  기타: donchian(leadingSpanBPeriods=44)=44, [displacement=22]/[cloudOffset=21] 오프셋, vwCumPV[vwapRecentBars=50]=50.
+//  → 기본값 최대 lookback ≈ 200(ta.vwma 200봉 지배).
 //  1000은 그 5배 헤드룸(보수적 안전마진): 사용자가 장기 MA·recentBars 등 전략 파라미터를 1000까지 올려도 견딤. 계산식 무변경, 버퍼만 축소.
 //  ⚠️ 초기 봉 런타임 안전은 TradingView 실측 필요(특히 장기 input을 대폭 상향한 경우). 부족 시 재상향 검토.
 indicator(title="Advanced Ichimoku", shorttitle="Adv Ichimoku", overlay=true, max_bars_back=1000)
@@ -662,64 +662,6 @@ f_trigNear(p, isBuy) =>
     not na(p) and not na(pct) and (isBuy ? pct <= nearPct : pct >= -nearPct)
 
 // =========================
-// 시간 조정(N봉) 투영 — 트리거 셀 보조표기. "현재 종가가 유지된다고 가정할 때 몇 봉 더 지나야
-//  해당 스케일의 상승/하락 전환(핵심 도치안 크로스)이 성립하는가"의 최소 k(N봉)를 추정한다.
-// -------------------------------------------------------------------------
-//  [투영 대상 조건] 핵심 도치안 전환선 vs 기준선 크로스만: 매수=convProj > baseProj, 매도=convProj < baseProj.
-//    (트리거 가격의 래깅 성분·스케일 캐스케이드는 다봉·확률 의존이라 시간 투영이 애매 → 제외. 범위 = 핵심 conv/base 크로스.)
-//  [가정] 미래 봉들의 고가·저가·종가 = 현재 종가(close)로 고정. 그러면 k봉 후 도치안 창은
-//    과거 (len−k)봉의 실제 고저 + 미래 k개의 close(=단일 상수)로 구성된다.
-//      hi_k = max( highest(high, len−k) , close ),  lo_k = min( lowest(low, len−k) , close )   (k<len)
-//      convProj(k) = avg(hi_k[conv], lo_k[conv]),  baseProj(k) = avg(hi_k[base], lo_k[base])
-//    k ≥ len 이면 창 전체가 close → conv=base=close → 크로스 불성립. 그래서 유효 horizon은 len 미만이 핵심.
-//  [horizon] 각 스케일 base 기간(baseP)과 22 중 큰 값까지 탐색. 그 안에 성립 안 하면 "-"(계산 불가).
-//    이미 그 방향 추세(blocked)면 트리거 셀은 "상승/하락 추세" 텍스트라 N봉을 붙이지 않는다(호출부에서 처리).
-//  [미래참조/리페인팅] 전부 과거 데이터로 미래 창을 수학적으로 투영(현재 종가 상수 가정) → 미래참조 아님.
-//    barstate.islast에서만 1회 계산(성능 안전). 확정봉 종가 기준이라 리페인팅 없음.
-//  [성능] prefix 극값(pHi/pLo)은 스케일·방향과 무관한 순수 high/low 누적이므로, 6개 스케일 호출이
-//    각자 재구축하지 않고 호출부(islast)에서 최대 need만큼 1회 구축한 공유 배열을 참조한다(6→1).
-//    함수는 그 공유 배열의 앞부분(자기 need 범위)만 읽어 크로스 최소 k를 탐색 — 결과는 재구축 때와 완전 동일.
-// =========================
-// prefix 극값 배열 구축 헬퍼: pHi[j] = max(high[0..j]), pLo[j] = min(low[0..j]) 를 한 번 순회로 누적.
-//  len = math.min(bar_index+1, maxNeed) 만큼만 만들면 각 스케일 호출의 need(≤maxNeed) 인덱스를 커버한다.
-f_buildPrefixExtremes(int len, float[] pHi, float[] pLo) =>
-    array.clear(pHi)
-    array.clear(pLo)
-    float runHi = na
-    float runLo = na
-    if len > 0
-        for j = 0 to len - 1
-            runHi := na(runHi) ? high[j] : math.max(runHi, high[j])
-            runLo := na(runLo) ? low[j] : math.min(runLo, low[j])
-            array.push(pHi, runHi)   // pHi[j] = max(high[0..j])  → 창 길이 (j+1)의 극값
-            array.push(pLo, runLo)
-// 공유 prefix 배열(pHi/pLo)을 받아 크로스 최소 k(N봉)만 탐색. prefix 값은 호출부에서 1회 구축한 것과 동일.
-f_nbarsToCross(int convLen, int baseLen, bool isBuy, float[] pHi, float[] pLo) =>
-    hz = math.max(baseLen, 22)
-    // 과거 데이터가 (가장 긴 창 baseLen − 1)만큼 확보돼야 prefix 극값이 유효 → 부족하면 na
-    need = math.max(convLen, baseLen)
-    int result = na
-    if bar_index >= need and not na(close)
-        // k봉 후 conv 창(길이 m=convLen−k)의 극값 = pHi[m-1]/pLo[m-1] (m>0), m≤0 이면 창 전체 close.
-        int found = na
-        for k = 1 to hz
-            int mC = convLen - k
-            int mB = baseLen - k
-            // 창 길이 m>0 이면 과거 m봉 극값과 close 비교, m≤0 이면 창 전체 close(=중립)
-            float hiC = mC > 0 ? math.max(array.get(pHi, mC - 1), close) : close
-            float loC = mC > 0 ? math.min(array.get(pLo, mC - 1), close) : close
-            float hiB = mB > 0 ? math.max(array.get(pHi, mB - 1), close) : close
-            float loB = mB > 0 ? math.min(array.get(pLo, mB - 1), close) : close
-            float convProj = math.avg(hiC, loC)
-            float baseProj = math.avg(hiB, loB)
-            bool crossed = isBuy ? convProj > baseProj : convProj < baseProj
-            if crossed and na(found)
-                found := k
-                break   // [성능 리팩토링 ⑤] 최소 k(첫 크로스)만 필요 → 발견 즉시 종료. found는 na(found) 가드로 이미 1회만 세팅되므로 결과 불변.
-        result := found
-    result
-
-// =========================
 // 스케일 캐스케이드 — 하위 스케일이 '해당 방향 추세 상태'일 때 상위 스케일이 발화한다.
 //  매수 1×: 0.5×가 상승 추세(dir05==1)인 동안 1× 자기 트리거 충족 시. 매도 1×: 0.5×가 하락 추세(dir05==-1)인 동안.
 //  매수 2×: 0.5×·1×가 둘 다 상승 추세(dir05==1 and dir10==1)인 동안 2× 자기 트리거 충족 시. 매도 2×: 0.5×·1× 둘 다 하락 추세.
@@ -739,6 +681,15 @@ var float buyEntry20 = na
 var float sellEntry05 = na
 var float sellEntry10 = na
 var float sellEntry20 = na
+// 추세 진행 중(blocked) 표시의 괄호값(전환 후 경과봉)용 발화 bar_index 래치 — entryXX와 '완전히 동일 시점·조건'에서 갱신.
+//  경과봉 = 현재 bar_index − entryBarXX (발화 봉=0봉, 다음 봉=1봉 …). entryXX(수익률 기준봉)와 동일 발화 봉을 공유 → 추세 %와 경과봉이 항상 정합.
+//  반대 방향 발화 시 그 스케일 방향의 entryBar가 새 값으로 덮여 자연히 무효화. na=발화 이력 없음(워밍업) → 경과봉 생략.
+var int buyEntryBar05 = na
+var int buyEntryBar10 = na
+var int buyEntryBar20 = na
+var int sellEntryBar05 = na
+var int sellEntryBar10 = na
+var int sellEntryBar20 = na
 // 스킵: 상위 배수의 트리거가 이미 현재 봉에서 충족(매수=종가≥트리거, 매도=종가≤트리거)되면 원시 신호를 기다리지 않고 바로 표시.
 // '하위 배수가 같은 방향 추세 상태'는 dir(전 봉까지)로 판정 — 반대 신호가 나면 dir 부호가 뒤집혀 상위 전제가 풀리므로 모멘텀/정상 무관하게 순차성 강제(중복 방지).
 // [C-2 정합] skip은 buyTrig*/sellTrig*(=혼합 소스 반영된 btXe/stXe)를 참조하므로, 혼합 모드 abnVolume 봉에선 skip도 VWMA 트리거 기준으로
@@ -876,24 +827,31 @@ sSell20 = pSell20 ? true : (hybImm ? iSell20 : fSell20)
 // 반대 방향 발화가 나면 그 스케일 dir 부호가 뒤집혀 상위 스케일의 전제가 자연히 풀린다(구 사다리 리셋 대체).
 // entry(발화 시점 신호 레벨) 래치 — dirXX와 '동일 트리거·동일 봉'에서만 갱신(표시 정합·리페인팅 특성 dir과 동일).
 //  발화 봉의 신호 레벨 = 확정 경로(fBuyXX)면 그 봉이 넘어선 대기 트리거 pendTrigXX[1](직전 봉 래치값), 예측/즉시 경로엔 pendTrig가 na이므로 현재 봉 트리거로 폴백.
+//  entryBarXX = 발화 봉의 bar_index. entryXX와 완전히 동일 시점·조건에서 래치 → 추세 %(entry)와 경과봉(entryBar)이 같은 발화 봉을 공유.
 if sBuy05
     dir05 := 1
     buyEntry05 := not na(pendTrig05[1]) and pend05[1] == 1 ? pendTrig05[1] : buyTrig05
+    buyEntryBar05 := bar_index
 else if sSell05
     dir05 := -1
     sellEntry05 := not na(pendTrig05[1]) and pend05[1] == -1 ? pendTrig05[1] : sellTrig05
+    sellEntryBar05 := bar_index
 if sBuy10
     dir10 := 1
     buyEntry10 := not na(pendTrig10[1]) and pend10[1] == 1 ? pendTrig10[1] : buyTrig10
+    buyEntryBar10 := bar_index
 else if sSell10
     dir10 := -1
     sellEntry10 := not na(pendTrig10[1]) and pend10[1] == -1 ? pendTrig10[1] : sellTrig10
+    sellEntryBar10 := bar_index
 if sBuy20
     dir20 := 1
     buyEntry20 := not na(pendTrig20[1]) and pend20[1] == 1 ? pendTrig20[1] : buyTrig20
+    buyEntryBar20 := bar_index
 else if sSell20
     dir20 := -1
     sellEntry20 := not na(pendTrig20[1]) and pend20[1] == -1 ? pendTrig20[1] : sellTrig20
+    sellEntryBar20 := bar_index
 buyBlocked05 = dir05 == 1
 sellBlocked05 = dir05 == -1
 buyBlocked10 = dir10 == 1
@@ -1256,14 +1214,15 @@ f_pct(p) =>
 //  → 상승 추세는 오르면 +("상승 추세 (+34.1%)"), 하락 추세는 내리면 −("하락 추세 (-13.9%)")로 읽힌다(두 방향 동일 산식·isBuy 무관).
 //  entry가 na(발화 이력 없음=워밍업)이거나 0이면 0 나눗셈 방지 위해 괄호 생략.
 // mom=모멘텀 모드면 트리거 가격/추세 텍스트 앞에 "M " 표기.
-// nbars = 시간 조정 투영 봉수(na면 horizon 안 성립 안 함 = "-"). blocked(추세 진행 중)이면 N봉 미표기(기존 텍스트 유지).
-//  트리거 가격 표시 케이스에만 "{기존값} | N봉"(성립) 또는 "{기존값} | -"(계산 불가)로 부착.
+// elapsed = 전환(발화) 이후 경과 봉 수(= 현재 bar_index − 발화 봉 entryBar; 발화 봉=0봉, 다음 봉=1봉 …). blocked(추세 진행 중) 케이스에만 괄호 안 % 옆에 " | N봉"으로 부착.
+//  → "상승 추세 (+659.2% | 5봉)" 형식. entry가 na/0이라 괄호 자체를 생략하면 봉수도 자연히 생략. elapsed가 na 또는 음수(워밍업/미발화)면 봉수만 생략하고 %는 유지.
+//  대기(트리거 가격) 케이스는 봉수 미표기 — "↑가격 (%)"만 표시(과거의 " | N봉" 투영 표기 제거).
 // vwSrc=true면(혼합 모드에서 이 봉 트리거가 VWMA 소스) 셀 텍스트 맨 앞에 "V " 접두를 붙여 사용자가 소스를 식별.
 //  접두 순서: "V " → "M "(모멘텀) → 본문. 추세 진행(blocked) 케이스에도 트리거 소스 표시 의미가 있어 동일하게 부착.
 f_pnlPct(entry) =>
     d = (close - entry) / entry * 100
     (d > 0 ? "+" : "") + str.tostring(d, "0.0") + "%"
-f_trigCell(blocked, p, isBuy, entry, mom, nbars, vwSrc) => (vwSrc ? "V " : "") + (mom ? "M " : "") + (blocked ? (isBuy ? "상승 추세" : "하락 추세") + (na(entry) or entry == 0 ? "" : " (" + f_pnlPct(entry) + ")") : f_arrow(p) + f_price(p) + " (" + f_pct(p) + ")" + " | " + (na(nbars) ? "-" : str.tostring(nbars) + "봉"))
+f_trigCell(blocked, p, isBuy, entry, mom, elapsed, vwSrc) => (vwSrc ? "V " : "") + (mom ? "M " : "") + (blocked ? (isBuy ? "상승 추세" : "하락 추세") + (na(entry) or entry == 0 ? "" : " (" + f_pnlPct(entry) + (na(elapsed) or elapsed < 0 ? "" : " | " + str.tostring(elapsed) + "봉") + ")") : f_arrow(p) + f_price(p) + " (" + f_pct(p) + ")")
 // 셀 강조: 방향 기준. 매수는 트리거가 현재가의 +nearPct% 이내(또는 이미 아래=조건 충족→확정),
 // 매도는 트리거가 −nearPct% 이내(또는 이미 위=충족)면 포지션 색(상승=녹/하락=빨)으로 칠한다.
 // 진행 중(상승/하락 추세)이면 구름대 셀과 같은 채도(투명도 30)의 포지션 색.
@@ -1583,33 +1542,27 @@ if barstate.islast
     table.cell(triggerTable, 1, 0, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.merge_cells(triggerTable, 0, 0, 1, 0)
 
-    // N봉(시간 조정) 투영 — 모멘텀 모드면 트리거와 동일하게 한 단계 빠른 기간(conv/base 길이)으로 시프트.
-    //  0.5×: 정상 (c05,b05) / 모멘텀 (c025,b025) · 1×: 정상 (conv,base) / 모멘텀 (c05,b05) · 2×: 정상 (c20,b20) / 모멘텀 (conv,base)
-    int nbConv05 = momentum ? c025 : c05
-    int nbBase05 = momentum ? b025 : b05
-    int nbConv10 = momentum ? c05 : conversionPeriods
-    int nbBase10 = momentum ? b05 : basePeriods
-    int nbConv20 = momentum ? conversionPeriods : c20
-    int nbBase20 = momentum ? basePeriods : b20
-    // prefix 극값 배열을 6개 스케일 호출 중 최대 need만큼 1회 구축(공유). 각 호출은 자기 need 범위만 참조.
-    int nbMaxNeed = math.max(math.max(math.max(nbConv05, nbBase05), math.max(nbConv10, nbBase10)), math.max(nbConv20, nbBase20))
-    int nbLen = math.min(bar_index + 1, nbMaxNeed)
-    var float[] nbPHi = array.new_float(0)
-    var float[] nbPLo = array.new_float(0)
-    f_buildPrefixExtremes(nbLen, nbPHi, nbPLo)
+    // 전환 후 경과봉(추세 진행 중 blocked 셀 괄호 표기용) — 발화 봉 bar_index(entryBarXX) 대비 현재 경과. entryBar na면 na(f_trigCell에서 봉수 생략).
+    //  발화 봉=0봉(bar_index − entryBar = 0), 다음 봉=1봉 … entryXX(수익률 기준봉)와 동일 발화 봉을 공유해 추세 %와 정합.
+    int elapsedBuy05  = na(buyEntryBar05)  ? na : bar_index - buyEntryBar05
+    int elapsedBuy10  = na(buyEntryBar10)  ? na : bar_index - buyEntryBar10
+    int elapsedBuy20  = na(buyEntryBar20)  ? na : bar_index - buyEntryBar20
+    int elapsedSell05 = na(sellEntryBar05) ? na : bar_index - sellEntryBar05
+    int elapsedSell10 = na(sellEntryBar10) ? na : bar_index - sellEntryBar10
+    int elapsedSell20 = na(sellEntryBar20) ? na : bar_index - sellEntryBar20
     table.cell(triggerTable, 0, 1, "상승 전환(0.5×)", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 1, f_trigCell(buyBlocked05, buyTrig05, true, buyEntry05, momentum, f_nbarsToCross(nbConv05, nbBase05, true, nbPHi, nbPLo), vwTrig05), text_color=color.white, bgcolor=f_trigBg(buyBlocked05, buyTrig05, true), text_size=size.small)
+    table.cell(triggerTable, 1, 1, f_trigCell(buyBlocked05, buyTrig05, true, buyEntry05, momentum, elapsedBuy05, vwTrig05), text_color=color.white, bgcolor=f_trigBg(buyBlocked05, buyTrig05, true), text_size=size.small)
     table.cell(triggerTable, 0, 2, "상승 전환(1×)", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 2, f_trigCell(buyBlocked10, buyTrig10, true, buyEntry10, momentum, f_nbarsToCross(nbConv10, nbBase10, true, nbPHi, nbPLo), vwTrig10), text_color=color.white, bgcolor=f_trigBg(buyBlocked10, buyTrig10, true), text_size=size.small)
+    table.cell(triggerTable, 1, 2, f_trigCell(buyBlocked10, buyTrig10, true, buyEntry10, momentum, elapsedBuy10, vwTrig10), text_color=color.white, bgcolor=f_trigBg(buyBlocked10, buyTrig10, true), text_size=size.small)
     table.cell(triggerTable, 0, 3, "상승 전환(2×)", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 3, f_trigCell(buyBlocked20, buyTrig20, true, buyEntry20, momentum, f_nbarsToCross(nbConv20, nbBase20, true, nbPHi, nbPLo), vwTrig20), text_color=color.white, bgcolor=f_trigBg(buyBlocked20, buyTrig20, true), text_size=size.small)
+    table.cell(triggerTable, 1, 3, f_trigCell(buyBlocked20, buyTrig20, true, buyEntry20, momentum, elapsedBuy20, vwTrig20), text_color=color.white, bgcolor=f_trigBg(buyBlocked20, buyTrig20, true), text_size=size.small)
 
     table.cell(triggerTable, 0, 4, "하락 전환(0.5×)", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 4, f_trigCell(sellBlocked05, sellTrig05, false, sellEntry05, momentum, f_nbarsToCross(nbConv05, nbBase05, false, nbPHi, nbPLo), vwTrig05), text_color=color.white, bgcolor=f_trigBg(sellBlocked05, sellTrig05, false), text_size=size.small)
+    table.cell(triggerTable, 1, 4, f_trigCell(sellBlocked05, sellTrig05, false, sellEntry05, momentum, elapsedSell05, vwTrig05), text_color=color.white, bgcolor=f_trigBg(sellBlocked05, sellTrig05, false), text_size=size.small)
     table.cell(triggerTable, 0, 5, "하락 전환(1×)", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 5, f_trigCell(sellBlocked10, sellTrig10, false, sellEntry10, momentum, f_nbarsToCross(nbConv10, nbBase10, false, nbPHi, nbPLo), vwTrig10), text_color=color.white, bgcolor=f_trigBg(sellBlocked10, sellTrig10, false), text_size=size.small)
+    table.cell(triggerTable, 1, 5, f_trigCell(sellBlocked10, sellTrig10, false, sellEntry10, momentum, elapsedSell10, vwTrig10), text_color=color.white, bgcolor=f_trigBg(sellBlocked10, sellTrig10, false), text_size=size.small)
     table.cell(triggerTable, 0, 6, "하락 전환(2×)", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 6, f_trigCell(sellBlocked20, sellTrig20, false, sellEntry20, momentum, f_nbarsToCross(nbConv20, nbBase20, false, nbPHi, nbPLo), vwTrig20), text_color=color.white, bgcolor=f_trigBg(sellBlocked20, sellTrig20, false), text_size=size.small)
+    table.cell(triggerTable, 1, 6, f_trigCell(sellBlocked20, sellTrig20, false, sellEntry20, momentum, elapsedSell20, vwTrig20), text_color=color.white, bgcolor=f_trigBg(sellBlocked20, sellTrig20, false), text_size=size.small)
 
     // 중기 추세 (row 7) — [교체] 리본 추세 자리(전환 6행 다음)에 배치. VWAP(50) vs 100선(MA100) 배열 상태 추세.
     //  장기 추세(MA100 vs MA200)와 **동일 로직·포맷·색**(상승/하락 (±% | N봉), 상승=청록·하락=자홍, 강약 그라데이션). 지지/저항 포맷 아님.
