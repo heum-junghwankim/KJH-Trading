@@ -425,14 +425,14 @@ disparityPullbackPrice = overCount >= 1 ? disparityUpperEdge : underCount >= 1 ?
 
 // =========================
 // 비정상 캔들 — cRSI 과매수/과매도 + 볼린저 몸통 이탈 캔들, 이후 ATR 추종 배경.
-//  기준 길이(cRSI 사이클·볼린저·ATR·RSI·추적 봉수)는 베이스 라인(basePeriods)에 연동해 최적화.
+//  기준 길이(cRSI 사이클·볼린저·ATR·RSI·추적 봉수)는 비정상 기준 길이(abnBbLen, 기본 20)에 단일 연동 — CEO 지시로 auto-vwap과 동일.
 //  차트: 비정상 캔들 바색 + 배경(bgcolor). 테이블: 비정상 캔들/감시 상태.
 //  (모멘텀 모드 즉시 반영을 위해 멀티스케일 신호 앞에서 계산)
 // =========================
 abnVibration = input.int(10, minval=1, title="비정상 캔들 cRSI Vibration", group="비정상 캔들")
 abnOB = input.float(70.0, title="비정상 절대 과매수", group="비정상 캔들")
 abnOS = input.float(30.0, title="비정상 절대 과매도", group="비정상 캔들")
-abnBbLen = input.int(20, minval=1, title="비정상 볼린저 길이", group="비정상 캔들", tooltip="비정상 캔들 판정용 볼린저 밴드(basis=SMA·dev=STDEV) 전용 길이. 베이스 라인(basePeriods)과 독립인 별도 길이로 기본 20(표준 볼린저 관례). cRSI 사이클·ATR·RSI·추적 봉수는 이 값과 무관하게 베이스 라인 길이에 연동됩니다. 전략성 파라미터(수학자 리뷰 대상).")
+abnBbLen = input.int(20, minval=1, title="비정상 기준 길이(볼린저 등)", group="비정상 캔들", tooltip="비정상 매수/매도 판정의 전체 기준 길이(기본 20, 표준 볼린저 관례). 볼린저 밴드(basis=SMA·dev=STDEV)뿐 아니라 cRSI 사이클 길이(이 값÷2)·RSI·ATR·반등 추적 lookback이 모두 이 값에 연동됩니다(CEO 지시로 auto-vwap과 동일 기준으로 단일화, 기존 basePeriods 연동 폐지). 전략성 파라미터(수학자 리뷰 대상).")
 abnBbMult = input.float(2.0, minval=0.1, step=0.1, title="비정상 볼린저 배수", group="비정상 캔들")
 abnBodyRatio = input.float(0.3, minval=0.0, step=0.05, title="비정상 밴드 초과 비율(고저 기준)", group="비정상 캔들")
 abnAtrMult = input.float(1.5, minval=0.1, step=0.1, title="비정상 반등 감시 ATR 배수", group="비정상 캔들", tooltip="비정상 캔들 이후 가격 되돌림(반등)이 이 ATR 배수 이상이면 '롱/숏 감시'로 판정합니다. 기본 1.5. (기본/강화 2단 감시는 CEO 지시로 단일 감시로 통합됨.)")
@@ -448,11 +448,11 @@ abnSellBgColor = input.color(color.blue, title="비정상 매도 배경 색(파�
 abnBuyBgColor = input.color(color.red, title="비정상 매수 배경 색(빨강)", group="비정상 캔들")
 abnBgTransp = input.int(82, minval=0, maxval=100, title="비정상 배경 투명도", group="비정상 캔들")
 
-// 기준 길이 = 베이스 라인(basePeriods)에 연동 — 비정상 캔들 신호 최적화
-abnLen = basePeriods
-abnLookback = basePeriods
-// cRSI (도미넌트 사이클 = 베이스 라인) → 절대 과매수/과매도
-abnCycleLen = math.max(1, int(basePeriods / 2))
+// 기준 길이 = 비정상 볼린저 길이(abnBbLen, 기본 20)에 단일화 — CEO 지시로 auto-vwap과 동일 기준. 비정상 캔들 신호 최적화
+abnLen = abnBbLen
+abnLookback = abnBbLen
+// cRSI (도미넌트 사이클 = 비정상 기준 길이 abnBbLen÷2) → 절대 과매수/과매도
+abnCycleLen = math.max(1, int(abnBbLen / 2))
 abnTorque = 2.0 / (abnVibration + 1.0)
 abnPhasingLag = int((abnVibration - 1) / 2.0)
 abnUp = ta.rma(math.max(ta.change(close), 0), abnCycleLen)
@@ -491,52 +491,56 @@ var float abnBullRefAtr = na
 var float abnBearRefPrice = na
 var float abnBearRefRsi = na
 var float abnBearRefAtr = na
-// 이격도 중립이면 추적 종료(먼저) → 새 비정상 캔들이면 재시작(최신 우선)
-if not na(abnBullBar) and abnDisparityNeutral
-    abnBullBar := na
-if not na(abnBearBar) and abnDisparityNeutral
-    abnBearBar := na
-if abnBullCandle
-    abnBullBar := bar_index
-    abnBullRefPrice := low
-    abnBullRefRsi := abnOsc
-    abnBullRefAtr := abnAtr
-if abnBearCandle
-    abnBearBar := bar_index
-    abnBearRefPrice := high
-    abnBearRefRsi := abnOsc
-    abnBearRefAtr := abnAtr
-abnBullBars = not na(abnBullBar) ? bar_index - abnBullBar : na
-abnBearBars = not na(abnBearBar) ? bar_index - abnBearBar : na
-abnHasBull = not na(abnBullBars) and abnBullBars >= 0 and abnBullBars <= abnLookback
-abnHasBear = not na(abnBearBars) and abnBearBars >= 0 and abnBearBars <= abnLookback
-abnBullPriceMove = abnHasBull and not na(abnBullRefPrice) ? abnBullRefPrice - low : na
-abnBullRsiMove = abnHasBull and not na(abnBullRefRsi) ? abnBullRefRsi - abnOsc : na
-abnBullAtrNeed = abnHasBull and not na(abnBullRefAtr) ? abnBullRefAtr * abnAtrMult : na
-abnBearPriceMove = abnHasBear and not na(abnBearRefPrice) ? high - abnBearRefPrice : na
-abnBearRsiMove = abnHasBear and not na(abnBearRefRsi) ? abnOsc - abnBearRefRsi : na
-abnBearAtrNeed = abnHasBear and not na(abnBearRefAtr) ? abnBearRefAtr * abnAtrMult : na
-// 반등 감시 게이트(단일) — 가격 되돌림 ≥ ATR × abnAtrMult(기본 1.5). 기본/강화 2단은 CEO 지시로 단일 감시로 통합됨.
-abnBullBgOn = abnHasBull and abnBullBars > 0 and not na(abnBullPriceMove) and not na(abnBullAtrNeed) and abnBullPriceMove >= abnBullAtrNeed and abnBullRsiMove <= abnRsiMoveLimit
-abnBearBgOn = abnHasBear and abnBearBars > 0 and not na(abnBearPriceMove) and not na(abnBearAtrNeed) and abnBearPriceMove >= abnBearAtrNeed and abnBearRsiMove <= abnRsiMoveLimit
-
 // 상태 래치: 이격도 중립 복귀 시 리셋. 비정상 캔들(±1)과 반등 감시(±2)를 **각각** 래치해 동시 표시 가능.
 var int abnCandleState = 0   // 1=비정상 매도, -1=비정상 매수, 0=없음
 var int abnWatch = 0         // 2=롱 감시, -2=숏 감시, 0=없음
-if abnDisparityNeutral
-    abnCandleState := 0
-    abnWatch := 0
-if abnBullCandle
-    abnCandleState := 1
-if abnBearCandle
-    abnCandleState := -1
-if abnBullBgOn
-    abnWatch := 2
-if abnBearBgOn
-    abnWatch := -2
+// ⚠️ CEO 지시(auto-vwap과 통일): 상태 갱신은 확정봉(barstate.isconfirmed)에서만.
+//  기준점 스냅샷(abnBull/BearBar·Ref*), 추적 종료(중립 시 Bar na), 비정상 캔들 래치(abnCandleState),
+//  되돌림 추적 파생값, 반등 감시 게이트, 감시 래치(abnWatch)를 모두 이 가드 안에서만 갱신한다(리페인팅 방지).
+//  ※ abnCrsi·볼린저·ATR·RSI 등 지표 값 계산과 abnBull/BearCandle 판정 불리언은 위에서 실시간 계산 그대로(값 불변, 상태 확정 타이밍만 확정봉).
+if barstate.isconfirmed
+    // 이격도 중립이면 추적 종료(먼저) → 새 비정상 캔들이면 재시작(최신 우선)
+    if not na(abnBullBar) and abnDisparityNeutral
+        abnBullBar := na
+    if not na(abnBearBar) and abnDisparityNeutral
+        abnBearBar := na
+    if abnBullCandle
+        abnBullBar := bar_index
+        abnBullRefPrice := low
+        abnBullRefRsi := abnOsc
+        abnBullRefAtr := abnAtr
+    if abnBearCandle
+        abnBearBar := bar_index
+        abnBearRefPrice := high
+        abnBearRefRsi := abnOsc
+        abnBearRefAtr := abnAtr
+    abnBullBars = not na(abnBullBar) ? bar_index - abnBullBar : na
+    abnBearBars = not na(abnBearBar) ? bar_index - abnBearBar : na
+    abnHasBull = not na(abnBullBars) and abnBullBars >= 0 and abnBullBars <= abnLookback
+    abnHasBear = not na(abnBearBars) and abnBearBars >= 0 and abnBearBars <= abnLookback
+    abnBullPriceMove = abnHasBull and not na(abnBullRefPrice) ? abnBullRefPrice - low : na
+    abnBullRsiMove = abnHasBull and not na(abnBullRefRsi) ? abnBullRefRsi - abnOsc : na
+    abnBullAtrNeed = abnHasBull and not na(abnBullRefAtr) ? abnBullRefAtr * abnAtrMult : na
+    abnBearPriceMove = abnHasBear and not na(abnBearRefPrice) ? high - abnBearRefPrice : na
+    abnBearRsiMove = abnHasBear and not na(abnBearRefRsi) ? abnOsc - abnBearRefRsi : na
+    abnBearAtrNeed = abnHasBear and not na(abnBearRefAtr) ? abnBearRefAtr * abnAtrMult : na
+    // 반등 감시 게이트(단일) — 가격 되돌림 ≥ ATR × abnAtrMult(기본 1.5). 기본/강화 2단은 CEO 지시로 단일 감시로 통합됨.
+    abnBullBgOn = abnHasBull and abnBullBars > 0 and not na(abnBullPriceMove) and not na(abnBullAtrNeed) and abnBullPriceMove >= abnBullAtrNeed and abnBullRsiMove <= abnRsiMoveLimit
+    abnBearBgOn = abnHasBear and abnBearBars > 0 and not na(abnBearPriceMove) and not na(abnBearAtrNeed) and abnBearPriceMove >= abnBearAtrNeed and abnBearRsiMove <= abnRsiMoveLimit
+    if abnDisparityNeutral
+        abnCandleState := 0
+        abnWatch := 0
+    if abnBullCandle
+        abnCandleState := 1
+    if abnBearCandle
+        abnCandleState := -1
+    if abnBullBgOn
+        abnWatch := 2
+    if abnBearBgOn
+        abnWatch := -2
 // 방향(빠른 신호용) = 캔들 우선, 없으면 감시 부호
 abnSig = abnCandleState != 0 ? (abnCandleState > 0 ? 1 : -1) : abnWatch > 0 ? 1 : abnWatch < 0 ? -1 : 0
-// 방향: 1=비정상 매도/롱 반등, -1=비정상 매수/숏 반등, 0=정상(이격도 중립). 진입 시 매수·매도 신호 모두 모멘텀 모드로 전환. (현재 봉 값으로 즉시 반영)
+// 방향: 1=비정상 매도/롱 반등, -1=비정상 매수/숏 반등, 0=정상(이격도 중립). 진입 시 매수·매도 신호 모두 모멘텀 모드로 전환. (상태 래치가 확정봉 갱신이므로 봉 확정 후 1봉 지연으로 확정 반영)
 abnDirSig = abnSig > 0 ? 1 : abnSig < 0 ? -1 : 0
 
 // 세로 배경색(CEO 지시 재구성): 반등 감시(abnWatch) 배경은 제거하고, 비정상 캔들(abnCandleState)에만 칠한다.
@@ -1348,8 +1352,8 @@ mtReady = vwHasVwap and not na(ltMa1)
 mtUp = mtReady and vwapValue > ltMa1                  // 상승 배열(VWAP > 100선)
 mtGap = mtReady ? math.abs(vwapValue - ltMa1) : na
 mtGapPct = mtReady and close != 0 ? mtGap / close * 100 : na
-mtGoldCross = mtReady and ta.crossover(vwapValue, ltMa1)   // VWAP가 100선 상향 돌파(하락→상승). 아래 vwMaGolden과 동일 산식(선언 순서상 여기서 직접 계산).
-mtDeadCross = mtReady and ta.crossunder(vwapValue, ltMa1)  // VWAP가 100선 하향 돌파(상승→하락). 아래 vwMaDead와 동일 산식.
+mtGoldCross = mtReady and ta.crossover(vwapValue, ltMa1)   // VWAP가 100선 상향 돌파(하락→상승). 중기 추세 테이블 셀 판정용.
+mtDeadCross = mtReady and ta.crossunder(vwapValue, ltMa1)  // VWAP가 100선 하향 돌파(상승→하락). 중기 추세 테이블 셀 판정용.
 // 확립 = 크로스 후 ltTrendLook 봉 경과. 그 전(빌드업)은 폭변화 룩백이 크로스를 가로질러 왜곡되므로 강/약 안 함.
 mtBarsSince = ta.barssince(mtGoldCross or mtDeadCross)
 mtFresh = na(mtBarsSince) or mtBarsSince < ltTrendLook
@@ -1371,12 +1375,6 @@ mtCellText = not mtReady ? "-" : mtDeadCross ? "데드 크로스" : mtGoldCross 
 // 색: 장기 추세와 동일 그라데이션 — 크로스 순간=선명(0)·강함(확대)=선명(0)·약함(축소/임박)=옅음(55)·추세=중간(30). ltUpColor/ltDownColor 재사용.
 mtCellTransp = not mtEstablished ? 30 : (mtNearCross or mtNarrowing) ? 55 : mtWidening ? 0 : 30
 mtCellColor = not mtReady ? color.new(color.gray, 50) : mtGoldCross ? color.new(ltUpColor, 0) : mtDeadCross ? color.new(ltDownColor, 0) : mtUp ? color.new(ltUpColor, mtCellTransp) : color.new(ltDownColor, mtCellTransp)
-// VWAP(50) × 100선(MA100) 크로스 — 중기 추세 골든/데드. 확정 ta.crossover/crossunder만 사용(리페인팅 없음).
-//  vwHasVwap(VWAP 워밍업 완료) and not na(ltMa1)(MA100 워밍업 완료)로 na 가드 — 워밍업 중 오탐 크로스 방지.
-//  골든(vwapValue가 MA100 상향 돌파) → 차트 하단 녹색 십자. 데드(하향 돌파) → 차트 상단 붉은 십자.
-vwMaCross = vwHasVwap and not na(ltMa1)
-vwMaGolden = vwMaCross and ta.crossover(vwapValue, ltMa1)
-vwMaDead = vwMaCross and ta.crossunder(vwapValue, ltMa1)
 vwSlopeLen = 5
 vwBw2 = vwHasVwap and not na(vwUpper2) and not na(vwLower2) ? vwUpper2 - vwLower2 : na
 // ── 원시 위치 플래그(밴드1/밴드2 밖) — 확정봉 close·확정 밴드값 참조 → 리페인팅 없음. na 가드(워밍업). ──
@@ -1642,12 +1640,3 @@ plotshape(showTrendSignal and sigVw and vwBuy20, title="매수 2× (거래량)",
 plotshape(showTrendSignal and sigVw and vwSell05, title="매도 0.5× (거래량)", style=shape.triangledown, location=location.abovebar, color=momSellColor, size=size.tiny)
 plotshape(showTrendSignal and sigVw and vwSell10, title="매도 1× (거래량)", style=shape.triangledown, location=location.abovebar, color=momSellColor, size=size.small)
 plotshape(showTrendSignal and sigVw and vwSell20, title="매도 2× (거래량)", style=shape.triangledown, location=location.abovebar, color=momSellColor, size=size.normal)
-
-// VWAP(50) × 100선(MA100) 크로스 마커 — 중기 추세 골든/데드. 확정 크로스(vwMaGolden/vwMaDead)라 리페인팅 없음.
-//  골든(VWAP가 100선 상향 돌파)·데드(하향 돌파) 모두 100선(ltMa1) 가격 위치에 십자로 표시(골든=녹, 데드=빨강).
-//  plot(조건 ? ltMa1 : na, style=plot.style_cross) — plotshape은 location.absolute로 특정 가격 지정 불가라 plot으로 전환.
-//  조건 미충족 봉은 na → 해당 크로스 봉에만 십자 1개 표시(cross 스타일은 na로 끊겨 선 연결 없음). ltMa1 워밍업 na도 자동 미표시.
-plot(vwMaGolden ? ltMa1 : na, title="VWAP×100선 골든 크로스", style=plot.style_cross, color=color.green, linewidth=4, display=display.all - display.price_scale)
-plot(vwMaDead ? ltMa1 : na, title="VWAP×100선 데드 크로스", style=plot.style_cross, color=color.red, linewidth=4, display=display.all - display.price_scale)
-alertcondition(vwMaGolden, title="VWAP×100선 골든 크로스", message="VWAP(50) crossed above MA100 — mid-term golden cross.")
-alertcondition(vwMaDead, title="VWAP×100선 데드 크로스", message="VWAP(50) crossed below MA100 — mid-term dead cross.")
