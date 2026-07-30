@@ -1,6 +1,6 @@
 //@version=6
 // [성능 리팩토링 ①] max_bars_back 5000 → 1000. 실측 최대 히스토리 참조(기본값 기준): ta.vwma(close, ltLen2=200)=200봉이 지배적.
-//  기타: donchian(leadingSpanBPeriods=44)=44, [displacement=22]/[cloudOffset=21] 오프셋, vwCumPV[vwapRecentBars=50]=50.
+//  기타: donchian(leadingSpanBPeriods=44)=44, [displacement=22]/[cloudOffset=21] 오프셋, vwCumPV[vwapRecentBars=50]=50, vwCumPV[vwapStateBars=20]=20(VWAP 상태 전용).
 //  → 기본값 최대 lookback ≈ 200(ta.vwma 200봉 지배).
 //  1000은 그 5배 헤드룸(보수적 안전마진): 사용자가 장기 MA·recentBars 등 전략 파라미터를 1000까지 올려도 견딤. 계산식 무변경, 버퍼만 축소.
 //  ⚠️ 초기 봉 런타임 안전은 TradingView 실측 필요(특히 장기 input을 대폭 상향한 경우). 부족 시 재상향 검토.
@@ -14,14 +14,14 @@ basePeriods = input.int(22, minval=1, title="베이스 라인 길이", group="�
 leadingSpanBPeriods = input.int(44, minval=1, title="리딩 스팬 B 길이", group="기본 설정")
 displacement = input.int(22, minval=1, title="레깅 스팬 길이", group="기본 설정")
 
-showConversionLine = input.bool(true, title="컨버전 라인 표시", group="표시")
-showBaseLine = input.bool(true, title="베이스 라인 표시", group="표시")
-showLaggingSpan = input.bool(true, title="레깅 스팬 표시", group="표시")
+showConversionLine = input.bool(false, title="컨버전 라인 표시", group="표시")
+showBaseLine = input.bool(false, title="베이스 라인 표시", group="표시")
+showLaggingSpan = input.bool(false, title="레깅 스팬 표시", group="표시")
 showLeadingSpanA = input.bool(false, title="리딩 스팬 A 표시", group="표시")
 showLeadingSpanB = input.bool(false, title="리딩 스팬 B 표시", group="표시")
 showKumoUpper = input.bool(false, title="Kumo Cloud Upper Line 표시", group="표시")
 showKumoLower = input.bool(false, title="Kumo Cloud Lower Line 표시", group="표시")
-showCloudFill = input.bool(true, title="Cloud Fill 표시", group="표시")
+showCloudFill = input.bool(false, title="Cloud Fill 표시", group="표시")
 
 // =========================
 // [옵션 패널 재배치] 상승/하락 전환 신호 group — 구 "신호 표시" group을 여기(구 개별 매수/매도 표시 토글 자리)로 이동하고 제목 변경(구 "매수/매도 전환 신호" → "상승/하락 전환 신호": 이치모쿠 상승/하락 전환 의미에 맞춤).
@@ -900,6 +900,17 @@ ltPlot1 = plot(showLongTrend ? ltMa1 : na, title="장기추세 MA #1(100)", colo
 ltPlot2 = plot(showLongTrend ? ltMa2 : na, title="장기추세 MA #2(200)", color=ltColor2, linewidth=lineWidth, display=display.all - display.price_scale)
 fill(ltPlot1, ltPlot2, title="장기추세 backfill", color=showLongTrend ? (ltUp ? color.new(ltColor1, ltFillTransp) : color.new(ltColor2, ltFillTransp)) : na)
 
+// 거래량 가중 20선(VWMA 20) — 로직 전용(차트 페인트 없음). 단기 추세(20선 vs 50선) 판정의 빠른 선.
+//  ★ CEO 지시(2026-07): 화면 표시(흰색 plot)는 제거. 계산·판정은 유지 — 아래 '단기 추세' 테이블 행(stUp = vwma20 > vwma50)의 소스로만 사용.
+//    ta.vwma(close, 20)은 50선(ta.vwma(close,50))·장기추세 VWMA(100/200)와 동일 함수·별개 길이라 중복 계산 없음.
+vwma20 = ta.vwma(close, 20)
+
+// 거래량 가중 50선(VWMA 50) — 노랑(#FFEB3B). 기본 표시 ON. 단기 추세(20선 vs 50선)의 느린 선이자 표시선.
+//  ★ 계산·표시 전용(판정/신호 로직에 미연결). ta.vwma(close, 50)은 기존 장기추세 VWMA(100/200)와 동일 함수·별개 길이라 중복 계산 없음.
+showVwma50 = input.bool(true, title="거래량 가중 50선", group="표시", tooltip="거래량 가중 이동평균 50선(VWMA 50)을 노랑으로 표시합니다. 기본 ON. 단기 추세(20선 vs 50선) 행의 느린 선입니다.")
+vwma50 = ta.vwma(close, 50)
+plot(showVwma50 ? vwma50 : na, title="거래량 가중 50선(VWMA 50)", color=#FFEB3B, linewidth=lineWidth, display=display.all - display.price_scale)
+
 // 장기 추세 강도/크로스 판정(테이블용) — 상태 8종: 골든/데드 크로스, 상승/강한 상승/약한 상승, 하락/강한 하락/약한 하락.
 //  두께(MA100·200 간격) 확대=강한, 축소=약한, 그 사이(평탄대)=상승/하락. 반대 크로스 임박(간격 좁음)이면 약한 고정.
 ltTrendLook = input.int(5, minval=1, title="장기 추세 폭 변화 판정 봉수", group="장기 추세")
@@ -1249,6 +1260,10 @@ vwapSrc = input(title="소스", defval=hlc3, group="Auto VWAP")
 vwapCalcMode = input.string("Log Standard Deviation", "밴드 계산 모드", options=["Log Standard Deviation", "Absolute Standard Deviation"], group="Auto VWAP", display=display.none)
 vwapBandMult1 = input.float(1.0, title="밴드 배수 #1", group="Auto VWAP", step=0.5, minval=0, display=display.none)
 vwapBandMult2 = input.float(2.0, title="밴드 배수 #2", group="Auto VWAP", step=0.5, minval=0, display=display.none)
+// [작업1·1-B] VWAP 상태(6상태) 전용 별도 윈도우 — 6상태 판정에만 쓰는 짧은 VWAP(기본 20봉). 기존 50봉(vwapRecentBars)은
+//  지지/저항(50선)·중기추세 등 다른 소비처 전용으로 그대로 유지되고, 6상태만 이 20봉 값을 참조한다(이원화). Recent Bars 롤링 고정.
+//  ⚠️ 전략 파라미터(상태 반응 속도). 값을 바꾸면 6상태 판정 민감도가 달라진다 — 수학자 리뷰 대상.
+vwapStateBars = input.int(20, title="VWAP 상태 전용 최근 봉 수(6상태)", minval=1, group="Auto VWAP", tooltip="VWAP 6상태(위/아래·지지·저항·밴드워킹·이탈·중앙 공방) 판정에만 쓰는 별도 VWAP·밴드의 윈도우(기본 20봉). 50선 지지/저항·중기추세 등 다른 VWAP 소비처는 기존 최근 봉 수(50)를 그대로 씁니다. 전략 파라미터(수학자 리뷰 대상).")
 
 vwapNewSession = barstate.isfirst or timeframe.change("D")
 vwapSessTime = time("D")
@@ -1322,8 +1337,51 @@ if vwShouldCalc
         vwUpper2 := vwapValue * math.exp(vwStdLog * vwapBandMult2)
         vwLower2 := vwapValue * math.exp(-vwStdLog * vwapBandMult2)
 
+// =========================
+// [작업1·1-B] VWAP 상태(6상태) 전용 20봉 VWAP·밴드 — 위 50봉(vwapValue/vwUpper1·2/vwLower1·2)과 완전히 동일한 산식으로,
+//  윈도우만 vwapStateBars(기본 20)로 계산한다. 6상태 판정에만 연결(50봉 소비처=지지/저항·중기추세는 불변).
+//  ★ 누적합(vwCumPV/Vol/P2V/LogPV/Log2V/InvalidLogVol)은 위에서 이미 매 봉 갱신한 것을 그대로 재사용해 [vwapStateBars] 오프셋만
+//    다르게 빼므로 새 누적 계산이 없다(중복 계산 0). Recent Bars 방식 고정(세션/일수 앵커 미사용 — 6상태는 항상 최근 N봉 롤링).
+//  na 가드·리페인팅: 확정봉 누적·과거 오프셋 참조만 사용, 50봉 로직과 동일하게 vwWinVol>0에서만 산출.
+// =========================
+vwAnchorPVS      = nz(vwCumPV[vwapStateBars], 0.0)
+vwAnchorVolS     = nz(vwCumVol[vwapStateBars], 0.0)
+vwAnchorP2VS     = nz(vwCumP2V[vwapStateBars], 0.0)
+vwAnchorLogPVS   = nz(vwCumLogPV[vwapStateBars], 0.0)
+vwAnchorLog2VS   = nz(vwCumLog2V[vwapStateBars], 0.0)
+vwAnchorInvLogVS = nz(vwCumInvalidLogVol[vwapStateBars], 0.0)
+vwWinPVS      = vwCumPV - vwAnchorPVS
+vwWinVolS     = vwCumVol - vwAnchorVolS
+vwWinP2VS     = vwCumP2V - vwAnchorP2VS
+vwWinLogPVS   = vwCumLogPV - vwAnchorLogPVS
+vwWinLog2VS   = vwCumLog2V - vwAnchorLog2VS
+vwWinInvLogVS = vwCumInvalidLogVol - vwAnchorInvLogVS
+float vwapValueS = na
+float vwUpper1S = na
+float vwLower1S = na
+float vwUpper2S = na
+float vwLower2S = na
+vwShouldCalcS = not (vwapHideDWM and timeframe.isdwm) and vwWinVolS > 0
+if vwShouldCalcS
+    vwapValueS := vwWinPVS / vwWinVolS
+    vwStdAbsS = math.sqrt(math.max(vwWinP2VS / vwWinVolS - math.pow(vwapValueS, 2), 0))
+    vwStdLogS = math.sqrt(math.max(vwWinLog2VS / vwWinVolS - math.pow(vwWinLogPVS / vwWinVolS, 2), 0))
+    vwCanLogS = vwWinInvLogVS == 0 and vwapValueS > 0
+    if vwapCalcMode == "Absolute Standard Deviation"
+        vwUpper1S := vwapValueS + vwStdAbsS * vwapBandMult1
+        vwLower1S := vwapValueS - vwStdAbsS * vwapBandMult1
+        vwUpper2S := vwapValueS + vwStdAbsS * vwapBandMult2
+        vwLower2S := vwapValueS - vwStdAbsS * vwapBandMult2
+    else if vwCanLogS
+        vwUpper1S := vwapValueS * math.exp(vwStdLogS * vwapBandMult1)
+        vwLower1S := vwapValueS * math.exp(-vwStdLogS * vwapBandMult1)
+        vwUpper2S := vwapValueS * math.exp(vwStdLogS * vwapBandMult2)
+        vwLower2S := vwapValueS * math.exp(-vwStdLogS * vwapBandMult2)
+
 // VWAP 상태 판정 (밴드워킹=추세 / 지지·저항=되돌림) — 차트엔 안 그리고 테이블에만 사용
 vwHasVwap = vwShouldCalc and not na(vwapValue)
+// [작업1·1-B] 6상태 전용 워밍업 플래그 — 6상태 파이프라인은 vwHasVwap(50봉) 대신 이 20봉 플래그로 게이트한다.
+vwHasVwapS = vwShouldCalcS and not na(vwapValueS)
 vwAbove = vwHasVwap and close > vwapValue
 vwGapPct = vwHasVwap and vwapValue != 0 ? (close / vwapValue - 1.0) * 100.0 : na
 vwPosText = not vwHasVwap ? "-" : vwAbove ? "VWAP 위" : "VWAP 아래"
@@ -1342,6 +1400,41 @@ vwSrState = not vwHasVwap ? "-" : vwSrSupport ? "지지" : vwSrResist ? "저항"
 vwSrText = not vwHasVwap ? "-" : vwSrState + " (" + str.tostring(close / vwapValue * 100, "0.0") + " | " + str.tostring(vwSrBars) + "봉)"
 // 색: 지지 발생=선명 녹 / 저항 발생=선명 빨강 / 단순 위=둔탁 녹(#6E8F72) / 단순 아래=둔탁 빨강(#A57A7A). (기존 vwSrTooFar 둔탁 규칙은 4상태 색 체계로 대체 — 단순 위/아래가 곧 둔탁색)
 vwSrColor = not vwHasVwap ? color.new(color.gray, 50) : vwSrSupport ? color.new(color.green, 0) : vwSrResist ? color.new(color.red, 0) : vwAbove ? color.new(#6E8F72, 0) : color.new(#A57A7A, 0)
+// 단기 추세 — 20선(VWMA 20)과 50선(VWMA 50)의 "배열 상태" 추세. 중기 추세(VWAP vs 100선)·장기 추세(100선 vs 200선)와
+//  **완전히 동일한 로직·포맷·색**을 vwma20(빠른 선) vs vwma50(느린 선)에 이식한다. (CEO 지시: 20선 vs 50선, 중기/장기 추세와 동일 패턴)
+//  방향: 20선 > 50선 = 상승 배열(stUp) / 20선 < 50선 = 하락 배열. 두 선 간격(stGap) 확대=강한·축소=약한·평탄대=상승/하락.
+//  값 포맷: "상승/하락 (±변화율% | N봉)" — 마지막 골든/데드 크로스 시점 이후 20선(빠른 선) 변화율과 경과 봉수(중기/장기 추세와 동일).
+//  색: 상승계열=청록(ltUpColor)·하락계열=자홍(ltDownColor), 크로스 순간·강함=선명·약함=옅음·추세=중간(중기/장기 추세 규칙 그대로).
+//  na 가드: 20선·50선 워밍업(not na(vwma20) and not na(vwma50)) 완료 전에는 크로스·강약 판정 안 함(오탐 방지). 리페인팅 없음(확정 크로스·과거 참조).
+//  확립·평탄대·크로스 주의 파라미터(ltTrendLook·ltDeadBand·ltCrossWarnPct)와 색(ltUpColor/ltDownColor)은 장기 추세 입력을 그대로 공유.
+stReady = not na(vwma20) and not na(vwma50)
+stUp = stReady and vwma20 > vwma50                  // 상승 배열(20선 > 50선)
+stGap = stReady ? math.abs(vwma20 - vwma50) : na
+stGapPct = stReady and close != 0 ? stGap / close * 100 : na
+stGoldCross = stReady and ta.crossover(vwma20, vwma50)   // 20선이 50선 상향 돌파(하락→상승). 단기 추세 테이블 셀 판정용.
+stDeadCross = stReady and ta.crossunder(vwma20, vwma50)  // 20선이 50선 하향 돌파(상승→하락). 단기 추세 테이블 셀 판정용.
+// 확립 = 크로스 후 ltTrendLook 봉 경과. 그 전(빌드업)은 폭변화 룩백이 크로스를 가로질러 왜곡되므로 강/약 안 함.
+stBarsSince = ta.barssince(stGoldCross or stDeadCross)
+stFresh = na(stBarsSince) or stBarsSince < ltTrendLook
+stEstablished = not stFresh
+stGapChg = (stEstablished and not na(stGap) and not na(stGap[ltTrendLook])) ? stGap - stGap[ltTrendLook] : na   // 폭 변화(양=확대, 음=축소)
+stWidening = not na(stGapChg) and stGapChg > ltDeadBand    // 확대 = 강함 (중기/장기 추세와 동일 데드밴드 ltDeadBand 재사용)
+stNarrowing = not na(stGapChg) and stGapChg < -ltDeadBand  // 축소 = 약함
+// 반대 크로스 임박 = 확립 후 + 간격이 좁고(≤주의%) 확대 중이 아님 → '약한'으로 고정(크로스 직전 블립 방지).
+stNearCross = stEstablished and not na(stGapPct) and stGapPct <= ltCrossWarnPct and not stWidening
+stDir = stUp ? "상승" : "하락"
+stStateBase = not stEstablished ? stDir : stNearCross ? (stUp ? "약한 상승" : "약한 하락") : stWidening ? (stUp ? "강한 상승" : "강한 하락") : stNarrowing ? (stUp ? "약한 상승" : "약한 하락") : stDir
+// 마지막 크로스(골든/데드) 시점의 20선 값 기준 이후 변화율(%). 골든 후 상승%·데드 후 하락%.
+var float stCross20 = na
+if stGoldCross or stDeadCross
+    stCross20 := vwma20
+stMovePct = not na(stCross20) and stCross20 != 0 and stReady ? (vwma20 / stCross20 - 1) * 100 : na
+stInfoTxt = (na(stMovePct) or na(stBarsSince)) ? "" : " (" + (stMovePct >= 0 ? "+" : "") + str.tostring(stMovePct, "0.0") + "% | " + str.tostring(stBarsSince) + "봉)"
+stCellText = not stReady ? "-" : stDeadCross ? "데드 크로스" : stGoldCross ? "골든 크로스" : stStateBase + stInfoTxt
+// 색: 중기/장기 추세와 동일 그라데이션 — 크로스 순간=선명(0)·강함(확대)=선명(0)·약함(축소/임박)=옅음(55)·추세=중간(30). ltUpColor/ltDownColor 재사용.
+stCellTransp = not stEstablished ? 30 : (stNearCross or stNarrowing) ? 55 : stWidening ? 0 : 30
+stCellColor = not stReady ? color.new(color.gray, 50) : stGoldCross ? color.new(ltUpColor, 0) : stDeadCross ? color.new(ltDownColor, 0) : stUp ? color.new(ltUpColor, stCellTransp) : color.new(ltDownColor, stCellTransp)
+
 // 중기 추세 — VWAP(50)과 100선(MA100)의 "배열 상태" 추세. 장기 추세(MA100 vs MA200)와 **완전히 동일한 로직·포맷·색**을
 //  VWAP(vwapValue, 빠른 선) vs 100선(ltMa1, 느린 선)에 이식한다. (CEO 정정: 지지/저항 포맷 폐기 → 장기 추세와 동일 포맷)
 //  방향: VWAP > 100선 = 상승 배열(mtUp) / VWAP < 100선 = 하락 배열. 두 선 간격(mtGap) 확대=강한·축소=약한·평탄대=상승/하락.
@@ -1376,22 +1469,24 @@ mtCellText = not mtReady ? "-" : mtDeadCross ? "데드 크로스" : mtGoldCross 
 mtCellTransp = not mtEstablished ? 30 : (mtNearCross or mtNarrowing) ? 55 : mtWidening ? 0 : 30
 mtCellColor = not mtReady ? color.new(color.gray, 50) : mtGoldCross ? color.new(ltUpColor, 0) : mtDeadCross ? color.new(ltDownColor, 0) : mtUp ? color.new(ltUpColor, mtCellTransp) : color.new(ltDownColor, mtCellTransp)
 vwSlopeLen = 5
-vwBw2 = vwHasVwap and not na(vwUpper2) and not na(vwLower2) ? vwUpper2 - vwLower2 : na
+// [작업1·1-B] 이하 6상태 파이프라인은 20봉 전용 값(vwapValueS/vwUpper1S·2S/vwLower1S·2S)과 20봉 워밍업(vwHasVwapS)만 참조한다.
+//  50봉 값(vwapValue/vwUpper·Lower)은 여기서 더 이상 쓰지 않는다(지지/저항·중기추세 전용으로 상단에서만 소비).
+vwBw2 = vwHasVwapS and not na(vwUpper2S) and not na(vwLower2S) ? vwUpper2S - vwLower2S : na
 // ── 원시 위치 플래그(밴드1/밴드2 밖) — 확정봉 close·확정 밴드값 참조 → 리페인팅 없음. na 가드(워밍업). ──
-//  밴드1 밖: 상단=close>vwUpper1, 하단=close<vwLower1 / 밴드2 밖: 상단=close>vwUpper2, 하단=close<vwLower2.
-//  방향 정합(하단=중앙선 아래·상단=중앙선 위)은 밴드1 기준이면 자연 충족(close<vwLower1이면 반드시 close<vwapValue).
-vwOutU1 = vwHasVwap and not na(vwUpper1) and close > vwUpper1   // 상단 밴드1 밖
-vwOutL1 = vwHasVwap and not na(vwLower1) and close < vwLower1   // 하단 밴드1 밖
-vwOutU2 = vwHasVwap and not na(vwUpper2) and close > vwUpper2   // 상단 밴드2 밖(=이탈 원시)
-vwOutL2 = vwHasVwap and not na(vwLower2) and close < vwLower2   // 하단 밴드2 밖(=이탈 원시)
-vwSlope = vwHasVwap and not na(vwapValue[vwSlopeLen]) ? vwapValue - vwapValue[vwSlopeLen] : na
+//  밴드1 밖: 상단=close>vwUpper1S, 하단=close<vwLower1S / 밴드2 밖: 상단=close>vwUpper2S, 하단=close<vwLower2S.
+//  방향 정합(하단=중앙선 아래·상단=중앙선 위)은 밴드1 기준이면 자연 충족(close<vwLower1S이면 반드시 close<vwapValueS).
+vwOutU1 = vwHasVwapS and not na(vwUpper1S) and close > vwUpper1S   // 상단 밴드1 밖
+vwOutL1 = vwHasVwapS and not na(vwLower1S) and close < vwLower1S   // 하단 밴드1 밖
+vwOutU2 = vwHasVwapS and not na(vwUpper2S) and close > vwUpper2S   // 상단 밴드2 밖(=이탈 원시)
+vwOutL2 = vwHasVwapS and not na(vwLower2S) and close < vwLower2S   // 하단 밴드2 밖(=이탈 원시)
+vwSlope = vwHasVwapS and not na(vwapValueS[vwSlopeLen]) ? vwapValueS - vwapValueS[vwSlopeLen] : na
 // 평탄 판정 임계 = 밴드폭의 3%(기울기가 이보다 작으면 평탄) — 상승/하락 민감도 상향
 vwFlatThresh = not na(vwBw2) ? vwBw2 * 0.03 : na
 vwSlopeUp = not na(vwSlope) and not na(vwFlatThresh) and vwSlope > vwFlatThresh
 vwSlopeDown = not na(vwSlope) and not na(vwFlatThresh) and vwSlope < -vwFlatThresh
-vwSlopeFlat = vwHasVwap and not vwSlopeUp and not vwSlopeDown
-vwBwExpanding = vwHasVwap and not na(vwBw2[vwSlopeLen]) and vwBw2 > vwBw2[vwSlopeLen]
-vwBwContracting = vwHasVwap and not na(vwBw2[vwSlopeLen]) and vwBw2 < vwBw2[vwSlopeLen]
+vwSlopeFlat = vwHasVwapS and not vwSlopeUp and not vwSlopeDown
+vwBwExpanding = vwHasVwapS and not na(vwBw2[vwSlopeLen]) and vwBw2 > vwBw2[vwSlopeLen]
+vwBwContracting = vwHasVwapS and not na(vwBw2[vwSlopeLen]) and vwBw2 < vwBw2[vwSlopeLen]
 // ── 위치상태 6가지(CEO 5규칙 재설계 — 기울기 국면이 최상위 게이트, 상호배타) ──────────────
 //  6상태: {상단 이탈, 하단 이탈, 밴드워킹, 상단 저항, 하단 지지, 중앙 공방}. (기울기 표기의 '평탄(중심)'은 1번째 값 별개)
 //  ★구 로직(국면 무관 종가 위치 층 판정 · 밴드1 바깥 절반 near)을 전면 폐기하고, CEO 5규칙(기울기 국면별 판정)으로 재작성.
@@ -1422,7 +1517,7 @@ vwBwContracting = vwHasVwap and not na(vwBw2[vwSlopeLen]) and vwBw2 < vwBw2[vwSl
 //   → 항상 '중앙 공방'). 축이 CEO 규칙4와 정반대였던 것. → near를 밴드2 쪽에 형성하는 f_srBand2로 교체.
 //  f_srBand2 반환은 [isTop(=상단밴드2 근접, 종가 VWAP 위), isBot(=하단밴드2 근접, 종가 VWAP 아래)]로
 //   CEO 규칙4의 방향과 직접 정합한다: 상단 저항←vwB2Top(=isTop), 하단 지지←vwB2Bot(=isBot).
-[vwB2Top, vwB2Bot] = f_srBand2(vwHasVwap ? vwapValue : na, vwHasVwap ? vwUpper2 : na, vwHasVwap ? vwLower2 : na)
+[vwB2Top, vwB2Bot] = f_srBand2(vwHasVwapS ? vwapValueS : na, vwHasVwapS ? vwUpper2S : na, vwHasVwapS ? vwLower2S : na)
 // ── 규칙1·2: 이탈(밴드2 밖 & 방향정합 국면). 확장 전까지 지속 표기(래치 아님 — 매 봉 재판정). ──
 //  ★[버그2 수정] 이탈은 '평탄 + 확장 전까지'(=확장 아님)에서. 평탄이 확장되면 밴드2 밖도 밴드워킹으로 표기해야 하므로
 //   이탈 조건에서 확장을 배제(not vwBwExpanding)해 평탄+확장+밴드2밖이 밴드워킹으로 넘어가게 한다(우선순위 자동 정합).
@@ -1433,32 +1528,32 @@ vwBwContracting = vwHasVwap and not na(vwBw2[vwSlopeLen]) and vwBw2 < vwBw2[vwSl
 //   '중앙 공방'으로 잘못 떨어지던 오표기가 완전히 해소된다(이제 각각 상단 이탈·하단 이탈로 잡힘).
 //  [비확장 = 수축+유지] 평탄·하락·상승 세 국면 모두 '비확장(not vwBwExpanding)' 게이트로 통일. 확장(밴드폭 팽창)만 이탈에서 배제 →
 //   확장은 밴드워킹으로 넘어가게 한다(우선순위 자동 정합). 방향 국면도 유지 국면까지 이탈로 포함(B안 — 기존 엄격 수축에서 완화).
-vwBreakUpper = vwHasVwap and vwOutU2 and not vwBwExpanding and (vwSlopeFlat or vwSlopeDown)   // 상단 이탈: 비확장 & (평탄 or 하락) & close>밴드2
-vwBreakLower = vwHasVwap and vwOutL2 and not vwBwExpanding and (vwSlopeFlat or vwSlopeUp)     // 하단 이탈: 비확장 & (평탄 or 상승) & close<밴드2
+vwBreakUpper = vwHasVwapS and vwOutU2 and not vwBwExpanding and (vwSlopeFlat or vwSlopeDown)   // 상단 이탈: 비확장 & (평탄 or 하락) & close>밴드2
+vwBreakLower = vwHasVwapS and vwOutL2 and not vwBwExpanding and (vwSlopeFlat or vwSlopeUp)     // 하단 이탈: 비확장 & (평탄 or 상승) & close<밴드2
 // ── 규칙3: 밴드워킹(국면별 밴드1 밖). 상승→vwOutU1 / 하락→vwOutL1 / 평탄+확장→vwOutU1·vwOutL1(밴드2 밖도 밴드1 밖이므로 포함). ──
 //  평탄+수축·유지는 밴드워킹 없음(확장에서만). 이탈이면 밴드워킹 아님(우선순위). ★[버그2] 평탄+확장+밴드2밖은 이탈이 아니라 여기(밴드워킹)로 잡힌다.
 vwWalkUpBase = vwOutU1 and (vwSlopeUp or (vwSlopeFlat and vwBwExpanding))         // 상단 밴드워킹 후보
 vwWalkDnBase = vwOutL1 and (vwSlopeDown or (vwSlopeFlat and vwBwExpanding))       // 하단 밴드워킹 후보
-vwUpperWalk  = vwHasVwap and vwWalkUpBase and not vwBreakUpper                    // 이탈과 상호배타(이탈 우선)
-vwLowerWalk  = vwHasVwap and vwWalkDnBase and not vwBreakLower
+vwUpperWalk  = vwHasVwapS and vwWalkUpBase and not vwBreakUpper                    // 이탈과 상호배타(이탈 우선)
+vwLowerWalk  = vwHasVwapS and vwWalkDnBase and not vwBreakLower
 // ── 규칙4: 저항/지지(밴드2 SR을 국면별 방향 게이팅). 이탈·밴드워킹보다 하위(우선순위). ──
 //  평탄=상단 저항·하단 지지 둘 다 / 하락=상단 저항만 / 상승=하단 지지만.
 vwSrGateResist  = vwSlopeFlat or vwSlopeDown   // 상단 저항 허용 국면
 vwSrGateSupport = vwSlopeFlat or vwSlopeUp     // 하단 지지 허용 국면
-vwNotHigher = vwHasVwap and not vwBreakUpper and not vwBreakLower and not vwUpperWalk and not vwLowerWalk  // 이탈·밴드워킹 아님(상위 소진)
+vwNotHigher = vwHasVwapS and not vwBreakUpper and not vwBreakLower and not vwUpperWalk and not vwLowerWalk  // 이탈·밴드워킹 아님(상위 소진)
 vwResistNear  = vwNotHigher and vwB2Top and vwSrGateResist   // 상단 저항(상단밴드2 near, 종가 VWAP 위 + 허용 국면)
 vwSupportNear = vwNotHigher and vwB2Bot and vwSrGateSupport  // 하단 지지(하단밴드2 near, 종가 VWAP 아래 + 허용 국면)
-vwSlopeText = not vwHasVwap ? "-" : vwSlopeUp ? "상승" : vwSlopeDown ? "하락" : "평탄(중심)"
-// VWAP 밴드폭 표기 — 확장/수축 판정에 실제 쓰는 밴드(vwBw2 = vwUpper2 − vwLower2, 2σ 밴드 총폭)를
-//  현재 vwap(50) 선(vwapValue) 기준으로 정규화한 % = vwBw2 / vwapValue × 100. 정수로 괄호 표기(예: "수축(80)").
-//  정규화(% of VWAP)를 쓰는 이유: 심볼·가격대 무관 직관값이며, VWAP 지지/저항 셀의 close/vwapValue×100 관례와 정합.
-//  na 가드: VWAP 없거나 vwapValue=0이면 괄호 생략(밴드폭 미산출). 확정 성격 값(vwBw2·vwapValue)만 참조 → 신규 리페인팅 없음.
-vwBwPct = vwHasVwap and not na(vwBw2) and vwapValue != 0 ? vwBw2 / vwapValue * 100.0 : na
-vwBwStateBase = not vwHasVwap ? "-" : vwBwExpanding ? "확장" : vwBwContracting ? "수축" : "유지"
+vwSlopeText = not vwHasVwapS ? "-" : vwSlopeUp ? "상승" : vwSlopeDown ? "하락" : "평탄(중심)"
+// VWAP 밴드폭 표기 — 확장/수축 판정에 실제 쓰는 밴드(vwBw2 = vwUpper2S − vwLower2S, 20봉 2σ 밴드 총폭)를
+//  20봉 vwap 선(vwapValueS) 기준으로 정규화한 % = vwBw2 / vwapValueS × 100. 정수로 괄호 표기(예: "수축(80)").
+//  정규화(% of VWAP)를 쓰는 이유: 심볼·가격대 무관 직관값이며, VWAP 상태 셀 관례와 정합.
+//  na 가드: 20봉 VWAP 없거나 vwapValueS=0이면 괄호 생략(밴드폭 미산출). 확정 성격 값(vwBw2·vwapValueS)만 참조 → 신규 리페인팅 없음.
+vwBwPct = vwHasVwapS and not na(vwBw2) and vwapValueS != 0 ? vwBw2 / vwapValueS * 100.0 : na
+vwBwStateBase = not vwHasVwapS ? "-" : vwBwExpanding ? "확장" : vwBwContracting ? "수축" : "유지"
 vwBwStateText = vwBwStateBase == "-" or na(vwBwPct) ? vwBwStateBase : vwBwStateBase + "(" + str.tostring(math.round(vwBwPct)) + ")"
 // 위치상태 표기(6가지, 상호배타). 판정은 위 CEO 5규칙 층에서 확정 — 여기선 문자열/색 매핑만.
 //  우선순위(삼항 순서) = 이탈 > 밴드워킹 > 저항/지지 > 중앙 공방. (각 플래그가 상위 소진을 이미 반영해 순서로도 자동 정합)
-vwBandState = not vwHasVwap ? "-" : vwBreakUpper ? "상단 이탈" : vwBreakLower ? "하단 이탈" : vwUpperWalk ? "상단 밴드워킹" : vwLowerWalk ? "하단 밴드워킹" : vwResistNear ? "상단 저항" : vwSupportNear ? "하단 지지" : "중앙 공방"
+vwBandState = not vwHasVwapS ? "-" : vwBreakUpper ? "상단 이탈" : vwBreakLower ? "하단 이탈" : vwUpperWalk ? "상단 밴드워킹" : vwLowerWalk ? "하단 밴드워킹" : vwResistNear ? "상단 저항" : vwSupportNear ? "하단 지지" : "중앙 공방"
 // 축약: 밴드워킹은 방향을 셀 색으로 구분하므로 "밴드워킹"으로만. 이탈·저항·지지·중앙 공방은 vwBandState 그대로.
 vwBandStateShort = (vwUpperWalk or vwLowerWalk) ? "밴드워킹" : vwBandState
 // VWAP 상태 셀 색(6가지 매핑, 기존 톤 유지):
@@ -1466,7 +1561,7 @@ vwBandStateShort = (vwUpperWalk or vwLowerWalk) ? "밴드워킹" : vwBandState
 //  · 밴드워킹 → 방향(기울기 아닌 밴드 방향)색: 상단=선명 green / 하단=선명 red.
 //  · 상단 저항 → 둔탁 빨강 #A57A7A(저항=빨강) / 하단 지지 → 둔탁 녹 #6E8F72(지지=녹).
 //  · 중앙 공방 → 국면색: 하락(vwSlopeDown)=둔탁 빨강 #A57A7A / 상승(vwSlopeUp)=둔탁 녹 #6E8F72 / 평탄(vwSlopeFlat)=회색. VWAP 없음 → 회색.
-vwBandColor = not vwHasVwap ? color.new(color.gray, 40) : vwBreakUpper ? color.new(#6D8A70, 0) : vwBreakLower ? color.new(#8A6D6D, 0) : vwUpperWalk ? color.new(color.green, 0) : vwLowerWalk ? color.new(color.red, 0) : vwResistNear ? color.new(#A57A7A, 0) : vwSupportNear ? color.new(#6E8F72, 0) : vwSlopeDown ? color.new(#A57A7A, 0) : vwSlopeUp ? color.new(#6E8F72, 0) : color.new(color.gray, 30)
+vwBandColor = not vwHasVwapS ? color.new(color.gray, 40) : vwBreakUpper ? color.new(#6D8A70, 0) : vwBreakLower ? color.new(#8A6D6D, 0) : vwUpperWalk ? color.new(color.green, 0) : vwLowerWalk ? color.new(color.red, 0) : vwResistNear ? color.new(#A57A7A, 0) : vwSupportNear ? color.new(#6E8F72, 0) : vwSlopeDown ? color.new(#A57A7A, 0) : vwSlopeUp ? color.new(#6E8F72, 0) : color.new(color.gray, 30)
 
 // =========================
 // 비정상 캔들 상태/색/텍스트는 상단(멀티스케일 신호 앞)에서 이미 계산했다(모멘텀 즉시 반영). 여기선 생략.
@@ -1532,7 +1627,7 @@ candleStopCellColor = candleClsName == "혼조" ? color.new(color.gray, 40) : ca
 //  실시간 모드(candleConfirmOnClose=false)면 봉 완성 전 색 변동(리페인팅) — 표시 전용이라 감수.
 barcolor(candleColorOn ? candleBarColor : na, title="캔들 상태 바색")
 
-var table triggerTable = table.new(position.top_right, 2, 21, border_width=1, border_color=color.new(color.gray, 50))
+var table triggerTable = table.new(position.top_right, 2, 22, border_width=1, border_color=color.new(color.gray, 50))
 if barstate.islast
     // ── 섹션 1: [추세 확인] (row 0, 병합 헤더) — 기존 "항목|값" 헤더를 섹션 헤더로 대체.
     //    스타일 통일: merge_cells · 딥 네이비 배경 #1B2A4A · 흰 글자 · size.small (값 열은 빈 문자열 후 병합).
@@ -1562,57 +1657,62 @@ if barstate.islast
     table.cell(triggerTable, 0, 6, "하락 전환(2×)", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
     table.cell(triggerTable, 1, 6, f_trigCell(sellBlocked20, sellTrig20, false, sellEntry20, momentum, elapsedSell20, vwTrig20), text_color=color.white, bgcolor=f_trigBg(sellBlocked20, sellTrig20, false), text_size=size.small)
 
-    // 중기 추세 (row 7) — [교체] 리본 추세 자리(전환 6행 다음)에 배치. VWAP(50) vs 100선(MA100) 배열 상태 추세.
+    // 단기 추세 (row 7) — [신규] 중기 추세 바로 위. 20선(VWMA 20) vs 50선(VWMA 50) 배열 상태 추세.
+    //  중기 추세(VWAP vs 100선)·장기 추세(100선 vs 200선)와 **동일 로직·포맷·색**(상승/하락 (±% | N봉), 상승=청록·하락=자홍, 강약 그라데이션). 지지/저항 포맷 아님.
+    table.cell(triggerTable, 0, 7, "단기 추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 7, stCellText, text_color=color.white, bgcolor=stCellColor, text_size=size.small)
+
+    // 중기 추세 (row 8) — [교체] 리본 추세 자리(전환 6행 다음)에 배치. VWAP(50) vs 100선(MA100) 배열 상태 추세.
     //  장기 추세(MA100 vs MA200)와 **동일 로직·포맷·색**(상승/하락 (±% | N봉), 상승=청록·하락=자홍, 강약 그라데이션). 지지/저항 포맷 아님.
-    table.cell(triggerTable, 0, 7, "중기 추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 7, mtCellText, text_color=color.white, bgcolor=mtCellColor, text_size=size.small)
+    table.cell(triggerTable, 0, 8, "중기 추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 8, mtCellText, text_color=color.white, bgcolor=mtCellColor, text_size=size.small)
 
-    // 장기 추세 (row 8) — [이동] 지지/저항 확인 섹션에서 추세 확인 섹션의 중기 추세 바로 아래로 이동(값·색·산식 그대로).
-    table.cell(triggerTable, 0, 8, "장기 추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 8, ltCellText, text_color=color.white, bgcolor=ltCellColor, text_size=size.small)
+    // 장기 추세 (row 9) — [이동] 지지/저항 확인 섹션에서 추세 확인 섹션의 중기 추세 바로 아래로 이동(값·색·산식 그대로).
+    table.cell(triggerTable, 0, 9, "장기 추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 9, ltCellText, text_color=color.white, bgcolor=ltCellColor, text_size=size.small)
 
-    // ── 섹션 2: [캔들 및 되돌림 확인] (row 9, 병합 헤더) — 캔들 상태 → 비정상 → 이격도 → 되돌림.
-    table.cell(triggerTable, 0, 9, "캔들 및 되돌림 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.cell(triggerTable, 1, 9, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.merge_cells(triggerTable, 0, 9, 1, 9)
+    // ── 섹션 2: [캔들 및 되돌림 확인] (row 10, 병합 헤더) — 캔들 상태 → 비정상 → 이격도 → 되돌림.
+    table.cell(triggerTable, 0, 10, "캔들 및 되돌림 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
+    table.cell(triggerTable, 1, 10, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
+    table.merge_cells(triggerTable, 0, 10, 1, 10)
 
-    // 캔들 상태 (3) — 표시 전용. 이 섹션 맨 앞(비정상 매수/매도 바로 위, row 10). 우열은 "분류명 | 근거패턴" + 7분류 배경색(현재봉 캔들 바색과 동일).
+    // 캔들 상태 (3) — 표시 전용. 이 섹션 맨 앞(비정상 매수/매도 바로 위, row 11). 우열은 "분류명 | 근거패턴" + 7분류 배경색(현재봉 캔들 바색과 동일).
     if candleShowState
-        table.cell(triggerTable, 0, 10, "캔들 상태 (3)", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-        table.cell(triggerTable, 1, 10, candleCellText, text_color=color.white, bgcolor=candleCellColor, text_size=size.small)
+        table.cell(triggerTable, 0, 11, "캔들 상태 (3)", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+        table.cell(triggerTable, 1, 11, candleCellText, text_color=color.white, bgcolor=candleCellColor, text_size=size.small)
 
-    // 캔들 손절라인 (row 11) — 표시 전용. 캔들 상태(3) 바로 아래. 방향은 캔들 상태 7분류 재사용(하락=3봉 최고점 S+·상승=3봉 최저점 L−·혼조 −). 셀 색 = 캔들 상태(3)와 동일.
-    table.cell(triggerTable, 0, 11, "캔들 손절라인", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 11, candleStopCellText, text_color=color.white, bgcolor=candleStopCellColor, text_size=size.small)
+    // 캔들 손절라인 (row 12) — 표시 전용. 캔들 상태(3) 바로 아래. 방향은 캔들 상태 7분류 재사용(하락=3봉 최고점 S+·상승=3봉 최저점 L−·혼조 −). 셀 색 = 캔들 상태(3)와 동일.
+    table.cell(triggerTable, 0, 12, "캔들 손절라인", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 12, candleStopCellText, text_color=color.white, bgcolor=candleStopCellColor, text_size=size.small)
 
-    table.cell(triggerTable, 0, 12, "비정상 매수/매도", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 12, abnCellText, text_color=color.white, bgcolor=abnCellColor, text_size=size.small)
-    table.cell(triggerTable, 0, 13, "이격도 (" + str.tostring(disparityMaLen) + ")", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 13, disparityCellText, text_color=color.white, bgcolor=disparityCellColor, text_size=size.small)
-    table.cell(triggerTable, 0, 14, "되돌림 가격", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 14, na(disparityPullbackPrice) ? "-" : f_price(disparityPullbackPrice) + " (" + f_pct(disparityPullbackPrice) + ")", text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
+    table.cell(triggerTable, 0, 13, "비정상 매수/매도", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 13, abnCellText, text_color=color.white, bgcolor=abnCellColor, text_size=size.small)
+    table.cell(triggerTable, 0, 14, "이격도 (" + str.tostring(disparityMaLen) + ")", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 14, disparityCellText, text_color=color.white, bgcolor=disparityCellColor, text_size=size.small)
+    table.cell(triggerTable, 0, 15, "되돌림 가격", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 15, na(disparityPullbackPrice) ? "-" : f_price(disparityPullbackPrice) + " (" + f_pct(disparityPullbackPrice) + ")", text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
 
-    // ── 섹션 3: [지지/저항 확인] (row 15, 병합 헤더) — 구름대 → VWAP 상태 → VWAP 지지/저항 → 100선 지지/저항 → 200선 지지/저항. (VWAP 상태를 구름대 바로 아래로 이동: 셀 값·색·산식 그대로, 행 순서만 변경. 장기 추세는 섹션1로 이동, 장기 지지/저항은 100선/200선 2행 분리)
-    table.cell(triggerTable, 0, 15, "지지/저항 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.cell(triggerTable, 1, 15, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.merge_cells(triggerTable, 0, 15, 1, 15)
+    // ── 섹션 3: [지지/저항 확인] (row 16, 병합 헤더) — 구름대 → VWAP 상태 → VWAP 지지/저항 → 100선 지지/저항 → 200선 지지/저항. (VWAP 상태를 구름대 바로 아래로 이동: 셀 값·색·산식 그대로, 행 순서만 변경. 장기 추세는 섹션1로 이동, 장기 지지/저항은 100선/200선 2행 분리)
+    table.cell(triggerTable, 0, 16, "지지/저항 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
+    table.cell(triggerTable, 1, 16, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
+    table.merge_cells(triggerTable, 0, 16, 1, 16)
 
-    table.cell(triggerTable, 0, 16, "구름대", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 16, cloudCellText, text_color=color.white, bgcolor=cloudCellColor, text_size=size.small)
+    table.cell(triggerTable, 0, 17, "구름대", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 17, cloudCellText, text_color=color.white, bgcolor=cloudCellColor, text_size=size.small)
 
-    // VWAP 상태 (row 17) — [이동] 구름대 바로 아래로 이동(VWAP 지지/저항보다 위). 값·색·산식 불변.
+    // VWAP 상태 (row 18) — [이동] 구름대 바로 아래로 이동(VWAP 지지/저항보다 위). 값·색·산식 불변.
     // VWAP 상태 = 모양값(기울기 | 확장·수축(밴드폭%) | 상태값). 셀 색은 밴드 상태 기준(밴드워킹 상단=초록·하단=빨강).
-    table.cell(triggerTable, 0, 17, "VWAP 상태", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 17, vwSlopeText + " | " + vwBwStateText + " | " + vwBandStateShort, text_color=color.white, bgcolor=vwBandColor, text_size=size.small)
+    table.cell(triggerTable, 0, 18, "vwap 상태 (20)", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 18, vwSlopeText + " | " + vwBwStateText + " | " + vwBandStateShort, text_color=color.white, bgcolor=vwBandColor, text_size=size.small)
 
-    table.cell(triggerTable, 0, 18, "50선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 18, vwSrText, text_color=color.white, bgcolor=vwSrColor, text_size=size.small)
+    table.cell(triggerTable, 0, 19, "50선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 19, vwSrText, text_color=color.white, bgcolor=vwSrColor, text_size=size.small)
 
-    // 100선/200선 지지/저항 (row 19·20) — [분리] 기존 '장기 지지/저항' 1행을 MA100·MA200 2행으로. 포맷·색은 VWAP 지지/저항과 동일(상태 + (이격도 | N봉), 지지=녹·저항=빨강·이격 과대=둔탁).
-    table.cell(triggerTable, 0, 19, "100선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 19, ltM1SrText, text_color=color.white, bgcolor=ltM1SrColor, text_size=size.small)
-    table.cell(triggerTable, 0, 20, "200선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(triggerTable, 1, 20, ltM2SrText, text_color=color.white, bgcolor=ltM2SrColor, text_size=size.small)
+    // 100선/200선 지지/저항 (row 20·21) — [분리] 기존 '장기 지지/저항' 1행을 MA100·MA200 2행으로. 포맷·색은 VWAP 지지/저항과 동일(상태 + (이격도 | N봉), 지지=녹·저항=빨강·이격 과대=둔탁).
+    table.cell(triggerTable, 0, 20, "100선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 20, ltM1SrText, text_color=color.white, bgcolor=ltM1SrColor, text_size=size.small)
+    table.cell(triggerTable, 0, 21, "200선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(triggerTable, 1, 21, ltM2SrText, text_color=color.white, bgcolor=ltM2SrColor, text_size=size.small)
 
 // [제거] 리본 추세 화면 표식(횡보 압축·상승/하락 분출 + 모양) plotshape 삭제 — 테이블 '리본 추세' 행이 '중기 추세'로 교체되며 리본 표시를 전부 제거.
 //  ★ [④ 사멸코드 제거 후] 리본 계산부(상태머신 포함)는 전부 제거됐고 rAtr(=ta.atr)만 남아 구름대 지지/저항(srRev·nearSupport 등)에서 재사용된다.
