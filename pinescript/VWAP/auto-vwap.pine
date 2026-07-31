@@ -5,7 +5,6 @@ hideonDWM = input(false, title="Hide VWAP on 1D or Above", group="VWAP Settings"
 anchorMode = input.string(defval="Recent Bars", title="Anchor Mode", options=["Session", "Recent Trading Days", "Recent Bars"], group="VWAP Settings")
 recentTradingDays = input.int(defval=5, title="Recent Trading Days", minval=1, group="VWAP Settings", display=display.none, active=anchorMode == "Recent Trading Days")
 // 기본 화면용 VWAP window 길이(=Recent Bars 모드일 때의 rolling length). CEO 지시: 기본 화면 VWAP 기본값 50.
-//  변곡 지점용 VWAP는 "변곡 지점" 그룹에서 독립 length(기본 14)로 분리 계산한다.
 recentBars = input.int(defval=50, title="Recent Bars (기본 화면 VWAP)", minval=1, group="VWAP Settings", display=display.none, active=anchorMode == "Recent Bars")
 src = input(title="Source", defval=hlc3, group="VWAP Settings", display=display.none)
 offset = input.int(0, title="Offset", group="VWAP Settings", display=display.none)
@@ -69,12 +68,6 @@ UPPER_BREAK_LINE_COLOR = #FF0000
 //  기본 투명도 75(불투명 약 25%): 밴드2 자체 fill(투명도 92)보다 진하게 잡아 압축 구간이 배경으로 뚜렷이 보이게 한다. 너무 옅으면 선처럼 오인되므로 하한선 성격.
 chopBgColor = color.new(chopBgBaseColor, chopBgTransp)
 
-// 이치모쿠 도치안(Donchian) 헬퍼 — advanced-ichimoku.pine과 100% 동일 산식(math.avg(최저, 최고)).
-//  전환선/기준선/선행스팬B(구름) 계산에 재사용한다. len 봉 기간의 (최고+최저)/2 = 중앙값(midpoint).
-//  ⚠️ ta.lowest/ta.highest는 확정봉 기반 window 함수라 과거봉 값은 확정(신규 리페인팅 없음).
-donchian(len) =>
-    math.avg(ta.lowest(len), ta.highest(len))
-
 formatPercentGap(float bandValue, float baseValue) =>
     if na(bandValue) or na(baseValue) or baseValue == 0
         ""
@@ -112,11 +105,9 @@ var label lowerBand1LineEndLabel = na
 var label upperBand2LineEndLabel = na
 var label lowerBand2LineEndLabel = na
 
-// VWAP·밴드·밴드2 계산 헬퍼 — window 길이(barsLen)와 **소스(srcArg)**를 파라미터로 받아
-//  "기본 화면용(length=50, src)"·"숏 변곡(length=ipRecentBars, ipSrcShort=low)"·"롱 변곡(length=ipRecentBars, ipSrcLong=high)" 세트를 독립 계산한다(CEO 지시: VWAP 완전 분리 + 소스 독립 + 변곡 숏/롱 분리).
+// VWAP·밴드·밴드2 계산 헬퍼 — window 길이(barsLen)와 **소스(srcArg)**를 파라미터로 받아 기본 화면용(length=50, src) 세트를 계산한다.
 //  ⚠️ 소스별로 서로 다른 누적이 필요하므로 누적(cumulative*)·세션 앵커 배열을 **함수-로컬 var로 내부화**한다.
-//   Pine v6에서 함수 내부 var/var array는 그 호출부(instance)마다 독립 상태를 가지므로, 두 번 호출하면 두 개의 독립 누적이 유지된다.
-//   소스가 동일하면(기본값 hlc3) 각 인스턴스가 같은 누적 궤적을 재현하므로 기존(전역 단일 누적) 대비 값이 동일하다(거동 불변).
+//   Pine v6에서 함수 내부 var/var array는 그 호출부(instance)마다 독립 상태를 가지므로, 여러 번 호출하면 각각 독립 누적이 유지된다.
 //  세션 앵커 배열 push는 소스와 무관한 "시점 스냅샷"이라, 각 인스턴스가 자기 소스 누적을 그 시점에 스냅샷하는 것이 산식상 올바르다.
 //  산식 자체(anchored VWAP + 로그/절대 표준편차 밴드)는 원본과 100% 동일. 확정봉 기준 누적이라 소스가 series여도 신규 리페인팅 없음.
 //  반환: [vwapValue, upperBand1, lowerBand1, upperBand2, lowerBand2, shouldPlot].
@@ -202,212 +193,17 @@ computeVwapSet(int barsLen, float srcArg) =>
     [vwapLocal, upperBand1Local, lowerBand1Local, upperBand2Local, lowerBand2Local, shouldPlotLocal]
 
 // =========================
-// 변곡 지점(Inflection Point) 설정 — 변곡용 밴드2 상/하단 선이 "기본 청산선"(shortClear/longClear, 3모드 OR) 안으로
-//  들어오는 순간을 마커로 표시하기 위한 표시 옵션이다. CEO 지시 #4: 변곡 전용 청산선 파라미터 세트는 **삭제**했다.
-//  변곡용 VWAP window(ipRecentBars=7)만 기본 화면 세트와 독립으로 유지하고, 청산선 판정은 "스윕/청산" 그룹(기본 청산 설정)을 쓴다.
-//  ⚠️ 이 그룹은 판정·마커 표시 전용이며, 화면에 청산선(직선)을 그리지 않는다(마커만 그린다).
-//  ⚠️ 매매 전략(진입·청산·임계값)과 무관한 표시 옵션이다.
-// =========================
-IP_GROUP = "변곡 지점"
-ipShowMarkers = input.bool(true, title="변곡 지점 마커 표시", group=IP_GROUP, tooltip="변곡용 밴드2 상/하단 선이 기본 청산선(가격 모드 기본·거래량 가중·최근봉 가중 3가지 중 1개 이상) 안으로 들어오는 순간을 밴드2 값 위치에 마커로 표시합니다(색=기본 청산선 색). 청산선 수평 필터·3봉 평균 게이트·방향성 밴드워킹 억제와 AND로 결합합니다.")
-// 변곡 지점 판정용 VWAP window 길이 — 기본 화면 VWAP(recentBars=50)와 **완전 독립**. CEO 지시: 변곡용 기본 14.
-//  이 length로 별도 window(±σ 밴드·밴드2 포함)를 산출하고, 변곡 지점 마커 판정은 이 변곡용 밴드2/VWAP 기준으로 계산한다.
-//  ⚠️ 이 length는 숏 변곡 세트(소스=low)·롱 변곡 세트(소스=high) 두 세트가 **공유**한다(CEO 지시: length 등 나머지 기본값 동일, 소스만 분리).
-//  (anchored 특성: Recent Bars 앵커 모드에서만 유효. Session/Recent Trading Days 모드에선 기본 세트와 동일 앵커를 공유.)
-ipRecentBars = input.int(defval=14, title="[변곡] Recent Bars (변곡 VWAP)", minval=1, group=IP_GROUP, display=display.none, active=anchorMode == "Recent Bars", tooltip="변곡 지점 판정용 VWAP의 window 길이(N선). 숏·롱 변곡 VWAP 두 세트가 공유합니다. 기본 화면 VWAP와 독립. 기본 14. Recent Bars 앵커 모드에서만 유효합니다.")
-// 변곡 VWAP 소스 선택(CEO 지시) — 변곡 VWAP을 **숏 변곡용·롱 변곡용 2세트로 분리**한다.
-//  숏 변곡 VWAP 소스 = 저가(low) 기본, 롱 변곡 VWAP 소스 = 고가(high) 기본. 유연성을 위해 소스를 각각 입력으로 둔다(기존 변곡 소스가 input이었으므로 입력 방식 유지).
-//  input.source 방식(화면 VWAP의 src와 동일 톤): close/hlc3/hl2/ohlc4/open/high/low 등 어떤 series든 선택 가능한 소스 드롭다운.
-//  ⚠️ 소스별로 **독립 누적**이 되도록 computeVwapSet가 소스를 인자로 받는다(전역 단일 누적으로는 소스 분리 불가). 확정봉 기준 누적이라 신규 리페인팅 없음.
-//  ⚠️ length·표준편차 배수 등 나머지 파라미터는 두 세트 모두 기존 변곡 세트와 동일(ipRecentBars·bandMult_*·calcModeInput 공유). 소스만 저가/고가로 다르다.
-ipSrcShort = input(title="[변곡] 숏 Source (숏 변곡 VWAP)", defval=low,  group=IP_GROUP, display=display.none, tooltip="숏 변곡 VWAP의 소스. 기본 low(저가). 숏 변곡 마커(상단, 빨강) 판정용 밴드2 계산에 쓰입니다. length·밴드 배수 등 나머지 파라미터는 롱 변곡 VWAP과 동일합니다.")
-ipSrcLong  = input(title="[변곡] 롱 Source (롱 변곡 VWAP)", defval=high, group=IP_GROUP, display=display.none, tooltip="롱 변곡 VWAP의 소스. 기본 high(고가). 롱 변곡 마커(하단, 녹색) 판정용 밴드2 계산에 쓰입니다. length·밴드 배수 등 나머지 파라미터는 숏 변곡 VWAP과 동일합니다.")
-// 마커 모양 옵션(기본값=십자가). 리터럴 style plotshape로 분기하므로 컴파일 안전(입력→series 강등 이슈 없음).
-ipMarkerStyle = input.string("원", title="변곡 지점 마커 모양", options=["십자가", "원", "삼각형", "다이아몬드", "네모"], group=IP_GROUP, active=ipShowMarkers, tooltip="변곡 지점 마커의 모양입니다. 기본값은 원(circle)입니다.")
-// CEO 재지시: "기본 vwap이 청산선 안으로 들어오고, 마커가 생길 때"만 기본 화면 밴드2 선을 마커색으로 강조(표시 전용, 판정·계산 불변).
-//  상단 밴드2(upperBandValue2)는 숏 마커(upper2Marker)이면서 화면 상단 밴드2가 숏 청산선 안(upperBandValue2 < shortClear)일 때 숏 마커색(shortClearLineColor)으로,
-//  하단 밴드2(lowerBandValue2)는 롱 마커(lower2Marker)이면서 화면 하단 밴드2가 롱 청산선 안(lowerBandValue2 > longClear)일 때 롱 마커색(longClearLineColor)으로 강조한다.
-//  OFF·조건 미충족이면 기본색(activeLineColor)으로 원복. 봉 단위 색 지정이라 조건 봉만 강조되고 나머지는 기본색.
-ipBand2MarkerColor = input.bool(true, title="변곡 마커 봉 밴드2 강조 색", group=IP_GROUP, active=ipShowMarkers, tooltip="켜면 변곡 마커가 뜨면서 해당 방향 기본 화면 밴드2가 실제로 청산선 안으로 들어온 봉에서만 그 밴드2 선을 마커와 같은 색으로 강조합니다(상단=숏 마커색, 하단=롱 마커색). 그 봉에서만 색이 바뀌고 나머지 봉은 기본색을 유지합니다. 밴드2 위치·계산·마커 판정은 바뀌지 않는 표시 전용 옵션입니다.")
-// 변곡 마커 봉 캔들 색(CEO 지시, 기본 OFF) — 마커가 표시된 봉의 캔들을 그 마커 색으로 칠한다(표시 전용).
-//  롱 마커 봉 → 캔들=롱 마커색(longMarkerColorFinal), 숏 마커 봉 → 캔들=숏 마커색(shortMarkerColorFinal). 마커 미표시 봉은 캔들 색 원복(na).
-ipMarkerCandleColor = input.bool(false, title="변곡 마커 캔들 색", group=IP_GROUP, active=ipShowMarkers, tooltip="켜면 변곡 마커가 표시된 봉의 캔들 색을 그 마커 색과 동일하게 칠합니다(롱=녹 계열, 숏=빨강 계열, OBV 에너지 채도 반영). 원 변곡·연장 마커 봉 모두 적용됩니다. 마커가 없는 봉은 원래 캔들 색을 유지합니다. 기본 OFF. 마커 판정·위치·색은 바뀌지 않는 표시 전용 옵션입니다.")
-// ⚠️ 변곡 전용 청산선 파라미터(ipCe*/ipSweep*)·변곡 전용 청산선 색(ipLong/ipShortClearLineColor)은 제거되었다(CEO 지시 #4).
-//  변곡 마커 판정은 이제 아래 "스윕/청산" 그룹(기본 청산 설정)을 그대로 쓴다. 마커 색도 기본 청산선 색(short/longClearLineColor)을 쓴다.
-// 요구사항 4: 밴드워킹 억제 필터 — 변곡 시점 청산선의 기울기가 "근사 수평"일 때만 마커를 표시한다.
-//  청산선이 추세로 기울어(위/아래 워킹 중) 있으면 변곡 조건이 성립해도 마커를 억제한다.
-//  판정: 최근 N봉 사이 청산선 값 변화량(|line - line[N]|)을 ATR로 정규화한 비율(=ATR 대비 배수)이 임계 이내면 수평.
-//   → 절대 가격차가 아니라 ATR 정규화 비율이라 종목·타임프레임 무관하게 동작한다.
-//  변곡 전용 청산선이 제거됐으므로(CEO 지시 #4), flat 판정은 **후보 3모드(기본·거래량 가중·최근봉 가중) 청산선** 기준으로 한다.
-//  ⚠️ 화면 페인팅용(ceMode) 청산선 shortClear/longClear는 flat 판정에 쓰지 않는다 — 스윕 모드 선택이 마커에 관여하면 안 되기 때문(사양 1). 후보에 기여한 모드의 청산선 flat만 본다.
-//  ⚠️ 청산선 계산·전략 로직과 무관한 표시 전용 필터다(마커 억제만).
-ipFlatFilter = input.bool(false, title="변곡 시 청산선 수평 필터(밴드워킹 억제)", group=IP_GROUP, active=ipShowMarkers, tooltip="켜면 변곡 시점 청산선 기울기가 근사 수평일 때만 마커를 표시합니다. 판정은 후보에 기여한 모드(기본·거래량 가중·최근봉 가중 중 밴드2가 들어온 모드)의 청산선 기울기로 하며, 스윕 가격 모드(ceMode) 선택과는 무관합니다. 청산선이 추세로 기울어(밴드워킹 중) 있으면 변곡이어도 억제합니다.")
-ipFlatLookback = input.int(3, title="[변곡] 수평 판정 lookback 봉수", minval=1, group=IP_GROUP, active=ipShowMarkers and ipFlatFilter, display=display.none, tooltip="청산선 기울기를 측정할 과거 봉 수(N). 최근 N봉 사이 청산선 값 변화량으로 기울기를 판정합니다. 기본 3.")
-ipFlatSlopeMax = input.float(0.15, title="[변곡] 수평 허용 기울기(ATR 대비 배수)", minval=0.0, step=0.01, group=IP_GROUP, active=ipShowMarkers and ipFlatFilter, display=display.none, tooltip="N봉 사이 청산선 변화량 ÷ ATR 이 이 값 이하이면 '수평'으로 간주합니다. 기본 0.15(=ATR의 15%). 값을 키우면 더 기울어도 표시, 줄이면 더 엄격히 수평만 표시.")
-// 방향성 밴드워킹 억제 — 이치모쿠 메인 지표 "VWAP 상태"의 밴드워킹 판정 알고리즘을 이식(포팅)한다.
-//  목적: 추세(밴드워킹) 방향과 반대되는 변곡 마커를 억제한다(역추세 진입 억제).
-//   - 아래(하락) 밴드워킹 중 → 롱 변곡 마커(녹색·하단, lower2Marker) 억제.
-//   - 위(상승) 밴드워킹 중 → 숏 변곡 마커(빨강·상단, upper2Marker) 억제.
-//  ⚠️ 이 밴드워킹은 "화면상 추세 국면" 성격이므로 **밴드워킹 판정 전용 VWAP 세트**(length=bwRecentBars 기본 14, 소스=src, bwVwapValue/밴드1/밴드2/bwShouldPlot) 기준으로 판정한다.
-//   (변곡 마커의 발동 판정은 변곡용 세트(length=ipRecentBars; 숏=ipSrcShort/low, 롱=ipSrcLong/high)를 쓰고, 방향 억제는 이 밴드워킹 전용 세트(length=bwRecentBars, 소스=src)를 별도로 쓴다.)
-//   ⚠️ 화면 세트(recentBars, src)와 분리했다(CEO 판단 A) — recentBars(화면 표시 전용)를 바꿔도 밴드워킹→마커 표시 여부가 흔들리지 않는다. 기본 14봉으로 화면 세트(recentBars=50)와 독립이며, 소스만 화면과 동일한 src를 쓴다.
-//  ⚠️ 표시 억제 전용 필터다 — 매매 전략(진입·청산·임계·산식)과 무관하다.
-ipBwSuppress = input.bool(false, title="추세(밴드워킹) 방향 반대 마커 억제", group=IP_GROUP, active=ipShowMarkers, tooltip="켜면 밴드워킹(추세) 방향과 반대되는 변곡 마커를 숨깁니다. 하락 밴드워킹 중이면 롱(녹색·하단) 마커를, 상승 밴드워킹 중이면 숏(빨강·상단) 마커를 억제합니다. 이치모쿠 메인 지표의 'VWAP 상태' 밴드워킹 판정 알고리즘을 이식한 것으로, 밴드워킹 판정 전용 VWAP 세트([밴드워킹] Recent Bars, 화면 VWAP와 독립)를 기준으로 판정합니다.")
-// 밴드워킹 판정 파라미터 — 이치모쿠 원본 기본값과 동일(vwSlopeLen=5, vwWalkSlopeLen=3, 평탄 임계=밴드폭의 3%).
-ipBwSlopeLen = input.int(5, title="[밴드워킹] VWAP 기울기 lookback 봉수", minval=1, group=IP_GROUP, active=ipShowMarkers and ipBwSuppress, display=display.none, tooltip="VWAP 기울기·밴드폭 확장/수축을 측정할 과거 봉 수. 이치모쿠 원본 기본 5.")
-ipBwWalkSlopeLen = input.int(3, title="[밴드워킹] 밴드2 레일 기울기 lookback 봉수", minval=1, group=IP_GROUP, active=ipShowMarkers and ipBwSuppress, display=display.none, tooltip="밴드워킹 종료(레일 반전) 판정용 밴드2 상/하단선 기울기 측정 봉 수. 이치모쿠 원본 기본 3.")
-ipBwFlatPct = input.float(0.03, title="[밴드워킹] VWAP 평탄 임계(밴드폭 대비 비율)", minval=0.0, step=0.01, group=IP_GROUP, active=ipShowMarkers and ipBwSuppress, display=display.none, tooltip="VWAP 기울기가 밴드2 총폭의 이 비율보다 작으면 '평탄'으로 봅니다. 이치모쿠 원본 기본 0.03(=밴드폭의 3%).")
-// 밴드워킹 판정 전용 VWAP window 길이 — 화면 세트(recentBars)·변곡 세트(ipRecentBars)와 **모두 독립**. CEO 지시(판단 A).
-//  버그 교정: 이전엔 밴드워킹 블록이 화면 세트(computeVwapSet(recentBars, src)) 값을 참조해, recentBars(화면 표시 전용)를 바꾸면 변곡 마커 표시 여부가 흔들렸다(오염).
-//   → 전용 window(bwRecentBars)로 별도 세트를 계산해 밴드워킹 판정을 화면 세트에서 분리한다. 소스는 기존 밴드워킹이 화면 세트를 참조했으므로 **화면과 동일한 src**를 그대로 쓴다(변곡 소스 ipSrcShort/ipSrcLong 아님).
-//  ⚠️ 기본값 14 — 화면 세트(recentBars 기본 50)와 독립인 별도 window다. 소스만 화면과 동일한 src를 그대로 쓴다.
-//  ipBwSlopeLen/ipBwWalkSlopeLen(기울기 lookback)은 그대로 유지(이미 별도 파라미터).
-bwRecentBars = input.int(defval=14, title="[밴드워킹] Recent Bars (판정 전용 VWAP)", minval=1, group=IP_GROUP, active=ipShowMarkers and ipBwSuppress and anchorMode == "Recent Bars", display=display.none, tooltip="밴드워킹 억제 판정 전용 window. 화면 VWAP의 Recent Bars와 독립.")
-// 캔들 형태 게이트(옵션) — 원 변곡 마커(upper2Marker/lower2Marker)에만 AND 결합. 기본 ON.
-//  ⚠️ flat/선색 게이트와 동일 패턴: OFF면 게이트가 항상 통과(방향·형태 무관), ON이면 숏=음봉·롱=양봉 + 반전형 제외 + 반대방향 긴꼬리 거부.
-ipShapeFilter = input.bool(true, title="캔들 형태 게이트", group=IP_GROUP, active=ipShowMarkers, tooltip="숏=음봉·롱=양봉 + 반전형 제외 + 반대방향 긴꼬리 거부(롱=윗꼬리≥몸통2배 제외/숏=아랫꼬리≥몸통2배 제외). OFF면 방향·형태 무관")
-
-// =========================
-// OBV DI 게이트 설정 — 변곡 마커 표시 게이트(3봉 hlc3 평균 게이트를 대체). CEO 지시.
-//  OBV-ADX 보조지표(obv-adx-extreme-background.pine)의 DI+/DI-(OBV 기반 커스텀 산식)를 이식한다.
-//  숏 변곡 마커는 DI- 우위(diMinus > diPlus), 롱 변곡 마커는 DI+ 우위(diPlus > diMinus)일 때만 표시한다.
-//  ⚠️ input 기본값은 OBV-ADX 원본(20)보다 짧게 잡는다(DI Length=5, ADX Smoothing=5) — DI 우위 반응을 빠르게 하기 위함. 표시 게이트 전용 — 매매 전략(진입·청산·임계)과 무관.
-// =========================
-DI_GROUP = "OBV DI 게이트"
-// DI Length — DI+/DI- 계산의 유일한 실제 파라미터(EMA·표준편차 길이). OBV-ADX 원본 len(20)보다 짧은 5가 기본 — DI 우위 반응이 빨라진다.
-obvDiLen = input.int(5, minval=1, title="DI Length", group=DI_GROUP, active=ipShowMarkers, tooltip="OBV 기반 DI+/DI- 계산에 쓰는 길이(EMA·표준편차 window). 기본 5(OBV-ADX 원본 20보다 짧아 DI 우위 반응이 빠릅니다).")
-// ADX Smoothing — OBV-ADX 원본 lensig(20)에 대응하는 옵션이며 기본 5로 짧게 잡는다. auto-vwap 마커 게이트는 DI 우위만 보므로 ADX 자체는 쓰지 않지만,
-//  OBV-ADX와 input 정합(동일 옵션 구성)을 위해 유지한다(계산부에서 값은 산출하되 게이트엔 미사용).
-obvAdxSmooth = input.int(5, minval=1, maxval=50, title="ADX Smoothing", group=DI_GROUP, active=ipShowMarkers, display=display.none, tooltip="OBV-ADX 원본 lensig(20)에 대응하는 옵션(기본 5). 변곡 마커 게이트는 DI 우위(DI+/DI-)만 사용하므로 ADX 값은 게이트에 쓰이지 않습니다.")
-// OBV 에너지 평균 길이 — 변곡 마커 색 채도(강/약) 판정용. auto-vwap 마커용으로 기본 5(짧게)로 잡는다(반응 빠름). obvDiLen(기본 5)과 결이 맞음.
-//  에너지 강/약 = OBV 방향 격차 |diPlus−diMinus|(=obv-adx의 |diDiff|)가 그 평균 이상/이하인가 + 3봉 전 대비 감소 여부.
-//  ⚠️ 산식 구조는 obv-adx-extreme-background.pine 상태판(L79-82)의 energyFading과 동일(평균 대비 OR 3봉 전 모멘텀). 평균 창만 obvEnergyLen(auto-vwap 기본 5, obv-adx 기본 14)로 다르게 두고, 3봉 전 [3] 룩백은 obv-adx와 동일한 고정 상수. 표시 전용(마커 색 채도만) — 판정·표시 여부와 무관.
-obvEnergyLen = input.int(5, minval=1, title="OBV 에너지 평균 길이", group=DI_GROUP, active=ipShowMarkers, display=display.none, tooltip="변곡 마커 색 채도(강/약) 판정용. OBV 방향 격차 |DI+−DI-|가 이 길이의 평균 이상이고 3봉 전보다 줄지 않았으면 '강(선명)', 아니면 '약(둔탁)'으로 마커 채도를 나눕니다. 평균만 obvEnergyLen(기본 5)로 짧게, 3봉 전 대비 모멘텀은 obv-adx 상태판과 동일한 고정 [3] 룩백입니다. 마커 표시 여부·판정은 바뀌지 않는 표시 전용 옵션입니다.")
-
-// =========================
-// 파라볼릭 SAR — 변곡 마커 표시 제약(CEO 규칙) + 화면 표시. SAR을 십자로 plot한다(봉 아래=롱 마커색, 봉 위=숏 마커색).
-//  ⚠️ 화면 표시(plot)는 필터(ipSarFilter)와 독립: 필터가 OFF여도 SAR은 항상 그려진다. 필터는 마커 억제에만 관여한다.
-//  ta.sar(start, increment, maximum)로 SAR 값을 계산하고, SAR이 캔들 대비 어디에 놓이는지로 추세를 읽어 역추세 마커를 억제한다.
-//   ▸ 판정 기준: **종가(close)** 기준([C], CEO 지시). 상승=SAR이 종가 아래(sarVal < close), 하락=SAR이 종가 이상(sarVal >= close).
-//   ▸ 경계 배정: SAR == close(정확히 종가에 얹힘)는 **하락(sarAbove) 쪽에 포함**(>= 사용)한다. 이유: 상승은 엄격 부등호(<), 하락은 이상(>=)으로 두 조건이 close를 기준으로 상호배타·전영역 커버 → **둘 다 false가 되는 na 구간 제거**(전환 봉에서도 종가 위치로 즉시 롱/숏 판정). 경계를 하락에 배정한 것은 임의 선택이나, 부동소수 특성상 sar==close 정확 일치는 극히 드물어 실무 영향은 미미하다.
-//   ▸ 효과: SAR이 봉 범위(고저) 안에 걸친 전환 봉에서도 색이 na가 아니라 종가 위치에 따라 롱/숏색으로 즉시 표기된다. 하락 SAR을 뚫는 장대 양봉(종가>SAR)이면 그 봉은 상승색.
-//  ⚠️ 마커 제약(억제 방향): 상승(sarBelow=SAR 종가 아래)면 숏 마커 억제, 하락(sarAbove=SAR 종가 이상)면 롱 마커 억제 → 추세 역행 진입 억제.
-//  ⚠️ 리페인팅: ta.sar은 확정봉 기반 누적 상태 함수라 과거봉 값은 확정(신규 리페인팅 없음). close 기준으로 바꿔도 리페인팅 성격 불변 — 형성 중 현재봉의 실시간 close 변동 성격은 종전(low/high 기준)과 동일.
-//  ⚠️ na 가드: 워밍업 등으로 sarVal이 na면 sarBelow/sarAbove 둘 다 false(not na(sarVal) 가드 → 억제 없음, 중립 통과). sarVal이 유효한 봉에서는 close 기준 이분(< / >=)이라 둘 중 정확히 하나만 참(na 미발생).
-//  ⚠️ 필터(억제)는 표시 게이트 전용 — 매매 전략(진입·청산·임계)과 무관. SAR 화면 표시는 필터와 독립(아래 plot 참조).
+// 파라볼릭 SAR — 화면 표시 전용. SAR을 십자로 plot한다(종가 아래=롱 색, 종가 이상=숏 색).
+//  ta.sar(start, increment, maximum)로 SAR 값을 계산한다.
+//   ▸ 방향 판정: **종가(close)** 기준([C]). 상승=SAR이 종가 아래(sarVal < close), 하락=SAR이 종가 이상(sarVal >= close).
+//   ▸ 경계 배정: SAR == close(정확히 종가에 얹힘)는 **하락(sarAbove) 쪽에 포함**(>= 사용)한다. 상승은 엄격 부등호(<), 하락은 이상(>=)으로 두 조건이 close를 기준으로 상호배타·전영역 커버 → 둘 다 false가 되는 na 구간 제거. 부동소수 특성상 sar==close 정확 일치는 극히 드묾.
+//  ⚠️ 리페인팅: ta.sar은 확정봉 기반 누적 상태 함수라 과거봉 값은 확정(신규 리페인팅 없음).
+//  ⚠️ na 가드: 워밍업 등으로 sarVal이 na면 sarBelow/sarAbove 둘 다 false. sarVal이 유효한 봉에서는 close 기준 이분(< / >=)이라 둘 중 정확히 하나만 참(na 미발생). SAR plot 색 판정에만 쓰인다.
 // =========================
 SAR_GROUP = "파라볼릭 SAR"
-ipSarFilter  = input.bool(false, title="파라볼릭 SAR 필터", group=SAR_GROUP, active=ipShowMarkers, tooltip="변곡 마커에 SAR 방향 제약 적용. 숏=SAR 봉아래 억제·롱=SAR 봉위 억제. 끄면 SAR 제약 없이 마커가 통과합니다(SAR은 필터와 독립으로 항상 화면에 십자로 표시됩니다). 기본 꺼짐.")
-sarStart     = input.float(0.03, title="파라볼릭 SAR Start", group=SAR_GROUP, active=ipShowMarkers, tooltip="파라볼릭 SAR 가속 인자 시작값(start). 변곡 마커 제약과 화면 SAR 표시에 함께 쓰입니다. 기본 0.03.")
-sarIncrement = input.float(0.03, title="파라볼릭 SAR Increment", group=SAR_GROUP, active=ipShowMarkers, tooltip="파라볼릭 SAR 가속 인자 증분(increment). 기본 0.03.")
-sarMaximum   = input.float(0.3,  title="파라볼릭 SAR Max", group=SAR_GROUP, active=ipShowMarkers, tooltip="파라볼릭 SAR 가속 인자 최댓값(maximum). 기본 0.3.")
-
-// =========================
-// 이치모쿠 구름(양운/음운) — SUPER-ICHIMOKU 메인 지표(advanced-ichimoku.pine)의 구름 색(선행스팬 A vs B) 판정 로직을 이식(포팅).
-//  ▸ 산식(원본 100% 동일): conversionLine=donchian(전환선 길이 8), baseLine=donchian(기준선 길이 22), leadingSpanA=avg(전환선, 기준선), leadingSpanB=donchian(리딩B 길이 44).
-//    파라미터 기본값도 이치모쿠 원본과 동일(8/22/44). CEO 지시 "베이스라인 22선 기준" — 이치모쿠 basePeriods=22 그대로 이식.
-//  ▸ 양운/음운 판정(현재봉, CEO 지시): cloudBull = leadingSpanA > leadingSpanB(양운), cloudBear = leadingSpanA < leadingSpanB(음운).
-//    ⚠️ "현재봉 양운/음운"은 **현재 시점 스팬A/B 현재값 비교**(offset 없음)로 확정한다. 이치모쿠 원본 fill 색 판정(leadingSpanA > leadingSpanB)과 동일 기준.
-//    선행스팬은 화면에 미래로 밀어(displacement) 그리지만, 색(양운/음운) 자체는 offset 없는 현재값 비교라 확정봉 기반 → 신규 리페인팅 없음.
-//    ⚠️ 경계(A==B)는 양운·음운 어디에도 속하지 않음(둘 다 false). 부동소수라 정확 일치는 극히 드묾. (6조건 신호 재설계로 구름은 신호식에서 빠졌으나 판정·fill은 유지.)
-//  ▸ 구름 시각화(fill): CEO가 명시하지 않음 → 판정 로직은 필수 이식하되, 구름 자체 plot은 **옵션(기본 OFF)**으로 제공한다.
-//    근거: auto-vwap은 이미 VWAP 밴드1/2·청산선·SAR·마커로 화면이 조밀하므로 구름을 기본 표시하면 차트가 어지러워진다.
-//    필요 시 사용자가 켜서 참고할 수 있게 옵션만 두고, 켜면 이치모쿠와 동일하게 선행스팬을 displacement 오프셋으로 밀어 A>B=양운색/A<B=음운색으로 채운다.
-//  ⚠️ 표시(fill)는 옵션 전용이며, 양운/음운 판정(cloudBull/cloudBear)은 항상 계산된다. (6조건 신호 재설계로 신호식에선 빠졌으나 판정·fill 시각화는 유지 — CEO 지시: 구름 유지.)
-// =========================
-ICHI_GROUP = "이치모쿠 구름"
-conversionPeriods = input.int(8, minval=1, title="컨버전 라인 길이", group=ICHI_GROUP, display=display.none, tooltip="이치모쿠 전환선(도치안) 길이. advanced-ichimoku.pine과 동일 기본값 8. 양운/음운 판정용 선행스팬 A 계산에 쓰입니다.")
-basePeriods = input.int(22, minval=1, title="베이스 라인 길이", group=ICHI_GROUP, display=display.none, tooltip="이치모쿠 기준선(도치안) 길이. advanced-ichimoku.pine과 동일 기본값 22(CEO 지시 베이스라인 22선 기준). 양운/음운 판정용 선행스팬 A 계산에 쓰입니다.")
-leadingSpanBPeriods = input.int(44, minval=1, title="리딩 스팬 B 길이", group=ICHI_GROUP, display=display.none, tooltip="이치모쿠 선행스팬 B(도치안) 길이. advanced-ichimoku.pine과 동일 기본값 44. 양운(A>B)/음운(A<B) 판정에 쓰입니다.")
-showIchiCloud = input.bool(false, title="이치모쿠 구름 fill 표시(기본 OFF)", group=ICHI_GROUP, tooltip="켜면 선행스팬 A/B로 이루어진 이치모쿠 구름을 차트에 채웁니다(양운=녹/음운=적, 미래로 오프셋). 기본 OFF — auto-vwap은 이미 VWAP 밴드·청산선·SAR·마커로 조밀하므로 기본은 판정만 하고 구름은 그리지 않습니다. 양운/음운 판정은 이 옵션과 무관하게 항상 계산됩니다(6조건 신호 재설계로 신호식에선 빠졌으나 판정·fill은 유지).")
-ichiDisplacement = input.int(22, minval=1, title="구름 표시 오프셋(레깅 스팬 길이)", group=ICHI_GROUP, display=display.none, active=showIchiCloud, tooltip="구름 fill을 미래로 밀어 그릴 오프셋(이치모쿠 displacement=22). 구름 fill 표시(위 옵션 ON)일 때만 그리기에 쓰이며, 양운/음운 판정(신호용)에는 영향 없습니다.")
-ichiBullCloudColor = input.color(#0B5D4F, title="양운(상승 구름) 색", group=ICHI_GROUP, active=showIchiCloud, display=display.none, tooltip="양운(선행스팬 A>B) 구름 fill 색. advanced-ichimoku.pine과 동일 기본값.")
-ichiBearCloudColor = input.color(#6B1E28, title="음운(하락 구름) 색", group=ICHI_GROUP, active=showIchiCloud, display=display.none, tooltip="음운(선행스팬 A<B) 구름 fill 색. advanced-ichimoku.pine과 동일 기본값.")
-ichiCloudTransp = input.int(45, minval=0, maxval=100, title="구름 투명도", group=ICHI_GROUP, active=showIchiCloud, display=display.none, tooltip="구름 fill 투명도(0=불투명, 100=완전 투명). advanced-ichimoku.pine과 동일 기본값 45.")
-
-// 이치모쿠 라인 계산 — advanced-ichimoku.pine L76-79와 100% 동일 산식.
-conversionLine = donchian(conversionPeriods)
-baseLine = donchian(basePeriods)
-leadingSpanA = math.avg(conversionLine, baseLine)
-leadingSpanB = donchian(leadingSpanBPeriods)
-// 현재봉 양운/음운 판정 — 현재 시점 스팬A/B 비교(offset 없음, 확정봉 기반). 이치모쿠 fill 색 규칙과 동일.
-bool cloudBull = leadingSpanA > leadingSpanB   // 양운(상승 구름)
-bool cloudBear = leadingSpanA < leadingSpanB   // 음운(하락 구름)
-
-// =========================
-// 3조건 매수/매도 신호(역삼각형) — 변곡 마커 + VWAP 밴드2·청산선 정렬 + 파라볼릭 SAR 위치의 정렬 확인용 신호. (CEO 재설계: 기존 5조건 → 3조건)
-//  ▸ 매수(3조건 AND):
-//     ① 롱 변곡 마커(showLongMarker)
-//     ② 기본 VWAP(50선) 하단 밴드2가 롱 청산선 위(lowerBandValue2 > longClear)
-//     ③ SAR 상승(sarBelow) — SAR 추세 방향만. (CEO 지시: SAR 점 vs 하단 밴드2 위치 관계 sarVal>lowerBandValue2 제거)
-//  ▸ 매도(3조건 AND, 매수의 정확한 반대):
-//     ① 숏 변곡 마커(showShortMarker)
-//     ② 기본 VWAP(50선) 상단 밴드2가 숏 청산선 아래(upperBandValue2 < shortClear)
-//     ③ SAR 하락(sarAbove) — SAR 추세 방향만. (CEO 지시: SAR 점 vs 상단 밴드2 위치 관계 sarVal<upperBandValue2 제거)
-//  ▸ 표시: 매도=봉 위(location.abovebar) triangledown 적색 / 매수=봉 아래(location.belowbar) triangleup 녹색. size.small. ON/OFF 토글(각 방향 독립, 기본 OFF). 기존 plotshape·색·토글 재사용.
-//  ⚠️ 기본 OFF 근거: 실매매 자금이 걸린 자산에서 신호는 백테스트·수학자 검토 전까지 화면 기본 노출을 자제(자본 보존·오해 방지). opt-in이 안전.
-//  ⚠️ 조건 변수 의미·특정(반대·스무딩 오사용 방지):
-//    - showLongMarker/showShortMarker : 변곡 마커(이미 방향역행·VWAP지지저항·SAR·flat·형태·OBV DI 게이트 통과분).
-//    - lowerBandValue2/upperBandValue2 : **기본 화면 VWAP 세트(computeVwapSet(recentBars=50, src), L417)의 밴드2(±bandMult_2)** 값. 밴드1(*Value1)이 아니라 밴드2다.
-//    - longClear/shortClear : **판정용 원본 청산선**(computeClearLines 결과, L896). 표시용 EMA 스무딩(longClearSm/shortClearSm, L1183-84)이 아니다 — 스무딩은 마커 y좌표·그리기 등 시각 전용이라 판정에 쓰지 않는다.
-//    - sarBelow/sarAbove : ta.sar 결과(sarVal, L1117) 기반 SAR 추세 방향. sarBelow=SAR이 종가 아래(상승, sarVal<close), sarAbove=SAR이 종가 이상(하락, sarVal>=close). (신호식은 방향 불리언만 사용, SAR 점값 sarVal은 위치 비교에서 제거됨.)
-//  ⚠️ na 안전: ② 비교는 밴드2·청산선 중 하나라도 na면 부동소수 비교가 false로 빠진다(Pine에서 na 포함 관계비교 결과는 참이 아님). ③ sarBelow/sarAbove는 not na(sarVal) 가드를 포함(sarVal na면 둘 다 false). 워밍업 봉에서 신호는 안전하게 미발동.
-//  ⚠️ 리페인팅: 3조건 전부 확정봉/과거참조 기반 — showLong/ShortMarker(확정봉 마커), lower/upperBandValue2(anchored VWAP 확정봉 누적·L417), long/shortClear(computeClearLines 확정봉 산식·L896), sarBelow/sarAbove(ta.sar 확정봉 누적·L1117 기반). 신규 리페인팅 없음.
-//  ⚠️ 상호배타: 매수(롱 마커·하단밴드2>롱청산·SAR상승)와 매도(숏 마커·상단밴드2<숏청산·SAR하락)는 방향별로 배타(마커·SAR 방향 상호배타) → 같은 봉 동시 발동 불가.
-//  ⚠️ 폐기(신호에서만 빠짐, 다른 로직엔 유지): cloudBull/cloudBear(구름 판정·fill 옵션 유지)·vwapSupport/vwapResistance(마커 게이트·VWAP선색 유지)·upperWick/lowerWick/body(마커 형태 게이트 등 유지)·abnCandleState(비정상 배경 유지)·lastInflectDir(변곡 방향 래치·연장 마커 유지). 신호 전용 dead 변수는 없다.
-// =========================
-SIG_GROUP = "3조건 매수/매도 신호"
-showBuySignal5 = input.bool(false, title="매수 신호(역삼각형) 표시", group=SIG_GROUP, tooltip="켜면 3조건(① 롱 변곡 마커 ② 하단 밴드2 > 롱 청산선 ③ SAR 상승이면서 SAR 점 > 하단 밴드2)이 모두 성립하는 봉의 봉 아래에 녹색 역삼각형(triangleup)을 표시합니다. 기본 OFF — 검토 전까지 opt-in(자본 보존).")
-showSellSignal5 = input.bool(false, title="매도 신호(역삼각형) 표시", group=SIG_GROUP, tooltip="켜면 3조건(① 숏 변곡 마커 ② 상단 밴드2 < 숏 청산선 ③ SAR 하락이면서 SAR 점 < 상단 밴드2)이 모두 성립하는 봉의 봉 위에 적색 역삼각형(triangledown)을 표시합니다. 기본 OFF — 검토 전까지 opt-in(자본 보존).")
-buySignal5Color = input.color(#00C853, title="매수 신호 색(녹)", group=SIG_GROUP, active=showBuySignal5, display=display.none, tooltip="매수 역삼각형 색. 기본 녹(롱 청산선/마커 팔레트와 일관 #00C853).")
-sellSignal5Color = input.color(#FF1744, title="매도 신호 색(적)", group=SIG_GROUP, active=showSellSignal5, display=display.none, tooltip="매도 역삼각형 색. 기본 적(숏 청산선/마커 팔레트와 일관 #FF1744).")
-
-// =========================
-// 삼중 스토캐스틱 모멘텀 필터 — TRIPLE-STOCH/triple-stochastic-wave.pine의 "웨이브 배경" 판정(스토캐스틱 서열)을 이식(연산만, plot/bgcolor 없음).
-//  원본 정의(그대로 이식):
-//    - 각 스토캐스틱은 stoch_pair(length, smooth_k, smooth_d): raw_k=100*(close-LL)/max(HH-LL, mintick), k=sma(raw_k, smooth_k), d=sma(k, smooth_d). %K만 서열 비교에 사용.
-//    - 정배열(녹색 웨이브, tsWaveBull) = fast_k > mid_k AND mid_k > slow_k  (stoch_bull_order)
-//    - 역배열(빨강 웨이브, tsWaveBear) = fast_k < mid_k AND mid_k < slow_k  (stoch_bear_order)
-//    ▸ 원본 bull_wave_background=stoch_bull_order / bear_wave_background=stoch_bear_order 와 수치·산식 완전 동일. %D는 서열 판정에 미사용(원본과 일치).
-//  기본값: 원본 지표 기본값 그대로 — Fast 5/3/3, Mid 10/6/6, Slow 20/9/9.
-//  용도: 매수/매도 신호(buySignal5/sellSignal5)의 모멘텀 필터. 방향 정합 = 매수↔녹색(정배열)·매도↔빨강(역배열).
-//  ⚠️ plot/bgcolor 없음(연산·판정만). auto-vwap 변수와 충돌 방지 위해 ts* 접두어 사용.
-//  ⚠️ 리페인팅: sma·ta.highest/lowest는 확정봉 기반 확인. 워밍업(NA) 시 서열 비교가 false로 빠져 tsWaveBull/Bear=false → 신호 안전 미발동.
-//  ⚠️ 선언순서: 이 판정·필터 토글은 신호식(buySignal5/sellSignal5, 아래)보다 앞에 위치 → forward-ref 없음.
-// =========================
-TS_GROUP = "삼중 스토캐스틱 모멘텀 필터"
-tsMomentumFilter = input.bool(true, title="삼중 스토캐스틱 모멘텀 필터", group=TS_GROUP, tooltip="ON: 매수는 삼중 스토캐스틱 녹색(정배열, fast_k>mid_k>slow_k), 매도는 빨간색(역배열, fast_k<mid_k<slow_k)일 때만 신호를 통과시킵니다. OFF면 이 필터를 무시(기존 신호 그대로). 기본 ON. 판정은 TRIPLE-STOCH/triple-stochastic-wave.pine의 웨이브 배경(%K 서열)과 동일합니다. 표시(plot/배경)는 없고 신호 게이트로만 쓰입니다.")
-
-tsFastLength  = input.int(5,  "Fast Length", minval=1, group=TS_GROUP, inline="tsFast", active=tsMomentumFilter, display=display.none)
-tsFastSmoothK = input.int(3,  "Smooth K",    minval=1, group=TS_GROUP, inline="tsFast", active=tsMomentumFilter, display=display.none)
-tsFastSmoothD = input.int(3,  "Smooth D",    minval=1, group=TS_GROUP, inline="tsFast", active=tsMomentumFilter, display=display.none)
-
-tsMidLength  = input.int(10, "Mid Length", minval=1, group=TS_GROUP, inline="tsMid", active=tsMomentumFilter, display=display.none)
-tsMidSmoothK = input.int(6,  "Smooth K",   minval=1, group=TS_GROUP, inline="tsMid", active=tsMomentumFilter, display=display.none)
-tsMidSmoothD = input.int(6,  "Smooth D",   minval=1, group=TS_GROUP, inline="tsMid", active=tsMomentumFilter, display=display.none)
-
-tsSlowLength  = input.int(20, "Slow Length", minval=1, group=TS_GROUP, inline="tsSlow", active=tsMomentumFilter, display=display.none)
-tsSlowSmoothK = input.int(9,  "Smooth K",    minval=1, group=TS_GROUP, inline="tsSlow", active=tsMomentumFilter, display=display.none)
-tsSlowSmoothD = input.int(9,  "Smooth D",    minval=1, group=TS_GROUP, inline="tsSlow", active=tsMomentumFilter, display=display.none)
-
-// 원본 stoch_pair 헬퍼 그대로 이식(%K, %D 반환). 서열 판정엔 %K만 사용.
-tsStochPair(length, smoothK, smoothD) =>
-    highestHigh = ta.highest(high, length)
-    lowestLow   = ta.lowest(low, length)
-    priceRange  = math.max(highestHigh - lowestLow, syminfo.mintick)
-    rawK = 100.0 * (close - lowestLow) / priceRange
-    k = ta.sma(rawK, smoothK)
-    d = ta.sma(k, smoothD)
-    [k, d]
-
-[tsFastK, tsFastD] = tsStochPair(tsFastLength, tsFastSmoothK, tsFastSmoothD)
-[tsMidK,  tsMidD]  = tsStochPair(tsMidLength,  tsMidSmoothK,  tsMidSmoothD)
-[tsSlowK, tsSlowD] = tsStochPair(tsSlowLength, tsSlowSmoothK, tsSlowSmoothD)
-
-// 웨이브 배경 판정(원본 stoch_bull_order/stoch_bear_order 그대로) — %K 서열 비교(엄격 부등호).
-//  워밍업 시 tsFastK/MidK/SlowK 중 NA가 있으면 비교가 false → tsWaveBull/Bear=false(안전).
-tsWaveBull = tsFastK > tsMidK and tsMidK > tsSlowK   // 녹색(정배열, 상승 서열)
-tsWaveBear = tsFastK < tsMidK and tsMidK < tsSlowK   // 빨강(역배열, 하락 서열)
+sarStart     = input.float(0.03, title="파라볼릭 SAR Start", group=SAR_GROUP, tooltip="파라볼릭 SAR 가속 인자 시작값(start). 화면 SAR 표시에 쓰입니다. 기본 0.03.")
+sarIncrement = input.float(0.03, title="파라볼릭 SAR Increment", group=SAR_GROUP, tooltip="파라볼릭 SAR 가속 인자 증분(increment). 기본 0.03.")
+sarMaximum   = input.float(0.3,  title="파라볼릭 SAR Max", group=SAR_GROUP, tooltip="파라볼릭 SAR 가속 인자 최댓값(maximum). 기본 0.3.")
 
 // =========================
 // 비정상 매수/매도 — SUPER-ICHIMOKU 메인 지표(advanced-ichimoku.pine)의 "비정상 캔들"(비정상 매수/매도) 판정을 이식(포팅).
@@ -463,16 +259,6 @@ disparityStatMult = input.float(1.5, minval=0.1, step=0.1, title="이격도 통�
 
 // 기본 화면용 VWAP 세트(length=50, 소스=src) — 화면 plot·밴드·라벨의 기준. 소스는 기존 화면 VWAP src(기본 hlc3) 유지 → 거동 불변.
 [vwapValue, upperBandValue1, lowerBandValue1, upperBandValue2, lowerBandValue2, shouldPlot] = computeVwapSet(recentBars, src)
-// 변곡 지점 판정용 VWAP 세트 — 숏/롱 2세트로 분리(CEO 지시). window(length=ipRecentBars)·밴드 배수·calcMode는 공통, 소스만 다르다.
-//  ▸ 숏 변곡 세트(소스=ipSrcShort 기본 low): 숏 변곡 마커(상단) 판정용. 상단 밴드2(ipUpperBandValue2)만 판정에 쓴다.
-//  ▸ 롱 변곡 세트(소스=ipSrcLong 기본 high): 롱 변곡 마커(하단) 판정용. 하단 밴드2(ipLowerBandValue2)만 판정에 쓴다.
-//  ⚠️ computeVwapSet 내부 var 누적이 호출부(instance)별 독립이므로 두 호출이 각자 자기 소스(low/high)로 독립 누적한다. 확정봉 기준 → 신규 리페인팅 없음.
-//  ⚠️ 숏 세트에서 상단 밴드2만, 롱 세트에서 하단 밴드2만 실제 사용하지만, 세트 대칭·가독성을 위해 6튜플을 그대로 받는다(미사용값은 컴파일러가 최적화).
-[ipVwapValueShort, ipUpperBandValue1Short, ipLowerBandValue1Short, ipUpperBandValue2, ipLowerBandValue2Short, ipShouldPlotShort] = computeVwapSet(ipRecentBars, ipSrcShort)
-[ipVwapValueLong,  ipUpperBandValue1Long,  ipLowerBandValue1Long,  ipUpperBandValue2Long,  ipLowerBandValue2, ipShouldPlotLong]  = computeVwapSet(ipRecentBars, ipSrcLong)
-// 밴드워킹 판정 전용 VWAP 세트(length=bwRecentBars, 소스=src) — 화면 세트와 독립(CEO 지시 판단 A). window는 기본 14봉(화면 세트 recentBars=50과 독립), 소스만 화면과 동일 src.
-//  ⚠️ 튜플 변수는 bw* 접두어로 명명해 화면 세트(vwapValue/…)·변곡 세트(ipVwapValueShort/Long/…)와 이름 충돌 없음. 아래 밴드워킹 블록이 이 세트를 참조한다.
-[bwVwapValue, bwUpperBandValue1, bwLowerBandValue1, bwUpperBandValue2, bwLowerBandValue2, bwShouldPlot] = computeVwapSet(bwRecentBars, src)
 
 // =========================
 // 비정상 매수/매도 판정 — advanced-ichimoku.pine "비정상 캔들" 블록의 이식(포팅). 산식·기본값 동일.
@@ -673,48 +459,6 @@ plot(showBuyLevel ? abnBuyRunHigh : na, title="과매수선(매수)", color=abnL
 plot(showSellLevel ? abnSellRunLow : na, title="과매도선(매도)", color=abnLevelSellColor, display=display.price_scale, editable=true)
 
 // =========================
-// 밴드워킹(추세 국면) 판정 — 이치모쿠 advanced-ichimoku.pine "VWAP 상태" 알고리즘(원본 vwUpperWalk/vwLowerWalk)의 이식(포팅).
-//  ⚠️ 기준 세트: 밴드워킹 판정 전용 VWAP 세트(length=bwRecentBars, 소스=src) — bwVwapValue/bwUpperBandValue1·2/bwLowerBandValue1·2/bwShouldPlot.
-//   원본 이치모쿠는 자체 VWAP(recentBars=50, hlc3) 한 세트로만 밴드워킹을 판정하므로, auto-vwap에서도 "화면상 추세 국면"을
-//   대변하는 전용 세트(bwRecentBars, 기본 14봉·화면 세트 recentBars=50과 독립)에 매핑한다. 변곡용 세트(length=14)와는 소스가 달라(src vs ipSrcShort/ipSrcLong) 별도 세트로 둔다.
-//  ⚠️ 버그 교정(CEO 판단 A): 이전엔 화면 세트(recentBars, src)를 참조했다 → recentBars(화면 표시 전용)를 바꾸면 밴드워킹→마커 표시 여부가 오염됐다.
-//   전용 window(bwRecentBars)로 분리. 기본 14봉으로 화면 세트(recentBars=50)와 독립이며, 소스만 화면과 동일한 src를 쓴다.
-//  대응 매핑(이치모쿠 원본 → auto-vwap):
-//   vwapValue→bwVwapValue · vwUpper1/vwLower1→bwUpperBandValue1/bwLowerBandValue1 · vwUpper2/vwLower2→bwUpperBandValue2/bwLowerBandValue2 · vwHasVwap→bwHasVwap.
-//  파라미터: vwSlopeLen→ipBwSlopeLen(5) · vwWalkSlopeLen→ipBwWalkSlopeLen(3) · 평탄 임계 3%→ipBwFlatPct(0.03). 원본과 동일.
-//  ⚠️ 확정 성격 값(과거참조 [n])만 참조 → 신규 리페인팅 없음. 표시 억제 전용(전략 로직 불변).
-// =========================
-bwHasVwap = bwShouldPlot and not na(bwVwapValue)
-bwNearLower = bwHasVwap and not na(bwLowerBandValue1) and close < bwLowerBandValue1
-bwNearUpper = bwHasVwap and not na(bwUpperBandValue1) and close > bwUpperBandValue1
-bwBw2 = bwHasVwap and not na(bwUpperBandValue2) and not na(bwLowerBandValue2) ? bwUpperBandValue2 - bwLowerBandValue2 : na
-bwSlope = bwHasVwap and not na(bwVwapValue[ipBwSlopeLen]) ? bwVwapValue - bwVwapValue[ipBwSlopeLen] : na
-// 평탄 판정 임계 = 밴드폭의 ipBwFlatPct(기본 3%). 기울기가 이보다 작으면 평탄.
-bwFlatThresh = not na(bwBw2) ? bwBw2 * ipBwFlatPct : na
-bwSlopeUp = not na(bwSlope) and not na(bwFlatThresh) and bwSlope > bwFlatThresh
-bwSlopeDown = not na(bwSlope) and not na(bwFlatThresh) and bwSlope < -bwFlatThresh
-bwSlopeFlat = bwHasVwap and not bwSlopeUp and not bwSlopeDown
-bwExpanding = bwHasVwap and not na(bwBw2[ipBwSlopeLen]) and bwBw2 > bwBw2[ipBwSlopeLen]
-bwContracting = bwHasVwap and not na(bwBw2[ipBwSlopeLen]) and bwBw2 < bwBw2[ipBwSlopeLen]
-bwPreWalk = bwContracting or bwSlopeFlat or bwContracting[1] or bwContracting[2]
-bwUpBreakout = bwPreWalk and close > open and not na(bwUpperBandValue2) and close > bwUpperBandValue2
-bwDownBreakout = bwPreWalk and close < open and not na(bwLowerBandValue2) and close < bwLowerBandValue2
-bwLowerRising = bwHasVwap and not na(bwLowerBandValue2[ipBwWalkSlopeLen]) and bwLowerBandValue2 > bwLowerBandValue2[ipBwWalkSlopeLen]
-bwUpperFalling = bwHasVwap and not na(bwUpperBandValue2[ipBwWalkSlopeLen]) and bwUpperBandValue2 < bwUpperBandValue2[ipBwWalkSlopeLen]
-var int bwWalk = 0
-if bwWalk == 1 and (not bwHasVwap or bwUpperFalling)
-    bwWalk := 0
-if bwWalk == -1 and (not bwHasVwap or bwLowerRising)
-    bwWalk := 0
-if bwUpBreakout
-    bwWalk := 1
-if bwDownBreakout
-    bwWalk := -1
-// 위(상승) 밴드워킹 / 아래(하락) 밴드워킹 — 이치모쿠 원본 vwUpperWalk/vwLowerWalk 동일 산식(추가 게이트 없음).
-isUpBandWalking = bwWalk == 1 or (bwExpanding and bwSlopeUp and bwNearUpper)
-isDownBandWalking = bwWalk == -1 or (bwExpanding and bwSlopeDown and bwNearLower)
-
-// =========================
 // 횡보 압축(리본) 판정 — advanced-ichimoku.pine 리본 A모드(이평 리본) 이식(자기완결·B모드 제거).
 //  원본 매핑: ribbonMa/rAtr/aStep/aMa*/aTop/aBottom/aHeight/aCompressed/aExpanding/aBull 동일 산식.
 //   원본 conversionPeriods→ribbonConvPeriods, leadingSpanBPeriods→ribbonSpanBPeriods(리본 전용 input). 소스 close 동일.
@@ -816,11 +560,10 @@ color activeFillColor = color.new(activeLineColor, 92)
 //       close==vwap이면 ① 해당(저항), close≠vwap이면 ②(high>vwap==lowerNear)/④(low<vwap==upperNear)의 꼬리 걸침으로 판정. 확정봉 세트값이라 리페인팅 없음.
 //  enableDynamicLineColor(밴드2 이탈 녹/빨강)와 독립한 별도 VWAP 선 전용 색이다.
 // =========================
-// ★ CEO 지시(무조건 억제): 지지/저항 "상태"는 옵션(enableVwapSRColor)과 무관하게 항상 판정한다.
-//   - 판정 산식(pct/near/저항·지지)은 옵션이 담당하던 선색 규칙과 동일하되, if 게이트에서 enableVwapSRColor를 뺐다.
-//   - 결과 boolean(vwapResistance/vwapSupport)을 최상위 스코프로 노출해 표시 최종단(showLong/ShortMarker)의 무조건 억제에 쓴다.
-//   - 색 적용(vwapSRColor 칠하기)만 여전히 옵션에 종속시킨다(선색 표시 거동 보존). 즉 "상태 판정은 항상 / 색칠은 옵션 ON일 때만".
-//   - shouldPlot·밴드1/vwap na 가드는 유지 → 워밍업엔 둘 다 false(중립)라 억제 없음(CEO "중립 무영향" 충족).
+// 지지/저항 "상태"(vwapResistance/vwapSupport)를 판정해 VWAP 선색(vwapSRColor)을 결정한다.
+//   - 판정 산식(pct/near/저항·지지)은 아래 near 구간 종가·꼬리 걸침 규칙과 동일하다.
+//   - 색 적용(vwapSRColor 칠하기)은 옵션(enableVwapSRColor)에 종속한다(선색 표시 거동 보존). 즉 "상태 판정은 항상 / 색칠은 옵션 ON일 때만".
+//   - shouldPlot·밴드1/vwap na 가드는 유지 → 워밍업엔 둘 다 false(중립)라 흰색.
 bool vwapResistance = false
 bool vwapSupport = false
 color vwapSRColor = DEFAULT_LINE_COLOR
@@ -861,13 +604,12 @@ color vwapLineColor = enableVwapSRColor ? vwapSRColor : activeLineColor
 //    기본값은 이치모쿠와 동일하게 "기본". 가중 모드 선택 시 청산선(longCE/shortCE→longClear/shortClear)이 그 가중 앵커 기준으로 계산됨.
 //  - 확정 성격 값(ta.*)·과거참조([1] 트레일)만 사용 → 이치모쿠와 동일하게 신규 리페인팅 없음.
 //    가중 모드도 앵커를 직전 봉([1]) 기준으로 잡아(형성 중 현재봉 제외) 이치모쿠와 동일한 확정 성격 유지.
-//  - 청산선(longClear/shortClear)은 computeClearLines 헬퍼로 계산한다. 파라미터 세트는 "스윕/청산" 그룹(기본 청산 설정) 하나뿐이다(CEO 지시 #4: 변곡 전용 세트 삭제).
+//  - 청산선(longClear/shortClear)은 computeClearLines 헬퍼로 계산한다. 파라미터 세트는 "스윕/청산" 그룹 하나뿐이다.
 //    · 화면 페인팅: mode=ceMode 세트를 plot 으로 전 히스토리 봉에 직접 그린다(이치모쿠에서 이동).
-//    · 변곡 마커 후보 판정: 같은 파라미터로 mode만 "기본"·"거래량 가중"·"최근봉 가중" 3가지로 각각 계산해 OR로 확인한다(#1·#2).
 //    스윕라인(longCE/shortCE)은 여기로 옮기지 않는다(그리지 않음).
 // =========================
-ceLength = input.int(7, title="스윕 룩백 길이", minval=1, group="스윕/청산")
-ceAtrLen = input.int(7, title="스윕 ATR 길이", minval=1, group="스윕/청산")
+ceLength = input.int(20, title="스윕 룩백 길이", minval=1, group="스윕/청산")
+ceAtrLen = input.int(20, title="스윕 ATR 길이", minval=1, group="스윕/청산")
 ceMult = input.float(3.0, title="스윕 ATR 배수", minval=0.0, step=0.01, group="스윕/청산")
 // 스윕 가격 모드(샹들리에 기반):
 //  - 기본: 표준 샹들리에(룩백 고가/저가 − ATR)
@@ -883,13 +625,12 @@ sweepPivotLen = input.int(5, minval=1, title="스윙 풀 좌우 봉수", group="
 sweepMaxGapMult = input.float(1.0, title="청산-스윕 최대 간격 ATR 배수", minval=0.1, step=0.1, group="스윕/청산")
 // 청산선(직선=손절 기준선) 차트 페인팅 옵션 — 이치모쿠에서 이 지표로 이동(CEO 지시).
 //  청산선(longClear/shortClear)만 전 히스토리 봉에 plot으로 그린다(스윕라인 longCE/shortCE는 여기로 옮기지 않음).
-//  ⚠️ 이 "스윕/청산" 그룹의 청산선은 화면 plot 전용이다. 변곡 지점(밴드2 마커) 판정은 "변곡 지점" 그룹의 독립 청산선 세트를 쓴다(CEO 지시: 세트 완전 독립).
 showClearLines = input.bool(true, title="청산선 표시(전 히스토리 봉)", group="스윕/청산", tooltip="롱/숏 청산선(직선=손절 기준선)을 차트 전 구간 봉마다 plot으로 그립니다. 스윕라인(점선)은 이 지표에 없습니다(이치모쿠 전략 전용).")
 clearLineWidth = input.int(1, title="청산 선 두께", minval=1, group="스윕/청산", active=showClearLines)
-longClearLineColor = input.color(#00C853, title="롱 청산선 색", group="스윕/청산", active=showClearLines, tooltip="청산선(직선=손절 기준선)의 롱 색. 값 계산·밴드2 색 판정에는 영향 없는 표시 옵션입니다.")
-shortClearLineColor = input.color(#FF1744, title="숏 청산선 색", group="스윕/청산", active=showClearLines, tooltip="청산선(직선=손절 기준선)의 숏 색. 값 계산·밴드2 색 판정에는 영향 없는 표시 옵션입니다.")
-// 청산선 EMA 스무딩(표시 전용) — 그려지는 선의 시각적 출렁임만 매끄럽게 한다. ON이어도 longClear/shortClear 원본 값은 불변이라 마커 y좌표·flat 판정·래치·손익비 로직에 영향이 없다(손절 지연 부작용을 신호 로직에서 회피).
-clearSmoothOn = input.bool(true, title="청산선 EMA 스무딩(표시 전용)", group="스윕/청산", active=showClearLines, tooltip="청산선 plot에만 ta.ema를 적용해 선을 매끄럽게 합니다. 판정·마커·손익비 값은 원본 청산선 그대로 사용(손절 판정 불변). OFF면 원본 청산선을 그대로 그립니다.")
+longClearLineColor = input.color(#00C853, title="롱 청산선 색", group="스윕/청산", active=showClearLines, tooltip="청산선(직선=손절 기준선)의 롱 색. 값 계산에는 영향 없는 표시 옵션입니다. SAR 상승 십자 색에도 함께 쓰입니다.")
+shortClearLineColor = input.color(#FF1744, title="숏 청산선 색", group="스윕/청산", active=showClearLines, tooltip="청산선(직선=손절 기준선)의 숏 색. 값 계산에는 영향 없는 표시 옵션입니다. SAR 하락 십자 색에도 함께 쓰입니다.")
+// 청산선 EMA 스무딩(표시 전용) — 그려지는 선의 시각적 출렁임만 매끄럽게 한다. ON이어도 longClear/shortClear 원본 값은 불변이라 판정 로직에 영향이 없다.
+clearSmoothOn = input.bool(true, title="청산선 EMA 스무딩(표시 전용)", group="스윕/청산", active=showClearLines, tooltip="청산선 plot에만 ta.ema를 적용해 선을 매끄럽게 합니다. 원본 청산선 값은 불변(손절 판정 불변). OFF면 원본 청산선을 그대로 그립니다.")
 clearSmoothLen = input.int(5, title="청산선 EMA 스무딩 길이", minval=1, group="스윕/청산", active=showClearLines and clearSmoothOn, tooltip="청산선 표시용 EMA 길이. 클수록 더 매끄럽지만 선이 실제 손절 기준선보다 시각적으로 더 지연돼 보입니다(표시만, 판정 불변).")
 
 // 거래량 × 최근봉(선형) 가중 평균
@@ -939,344 +680,24 @@ computeClearLines(int ceLen, int atrLen, float mult, string mode, int wLen, floa
     shortClearLocal := math.min(shortClearLocal, shortCE + maxGapMult * sweepAtr)
     [longClearLocal, shortClearLocal]
 
-// (a) 기본 청산선 세트(화면 페인팅용) — mode=ceMode. 화면에 plot으로 그려진다(전 히스토리 봉).
-//  ⚠️ 이 세트(ceMode)는 화면 plot·손익비 등 표시 전용이다. 변곡 마커 판정(후보·수평필터·표시) 어디에도 쓰지 않는다(사양 1: ceMode는 페인팅 전용).
+// 청산선 세트(화면 페인팅용) — mode=ceMode. 화면에 plot으로 그려진다(전 히스토리 봉, 표시 전용).
 [longClear, shortClear] = computeClearLines(ceLength, ceAtrLen, ceMult, ceMode, ceWeightLen, ceWeightMult, sweepBufferMult, useSweepPivot, sweepPivotLen, sweepMaxGapMult)
-// (b) 후보 판정용 3모드 청산선 세트(CEO 지시 #1·#2) — mode만 "기본"·"거래량 가중"·"최근봉 가중"으로 바꿔 각각 계산한다.
-//  mode 외 파라미터(길이·ATR·배수·가중·버퍼·피벗·최대간격)는 모두 "스윕/청산" 그룹(기본 청산 설정) 공통값을 쓴다.
-//  각 호출은 computeClearLines 내부 var/ta 상태가 독립이라 3세트를 안전히 병렬 계산할 수 있다.
-// 변수명은 ASCII(_base=기본 / _vol=거래량 가중 / _recent=최근봉 가중)로 둔다(기존 파일 변수명 규약 유지: 한글 변수명 전례 없음).
-[longClear_base, shortClear_base] = computeClearLines(ceLength, ceAtrLen, ceMult, "기본", ceWeightLen, ceWeightMult, sweepBufferMult, useSweepPivot, sweepPivotLen, sweepMaxGapMult)
-[longClear_vol, shortClear_vol] = computeClearLines(ceLength, ceAtrLen, ceMult, "거래량 가중", ceWeightLen, ceWeightMult, sweepBufferMult, useSweepPivot, sweepPivotLen, sweepMaxGapMult)
-[longClear_recent, shortClear_recent] = computeClearLines(ceLength, ceAtrLen, ceMult, "최근봉 가중", ceWeightLen, ceWeightMult, sweepBufferMult, useSweepPivot, sweepPivotLen, sweepMaxGapMult)
-// 수평 필터용 ATR — 후보/수평 판정이 3모드 청산선(shortClear_*/longClear_*) 기준이므로 기본 스윕 ATR 길이(ceAtrLen)에 맞춘다.
-//  ⚠️ ATR은 mode 무관 공통값이라 ceMode에 의존하지 않는다(모드 독립 보장의 일부).
-ipFlatAtr = ta.atr(ceAtrLen)
 
 // =========================
-// 변곡 지점(Inflection Point) 판정 — 변곡용 밴드2 상/하단 선이 "기본 청산선"(3모드 OR) 안으로 들어오는지 판정한다.
-//  밴드2 선 색은 기본색 고정, 변곡 순간은 마커로만 표시한다.
-//  - 화면 밴드(upperBandValue2/lowerBandValue2) 위치·색은 절대 변경하지 않는다(언제나 원값 위치 + 기본 activeLineColor).
-//  - 후보 판정(CEO 지시 #1·#2): 청산 설정의 가격 모드를 "기본"·"거래량 가중"·"최근봉 가중" 3가지로 각각 계산한 청산선 중
-//    **1개 이상**을 밴드2가 뚫고 들어오면 후보. (숏=ipUpperBandValue2 < shortClear_m, 롱=ipLowerBandValue2 > longClear_m, m∈{기본,거래량,최근봉})
-//  - 상/하단 각각 독립 판정.
+// 파라볼릭 SAR 방향 판정 — SAR plot 색 판정 전용(sarBelow=상승·녹, sarAbove=하락·빨강).
+//  ⚠️ sarBelow/sarAbove는 na 가드 포함(sarVal na면 둘 다 false). sarVal 유효 시 close 기준 이분(sarBelow=<, sarAbove=>=)이라 정확히 하나만 참(동시 참 불가, na 미발생).
+//  ⚠️ ta.sar은 확정봉 기반 누적 상태 함수 → 신규 리페인팅 없음.
 // =========================
-// 변곡 판정은 **변곡용 VWAP 세트(length=14)의 밴드2**(ipUpperBandValue2/ipLowerBandValue2)와 **기본 청산선 3모드**(shortClear_*/longClear_*) 기준이다.
-//  마커만 판정에 쓰므로 화면 밴드 위치·색은 불변.
-// 요구사항 4: 청산선 "수평(flat)" 판정 헬퍼 — 최근 lb봉 사이 변화량을 ATR로 정규화한 비율이 임계 이내이면 true.
-//  atr<=0(초기·데이터 부족)일 때는 정규화가 불가능하므로 필터를 통과시키지 않는다(false).
-//  na 값(과거참조 부족)일 때도 판정 불가로 false 처리.
-isClearLineFlat(float lineVal, int lb, float atrVal, float maxRatio) =>
-    float prevVal = lineVal[lb]
-    na(lineVal) or na(prevVal) or na(atrVal) or atrVal <= 0 ? false : (math.abs(lineVal - prevVal) / atrVal) <= maxRatio
-// 후보 판정(CEO 지시 #1·#2) — 3모드 OR. na 가드는 각 항에 포함. 각 모드별 "밴드2 진입" 성립 여부를 개별 bool로 둔다.
-//  숏 진입_m = (ipUpperBandValue2 < shortClear_m),  롱 진입_m = (ipLowerBandValue2 > longClear_m).  m∈{기본(base),거래량(vol),최근봉(recent)}.
-//  ⚠️ 3모드는 모두 computeClearLines를 mode 리터럴("기본"/"거래량 가중"/"최근봉 가중")로 고정 호출한 세트라 ceMode 선택과 무관하다.
-// 숏 경로는 숏 변곡 세트(소스=low)의 shouldPlot·상단 밴드2를, 롱 경로는 롱 변곡 세트(소스=high)의 shouldPlot·하단 밴드2를 쓴다(세트 1:1 매핑).
-ipUpperBand2Valid = ipShouldPlotShort and not na(ipUpperBandValue2)
-ipLowerBand2Valid = ipShouldPlotLong  and not na(ipLowerBandValue2)
-shortEnter_base   = ipUpperBand2Valid and not na(shortClear_base)   and ipUpperBandValue2 < shortClear_base
-shortEnter_vol    = ipUpperBand2Valid and not na(shortClear_vol)    and ipUpperBandValue2 < shortClear_vol
-shortEnter_recent = ipUpperBand2Valid and not na(shortClear_recent) and ipUpperBandValue2 < shortClear_recent
-longEnter_base    = ipLowerBand2Valid and not na(longClear_base)    and ipLowerBandValue2 > longClear_base
-longEnter_vol     = ipLowerBand2Valid and not na(longClear_vol)     and ipLowerBandValue2 > longClear_vol
-longEnter_recent  = ipLowerBand2Valid and not na(longClear_recent)  and ipLowerBandValue2 > longClear_recent
-// 숏 후보 = OR_m ( 진입_m ),  롱 후보 = OR_m ( 진입_m ).
-shortCand = shortEnter_base or shortEnter_vol or shortEnter_recent
-longCand  = longEnter_base or longEnter_vol or longEnter_recent
-
-// ── 수평 필터(밴드워킹 억제) — 모드 독립 교정(CEO 지시: ceMode가 마커에 관여 금지) ──
-//  버그(교정 전): flat 판정 대상이 화면 페인팅용 shortClear/longClear(=ceMode 세트)였다 → 스윕 모드를 바꾸면 마커 발동이 바뀜(사양 1 위반).
-//  교정(후보 논리와 정합): 후보에 기여한(밴드2가 들어온) 모드의 청산선이 flat일 때만 그 방향 flat 통과로 본다.
-//   → 숏 flatOk = OR_m ( 진입_m AND flat(shortClear_m) ),  롱 flatOk = OR_m ( 진입_m AND flat(longClear_m) ).
-//   3모드 청산선은 mode 리터럴 고정 호출이므로 ceMode 선택과 완전 무관하다. 필터 OFF면 항상 통과(기존 동작 유지).
-ipUpperFlatOk = not ipFlatFilter or ((shortEnter_base and isClearLineFlat(shortClear_base, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)) or (shortEnter_vol and isClearLineFlat(shortClear_vol, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)) or (shortEnter_recent and isClearLineFlat(shortClear_recent, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)))
-ipLowerFlatOk = not ipFlatFilter or ((longEnter_base and isClearLineFlat(longClear_base, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)) or (longEnter_vol and isClearLineFlat(longClear_vol, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)) or (longEnter_recent and isClearLineFlat(longClear_recent, ipFlatLookback, ipFlatAtr, ipFlatSlopeMax)))
-
-// 표시 게이트(CEO 지시) — OBV 기반 DI+/DI- 우위. 3봉 hlc3 평균 게이트를 대체한다.
-//  OBV-ADX 보조지표(obv-adx-extreme-background.pine)의 DI+/DI- 산식을 그대로 이식(값 동일, v6 정합).
-//   obvValue = OBV 누적. up/down = OBV 변화량. plusDM/minusDM = 방향성 이동. trur = OBV 표준편차의 RMA(=정규화 기준).
-//   diPlus = 100 * EMA(plusDM,len)/trur,  diMinus = 100 * EMA(minusDM,len)/trur.  (fixnan으로 trur==0/na 보정)
-//  숏 변곡: DI- 우위(diMinus > diPlus).  롱 변곡: DI+ 우위(diPlus > diMinus).  na면 억제(둘 다 미표시).
-//  ⚠️ 확정 성격 값(ta.cum/change/rma/stdev/ema)만 사용 → 신규 리페인팅 없음. 표시 게이트 전용(전략 로직 불변).
-obvValue = ta.cum(math.sign(ta.change(close)) * volume)
-obvUp = ta.change(obvValue)
-obvDown = -ta.change(obvValue)
-obvPlusDM = na(obvUp) ? na : obvUp > obvDown and obvUp > 0 ? obvUp : 0
-obvMinusDM = na(obvDown) ? na : obvDown > obvUp and obvDown > 0 ? obvDown : 0
-obvTrur = ta.rma(ta.stdev(obvValue, obvDiLen), obvDiLen)
-diPlus = fixnan(obvTrur == 0 ? 0 : 100 * ta.ema(obvPlusDM, obvDiLen) / obvTrur)
-diMinus = fixnan(obvTrur == 0 ? 0 : 100 * ta.ema(obvMinusDM, obvDiLen) / obvTrur)
-// OBV 방향 격차 |diPlus−diMinus|(=obv-adx의 |diDiff|) — ADX·에너지 채도 공용. 원본 obv-adx가 diDiff를 재사용하듯 여기서도 한 번만 계산(중복 제거).
-diEnergy = math.abs(diPlus - diMinus)
-// ADX(OBV-ADX 원본 lensig 사용) — input 정합용으로 계산만 유지. 변곡 마커 게이트엔 미사용.
-obvDiSum = diPlus + diMinus
-obvAdx = 100 * ta.ema(diEnergy / (obvDiSum == 0 ? 1 : obvDiSum), obvAdxSmooth)
-// DI 우위 게이트(na 가드 포함) — DI 값이 na면 해당 방향 억제.
-shortDiGate = not na(diMinus) and not na(diPlus) and diMinus > diPlus
-longDiGate = not na(diPlus) and not na(diMinus) and diPlus > diMinus
-// ── OBV 에너지 강/약 판정(변곡 마커 색 채도 전용) — OBV-ADX 상태판 energyFading 산식 이식 ──
-//  obv-adx-extreme-background.pine(L80-82): diEnergy=|diDiff|=|plus-minus|, diEnergyAvg=sma(diEnergy,obvEnergyLen),
-//   energyFading = diEnergy < diEnergyAvg or diEnergy < diEnergy[3]. diEnergy는 위(obvAdx 앞)에서 이미 계산해 재사용(중복 없음).
-//  평균 창은 obvEnergyLen(기본 5), 3봉 전 모멘텀 [3]은 평균과 무관한 독립 룩백(obv-adx와 동일한 고정 상수) → 평균이 짧아져도 시간축 부정합 없음.
-//  energyStrong = not energyFading → '강(선명색)', energyFading → '약(둔탁색)'. na면 약으로 취급(보수적: 둔탁).
-//  ⚠️ 확정 성격 값(ema/sma/과거참조[3])만 사용 → 신규 리페인팅 없음. 마커 색 채도만 바꿈(판정·표시 여부·y좌표 불변).
-diEnergyAvg = ta.sma(diEnergy, obvEnergyLen)
-energyFading = na(diEnergy) or na(diEnergyAvg) or diEnergy < diEnergyAvg or diEnergy < diEnergy[3]
-energyStrong = not energyFading
-// 채도 색 상수 — 선명색은 마커 기존 색(short/longClearLineColor), 둔탁색은 저장소 시그니처 팔레트(둔탁 녹/빨강, obv-adx 상태판과 동일).
-color DULL_LONG_COLOR  = #6E8F72   // 둔탁 녹(롱 약)
-color DULL_SHORT_COLOR = #A57A7A   // 둔탁 빨강(숏 약)
-// 마커 색(채도 반영): 롱=강→선명 녹(longClearLineColor)/약→둔탁 녹, 숏=강→선명 빨강(shortClearLineColor)/약→둔탁 빨강.
-//  ⚠️ 채도는 색만 바꾸며 마커 발동(upper2Marker/lower2Marker)에는 관여하지 않는다.
-color lowerMarkerColor = energyStrong ? longClearLineColor : DULL_LONG_COLOR
-color upperMarkerColor = energyStrong ? shortClearLineColor : DULL_SHORT_COLOR
-
-// 방향성 밴드워킹 억제(ipBwSuppress) AND 결합 — 후보·수평필터·DI 우위 게이트 위에 방향 억제만 얹는다.
-//  숏(빨강·상단) = 후보(3모드OR) AND 수평필터(숏) AND (DI- 우위) AND (not 상승 밴드워킹).
-//  롱(녹색·하단) = 후보(3모드OR) AND 수평필터(롱) AND (DI+ 우위) AND (not 하락 밴드워킹).
-//  토글 OFF면 억제 항이 항상 참 → 기존 동작 그대로.
-upperBwOk = not ipBwSuppress or not isUpBandWalking
-lowerBwOk = not ipBwSuppress or not isDownBandWalking
-// ── VWAP 선색 AND 게이트(CEO 지시 A, 기존 #6) — 최종 선색(vwapSRColor) 기준, 원 변곡 단계 결합 ──
-//  롱(하단) 마커: 선색이 흰색 또는 녹색일 때만 표시(빨강이면 억제). 숏(상단) 마커: 선색이 흰색 또는 빨강일 때만 표시(녹색이면 억제).
-//  구현: 최종 vwapSRColor를 색 상수와 비교한다(녹=LOWER_BREAK_LINE_COLOR, 빨강=UPPER_BREAK_LINE_COLOR, 흰=DEFAULT_LINE_COLOR).
-//  ⚠️ 선 지지/저항 색 옵션(enableVwapSRColor) OFF이면 선색 판정 자체가 없으므로 게이트를 적용하지 않는다(기존 마커 거동 유지). ON일 때만 억제 게이트 발동.
-//  ⚠️ [무조건 억제와의 관계 — CEO 신규 지시] 표시 최종단(showLong/ShortMarker)에 옵션과 무관한 무조건 억제(not vwapResistance / not vwapSupport)를 별도로 얹었다.
-//     · #6은 방향 매핑이 무조건 억제와 동일하다(지지=녹→숏 억제, 저항=빨강→롱 억제). 단 #6은 (a)옵션 ON에서만·(b)원 변곡 단계에만 걸린다.
-//     · 무조건 억제는 옵션과 무관·표시 최종단(원 변곡+연장 합류)에 걸리는 상위집합이라, enableVwapSRColor ON에서는 #6이 억제하는 봉을 최종단이 항상 함께 억제한다(중복이나 무해 — 결과 동일, 더 억제하지 않음).
-//     · 따라서 #6은 유지한다(임의 제거 지양). ON 상태에서 #6 제거해도 결과는 같지만, OFF 상태 원 변곡 거동을 보존하고 이력 최소 침습을 위해 그대로 둔다.
-//  선색은 확정 성격 값(close·high·low·vwap·밴드1) 기반이라 신규 리페인팅 없음(현재봉 실시간 변동 성격은 기존 선색과 동일).
-bool srcGateLong  = not enableVwapSRColor or vwapSRColor != UPPER_BREAK_LINE_COLOR  // 롱: 빨강만 억제(흰/녹 허용)
-bool srcGateShort = not enableVwapSRColor or vwapSRColor != LOWER_BREAK_LINE_COLOR  // 숏: 녹색만 억제(흰/빨강 허용)
-// ── 캔들 형태 게이트(옵션 ipShapeFilter, 기본 ON) — 원 변곡 마커(upper2Marker/lower2Marker)에만 AND 결합 ──
-//  ON이면 방향(양봉/음봉)을 기본으로, 여기에 몸통↔꼬리 형태 제외 조건을 추가한다. OFF면 게이트가 항상 통과(방향·형태 무관). 모두 확정봉 OHLC 기반 → 신규 리페인팅 없음.
-bool  ipBull      = close > open                        // 양봉
-bool  ipBear      = close < open                        // 음봉  (도지: close==open → 둘 다 false)
-//  몸통·꼬리 변수(형태 제외용) — 게이트 참조보다 앞에서 선언. abs·max·min은 모두 확정봉 OHLC 기반.
-float body      = math.abs(close - open)                // 몸통 크기(절대값)
-float upperWick = high - math.max(close, open)          // 위꼬리
-float lowerWick = math.min(close, open) - low           // 아래꼬리
-//  ▸ [공통 형태 반전 필터] — 원 변곡·연장 override 양쪽에 일관 적용하기 위해 boolean으로 추출한다(CEO 지시: 반전형은 방향/경로 무관 제외).
-//     shortRejectShape = 하방 반전형(위꼬리가 몸통의 25% 미만이고 아래꼬리가 몸통보다 긴 봉 = 긴 아래꼬리·위꼬리 거의 없음) → 숏 마커 금지.
-//     longRejectShape  = 상방 반전형(아래꼬리가 몸통의 25% 미만이고 위꼬리가 몸통보다 긴 봉 = 긴 위꼬리·아래꼬리 거의 없음) → 롱 마커 금지.
-//     도지(body=0)면 body*0.25=0 → upperWick<0/lowerWick<0 불성립 → 제외조건 자연 미성립(안전).
-bool  shortRejectShape = upperWick < body * 0.25 and lowerWick > body
-bool  longRejectShape  = lowerWick < body * 0.25 and upperWick > body
-//  ▸ [반대방향 긴꼬리 거부] — CEO 지시: 방향(양봉/음봉)은 맞아도 반대방향으로 긴 꼬리가 나온 봉은 해당 방향 진입에서 제외.
-//     longTailReject  = 양봉이라도 윗꼬리가 몸통의 2배 이상(상방 거부 = 긴 윗꼬리) → 롱 마커 금지.
-//     shortTailReject = 음봉이라도 아랫꼬리가 몸통의 2배 이상(하방 거부 = 긴 아랫꼬리) → 숏 마커 금지.
-//     경계: "2배 이상"이므로 >= 사용(정확히 2배도 거부).
-//     ⚠️ 도지(body=0) 가드: body>0 을 AND로 요구. body=0이면 2*body=0 이라 꼬리가 조금만 있어도 항상 거부되어 도지에서 과잉 억제된다.
-//        단 도지 자체는 이미 위 방향 게이트(ipBull/ipBear=false)에서 원천 제외되므로, body>0 가드는 "명목상 방향은 있으나 몸통이 0"인 경계를 이론적으로 막는 이중 안전장치다.
-bool  longTailReject  = body > 0 and upperWick >= body * 2
-bool  shortTailReject = body > 0 and lowerWick >= body * 2
-//  ▸ 옵션(ipShapeFilter, 기본 ON): OFF면 게이트가 항상 통과 → 원 변곡이 방향·형태 무관하게 발동(도지 포함). ON이면 아래 기존 동작 그대로.
-//  ▸ 숏 변곡 유효 = 음봉.  제외 = "양봉 OR 도지".
-//     도지(close==open)는 음봉이 아니므로 자동 제외(방향성 미확정 → 오탐 방지·자본 보존).
-//  ▸ [개선 1] 음봉 숏 변곡 형태 제외: 하방 반전형(shortRejectShape) OR 하방 거부 긴 아랫꼬리(shortTailReject)는 숏에서 제외.
-bool  shortShapeOk = not ipShapeFilter or (ipBear and not shortRejectShape and not shortTailReject)
-//  ▸ 롱 변곡 유효 = 양봉.  제외 = "음봉 OR 도지".
-//     도지는 양봉이 아니므로 자동 제외.
-//  ▸ [개선 2] 양봉 롱 변곡 형태 제외: 상방 반전형(longRejectShape) OR 상방 거부 긴 윗꼬리(longTailReject)는 롱에서 제외.
-bool  longShapeOk  = not ipShapeFilter or (ipBull and not longRejectShape and not longTailReject)
-//  ⚠️ 형태 방향 게이트(음봉/양봉)+형태 반전 필터(shortRejectShape/longRejectShape)+반대방향 긴꼬리 거부(shortTailReject/longTailReject)는 원 변곡(upper2Marker/lower2Marker)에만 AND 결합한다. 연장(shortExt/longExt)에는 별도의 단독 꼬리 조건(반대 꼬리 ≤ 몸통)을 결합한다(아래 L582 인근).
-upper2Marker = shortCand and ipUpperFlatOk and shortDiGate and upperBwOk and srcGateShort and shortShapeOk
-lower2Marker = longCand and ipLowerFlatOk and longDiGate and lowerBwOk and srcGateLong and longShapeOk
-
-// ── "가장 최근 변곡 방향" 래치(신설) — 장대봉 VWAP 관통 연장(longVwapExt/shortVwapExt)의 트리거용 ──
-//  값: 1=최근 롱 변곡 / -1=최근 숏 변곡 / 0=아직 없음. 확정봉(barstate.isconfirmed)에서만 갱신해 리페인팅을 회피한다.
-//  ⚠️ 갱신은 표시 최종단(showLong/ShortMarker)이 실제로 그려진 방향으로 한다(아래 갱신 블록 참조) — 원 변곡·기존 연장·관통 연장 모두 반영된 "화면에 실제 그려진 마커" 기준.
-//  ⚠️ 관통 연장 조건(위 longVwapExt/shortVwapExt)은 lastInflectDir[1](직전봉 확정값)을 참조하므로, 이 var 선언은 그 참조보다 앞서야 한다(여기서 선언, 갱신은 뒤).
-var int lastInflectDir = 0
-
-// =========================
-// 변곡 마커 연장(follow-through / override) — CEO 신규 규칙. 원 변곡 마커가 뜬 다음 봉에서 고·저점이 함께 이동하면(추세 지속) 동일 색 마커를 이어 표시한다.
-//  ▸ [개선 3] 롱 연장(longExt): 이전봉에 롱 변곡 마커(lower2Marker[1])가 있었고 현재봉 저점>이전저점(low > low[1]) **그리고** 고점>이전고점(high > high[1])이면 롱 마커를 연장.
-//       → 현재봉이 음봉이든 숏 변곡 자리든 **무관**하게 롱을 넣는다(CEO: "숏 변곡 자리든 롱 넣는다"). 기존 현재봉 방향 게이트(ipBull) 제거·고점 상승 조건 추가.
-//  ▸ [개선 4] 숏 연장(shortExt): 이전봉에 숏 변곡 마커(upper2Marker[1])가 있었고 현재봉 고점<이전고점(high < high[1]) **그리고** 저점<이전저점(low < low[1])이면 숏 마커를 연장.
-//       → 현재봉이 양봉이든 롱 변곡 자리든 **무관**하게 숏을 넣는다. 기존 현재봉 방향 게이트(ipBear) 제거·저점 하락 조건 추가.
-//  ⚠️ 연장 기준은 **원 변곡 마커([1])만** 본다(연쇄 연장 불허) — 연장 마커는 다음 봉 연장의 "이전봉 변곡"으로 카운트하지 않는다.
-//     근거: CEO 문언이 "이전봉에 (원) 변곡 마커"를 명시했고, 연장까지 트리거로 삼으면 게이트(DI·수평·밴드워킹)가 모두 꺼진 뒤에도 고점/저점만 이동하면 무한 연쇄되어
-//     추세 소멸 후에도 마커가 붙는다(자본 보존·오탐 방지). 따라서 연장은 원 변곡 직후 1봉만 이어진다.
-//  ⚠️ 표시 전용 — 마커 발동 판정(shortCand/longCand·게이트·채도)·청산선·계산은 불변. low/high·마커[1]은 확정봉 값 → 신규 리페인팅 없음(현재봉 실시간 low/high 변동 성격은 기존 마커와 동일).
-//  ⚠️ 방향(양봉/음봉)은 무관 override — 연장은 고·저점 **둘 다** 이동(롱=둘 다 상승, 숏=둘 다 하락)을 요구하므로 방향 게이트 없이도 추세 지속을 판별한다.
-//     이는 원 변곡의 방향 게이트(ipBull/ipBear)와 독립적이며, longExt/shortExt는 이전봉이 롱/숏 원 마커 중 하나에서 파생 → 상호 배타(동시 성립 없음, 아래 표시식 참조).
-//  ⚠️ 단, 연장에는 **단독 꼬리 필터**를 AND 결합한다(CEO 지시): 숏 연장은 아래꼬리가 몸통보다 길면(lowerWick > body) 금지, 롱 연장은 위꼬리가 몸통보다 길면(upperWick > body) 금지.
-//     코드로는 통과 판정을 `lowerWick <= body`(숏)·`upperWick <= body`(롱)로 쓴다(strict "더 길면 금지" = 같으면 표시).
-//     원 변곡이 쓰는 shortRejectShape/longRejectShape(위꼬리 25% 미만 조건 포함)와 달리, 연장은 **위꼬리 25% 조건 없이 반대 꼬리 vs 몸통 단독 비교**만 본다(CEO 지시: 연장 override는 반대 꼬리가 몸통보다 길 때만 억제).
-//     도지(body=0): 숏 연장은 아래꼬리>0이면 lowerWick<=0 불성립 → 억제. 롱 연장은 위꼬리>0이면 upperWick<=0 불성립 → 억제(아래꼬리·위꼬리 모두 0인 4-price 도지만 통과, 극히 드묾).
-longExt  = lower2Marker[1] and low  > low[1]  and high > high[1] and upperWick <= body
-shortExt = upper2Marker[1] and high < high[1] and low  < low[1] and lowerWick <= body
-// ── 변곡 마커 "장대봉 VWAP 관통" 연장(CEO 신규 규칙) — 최근 변곡 방향 상태에서 VWAP 중앙선을 장대봉으로 관통하면 동일 방향 마커를 이어 표시한다. ──
-//  ▸ 롱 관통 연장(longVwapExt): "가장 최근 변곡 방향==롱" 상태에서 **양봉**이 VWAP 중앙선(vwapValue)을 아래→위로 관통(open<=vwap and close>vwap)하고
-//    **꼬리합(위꼬리+아래꼬리) ≤ 몸통의 20%**(장대봉·마루보즈 성격)이면 그 봉도 롱 변곡 마커로 연장.
-//  ▸ 숏 관통 연장(shortVwapExt): 대칭 — "최근 변곡 방향==숏" 상태 + **음봉**이 VWAP 하향 관통(open>=vwap and close<vwap) + 꼬리합 ≤ 몸통의 20%.
-//  ▸ "가장 최근 변곡 방향": 아래 표시 최종단에서 실제로 그려진 마커(showLong/ShortMarker) 방향을 확정봉에서 래치한 var int lastInflectDir(1=롱/-1=숏/0=없음).
-//     여기서는 **직전봉까지 확정된 방향** lastInflectDir[1]을 참조한다 — (a)순환 의존 회피(래치 갱신은 showLong/ShortMarker 정의 뒤), (b)현재봉이 스스로를 트리거하지 못하게 하여 확정봉 기반 리페인팅 방지.
-//  ▸ 관통 판정 정의(CEO 예시 채택): 롱=open<=vwap and close>vwap(시가 VWAP 이하·종가 VWAP 초과=봉이 아래에서 위로 완주), 숏=open>=vwap and close<vwap. 종가 기준 "완주 관통"이라 순간 스침(high/low만 걸침)은 제외 — 자본 보존·오탐 방지.
-//  ▸ 꼬리합 조건: (upperWick+lowerWick) <= body*0.2. 몸통·꼬리(body/upperWick/lowerWick)는 위 형태 게이트 블록(L887-889)에서 이미 선언한 확정봉 OHLC 기반 값 재사용.
-//  ⚠️ 도지(body=0) 안전: body*0.2=0 이고 꼬리합≥0 → 꼬리가 조금이라도 있으면 (합≤0) 불성립으로 자연 억제. 또한 도지는 close==open이라 양봉/음봉 조건(close>open/close<open)에서도 이미 제외된다(이중 안전).
-//  ⚠️ na 가드: vwapValue na(워밍업)면 관통 비교가 false. lastInflectDir[1] 미확정(0)이면 방향 조건 불성립 → 연장 없음.
-//  ⚠️ 방향역행 억제(shortUpMove/longDownMove)와의 관계: 롱 관통 연장은 상승 성격이라 표시 최종단의 shortUpMove(숏 억제)엔 무관하나, longDownMove(롱 억제)와는 상호배타(양봉 관통은 하락 봉이 아님이 일반적이나 보장은 아님)일 수 있어
-//     CEO 지시("붙이자"=표시)에 맞춰 이 관통 연장은 방향역행 억제보다 우선하도록 표시 최종단에서 별도 OR 우회 경로로 결합한다(아래 showLong/ShortMarker 참조).
-longVwapExt  = lastInflectDir[1] ==  1 and close > open and open <= vwapValue and close > vwapValue and (upperWick + lowerWick) <= body * 0.2
-shortVwapExt = lastInflectDir[1] == -1 and close < open and open >= vwapValue and close < vwapValue and (upperWick + lowerWick) <= body * 0.2
-// ── 변곡 마커 "장대봉(이전봉 2배) VWAP 즉시 크로스" (CEO 신규 규칙) — 최근 변곡 방향과 무관하게 "바로" 표시한다. ──
-//  ▸ 롱 즉시 변곡(longBigCross): 이전봉 몸통의 2배 이상인 **장대 양봉**(close>open)이 화면 VWAP 중앙선(vwapValue, recentBars 기본 50)을 **상향 크로스**(ta.crossover(close, vwapValue))하면 그 봉에 롱 변곡 마커를 바로 표시.
-//  ▸ 숏 즉시 변곡(shortBigCross): 이전봉 몸통의 2배 이상인 **장대 음봉**(close<open)이 VWAP 중앙선을 **하향 크로스**(ta.crossunder(close, vwapValue))하면 숏 변곡 마커를 바로 표시.
-//  ▸ "2배 이상 크기"의 근거: CEO 정의대로 **몸통 기준**(body = |close−open|)을 쓴다. "장대 양봉/음봉"은 몸통이 큰 봉이라는 통상 의미와 정합하며, 위 형태·관통 연장 블록이 이미 쓰는 body(L887) 정의를 그대로 재사용한다. 봉 전체 range(high−low)가 아닌 몸통 기준이므로 긴 꼬리·작은 몸통의 핀바가 "장대봉"으로 오탐되지 않는다(자본 보존·오탐 방지).
-//  ▸ "VWAP 크로스"의 정의 근거: CEO "바로 크로스"를 **종가 돌파**(ta.crossover/crossunder(close, vwapValue))로 해석한다. crossover=직전봉 종가≤VWAP 이면서 현재봉 종가>VWAP(상향 돌파), crossunder=그 반대. 봉 관통(open<vwap<close)이 아닌 종가 돌파를 택한 이유: (a)CEO 문언 "크로스"는 통상 종가 돌파를 뜻하고, (b)ta.crossover/crossunder는 [1] 확정 종가와 현재 종가만 보는 확정봉 함수라 리페인팅이 없으며, (c)위 관통 연장(longVwapExt=open<=vwap and close>vwap)과 정의가 구분되어 역할이 겹치지 않는다.
-//  ⚠️ body[1]=0(직전봉 도지) 가드: body[1]==0 이면 body>=0 이 항상 참이 되어 2배 조건이 무의미하게 통과한다. 따라서 **body[1]>0**을 AND로 요구해, 직전봉이 도지(4-price 포함)면 이 즉시 크로스를 발동하지 않는다(오탐 방지). body(현재봉)는 양봉/음봉 조건(close>open/close<open)이 이미 도지를 배제하므로 별도 가드 불필요.
-//  ⚠️ na 가드: vwapValue na(워밍업)면 ta.crossover/crossunder가 false. body[1] 워밍업(첫 봉)엔 body[1]==0 취급(nz 없이도 na 비교는 false → 통과 안 함, 안전). ta.crossover/crossunder·body[1] 과거참조 모두 확정봉 기반 → 신규 리페인팅 없음.
-//  ⚠️ 최근 변곡 방향 무관("바로"): lastInflectDir·연장 상태를 참조하지 않는다(CEO 지시). 아래 표시 최종단에서 억제 게이트를 **우회**하는 OR 경로로 결합한다.
-bool longBigCross  = close > open and body[1] > 0 and body >= body[1] * 2 and ta.crossover(close, vwapValue)
-bool shortBigCross = close < open and body[1] > 0 and body >= body[1] * 2 and ta.crossunder(close, vwapValue)
-// 우선순위(숨김) — 연장(override)은 방향 유지 신호이므로 같은 봉의 반대 원 변곡보다 우선한다(CEO: "숏 변곡 자리든 롱 넣는다").
-//  ▸ longExt 성립 봉: 숏 표시 억제(롱 override 우선). 그 봉에 upper2Marker(음봉 숏 원 변곡)가 동시에 떠도 `and not longExt`로 숏이 사라지고 롱만 그려진다.
-//  ▸ shortExt 성립 봉: 롱 표시 억제(숏 override 우선). 그 봉에 lower2Marker(양봉 롱 원 변곡)가 동시에 떠도 `and not shortExt`로 롱이 사라지고 숏만 그려진다.
-//  ▸ longExt·shortExt 동시 성립은 불가: longExt는 고·저점 둘 다 상승, shortExt는 둘 다 하락을 요구 → 상호 배타(같은 봉에서 동시 참 불가). 우선순위 충돌 없음.
-// ── 방향-역행 억제 게이트(CEO 지시) — 표시식 최종단에 결합 ──
-//  ▸ 숏 억제: 현재봉 고점·저점이 이전봉보다 각각 상승(high > high[1] AND low > low[1])하면 상승 추세 봉 → 숏 마커 미표시.
-//  ▸ 롱 억제: 현재봉 고점·저점이 이전봉보다 각각 하락(low < low[1] AND high < high[1])하면 하락 추세 봉 → 롱 마커 미표시.
-//  ⚠️ strict 비교(>, <): 고점 또는 저점이 이전봉과 같으면 "둘 다 상승/하락"이 아니므로 억제하지 않는다(경계는 통과).
-//  ⚠️ 원 변곡 게이트(shortShapeOk/longShapeOk)가 아니라 **표시식 최종단**에 결합한다 — 화면에 그려지는 숏/롱 마커(원 변곡+연장) 전반에 일관 작동시키기 위함.
-//     연장과의 무충돌: shortExt는 이미 high<high[1] and low<low[1]을 요구 → shortUpMove(high>high[1])와 상호 배타 → 연장 숏은 이 게이트에 걸리지 않는다.
-//     longExt도 low>low[1] and high>high[1]을 요구 → longDownMove(low<low[1])와 상호 배타 → 연장 롱도 걸리지 않는다. 즉 실질 영향은 원 변곡 마커에만 미친다(override 3·4 취지 보존).
-//  ⚠️ 확정봉 OHLC·[1] 참조 → 신규 리페인팅 없음(현재봉 실시간 high/low 변동 성격은 기존 마커와 동일).
-bool shortUpMove   = high > high[1] and low  > low[1]   // 고·저점 둘 다 상승 → 숏 억제
-bool longDownMove  = low  < low[1]  and high < high[1]  // 고·저점 둘 다 하락 → 롱 억제
-// ── VWAP 선 지지/저항 "무조건" 억제(CEO 지시) — 표시식 최종단에 결합 ──
-//  ▸ 규칙 #1: VWAP 선이 지지 상태(vwapSupport)이면 숏 마커 무조건 미표시.
-//  ▸ 규칙 #2: VWAP 선이 저항 상태(vwapResistance)이면 롱 마커 무조건 미표시.
-//  ⚠️ "무조건"의 근거: vwapSupport/vwapResistance는 enableVwapSRColor(선색 옵션)와 무관하게 항상 판정된다(위 판정 블록 참조).
-//     또한 이 게이트를 표시 최종단(원 변곡+연장 합류 지점)에 얹으므로 원 변곡·연장(shortExt/longExt)·캔들색·밴드2 강조까지 일괄 억제된다.
-//     (기존 옵션 종속 게이트 #6 srcGateShort/srcGateLong은 원 변곡 단계에만 걸렸고 OFF 시 무력화됐다 — 이 최종단 무조건 억제가 그 한계를 덮는다.)
-//  ⚠️ 중립(vwapSupport==false and vwapResistance==false: 완전 이탈·워밍업 na)이면 두 항 모두 참 → 억제 없음(CEO "중립 무영향").
-//  ⚠️ 상호배타: vwapSupport/vwapResistance는 위 판정에서 close==vwap 우선순위로 동시 참 불가 → 방향별 억제 충돌 없음.
-//  ⚠️ 지지↔롱·저항↔숏은 억제 대상이 아니므로 무영향(지지 상태에서 롱은 그대로, 저항 상태에서 숏은 그대로).
-//  ⚠️ vwapSupport/vwapResistance는 확정봉 close/high/low·vwap·밴드1 기반 → 신규 리페인팅 없음(현재봉 실시간 변동 성격은 기존 선색과 동일).
-// ── 파라볼릭 SAR 방향 게이트(CEO 규칙, ipSarFilter 토글) — 표시식 최종단에 결합 ──
-//  ▸ 규칙: SAR이 종가 아래(상승, sarBelow)면 숏 마커 억제 / SAR이 종가 이상(하락, sarAbove)면 롱 마커 억제. ([C] 종가 기준)
-//  ▸ 토글: ipSarFilter OFF면 (not ipSarFilter or ...)가 항상 참 → SAR 제약 무시(항상 통과). ON이면 기존 동작(flat/선색 게이트와 동일 패턴).
-//  ⚠️ sarBelow/sarAbove는 na 가드 포함(sarVal na면 둘 다 false → 억제 없음, 중립 통과).
-//  ⚠️ 상호배타·전영역: sarVal 유효 시 close 기준 이분(sarBelow=<, sarAbove=>=)이라 정확히 하나만 참(동시 참 불가, na 미발생). 방향별 억제 충돌 없음.
-//  ⚠️ 이 게이트도 최종단(원 변곡+연장 합류)에 얹으므로 원 변곡·연장·캔들색·밴드2 강조까지 일괄 정합 억제된다.
 sarVal = ta.sar(sarStart, sarIncrement, sarMaximum)
-bool sarBelow = not na(sarVal) and sarVal < close    // SAR 종가 아래(상승) → 숏 억제
-bool sarAbove = not na(sarVal) and sarVal >= close   // SAR 종가 이상(하락) → 롱 억제 (sar==close 경계는 하락 쪽에 포함해 na 방지)
-// ▸ 기존 표시 경로(원 변곡+기존 고저 연장) — 방향역행/VWAP지지저항/SAR 억제 게이트를 그대로 통과해야 표시.
-// ▸ 장대봉 VWAP 관통 연장(longVwapExt/shortVwapExt, CEO 신규) — "붙이자=표시" 지시에 따라 방향역행(shortUpMove/longDownMove)·VWAP지지저항 무조건 억제·SAR 억제를 **우회**하는 별도 OR 경로로 결합한다.
-//    단 반대방향 연장 우선 억제(not shortExt/not longExt)와 반대방향 관통 연장 배타(not shortVwapExt/not longVwapExt)는 유지 — 같은 봉 방향 충돌 방지(관통 연장은 롱=양봉상향/숏=음봉하향이라 상호배타이나 방어적으로 명시).
-//    ⚠️ 우회 결합이므로 관통 연장은 longDownMove/shortUpMove·vwapResistance/vwapSupport·SAR 게이트에 막히지 않는다(CEO 취지: 최근 변곡 방향 + 장대봉 관통이면 무조건 표시).
-// ▸ 장대봉(이전봉 2배) VWAP 즉시 크로스(longBigCross/shortBigCross, CEO 신규) — "바로 넣자" 지시에 따라 억제 게이트(방향역행·VWAP지지저항·SAR)를 **우회**하는 별도 OR 경로로 결합한다.
-//    최근 변곡 방향·연장 상태와 무관하게 발동한다. 반대방향 배타만 유지: 롱 즉시 크로스는 같은 봉의 숏 경로(shortBigCross/shortExt/shortVwapExt)와, 숏 즉시 크로스는 롱 경로와 상호 배타를 명시한다.
-//    (longBigCross=양봉 상향 크로스·shortBigCross=음봉 하향 크로스라 본래 상호배타이나, 방어적으로 not 반대항을 AND해 같은 봉 방향 충돌을 원천 차단한다.)
-showLongMarker  = ((lower2Marker or longExt)  and not shortExt and not longDownMove and not vwapResistance and (not ipSarFilter or not sarAbove)) or (longVwapExt  and not shortExt and not shortVwapExt) or (longBigCross  and not shortBigCross and not shortExt and not shortVwapExt)
-showShortMarker = ((upper2Marker or shortExt) and not longExt and not shortUpMove  and not vwapSupport    and (not ipSarFilter or not sarBelow)) or (shortVwapExt and not longExt  and not longVwapExt) or (shortBigCross and not longBigCross  and not longExt  and not longVwapExt)
+bool sarBelow = not na(sarVal) and sarVal < close    // SAR 종가 아래(상승) → 롱 색
+bool sarAbove = not na(sarVal) and sarVal >= close   // SAR 종가 이상(하락) → 숏 색 (sar==close 경계는 하락 쪽에 포함해 na 방지)
 
-// ── 3조건 매수/매도 신호 판정 — showLong/ShortMarker 정의 직후(모든 조건 변수 확정 이후)에서 AND 결합. (CEO 재설계: 기존 5조건 → 3조건) ──
-//  ▸ 매수(3조건 AND): ① showLongMarker(롱 변곡 마커) ② 롱 청산선 안 하단 밴드2만(lowerBandValue2 > longClear = 하단 밴드2가 롱 청산선 위 → 방향별 단일 밴드) ③ sarBelow(SAR 상승 추세). (CEO 지시: SAR 점 vs 하단 밴드2 위치 관계 sarVal>lowerBandValue2 제거.)
-//  ▸ 매도(3조건 AND, 방향은 ①③이 결정): ① showShortMarker(숏 변곡 마커) ② 숏 청산선 안 상단 밴드2만(upperBandValue2 < shortClear = 상단 밴드2가 숏 청산선 아래 → 방향별 단일 밴드) ③ sarAbove(SAR 하락 추세). (CEO 지시: SAR 점 vs 상단 밴드2 위치 관계 sarVal<upperBandValue2 제거.)
-//  ⚠️ 변수 특정(반대·스무딩 오사용 방지):
-//     - lowerBandValue2/upperBandValue2 : 기본 화면 VWAP 세트(computeVwapSet(recentBars=50, src), L417)의 **밴드2**(밴드1 *Value1 아님).
-//     - longClear/shortClear : **판정용 원본** 청산선(computeClearLines, L896). 표시용 스무딩 longClearSm/shortClearSm(L1183-84)이 아니다(스무딩=시각 전용).
-//     - sarBelow/sarAbove : ta.sar 결과(sarVal, L1117) 기반 SAR 추세 방향 / SAR 종가 아래(상승) / SAR 종가 이상(하락). (신호식은 방향 불리언만 사용, SAR 점값 위치 비교 제거.)
-//  ⚠️ 선언 순서(forward-ref 없음): showLong/ShortMarker(바로 위)·sarBelow/sarAbove(위 표시식 최종단, L1117-1119)·lower/upperBandValue2(L417)·long/shortClear(L896) 전부 이 지점보다 앞에서 선언됨.
-//  ⚠️ na 안전: ②의 관계비교는 lower/upperBandValue2·long/shortClear 중 하나라도 na면 결과가 참이 아니라 신호가 false로 빠진다(Pine에서 na 포함 관계비교는 참 아님). ③ sarBelow/sarAbove는 not na(sarVal) 가드 포함(sarVal na면 둘 다 false). 워밍업 봉 미발동.
-//  ⚠️ 리페인팅 없음: 3조건 전부 확정봉/과거참조 기반(마커·anchored VWAP 밴드2·청산선·ta.sar). 신규 리페인팅 없음.
-//  ⚠️ 상호배타 유지: 매수(롱 마커·SAR 상승)와 매도(숏 마커·SAR 하락)는 방향별 배타(마커·sarBelow/sarAbove 상호배타) → 같은 봉 동시 발동 불가.
-// ── SAR 추세 구간당 1회 발동 억제(CEO 지시) — 중복 신호 억제 플래그 ──
-//  ▸ 규칙: SAR 하락 추세(sarAbove) 구간 중 매도 신호가 한 번 나오면 그 하락 구간 동안 매도 중복 발동 금지. 다음 하락 구간 시작(상승→하락 전환) 시 다시 1회 허용.
-//  ▸ 대칭: SAR 상승 추세(sarBelow) 구간 중 매수가 한 번 나오면 그 상승 구간 동안 중복 금지. 다음 상승 구간 시작(하락→상승 전환) 시 다시 허용.
-//  ▸ 상태 유지 var bool 2개(신호식보다 앞에 선언 — forward-ref 없음). 갱신은 아래 barstate.isconfirmed 블록(전환 리셋 → 발동 set 순).
-//  ▸ 신호식이 참조하는 not 플래그 값은 "직전 확정봉까지의 상태"다(플래그는 확정봉에서만 갱신되므로, 형성 중 현재봉에는 이번 봉의 set이 아직 반영되지 않음) → 신규 리페인팅 없음.
-var bool buyFiredThisSarUp    = false   // 현재 SAR 상승 구간에서 매수 신호가 이미 발동했는가
-var bool sellFiredThisSarDown = false   // 현재 SAR 하락 구간에서 매도 신호가 이미 발동했는가
-//  억제 AND 결합: 기존 3조건은 그대로 두고, 같은 구간 중복만 not 플래그로 차단(플래그 false면 무영향 = 기존 동작).
-//  ── 캔들 꼬리 필터 AND 결합(CEO 지시) — 확정봉 OHLC 기반 body/upperWick/lowerWick(L1010-1012) 재사용 ──
-//    ▸ 매수: 윗꼬리가 몸통보다 길면(upperWick > body) 배제 → 통과 조건 upperWick <= body(같으면 허용, strict "더 길면 금지").
-//    ▸ 매도: 아랫꼬리가 몸통보다 길면(lowerWick > body) 배제 → 통과 조건 lowerWick <= body.
-//    ⚠️ 도지(body=0): 위꼬리>0이면 upperWick<=0 불성립 → 매수 배제, 아래꼬리>0이면 lowerWick<=0 불성립 → 매도 배제. 4-price 도지(꼬리도 0)만 통과. 긴 꼬리=거부 취지와 정합(도지 배제 타당).
-//    ▸ 삼중 스토캐스틱 모멘텀 필터 AND 결합(CEO 지시) — tsMomentumFilter ON일 때만 요구, OFF면 무시(통과).
-//      매수는 녹색(정배열, tsWaveBull), 매도는 빨강(역배열, tsWaveBear)일 때만 통과. (not tsMomentumFilter or tsWave*) = 토글 OFF면 true 상수라 기존 동작 불변.
-//  ── 비정상 매수/매도 배경 필터 AND 결합(CEO 지시) — 상태(abnCandleState, L549·확정봉 갱신 L561) 기준. 배경 표시 토글(abnShowBg)과 무관.
-//    ▸ 비정상 매수 배경(과매수, abnCandleState==-1)인 봉에서는 매수 신호 억제 → 통과 조건 abnCandleState != -1.
-//    ▸ 비정상 매도 배경(과매도, abnCandleState== 1)인 봉에서는 매도 신호 억제 → 통과 조건 abnCandleState !=  1.
-//    ⚠️ abnCandleState는 int(var, 초기 0, na 없음)이며 신호식보다 앞서 선언·갱신됨 → forward-ref·na 없음. 상태 0(정상)이면 두 필터 모두 통과 = 무영향.
-bool buySignal5  = (showLongMarker  and (lowerBandValue2 > longClear)  and sarBelow) and not buyFiredThisSarUp    and (upperWick <= body) and (not tsMomentumFilter or tsWaveBull) and abnCandleState != -1
-bool sellSignal5 = (showShortMarker and (upperBandValue2 < shortClear) and sarAbove) and not sellFiredThisSarDown and (lowerWick <= body) and (not tsMomentumFilter or tsWaveBear) and abnCandleState !=  1
-
-// 연장 마커 색 = "이전봉과 동일한 색"(CEO 문언) — 이전봉 마커색(lowerMarkerColor[1]/upperMarkerColor[1])을 그대로 상속한다(채도까지 이전봉 확정값).
-//  현재봉 재계산(lower/upperMarkerColor)이 아니라 [1] 참조라야 이전봉과 색(OBV 에너지 채도 포함)이 정확히 일치한다.
-//  원 변곡 마커 봉(lower2Marker/upper2Marker true, 연장 아님)은 기존대로 현재봉 색을 쓴다.
-//  ⚠️ 장대봉 VWAP 관통 연장(longVwapExt/shortVwapExt)은 직전봉[1]이 아니라 여러 봉 전일 수 있는 lastInflectDir 래치로 트리거되므로 [1] 상속이 무의미하다.
-//     → 관통 연장(기존 고저 연장 longExt/shortExt 아님)은 삼항 else로 빠져 **현재봉 색**(lowerMarkerColor/upperMarkerColor, 그 봉의 OBV 에너지 채도 반영)을 쓴다. 마커·barcolor·밴드2 강조 모두 이 동일 변수를 참조하므로 정합.
-//     ⚠️ 장대봉 VWAP 즉시 크로스(longBigCross/shortBigCross)도 longExt/shortExt가 아니므로 삼항 else로 빠져 **현재봉 색**을 쓴다(관통 연장과 동일 처리) — 마커·barcolor·밴드2 강조 전부 정합.
-color longMarkerColorFinal  = longExt  and not lower2Marker ? lowerMarkerColor[1] : lowerMarkerColor
-color shortMarkerColorFinal = shortExt and not upper2Marker ? upperMarkerColor[1] : upperMarkerColor
-// ── "가장 최근 변곡 방향" 래치 갱신 — 장대봉 VWAP 관통 연장의 트리거 상태를 확정봉에서 갱신한다. ──
-//  ▸ 기준: 화면에 실제 그려진 마커. plotshape은 y좌표(upper2MarkerY=shortClearSm/lower2MarkerY=longClearSm, 스무딩 값)가 na면 미표시한다. 래치 가드는 CEO 지시대로 **원본 청산선(longClear/shortClear, L774에서 선언·여기서 유효) not na**로 유지한다(판정 로직 불변). 스무딩 OFF면 *Sm==원본이라 na 여부 완전 동일; ON이어도 ta.ema는 원본이 na인 동안 결과도 na라 워밍업 이후 실질 정합. (별칭 upper2MarkerY/lower2MarkerY는 이 지점보다 뒤에 선언되므로 여기서 직접 참조 불가 → 원본 청산선 참조.)
-//  ▸ 확정봉(barstate.isconfirmed)에서만 갱신 → 형성 중 현재봉의 실시간 값이 래치를 흔들지 않음(리페인팅 방지). 관통 연장 조건은 lastInflectDir[1](직전봉 확정값)을 보므로 갱신을 뒤에 둬도 정합.
-//  ▸ 롱·숏 동시 표시는 위 표시식 우선 억제로 상호배타이나, 방어적으로 롱을 먼저 평가(규칙 #1 롱 우선과 일치). 둘 다 아니면 방향 유지(직전값 hold) — CEO "가장 최근 변곡 방향"은 마지막으로 나온 마커 방향을 계속 기억한다.
-if barstate.isconfirmed
-    if showLongMarker and not na(longClear)
-        lastInflectDir := 1
-    else if showShortMarker and not na(shortClear)
-        lastInflectDir := -1
-    // ── SAR 구간당 1회 억제 플래그 갱신(CEO 지시) — 순서 중요: ① 전환 리셋 → ② 발동 set ──
-    //  ① SAR 추세 전환 감지·리셋 : sarBelow[1]/sarAbove[1](직전 확정봉 값) 대비 새 구간 진입이면 해당 방향 플래그를 false로 리셋.
-    //     - 상승 전환(하락→상승) : sarBelow and not sarBelow[1] → 새 상승 구간 → 매수 재허용(buyFiredThisSarUp := false).
-    //     - 하락 전환(상승→하락) : sarAbove and not sarAbove[1] → 새 하락 구간 → 매도 재허용(sellFiredThisSarDown := false).
-    //  ② 발동 set : 이번 확정봉에 신호가 실제로 났으면(buySignal5/sellSignal5=true) 해당 플래그 set → 같은 구간 이후 봉의 중복을 억제.
-    //  ▸ 리셋을 set보다 먼저 두는 이유: 전환 봉에서 새 구간의 첫 신호가 나면, 그 봉의 리셋으로 플래그가 false가 되고(신호식은 이미 위에서 not 플래그로 평가돼 통과), set으로 true가 된다 → 새 구간 첫 1회 허용. 순서가 반대면 set→리셋으로 플래그가 다시 false가 되어 억제가 무력화된다.
-    //  ▸ 신호식(buySignal5/sellSignal5)은 위에서 이미 평가된 값을 사용(현재봉 not 플래그 = 직전 확정 상태 기준). 여기 갱신은 다음 봉부터 반영 → 순환·미래참조 없음.
-    //  ▸ sarBelow[1]/sarAbove[1]는 과거참조 → 신규 리페인팅 없음. sarVal na 워밍업 구간은 sarBelow/sarAbove 둘 다 false라 전환 미감지·set 미발생(안전).
-    if sarBelow and not sarBelow[1]
-        buyFiredThisSarUp := false
-    if sarAbove and not sarAbove[1]
-        sellFiredThisSarDown := false
-    if buySignal5
-        buyFiredThisSarUp := true
-    if sellSignal5
-        sellFiredThisSarDown := true
-// 요구사항 1: 밴드2 상/하단 선 색은 청산선 진입에 따른 색 변경을 제거하고 기본색(activeLineColor)으로 되돌린다.
-// CEO 재지시(강조 옵션 보정): "기본 vwap이 청산선 안으로 들어오고, 마커가 생길 때" 해당 밴드2를 마커색으로 강조.
-//  ⚠️ 후보/마커 판정은 변곡용 밴드2(ipUpperBandValue2/ipLowerBandValue2, window=ipRecentBars 기본 14)를 3모드 청산선과 비교한다(L405-410).
-//     따라서 마커(upper2Marker/lower2Marker)만으로는 "화면에 그려지는 기본 밴드2"가 청산선 안이라는 보장이 없다.
-//     → 화면 세트 밴드2(upperBandValue2/lowerBandValue2)가 실제로 청산선 안인지를 별도 게이트로 명시한다.
-//  기본(화면) 밴드2 "청산선 안" 판정 — 후보 판정과 동일 부등호, 화면에 그려지는 청산선(shortClear/longClear, ceMode 결과선 L372) 기준.
-//   상단(숏 맥락): upperBandValue2 < shortClear  (후보 shortEnter_m = ipUpperBandValue2 < shortClear_m 와 동일 부등호).
-//   하단(롱 맥락): lowerBandValue2 > longClear   (후보 longEnter_m  = ipLowerBandValue2 > longClear_m  와 동일 부등호).
-//   화면에 그려지는 선(shortClear/longClear)을 기준으로 삼아 "그 vwap의 밴드2가 화면 청산선 안"이라는 CEO 취지와 정렬한다.
-//   na 가드: 화면 밴드2·청산선이 유효할 때만 판정(shouldPlot·not na). 어느 한쪽이라도 na면 강조 안 함.
-baseUpperBand2InClear = shouldPlot and not na(upperBandValue2) and not na(shortClear) and upperBandValue2 < shortClear
-baseLowerBand2InClear = shouldPlot and not na(lowerBandValue2) and not na(longClear)  and lowerBandValue2 > longClear
-//  강조 = 옵션 ON AND 마커 발동 AND 화면 밴드2가 청산선 안. 셋 다 충족해야 마커색, 아니면 기본색(activeLineColor)으로 원복.
-//  마커 plotshape와 동일 색 변수(upper/lowerMarkerColor)를 재사용해 강조색·마커색 불일치를 원천 차단.
-//   ⚠️ 마커색이 OBV 에너지 채도(강 선명/약 둔탁)로 나뉘므로 밴드2 강조색도 동일 채도를 따른다(같은 봉에서 마커=둔탁·밴드2=선명 불일치 방지 — 일관성).
-//  봉 단위 series color 지정이므로 리페인팅 없음(마커 조건·밴드2·청산선 모두 확정 성격 값 기반).
-//  ⚠️ VWAP 선 무조건 억제(CEO 지시) 정합: 지지 상태(vwapSupport)면 숏 밴드2 강조도 억제, 저항 상태(vwapResistance)면 롱 밴드2 강조도 억제한다.
-//     마커가 억제된 봉에서 밴드2만 그 방향 색으로 강조되면 "화면에 그려지는 해당 방향 표현 억제"(CEO "무조건") 취지와 어긋나므로 여기서도 함께 억제한다.
-color upperBand2LineColor = ipBand2MarkerColor and upper2Marker and baseUpperBand2InClear and not vwapSupport ? upperMarkerColor : activeLineColor
-color lowerBand2LineColor = ipBand2MarkerColor and lower2Marker and baseLowerBand2InClear and not vwapResistance ? lowerMarkerColor : activeLineColor
-
-// 청산선 EMA 스무딩(표시 전용, clearSmoothOn) — 마커 y좌표보다 앞에서 계산한다(마커 y가 이 값을 참조 → forward-reference 회피).
-//  ▸ 원본 longClear/shortClear 값은 불변. 스무딩은 그리기/마커 위치(표시)에만 반영되고, flat 판정·래치·밴드2 InClear·손익비 등 판정 로직에는 전파되지 않는다(손절 판정 불변).
-//  ▸ ta.ema는 전역 최상위 흐름(조건 블록 밖)에서 매 봉 평가되며 과거값 평활이라 미래참조 없음 → 신규 리페인팅 없음. OFF면 *Sm == 원본이라 기존과 자동 정합.
-//  ▸ clearSmoothOn/clearSmoothLen input 선언은 위 "스윕/청산" 그룹(L779-780)에 있어 이 지점보다 앞선다.
+// 청산선 EMA 스무딩(표시 전용, clearSmoothOn) — 청산선 plot에만 반영한다.
+//  ▸ 원본 longClear/shortClear 값은 불변. 스무딩은 그려지는 청산선(표시)에만 반영되고 판정 로직에는 전파되지 않는다(손절 판정 불변).
+//  ▸ ta.ema는 전역 최상위 흐름에서 매 봉 평가되며 과거값 평활이라 미래참조 없음 → 신규 리페인팅 없음. OFF면 *Sm == 원본이라 기존과 자동 정합.
+//  ▸ clearSmoothOn/clearSmoothLen input 선언은 위 "스윕/청산" 그룹에 있어 이 지점보다 앞선다.
 longClearSm = clearSmoothOn ? ta.ema(longClear, clearSmoothLen) : longClear
 shortClearSm = clearSmoothOn ? ta.ema(shortClear, clearSmoothLen) : shortClear
-
-// 사양 2(CEO 지시 변경): 마커 y좌표를 기본 화면 밴드2가 아니라 **화면에 실제 그려지는 청산선**(스무딩 반영 shortClearSm/longClearSm, ceMode 선택 결과선)에 얹는다.
-//  - 숏 변곡 마커(upper2Marker) y = shortClearSm(화면 숏 청산선).  롱 변곡 마커(lower2Marker) y = longClearSm(화면 롱 청산선).
-//  - 버그 교정: 이전에는 y가 원본 shortClear/longClear라, 청산선 plot이 스무딩 값(shortClearSm/longClearSm)을 그리면 마커가 선 위에 안 붙었다. y를 스무딩 값으로 맞춰 화면 청산선 위에 정확히 얹는다(스무딩 OFF면 원본과 동일 → 자동 정합).
-//  - longClearSm/shortClearSm 는 위에서 계산한 확정 성격 값(ta.ema는 과거값 평활) → 신규 리페인팅 없음.
-//  ⚠️ na 가드: 청산선이 na인 봉에서는 y를 na로 두어 그 봉의 마커를 **미표시**한다(밴드2 등 다른 선으로 폴백하지 않음).
-//   폴백 미채택 이유: 지시 취지가 "마커를 청산선 위에 정렬"이므로 청산선이 없는데 다른 값에 얹으면 정렬이 깨진다.
-//   마커 발동 조건(upper2Marker/lower2Marker)·래치·밴드2 InClear 판정은 원본 longClear/shortClear 그대로 유지(불변) — 위치 y좌표만 스무딩 값으로 이동하고 na일 때만 미표시.
-float upper2MarkerY = shortClearSm
-float lower2MarkerY = longClearSm
 
 // VWAP 중앙선: 두께 2px(CEO 지시 — 지지/저항 색 규칙). 선은 동적 색, 우측 가격축 라벨은 흰색 고정(CEO 지시).
 //  색 = vwapLineColor(지지/저항 규칙 ON이면 녹/빨강/흰색, OFF면 기존 activeLineColor).
@@ -1290,10 +711,10 @@ upperBand_1 = plot(upperBandValue1, title="Upper Band #1", color=activeLineColor
 lowerBand_1 = plot(lowerBandValue1, title="Lower Band #1", color=activeLineColor, offset=offset, display=displayBand1, editable=true, linestyle=plot.linestyle_dotted)
 fill(upperBand_1, lowerBand_1, title="Bands Fill #1", color=activeFillColor, display=display.none, editable=true)
 
-// 최외곽 상/하단 선(Band #2): 위치·색 모두 항상 원값/기본색(고정). 요구사항 1: 청산선 진입 색 변경 제거 + 두께 1px.
+// 최외곽 상/하단 선(Band #2): 위치·색 모두 항상 원값/기본색(activeLineColor, 고정). 두께 1px.
 displayBand2 = showBand_2 ? display.all - display.price_scale : display.none
-upperBand_2 = plot(upperBandValue2, title="Upper Band #2", color=upperBand2LineColor, offset=offset, display=displayBand2, editable=true, linewidth=1, linestyle=plot.linestyle_dashed)
-lowerBand_2 = plot(lowerBandValue2, title="Lower Band #2", color=lowerBand2LineColor, offset=offset, display=displayBand2, editable=true, linewidth=1, linestyle=plot.linestyle_dashed)
+upperBand_2 = plot(upperBandValue2, title="Upper Band #2", color=activeLineColor, offset=offset, display=displayBand2, editable=true, linewidth=1, linestyle=plot.linestyle_dashed)
+lowerBand_2 = plot(lowerBandValue2, title="Lower Band #2", color=activeLineColor, offset=offset, display=displayBand2, editable=true, linewidth=1, linestyle=plot.linestyle_dashed)
 // fill(±2σ 채움)은 밴드2 원값 선(upperBand_2/lowerBand_2)에 직접 붙인다. clamp 폐기로 선 자체가 항상 원값이라 별도 fill ref plot 불필요. 현재 display=none.
 fill(upperBand_2, lowerBand_2, title="Bands Fill #2", color=activeFillColor, display=display.none, editable=true)
 // 횡보 압축 배경(밴드2 회색) — 압축 유지 래치(chopBgOn)가 ON인 봉에 밴드2 상단2~하단2 영역을 반투명 회색으로 채운다.
@@ -1304,64 +725,22 @@ fill(upperBand_2, lowerBand_2, title="Bands Fill #2", color=activeFillColor, dis
 fill(upperBand_2, lowerBand_2, color=(showChopBg and chopBgOn and showBand_2 and not na(upperBandValue2) and not na(lowerBandValue2)) ? chopBgColor : na, title="횡보 압축 배경(밴드2)", display=display.all, editable=true)
 
 // =========================
-// 변곡 지점(Inflection Point) 마커 — 요구사항 1·2·3.
-//  상단(빨강): 변곡용 밴드2 상단선이 기본 청산선(3모드 OR) 안 진입 => 화면 숏 청산선(shortClear) 값 위치에 숏 청산선 색 마커.
-//  하단(녹색): 변곡용 밴드2 하단선이 기본 청산선(3모드 OR) 안 진입 => 화면 롱 청산선(longClear) 값 위치에 롱 청산선 색 마커.
-//  마커 색 = 기본 청산선 색(shortClearLineColor/longClearLineColor)과 동일. 모양은 옵션(기본=원). 화면 밴드2 선 위치·색은 불변(마커만 추가).
-// =========================
-// ⚠️ location=location.absolute + size.tiny 로 series 값 좌표에 정확히 그린다(직전 커밋 유지).
-//    판정(발동 조건)은 변곡용 밴드2(ipUpperBandValue2/ipLowerBandValue2, length=14) vs 기본 청산선 3모드(shortClear_*/longClear_*)로 그대로 유지.
-//    다만 y위치(그려지는 좌표)는 화면에 페인트되는 청산선(스무딩 반영 upper2MarkerY=shortClearSm, lower2MarkerY=longClearSm)에 놓아 마커가 실제 화면 청산선(스무딩 값) 위에 얹힌다(na면 미표시).
-//    location.top/bottom 은 첫 인자(값)가 무시되어 창 최상/최하단에 고정되므로 쓰지 않는다.
-// ⚠️ plotshape의 style은 const string만 받으므로, 모양 삼항을 style 인자에 **직접 인라인**한다(변수 저장 시 컴파일 에러).
-//    각 분기가 shape.* 리터럴이라 컴파일 타임 상수로 평가된다. 기본값(원)은 첫 분기(shape.circle).
-//    ⚠️ 마커 색은 OBV 에너지 강/약 채도 반영: 숏=upperMarkerColor(강→선명 빨강/약→둔탁 빨강), 롱=lowerMarkerColor(강→선명 녹/약→둔탁 녹). 색만 채도로 나뉘고 발동·모양·y좌표는 불변.
-//    ⚠️ 표시 조건은 연장 포함(showShortMarker/showLongMarker) — 원 변곡(upper2Marker/lower2Marker) OR 연장(shortExt/longExt), 반대 방향 연장 우선 억제 반영. 색은 연장 봉이면 이전봉 색(shortMarkerColorFinal/longMarkerColorFinal) 상속.
-plotshape(ipShowMarkers and showShortMarker ? upper2MarkerY : na, title="변곡 지점(상단)", style=ipMarkerStyle == "원" ? shape.circle : ipMarkerStyle == "삼각형" ? shape.triangleup : ipMarkerStyle == "다이아몬드" ? shape.diamond : ipMarkerStyle == "네모" ? shape.square : shape.cross, location=location.absolute, color=shortMarkerColorFinal, size=size.tiny, offset=offset, editable=true)
-plotshape(ipShowMarkers and showLongMarker ? lower2MarkerY : na, title="변곡 지점(하단)", style=ipMarkerStyle == "원" ? shape.circle : ipMarkerStyle == "삼각형" ? shape.triangleup : ipMarkerStyle == "다이아몬드" ? shape.diamond : ipMarkerStyle == "네모" ? shape.square : shape.cross, location=location.absolute, color=longMarkerColorFinal, size=size.tiny, offset=offset, editable=true)
-
-// 변곡 마커 봉 캔들 색(CEO 지시, ipMarkerCandleColor 기본 OFF) — 표시된 마커 봉의 캔들을 마커색으로 칠한다.
-//  ▸ 조건·색 모두 plotshape 마커와 동일 변수 재사용: 롱=showLongMarker→longMarkerColorFinal, 숏=showShortMarker→shortMarkerColorFinal.
-//    (연장 봉은 상속색까지 마커와 정확히 일치. 마커 y·판정·채도·다른 로직 불변.)
-//  ▸ plotshape 표시 정합: plotshape은 y좌표(upper2MarkerY=shortClearSm/lower2MarkerY=longClearSm)가 na면 그 봉 마커를 미표시한다.
-//    barcolor는 y좌표를 안 쓰므로, "실제로 마커가 그려진 봉"에만 칠하도록 스무딩 청산선(*Sm) not na 가드를 AND로 얹어 plotshape 표시 조건과 일치시킨다(청산선 na 봉에서 캔들만 칠해지는 불일치 방지). 스무딩 OFF면 *Sm==원본이라 na 여부 동일.
-//  ▸ 롱·숏 동시 표시는 우선순위 억제(showLong/ShortMarker의 not shortExt/not longExt)로 이미 상호배타지만,
-//    barcolor 단일 인자이므로 방어적으로 롱을 먼저 평가한다(규칙 #1 롱 우선과 방향 일치). 미표시 봉은 na → 캔들 원색 유지.
-//  ▸ auto-vwap에 기존 barcolor 없음 → 신규 도입(중복·충돌 없음). 확정봉 마커 조건 기반이라 신규 리페인팅 없음.
-barcolor(ipShowMarkers and ipMarkerCandleColor and showLongMarker and not na(lower2MarkerY) ? longMarkerColorFinal : ipShowMarkers and ipMarkerCandleColor and showShortMarker and not na(upper2MarkerY) ? shortMarkerColorFinal : na, title="변곡 마커 캔들 색", editable=true)
-
-// =========================
 // 샹들리에 청산선(직선=손절 기준선) 차트 페인팅 — 이치모쿠에서 이동(CEO 지시).
 //  ⚠️ "봉 전체 다 나올 수 있게"(CEO): 최근 몇 봉만 그리는 line.new 방식이 아니라 plot으로 전 히스토리 봉에 그린다.
 //  longClear/shortClear 는 위 computeClearLines(기본 화면 세트)에서 매 봉 계산된 확정 성격 값(ta.*·과거참조 [1] 트레일)이라
 //   plot 으로 전 구간에 그려도 신규 리페인팅이 없다(그리기 전환 시에도 값 자체는 불변).
 //  스윕라인(longCE/shortCE)은 여기로 옮기지 않는다(CEO: "청산선 스윕라인은 옮기지 않음") → plot 하지 않는다.
 //  ⚠️ 가격축 라벨 제거(CEO 지시): 차트 선은 유지하되 우측 가격축의 숫자 라벨만 끈다(display.all - display.price_scale). 선·색·굵기·스타일 불변.
-//  ▸ EMA 스무딩(표시 전용, clearSmoothOn): 스무딩 값(longClearSm/shortClearSm)은 위 마커 y좌표 선언부(upper2MarkerY/lower2MarkerY, forward-reference 회피 위해 그 앞에서 미리 계산됨)에서 정의된다. 여기서는 그 값을 plot에 재사용한다.
+//  ▸ EMA 스무딩(표시 전용, clearSmoothOn): 스무딩 값(longClearSm/shortClearSm)은 위에서 계산해 여기 plot에 쓴다.
 plot(showClearLines ? longClearSm : na, title="롱 청산선", color=longClearLineColor, linewidth=clearLineWidth, offset=offset, editable=true, linestyle=plot.linestyle_solid, display=display.all - display.price_scale)
 plot(showClearLines ? shortClearSm : na, title="숏 청산선", color=shortClearLineColor, linewidth=clearLineWidth, offset=offset, editable=true, linestyle=plot.linestyle_solid, display=display.all - display.price_scale)
 
-// 파라볼릭 SAR 화면 표시(십자) — 필터(ipSarFilter)와 독립으로 항상 그린다(CEO 지시).
-//  ▸ 색: SAR 종가 아래(상승, sarBelow)=롱 마커 기본색(longClearLineColor, 선명 녹)·SAR 종가 이상(하락, sarAbove)=숏 마커 기본색(shortClearLineColor, 선명 빨강). ([C] 종가 기준)
-//    "채도 무관 기본색"으로 마커 강(energyStrong) 색인 short/longClearLineColor를 쓴다(OBV 채도 반영색 lower/upperMarkerColor 아님). sarVal na인 워밍업에서만 na(미표시).
+// 파라볼릭 SAR 화면 표시(십자) — 항상 그린다.
+//  ▸ 색: SAR 종가 아래(상승, sarBelow)=롱 색(longClearLineColor, 선명 녹)·SAR 종가 이상(하락, sarAbove)=숏 색(shortClearLineColor, 선명 빨강). ([C] 종가 기준). sarVal na인 워밍업에서만 na(미표시).
 //  ⚠️ sarBelow/sarAbove는 상호배타·전영역(close 기준 </>= 이분)이라 삼항 우선순위 충돌 없음. sarVal 유효 시 한쪽이 항상 참이므로 else na 분기는 워밍업(na) 외 사실상 도달 불가. 색 삼항은 color/na 타입 정합.
-//  ⚠️ ta.sar 확정봉 기반 — 신규 리페인팅 없음(위 게이트와 동일 sarVal 재사용).
+//  ⚠️ ta.sar 확정봉 기반 — 신규 리페인팅 없음.
 //  ⚠️ 가격축 라벨 제거(CEO 지시): 차트 십자는 유지하되 우측 가격축의 숫자 라벨만 끈다(display.all - display.price_scale). 색·스타일·offset 불변. 청산선·과매수/과매도선과 동일 패턴.
 plot(sarVal, title="Parabolic SAR", style=plot.style_cross, color = sarBelow ? longClearLineColor : sarAbove ? shortClearLineColor : na, offset=offset, editable=true, display=display.all - display.price_scale)
-
-// 이치모쿠 구름 fill(옵션, 기본 OFF) — advanced-ichimoku.pine과 동일 패턴. 선행스팬 A/B를 displacement 오프셋으로 미래에 밀어 채운다.
-//  ▸ fill source plot 2개는 항상 display.none(선 자체는 안 보이고 fill 채움만). 색은 offset 없는 현재 A>B(양운)/A<B(음운)로 판정 → 이치모쿠 원본과 동일.
-//  ▸ showIchiCloud OFF면 fill 색 na → 채우지 않음. 판정(cloudBull/cloudBear)은 이 옵션과 무관하게 항상 계산됨(6조건 신호 재설계로 신호식에선 빠졌으나 판정·fill 유지).
-//  ⚠️ 선행스팬은 미래 offset으로 그리지만 색 판정은 현재값 비교라 확정봉 기반(신규 리페인팅 없음).
-ichiCloudFillA = plot(leadingSpanA, title="Ichimoku Cloud A", offset=ichiDisplacement - 1, color=color.new(#7B9077, 100), display=display.none, editable=true)
-ichiCloudFillB = plot(leadingSpanB, title="Ichimoku Cloud B", offset=ichiDisplacement - 1, color=color.new(#9A7272, 100), display=display.none, editable=true)
-fill(ichiCloudFillA, ichiCloudFillB, title="Ichimoku Cloud Fill", color=showIchiCloud ? (leadingSpanA > leadingSpanB ? color.new(ichiBullCloudColor, ichiCloudTransp) : color.new(ichiBearCloudColor, ichiCloudTransp)) : na, display=display.all, editable=true)
-
-// 3조건 매수/매도 신호(역삼각형) — 매도=봉 위 triangledown(적) / 매수=봉 아래 triangleup(녹). size.small. 각 방향 ON/OFF(기본 OFF). 기존 plotshape·색·토글 재사용.
-//  ▸ 조건은 위 buySignal5/sellSignal5(3조건 AND, 확정봉 기반). 토글 OFF면 na → 미표시.
-//  ⚠️ location.abovebar/belowbar 는 봉 고저 기준 자동 배치라 y좌표 계산 불필요(마커가 봉에 붙음).
-plotshape(showSellSignal5 and sellSignal5, title="매도 신호(3조건)", style=shape.triangledown, location=location.abovebar, color=sellSignal5Color, size=size.small, offset=offset, editable=true)
-plotshape(showBuySignal5 and buySignal5, title="매수 신호(3조건)", style=shape.triangleup, location=location.belowbar, color=buySignal5Color, size=size.small, offset=offset, editable=true)
 
 // 비정상 매수/매도 세로 배경(bgcolor) — 이치모쿠 이식. 매도=파랑, 매수=빨강. 표시 전용.
 //  ⚠️ 횡보 압축 배경(밴드2 영역 한정 fill, 투명도 75)과 시각 충돌 확인: 비정상 배경은 화면 전체 세로 스트립(bgcolor)이고 반투명(기본 투명도 82로 더 옅음)이라
