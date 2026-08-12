@@ -84,14 +84,27 @@ vwapStateBars = input.int(20, minval=1, title="vwap 상태 전용 최근 봉 수
 //  ▸ 페인팅 리본(plot, 종가 기준): 단일 소스 close에 EMA를 3중 누적(e1=EMA(close), e2=EMA(e1), e3=EMA(e2))해
 //     EMA=e1, DEMA=2e1−e2, TEMA=3e1−3e2+e3 를 그린다(모두 확정 성격 ta.ema 누적 → 신규 리페인팅 없음).
 //     TEMA는 DEMA보다, DEMA는 EMA보다 지연이 작아, 세 선의 상대 위치·기울기가 추세 국면을 압축해 보여준다. 이 3선만 화면에 표시.
-//  ▸ 정배열/역배열 배경(CEO 재설계 — 저가/고가 기준 2세트 리본, 계산만·plot 없음): 배경색 판정 전용 리본을 별도로 계산한다.
-//     저가 기준 리본(emaLow/demaLow/temaLow, 소스 low), 고가 기준 리본(emaHigh/demaHigh/temaHigh, 소스 high). 산식은 페인팅 리본과 동일.
-//     ▸ 녹(정배열) = 저가 기준 리본 각도: sTemaLow>sDemaLow>sEmaLow (직전봉 대비 기울기 크기 순서, 부호 무관).
-//     ▸ 빨강(역배열) = 고가 기준 리본 각도: sTemaHigh<sDemaHigh<sEmaHigh (부호 무관).
-//     ▸ 녹·빨강이 서로 다른 리본(저가 vs 고가)이라 **동시 성립 가능** → 둘 다 true면 확정봉 봉 색(양봉 녹/음봉 빨강/도지 중립·배경 na). 아니면 성립한 쪽, 둘 다 아니면 중립(배경 na).
-//     ▸ 각도 체크 순서 로직(부호 조건 없는 순서 비교)은 종전과 불변 — 소스만 녹=저가/빨강=고가로 분리.
-//  ▸ 리페인팅: 기울기는 line[1] 과거참조라 확정 성분이나, 직전봉 대비라 형성 중 현재봉에서는 현재봉 line 값이
-//     변동해 흔들려 배경이 점멸할 수 있다. 이를 막기 위해 **확정봉([1]) 기준으로 판정**한다(아래 참조). 저가/고가 리본도 동일.
+//  ▸ 정배열/역배열 배경(CEO 재설계 — 단일 종가 리본 기울기 순서): 배경 판정에 **테이블 EMA/DEMA/TEMA 기울기와 동일한 값**을 쓴다.
+//     즉 종가 리본선(emaLine/demaLine/temaLine)의 현재봉 [0]−[1] 차분(slopeEma/slopeDema/slopeTema)을 그대로 재사용한다(배경·테이블 각도 일치).
+//     ▸ 녹(정배열) = slopeEma < slopeDema and slopeDema < slopeTema (ema<dema<tema 순서).
+//     ▸ 빨강(역배열) = slopeEma > slopeDema and slopeDema > slopeTema (반대).
+//     ▸ 그 외 = 배경 없음(baseState=0). 두 조건은 상호배타라 동시발생 없음. na 가드: 세 기울기 중 na 있으면 0.
+//     ▸ 3계층 상태머신(CEO 지시): baseState(순서 판정) → interimState(반전 후보 래치 억제) → paintState(직접 플립 억제). fill이 참조하는 최종값은 paintState.
+//     ▸ [계층2] 반전 후보 래치 억제(stateless 억제를 상태머신으로 확장): baseState 직후 반전 후보 래치(bullCand/bearCand)로 억제·연속성을 부여해 interimState를 만든다.
+//        ① 상승 반전 후보(녹색 측): 트리거 = 고가 > 밴드1 상단(upperBandValue1) AND 윗꼬리>몸통 → 그 봉 녹색 억제 + bullCand ON.
+//           bullCand 유지 중엔 baseState 녹색 봉이 직전봉 대비 낮은 고가(high < high[1])면 녹색 억제 지속, 고가 회복(high >= high[1])이면 녹색 허용. 빨강 국면 감지(interimState==-1) 시 bullCand OFF.
+//        ② 하락 반전 후보(빨강 측·대칭): 트리거 = 저가 < 밴드1 하단(lowerBandValue1) AND 아랫꼬리>몸통 → 그 봉 빨강 억제 + bearCand ON.
+//           bearCand 유지 중엔 baseState 빨강 봉이 직전봉 대비 높은 저가(low > low[1])면 빨강 억제 지속, 저가 회복(low <= low[1])이면 빨강 허용. 녹 국면 감지(interimState==1) 시 bearCand OFF.
+//        → 목표: 반전 후보 발생 후 즉시 반대 배경이 깜빡이지 않고 실제 고가 회복(또는 반대 국면 출현)까지 억제 연속.
+//        봉 기준은 slope와 동일한 현재봉 [0](high/low/close/open·밴드1 현재값·직전봉 high[1]/low[1]). 억제 판정은 실시간 봉에서 갱신(리페인팅, 배경과 동일 특성).
+//     ▸ [계층3] 직접 전환(플립) 억제(CEO 지시): interimState 위에 paintState를 둔다. 직전봉 페인팅이 녹(paintState[1]==1)인데 이번 interimState==-1(빨강)이면 paintState=0(경계봉 미페인팅), 반대(빨강→녹)도 대칭. 그 외 paintState=interimState.
+//        · 경계 1봉만 억제 → 다음 봉은 paintState[1]==0이라 자동 정상 페인팅(연속 빨강/녹은 그대로 표시). 국면이 직접 뒤집히는 첫 봉만 비운다.
+//     ▸ 후보 해제 "간주"(CEO 지시): 후보 래치 해제는 페인팅(paintState)이 아니라 **국면 감지(interimState)** 기준. 플립으로 빨강을 안 그려도(paintState==0) 빨강 국면(interimState==-1)이 감지됐으면 상승 후보는 꺼진다.
+//     ▸ 필터 제거 유지(CEO 지시): 이전의 저가/고가 소스 분리·동시발생 tie-break(봉색/꼬리)는 부활시키지 않는다(제거 상태 유지). 순서 판정·slope·색·투명도·fill 방식 불변.
+//  ▸ 리페인팅(CEO 인지·의도): slope가 현재봉 [0]−[1] 기준이라 **배경이 실시간 봉에서 마감 전까지 변한다(리페인팅)**. 억제 판정·paintState도 [0] 기준이라 동일.
+//     단, 래치 전이(bullCand/bearCand set/clear)는 **확정봉(barstate.isconfirmed)에서만** 갱신 → 과거봉의 래치·paintState[1]이 결정론적으로 고정(재실행해도 불변).
+//     평가 순서 고정: baseState → interimState(후보 래치 억제) → paintState(플립 억제) 순으로 확정하고, 후보 해제는 interimState 확정값 기준으로 평가(플립 억제 이후가 아니라 interim 기준)해 순환을 끊는다.
+//     과거봉은 확정 후 고정. CEO가 "테이블 기울기값과 일치"를 의도한 결과다.
 //  ⚠️ 매매 신호가 아니라 표시 전용 국면 배경이다. 기존 auto-vwap 기능과 무관.
 // =========================
 RIBBON_GROUP = "지수 추세 리본"
@@ -100,8 +113,8 @@ ribbonLen = input.int(20, title="지수 리본 길이", minval=1, group=RIBBON_G
 ribbonEmaColor = input.color(color.yellow, title="EMA 선 색", group=RIBBON_GROUP, active=showRibbon, tooltip="EMA 선 색. 기본 노랑.")
 ribbonDemaColor = input.color(color.aqua, title="DEMA 선 색", group=RIBBON_GROUP, active=showRibbon, tooltip="DEMA(2·EMA−EMA(EMA)) 선 색. 기본 하늘색.")
 ribbonTemaColor = input.color(#FF80AB, title="TEMA 선 색", group=RIBBON_GROUP, active=showRibbon, tooltip="TEMA(3·EMA−3·EMA(EMA)+EMA(EMA(EMA))) 선 색. 기본 분홍.")
-// 정배열/역배열 배경(CEO 재설계) — 세 선의 직전봉 대비 기울기 크기 순서로만 판정. 밴드2(±2σ) 영역 fill로 그린다.
-showRibbonExpBg = input.bool(true, title="정배열/역배열 배경 표시", group=RIBBON_GROUP, tooltip="켜면 배경 판정 전용 리본(계산만·화면 표시 없음)의 직전봉 대비 기울기 크기 순서로 정배열(녹)/역배열(빨강)을 판정해 밴드2(상단2~하단2) 영역을 반투명 배경으로 채웁니다. 녹(정배열)=저가 기준 리본 sTemaLow>sDemaLow>sEmaLow(부호 무관), 빨강(역배열)=고가 기준 리본 sTemaHigh<sDemaHigh<sEmaHigh. 녹·빨강이 서로 다른 리본(저가/고가)이라 동시 성립 가능하며, 둘 다면 확정봉 봉 색으로 결정(양봉 녹/음봉 빨강/도지 중립·배경 없음), 둘 다 아니면 배경 없음. 미마감봉 점멸을 막기 위해 확정봉 기준으로 판정합니다. 화면에 그려지는 EMA/DEMA/TEMA 3선은 종가 기준이며 배경 판정 리본과 별개입니다. 표시 전용.")
+// 정배열/역배열 배경(CEO 재설계) — 세 선의 직전봉 대비 기울기를 부호 포함 서열로 비교해 판정. 밴드2(±2σ) 영역 fill로 그린다.
+showRibbonExpBg = input.bool(true, title="정배열/역배열 배경 표시", group=RIBBON_GROUP, tooltip="켜면 화면 종가 리본선(EMA/DEMA/TEMA)의 기울기 순서로 정배열(녹)/역배열(빨강)을 판정해 밴드2(상단2~하단2) 영역을 반투명 배경으로 채웁니다. 배경 판정에는 테이블에 표시되는 EMA/DEMA/TEMA 기울기와 동일한 값(종가 리본선의 현재봉 [0]−[1] 차분)을 그대로 씁니다. 녹(정배열)=slopeEma<slopeDema<slopeTema(ema<dema<tema 순서), 빨강(역배열)=slopeEma>slopeDema>slopeTema(반대), 그 외/na는 배경 없음. 두 조건은 상호배타라 동시발생이 없어 별도 tie-break가 없습니다. 순서 판정 직후 반전 후보 래치로 억제·연속성을 적용합니다 — 고가가 밴드1 상단 위 AND 윗꼬리>몸통이면 상승 반전 후보(녹 억제 + 후보 ON)이고, 후보 유지 중엔 정배열 봉이 직전봉보다 낮은 고가(high<high[1])면 녹 억제를 이어가며 고가 회복(high>=high[1])이나 빨강 배경 실제 표시 시 후보를 해제합니다(빨강 측은 저가/하단 밴드1·역배열·low>low[1]로 대칭). 반전 후보 발생 후 반대 배경이 즉시 깜빡이지 않고 실제 회복까지 억제가 이어집니다. ⚠️ 기울기·억제 판정은 현재봉 기준이라 배경이 실시간 봉에서 마감 전까지 변합니다(리페인팅)나, 래치 상태 전이는 확정봉(barstate.isconfirmed)에서만 갱신해 과거봉은 확정 후 고정됩니다. 표시 전용.")
 ribbonBullBgColor = input.color(#2E7D32, title="정배열 배경색", group=RIBBON_GROUP, active=showRibbonExpBg, tooltip="정배열 구간 밴드2 영역 배경색. 기본 녹색 #2E7D32. 아래 투명도와 합쳐 반투명으로 칠합니다.")
 ribbonBearBgColor = input.color(#C62828, title="역배열 배경색", group=RIBBON_GROUP, active=showRibbonExpBg, tooltip="역배열 구간 밴드2 영역 배경색. 기본 빨강 #C62828. 아래 투명도와 합쳐 반투명으로 칠합니다.")
 ribbonBgTransp = input.int(80, title="배경 투명도", minval=0, maxval=100, group=RIBBON_GROUP, active=showRibbonExpBg, tooltip="정배열/역배열 배경색의 투명도(0=불투명, 100=완전 투명). 기본 80.")
@@ -432,86 +445,95 @@ if barstate.isconfirmed
 abnBg = abnCandleState == 1 ? color.new(abnSellBgColor, abnBgTransp) : abnCandleState == -1 ? color.new(abnBuyBgColor, abnBgTransp) : na
 
 // =========================
-// 지수 추세 리본(EMA/DEMA/TEMA) 계산 + 정배열/역배열 배경 판정(CEO 재설계 — 페인팅 리본은 종가, 배경 판정은 저가/고가 기준 2세트).
-//  ▸ 페인팅 리본(plot, 종가 기준 유지): e1=EMA(close,len), e2=EMA(e1,len), e3=EMA(e2,len). EMA=e1, DEMA=2e1−e2, TEMA=3e1−3e2+e3.
+// 지수 추세 리본(EMA/DEMA/TEMA) 계산 + 정배열/역배열 배경 판정(CEO 재설계 — 단일 종가 리본 기울기 순서, 필터 제거).
+//  ▸ 페인팅 리본(plot, 종가 기준): e1=EMA(close,len), e2=EMA(e1,len), e3=EMA(e2,len). EMA=e1, DEMA=2e1−e2, TEMA=3e1−3e2+e3.
 //     이 3선(emaLine/demaLine/temaLine)만 화면에 plot(각 1px, price scale off). 모두 ta.ema 누적(확정 성격) → 신규 리페인팅 없음.
-//  ▸ 배경 판정 전용 리본 2세트(CEO 지시 — 계산만, plot 없음): 화면에 그리지 않고 배경색 판정에만 쓴다.
-//     - 저가 기준: emaLow=EMA(low,len), e2=EMA(emaLow,len), e3=EMA(e2,len) → demaLow=2·emaLow−e2, temaLow=3·emaLow−3·e2+e3.
-//     - 고가 기준: emaHigh=EMA(high,len), … → demaHigh/temaHigh 동일 산식(소스만 high).
-//  ▸ 녹(정배열) 판정 = **저가 기준 리본**의 직전봉 대비 기울기 크기 순서: sTemaLow>sDemaLow>sEmaLow (부호 무관).
-//  ▸ 빨강(역배열) 판정 = **고가 기준 리본**의 직전봉 대비 기울기 크기 순서: sTemaHigh<sDemaHigh<sEmaHigh (부호 무관).
-//     - 각도 체크 순서 로직은 불변(부호 조건 없는 순서 비교 그대로) — 소스만 녹=저가/빨강=고가로 분리.
-//  ▸ 동시 발생 처리(CEO): 녹(저가 리본)·빨강(고가 리본)이 서로 다른 리본이라 동시 성립 가능. 둘 다 true면 봉 색 + 꼬리로 결정.
-//     ribbonState = greenRaw and redRaw ? (greenPick ? 1 : redPick ? -1 : 0) : greenRaw ? 1 : redRaw ? -1 : 0.
-//     양봉(c1>o1): 윗꼬리≤몸통→녹(1)/윗꼬리>몸통→빨강(−1, 상방 거부). 음봉(c1<o1): 아래꼬리≤몸통→빨강(−1)/아래꼬리>몸통→녹(1, 하방 거부).
-//     도지(c1==o1)→중립(0). 꼬리·몸통은 확정봉 [1] 기준(body1/upWick1/dnWick1). 1=녹(정배열)/−1=빨강(역배열)/0=중립.
-//  ▸ 리페인팅 처리(CEO 권장 = 확정봉 기준): 세 리본(종가/저가/고가) 모두 기울기를 **직전 확정봉 기준**([1] 대비 [2])으로 계산한다.
-//     저가/고가 리본도 ta.ema 누적·[1]/[2] 과거참조라 과거봉 값은 확정 → 신규 리페인팅 없음. 배경은 확정봉 기준으로 한 봉 지연 반영된다.
+//  ▸ 배경 판정 = 테이블 EMA/DEMA/TEMA 기울기와 **동일한 값**(종가 리본선, 현재봉 [0]−[1] 차분)을 그대로 재사용한다(CEO 지시 — 배경과 테이블 각도 일치).
+//     slopeEma/Dema/Tema를 여기서 선언하고, 아래 테이블 각도 블록이 이 값을 그대로 참조한다(중복 계산 제거).
+//  ▸ 녹(정배열) = slopeEma < slopeDema and slopeDema < slopeTema (ema<dema<tema 순서).
+//  ▸ 빨강(역배열) = slopeEma > slopeDema and slopeDema > slopeTema (반대).
+//  ▸ 그 외 = 배경 없음(baseState=0). 두 조건은 상호배타라 동시발생 없음.
+//  ▸ na 가드: 세 기울기 중 na가 하나라도 있으면 0(배경 없음).
+//  ▸ 3계층 상태머신(CEO 지시): baseState → interimState(반전 후보 래치 억제) → paintState(직접 플립 억제). baseState 확정 직후 아래 "반전 후보 래치" 블록에서 interimState·paintState를 확정한다(아래 블록 참조). fill은 paintState 참조.
+//  ▸ 필터 제거 유지(CEO 지시): 이전의 저가/고가 소스 분리(emaLow/High 등)·동시발생 tie-break(봉색/꼬리 greenPick/redPick)는 부활시키지 않는다(제거 상태 유지).
+//  ⚠️ 리페인팅(CEO 인지·의도): slope가 현재봉 [0]−[1] 기준이라 배경이 **실시간 봉에서 마감 전까지 변한다(리페인팅)**. 억제 판정도 현재봉 [0] 기준이라 동일하게 실시간 갱신.
+//     단, 반전 후보 래치(bullCand/bearCand)의 상태 전이(set/clear)는 **확정봉(barstate.isconfirmed)에서만** 갱신해 과거봉이 결정론적으로 고정되게 한다(아래 래치 블록 참조).
+//     과거봉은 확정 후 고정. CEO가 "테이블 기울기값과 일치"를 의도한 결과다.
 //  ⚠️ 밴드2 값(upperBandValue2/lowerBandValue2)·shouldPlot은 위에서 이미 계산됨(선언순서 안전).
 // =========================
-// 페인팅 리본(plot 대상) — 종가 기준. plot은 아래(605~607)에서 emaLine/demaLine/temaLine 3선만 그린다(불변).
+// 페인팅 리본(plot 대상) — 종가 기준. plot은 아래에서 emaLine/demaLine/temaLine 3선만 그린다(불변).
 ribbonE1 = ta.ema(close, ribbonLen)
 ribbonE2 = ta.ema(ribbonE1, ribbonLen)
 ribbonE3 = ta.ema(ribbonE2, ribbonLen)
 emaLine = ribbonE1
 demaLine = 2 * ribbonE1 - ribbonE2
 temaLine = 3 * ribbonE1 - 3 * ribbonE2 + ribbonE3
-// 배경 판정 전용 리본 2세트(계산만, plot 없음) — 저가 기준(녹 판정)·고가 기준(빨강 판정). 소스만 다르고 산식은 페인팅 리본과 동일.
-emaLow = ta.ema(low, ribbonLen)
-emaLowE2 = ta.ema(emaLow, ribbonLen)
-emaLowE3 = ta.ema(emaLowE2, ribbonLen)
-demaLow = 2 * emaLow - emaLowE2
-temaLow = 3 * emaLow - 3 * emaLowE2 + emaLowE3
-emaHigh = ta.ema(high, ribbonLen)
-emaHighE2 = ta.ema(emaHigh, ribbonLen)
-emaHighE3 = ta.ema(emaHighE2, ribbonLen)
-demaHigh = 2 * emaHigh - emaHighE2
-temaHigh = 3 * emaHigh - 3 * emaHighE2 + emaHighE3
-// 직전봉 대비 기울기(확정봉 기준 — [1] 대비 [2]). 세 선 같은 축이라 단순 차분(가격 단위), 정규화 없음.
-//  녹(정배열) = 저가 기준 리본 각도, 빨강(역배열) = 고가 기준 리본 각도.
-//  na 가드: 워밍업(초반 봉)에서 [2] 값이 na면 차분도 na → slopeValid* false → 해당 raw false → 배경 미표시.
-sEmaLow = emaLow[1] - emaLow[2]
-sDemaLow = demaLow[1] - demaLow[2]
-sTemaLow = temaLow[1] - temaLow[2]
-sEmaHigh = emaHigh[1] - emaHigh[2]
-sDemaHigh = demaHigh[1] - demaHigh[2]
-sTemaHigh = temaHigh[1] - temaHigh[2]
-slopeValidLow = not na(sEmaLow) and not na(sDemaLow) and not na(sTemaLow)
-slopeValidHigh = not na(sEmaHigh) and not na(sDemaHigh) and not na(sTemaHigh)
-// 각도 순서 로직 불변(부호 조건 없는 현 순서 비교 그대로). 녹=저가 리본 오름 순서, 빨강=고가 리본 내림 순서.
-greenRaw = slopeValidLow and sTemaLow > sDemaLow and sDemaLow > sEmaLow
-redRaw = slopeValidHigh and sTemaHigh < sDemaHigh and sDemaHigh < sEmaHigh
-// 동시 발생 처리(CEO): 둘 다 성립하면 봉 색 + 꼬리로 결정 — 상방/하방 거부(긴 꼬리)를 반대 색으로 뒤집는다.
-//  봉 색·꼬리·몸통 모두 배경 판정과 동일한 확정봉 [1] 기준(o1/c1/h1/l1)이라 형성 중 현재봉 변동이 없어 리페인팅 없음.
-//  ▸ 양봉(c1>o1): 윗꼬리 ≤ 몸통 → 녹(1) / 윗꼬리 > 몸통 → 빨강(-1, 상방 거부).
-//  ▸ 음봉(c1<o1): 아래꼬리 ≤ 몸통 → 빨강(-1) / 아래꼬리 > 몸통 → 녹(1, 하방 거부).
-//  ▸ 도지(c1==o1) → greenPick·redPick 둘 다 false → 중립(0). "길면"=초과(>), "이하"=<=.
-o1 = open[1]
-c1 = close[1]
-h1 = high[1]
-l1 = low[1]
-body1 = math.abs(c1 - o1)
-upWick1 = h1 - math.max(c1, o1)
-dnWick1 = math.min(c1, o1) - l1
-greenPick = (c1 > o1 and upWick1 <= body1) or (c1 < o1 and dnWick1 > body1)
-redPick = (c1 < o1 and dnWick1 <= body1) or (c1 > o1 and upWick1 > body1)
-ribbonState =
-     greenRaw and redRaw ? (greenPick ? 1 : redPick ? -1 : 0)
-     : greenRaw ? 1
-     : redRaw   ? -1
+// 종가 리본선 기울기(현재봉 [0]−[1] 차분) — 테이블 EMA/DEMA/TEMA 기울기와 동일 값. 아래 테이블 각도 블록이 이 세 변수를 그대로 재사용한다.
+//  na 가드: 워밍업 초반 봉에서 line[1]이 na면 차분도 na → 아래 정/역배열 부등식이 false → 배경 미표시(baseState=0).
+slopeEma = emaLine - emaLine[1]
+slopeDema = demaLine - demaLine[1]
+slopeTema = temaLine - temaLine[1]
+// 정/역배열 순서 판정(baseState) — 종가 리본 기울기 순서만으로 결정(tie-break·저가/고가 분리는 제거 상태 유지).
+//  녹(정배열)=ema<dema<tema, 빨강(역배열)=ema>dema>tema. 상호배타(동시발생 없음), 그 외/na는 0.
+//  ⚠️ baseState는 "억제 전" 순서 판정값이다. 아래 반전 후보 래치가 이를 억제해 interimState를, 그 위 플립 억제가 최종 paintState를 만든다.
+baseState = (slopeEma < slopeDema and slopeDema < slopeTema) ? 1
+     : (slopeEma > slopeDema and slopeDema > slopeTema) ? -1
      : 0
-// 밴드1 이탈 + 긴 꼬리 억제 게이트(CEO 지시) — 정배열/역배열 배경 최종 표시에서 특정 봉을 중립(미표시)으로 뺀다.
-//  ▸ 녹(정배열, ribbonState==1) 억제 = 확정봉 고가가 밴드1 상단 위(high[1] > upperBandValue1[1]) AND 윗꼬리 > 몸통(upWick1 > body1).
-//     → 밴드1 위로 튀어나간 봉이 긴 윗꼬리(상방 거부)를 달면 정배열 배경을 신뢰하지 않고 미표시.
-//  ▸ 빨강(역배열, ribbonState==−1) 억제 = 확정봉 저가가 밴드1 하단 아래(low[1] < lowerBandValue1[1]) AND 아래꼬리 > 몸통(dnWick1 > body1).
-//     → 밴드1 아래로 이탈한 봉이 긴 아래꼬리(하방 거부)를 달면 역배열 배경을 신뢰하지 않고 미표시.
-//  ▸ 억제 대상: 녹/빨강 전체(동시 발생 케이스뿐 아니라 단독 케이스 포함). 억제되면 그 봉 ribbonState를 0으로(배경 na, 중립 취급).
-//  ⚠️ 기준·리페인팅: high[1]/low[1]·밴드1[1]·upWick1/dnWick1/body1 모두 확정봉 [1] 세트값 → 배경 판정·봉색과 일관, 신규 리페인팅 없음.
-//     body1/upWick1/dnWick1은 위(522~524)에서 전역 선언 → 그대로 재사용. 밴드1[1]/high[1]/low[1]이 na(워밍업)면 억제식이 false → 억제 안 함(안전 기본).
-//  ⚠️ "길면"=초과(>), 밴드1 이탈="위/아래"(고가/저가 vs 밴드1). greenRaw/redRaw·각도·동시 처리·밴드2 fill·색·토글은 불변(억제 게이트만 추가).
-greenSuppress = not na(upperBandValue1[1]) and not na(high[1]) and high[1] > upperBandValue1[1] and upWick1 > body1   // 밴드1 위(고가) + 긴 윗꼬리
-redSuppress   = not na(lowerBandValue1[1]) and not na(low[1])  and low[1]  < lowerBandValue1[1] and dnWick1 > body1   // 밴드1 아래(저가) + 긴 아래꼬리
-ribbonState := (ribbonState == 1 and greenSuppress) or (ribbonState == -1 and redSuppress) ? 0 : ribbonState
+// =========================
+// 반전 후보 래치(bullCand/bearCand) — 밴드1 이탈+긴꼬리 stateless 억제를 **상태 기반 상태머신**으로 확장(CEO 지시).
+//  목적: 배경 연속성 — 반전 후보 발생 후 즉시 반대 배경이 깜빡이지 않고, 실제 고가 회복(또는 반대 배경 출현)까지 억제가 이어지게 한다.
+//  ▸ 캔들 요소(현재봉 [0]): body=|close−open|, upWick=high−max(close,open), dnWick=min(close,open)−low. (기존 정의 재사용.)
+//  ▸ 후보 트리거(= 기존 greenSuppress/redSuppress 패턴 재사용):
+//     · bullTrigger = 고가 > 밴드1 상단(upperBandValue1) AND 윗꼬리>몸통  → 상승 반전 후보(녹색 측). 이 봉 녹색 억제 + bullCand ON.
+//     · bearTrigger = 저가 < 밴드1 하단(lowerBandValue1) AND 아랫꼬리>몸통 → 하락 반전 후보(빨강 측). 이 봉 빨강 억제 + bearCand ON.
+//  ▸ 억제식(이 봉의 배경 억제 여부 — baseState 기준):
+//     · greenSuppress = bullTrigger  OR  (bullCand and baseState==1 and high < high[1])   ← 후보 유지 중 baseState 녹색 봉이 직전봉 대비 낮은 고가면 억제 지속. high>=high[1](고가 회복/돌파)이면 허용.
+//     · redSuppress   = bearTrigger  OR  (bearCand and baseState==-1 and low  > low[1])    ← 후보 유지 중 baseState 빨강 봉이 직전봉 대비 높은 저가면 억제 지속. low<=low[1](저가 회복/돌파)이면 허용.
+//  ▸ interimState(계층2 = 국면 감지): baseState에서 해당 측이 억제되면 0으로 눌러 배경 국면을 없앤다.
+//     interimState = (baseState==1 and greenSuppress) or (baseState==-1 and redSuppress) ? 0 : baseState.
+//  ▸ paintState(계층3 = 직접 플립 억제 → fill 참조값): 직전봉 페인팅이 녹(paintState[1]==1)인데 interimState==-1(빨강)이면(또는 대칭) paintState=0, 그 외 paintState=interimState. 경계 1봉만 미페인팅.
+//  ▸ 해제(순환 의존 해소 — 평가 순서 고정): 후보 해제는 페인팅(paintState)이 아니라 **interimState(국면 감지)** 기준으로 판정한다(CEO 지시). 플립으로 빨강을 안 그려도 빨강 국면(interimState==-1)이면 상승 후보를 끈다.
+//     → 그래서 **① baseState→interimState→paintState 확정을 먼저** 하고, **② interimState로 반대 래치를 해제**한다(clear는 set 이후·interim 기준). 이렇게 순서를 고정해 순환을 끊는다.
+//     · bullCand OFF: interimState == -1(빨강 국면 감지, 플립 미페인팅이어도). · bearCand OFF: interimState == 1(녹 국면 감지).
+//     · set과 clear가 겹치는 극단(같은 봉 트리거+반대국면)은 로직상 불가하나, 안전하게 set을 먼저(트리거) 반영 후 clear를 평가한다. bullTrigger면 greenSuppress=true라 baseState==1이 눌려 interimState!=1 → bearCand OFF는 발동하지 않음(반대도 대칭).
+//  ▸ 직전봉 비교: high[1]/low[1](직전 봉). 후보 다음 첫 봉에선 자연히 후보봉의 고가/저가와 비교된다.
+//  ▸ na 가드: 밴드1이 na(워밍업)면 트리거 부등식 false → 억제 미발동. high[1]/low[1]이 na(첫 봉)면 비교 false → 유지 억제 미발동(안전).
+//  ⚠️ 리페인팅/과거봉 결정론: 억제 판정(greenSuppress/redSuppress)·interimState·paintState는 현재봉 [0] 기준이라 실시간 봉에서 갱신된다(배경과 동일 특성). 플립 억제 참조값 paintState[1]은 직전 봉값.
+//     그러나 래치 상태 전이(set/clear = bullCand/bearCand 갱신)는 **확정봉(barstate.isconfirmed)에서만** 수행한다 → 과거봉의 래치 값·paintState[1]이 확정 후 불변이라, 재실행해도 과거 결과가 바뀌지 않는다(결정론 보장).
+//     라이브(미확정) 봉에선 억제 판정에 직전 확정봉까지의 래치 값을 쓰고, 봉 마감 시 그 봉 트리거·최종상태로 래치를 갱신한다.
+// =========================
+var bool bullCand = false
+var bool bearCand = false
+body   = math.abs(close - open)
+upWick = high - math.max(close, open)
+dnWick = math.min(close, open) - low
+bullTrigger = high > upperBandValue1 and upWick > body   // 상승 반전 후보 트리거(= 기존 greenSuppress 패턴)
+bearTrigger = low  < lowerBandValue1 and dnWick > body   // 하락 반전 후보 트리거(= 기존 redSuppress 패턴)
+// ① 이 봉 억제 판정 — 트리거(신규 후보) OR 후보 유지 중(직전봉 대비 낮은 고가 / 높은 저가). baseState 기준으로 해당 측만.
+greenSuppress = bullTrigger or (bullCand and baseState == 1  and high < high[1])
+redSuppress   = bearTrigger or (bearCand and baseState == -1 and low  > low[1])
+// ② 중간 상태(interimState) 확정 — 후보 래치 억제까지 반영한 "국면 감지"값. 이 값으로 후보 해제(clear)·플립 억제를 판정한다.
+//    (기존 ribbonState → interimState로 이름 분리. fill이 참조하는 최종값은 아래 ③의 paintState.)
+interimState = (baseState == 1 and greenSuppress) or (baseState == -1 and redSuppress) ? 0 : baseState
+// ③ 직접 전환(플립) 억제 — 최종 페인팅 상태(paintState). fill(배경)이 참조하는 값.
+//    직전봉 페인팅이 녹색인데 이번 봉 국면이 빨강(또는 그 반대)으로 "직접" 뒤집히는 경계 1봉만 미페인팅(0)한다.
+//    · 녹→빨강 직접 억제: paintState[1]==1 and interimState==-1 → paintState=0 (이 빨강 경계봉 미표시).
+//    · 빨강→녹 직접 억제: paintState[1]==-1 and interimState==1 → paintState=0.
+//    · 그 외에는 paintState=interimState. 경계 1봉만 억제 → 다음 봉은 paintState[1]==0이라 자동 정상 페인팅(연속 빨강/녹은 그대로 표시).
+var int paintState = 0
+paintState := (nz(paintState[1], 0) == 1 and interimState == -1) or (nz(paintState[1], 0) == -1 and interimState == 1) ? 0 : interimState
+// ④ 래치 전이 — 확정봉에서만(과거봉 결정론). set(트리거) 먼저, 그 뒤 **interimState**(국면 감지값) 기준으로 반대 래치 clear.
+//    ⚠️ 해제는 paintState(페인팅)가 아니라 interimState(국면 감지)로 판정한다(CEO 지시):
+//       플립 억제로 빨강을 안 그려도(paintState==0) 빨강 국면이 감지(interimState==-1)됐으면 상승 반전 후보를 꺼야 하므로.
+if barstate.isconfirmed
+    if bullTrigger
+        bullCand := true
+    if bearTrigger
+        bearCand := true
+    if interimState == -1   // 빨강 국면 감지(플립 미페인팅이어도) → 상승 후보 해제
+        bullCand := false
+    if interimState == 1    // 녹 국면 감지 → 하락 후보 해제
+        bearCand := false
 
 isLowerBand2Break = shouldPlot and showBand_2 and not na(lowerBandValue2) and low < lowerBandValue2
 isUpperBand2Break = shouldPlot and showBand_2 and not na(upperBandValue2) and high > upperBandValue2
@@ -656,10 +678,11 @@ upperBand_2 = plot(upperBandValue2, title="Upper Band #2", color=activeLineColor
 lowerBand_2 = plot(lowerBandValue2, title="Lower Band #2", color=activeLineColor, offset=offset, display=displayBand2, editable=true, linewidth=1, linestyle=plot.linestyle_dashed)
 // fill(±2σ 채움)은 밴드2 원값 선(upperBand_2/lowerBand_2)에 직접 붙인다. clamp 폐기로 선 자체가 항상 원값이라 별도 fill ref plot 불필요. 현재 display=none.
 fill(upperBand_2, lowerBand_2, title="Bands Fill #2", color=activeFillColor, display=display.none, editable=true)
-// 정배열/역배열 배경(밴드2 영역 한정 fill) — ribbonState==1(정배열·녹)/−1(역배열·빨강)인 봉만 밴드2(상단2~하단2) 영역을 반투명색으로 채운다.
-//  ⚠️ 밴드2 값 유효(not na)·shouldPlot일 때만. ribbonState는 저가 기준(녹)·고가 기준(빨강) 리본의 확정봉 기준 기울기 순서 판정값(동시 시 확정봉 봉색: 양봉 녹/음봉 빨강/도지 중립)으로, 신규 리페인팅 없음.
-//   색은 정/역 전용색 + 투명도. 밴드2 선(plot) 색은 불변.
-fill(upperBand_2, lowerBand_2, color = (showRibbonExpBg and shouldPlot and ribbonState != 0 and not na(upperBandValue2) and not na(lowerBandValue2)) ? (ribbonState == 1 ? color.new(ribbonBullBgColor, ribbonBgTransp) : color.new(ribbonBearBgColor, ribbonBgTransp)) : na, title="정배열/역배열 배경", display=display.all, editable=true)
+// 정배열/역배열 배경(밴드2 영역 한정 fill) — paintState==1(정배열·녹)/−1(역배열·빨강)인 봉만 밴드2(상단2~하단2) 영역을 반투명색으로 채운다.
+//  ⚠️ 밴드2 값 유효(not na)·shouldPlot일 때만. paintState는 3계층 최종값이다: baseState(종가 리본 기울기 순서: 정배열 ema<dema<tema=1, 역배열 ema>dema>tema=−1, 그 외/na=0)
+//   → interimState(반전 후보 래치 bullCand/bearCand 억제 반영) → paintState(직접 플립 억제: 녹→직접빨강/빨강→직접녹 경계 1봉 미페인팅). 실시간 봉에서 변한다(리페인팅, CEO 의도).
+//   래치 전이·플립 억제 참조값(paintState[1])은 확정봉에서 고정되어 과거봉 배경은 불변. 색은 정/역 전용색 + 투명도. 밴드2 선(plot) 색은 불변.
+fill(upperBand_2, lowerBand_2, color = (showRibbonExpBg and shouldPlot and paintState != 0 and not na(upperBandValue2) and not na(lowerBandValue2)) ? (paintState == 1 ? color.new(ribbonBullBgColor, ribbonBgTransp) : color.new(ribbonBearBgColor, ribbonBgTransp)) : na, title="정배열/역배열 배경", display=display.all, editable=true)
 
 // 지수 추세 리본 3선(EMA/DEMA/TEMA) — 각 1px, price scale 라벨 없음(display.all − display.price_scale). 표시 전용 오버레이.
 //  ⚠️ ta.ema 누적(확정 성격)이라 신규 리페인팅 없음. showRibbon OFF면 na로 미표시.
@@ -920,6 +943,64 @@ ltDownColor = #C2185B   // 하락계열 자홍
 ltAtrTable = ta.atr(14)
 ltDeadBand = not na(ltAtrTable) ? ltAtrTable * ltFlatTol : 0.0
 
+// ── EMA/DEMA/TEMA 기울기 각도(추세 확인 섹션 상단 3행) — 표시 전용 신규(CEO 확정) ─────────────
+//  ▸ 소스: 각 행(EMA/DEMA/TEMA)을 **고가·저가·종가 소스 각각의 기울기 각도 3값**으로 표시(CEO 지시).
+//    - 종가 리본: 위에서 선언한 화면 종가 리본선(emaLine/demaLine/temaLine = ta.ema/dema/tema(close, ribbonLen)) 그대로 재사용.
+//      종가 slope는 정/역배열 배경 블록에서 선언한 slopeEma/slopeDema/slopeTema를 그대로 공유 → 배경·테이블 종가 각도가 동일 기울기값(CEO 지시).
+//    - 고가 리본(emaHighLine/demaHighLine/temaHighLine = ta.ema/dema/tema(high, ribbonLen)) · 저가 리본(...Low... = ta.ema/dema/tema(low, ribbonLen)):
+//      **표시 전용으로 재도입**(앞서 배경 단순화 때 제거된 고가/저가 리본을 테이블 표시 목적으로만 부활). DEMA=2e1−e2, TEMA=3e1−3e2+e3 표준식을 고가·저가 소스에도 동일 적용.
+//      ⚠️ 이 고가/저가 리본은 **plot 안 함·배경(baseState/interimState/paintState) 판정에도 안 씀** — 오직 테이블 3값 표시 전용(종가 순서 판정 유지).
+//  ▸ 각도 = atan(봉당 기울기 / ATR14). 봉당 기울기 = **현재봉 − 과거1봉**([0]−[1] 차분, CEO 지시 = 20선 리본의 "지금 기울기") — 소스·선별로 각각 계산.
+//    분모 angleAtrRef = ltAtrTable(위 ta.atr(14) 재사용, 신규 input 없음. 프랙탈 블록의 글로벌 atrRef와 충돌 회피 위해 angleAtrRef로 명명). 봉당 ±1 ATR = ±45°, 치역 (−90°,+90°), 포화 없음. 세 선·세 소스 동일 분모라 비교 가능.
+//  ▸ 소스는 20길이 리본선(ta.ema/dema/tema(source, ribbonLen), ribbonLen 기본 20). "20선 리본" 기준(고가·저가·종가 각각).
+//  ▸ 값 표시: 각 행을 `고가각 | 저가각 | 종가각` 순서로 표시(예 `+37.4° | +35.1° | +36.2°`). 각 각도는 부호(+/−)+소수1자리+°, na는 "-", 구분자 " | ". (폭 처리 — 아래 f_angle3 주석 참조.)
+//  ▸ 데드밴드 ±5°(하드코딩 const, 신규 input 없음)는 **셀 배경색 판정에만** 적용 — 각도 수치 자체엔 미적용.
+//  ▸ 셀 배경색: **세 각도의 평균 = (고가각 + 저가각 + 종가각)/3** 기준. 평균>+5°→상승색·평균<−5°→하락색·사이/na→회색.
+//    ⚠️ na 처리(택일): 세 각도 중 **하나라도 na면 평균 계산 안 하고 회색**(워밍업/도지 방어, 부분 평균으로 오도하지 않음). 세 값 모두 유효할 때만 평균으로 색칠.
+//  ▸ ⚠️ 리페인팅(CEO 인지·지시): [0](현재봉) 사용으로 **형성 중 실시간 봉에서 3값·셀색 모두 마감 전까지 변한다(리페인팅, 기존 종가값과 동일 특성)**. 과거봉은 확정 후 고정. "현재 기울기" 실시간 반영 의도이니 그대로 구현. 워밍업 [1] na면 각도 na → "-".
+angleDeadbandDeg = 5.0
+angleAtrRef = ltAtrTable
+// 고가·저가 리본 재도입(표시 전용) — 종가 리본(emaLine/demaLine/temaLine)과 동일 표준식을 high/low 소스에 적용. plot·배경 판정에는 쓰지 않는다.
+ribbonHiE1 = ta.ema(high, ribbonLen)
+ribbonHiE2 = ta.ema(ribbonHiE1, ribbonLen)
+ribbonHiE3 = ta.ema(ribbonHiE2, ribbonLen)
+emaHighLine  = ribbonHiE1
+demaHighLine = 2 * ribbonHiE1 - ribbonHiE2
+temaHighLine = 3 * ribbonHiE1 - 3 * ribbonHiE2 + ribbonHiE3
+ribbonLoE1 = ta.ema(low, ribbonLen)
+ribbonLoE2 = ta.ema(ribbonLoE1, ribbonLen)
+ribbonLoE3 = ta.ema(ribbonLoE2, ribbonLen)
+emaLowLine  = ribbonLoE1
+demaLowLine = 2 * ribbonLoE1 - ribbonLoE2
+temaLowLine = 3 * ribbonLoE1 - 3 * ribbonLoE2 + ribbonLoE3
+// 소스·선별 각도([0]−[1] 차분 / ATR14). na 가드: line[1]·angleAtrRef na 또는 angleAtrRef<=0이면 각도 na.
+f_lineAngle(float lineNow, float linePrev) => (na(linePrev) or na(angleAtrRef) or angleAtrRef <= 0) ? na : math.todegrees(math.atan((lineNow - linePrev) / angleAtrRef))
+// 종가 각도는 slopeEma/Dema/Tema(배경 블록 [0]−[1] 차분) 재사용 — 배경·테이블 종가 각도 동일 값(CEO 지시). 고가/저가는 위 표시 전용 리본으로 계산.
+emaCloseAngle  = (na(emaLine[1])  or na(angleAtrRef) or angleAtrRef <= 0) ? na : math.todegrees(math.atan(slopeEma  / angleAtrRef))
+demaCloseAngle = (na(demaLine[1]) or na(angleAtrRef) or angleAtrRef <= 0) ? na : math.todegrees(math.atan(slopeDema / angleAtrRef))
+temaCloseAngle = (na(temaLine[1]) or na(angleAtrRef) or angleAtrRef <= 0) ? na : math.todegrees(math.atan(slopeTema / angleAtrRef))
+emaHighAngle  = f_lineAngle(emaHighLine,  emaHighLine[1])
+demaHighAngle = f_lineAngle(demaHighLine, demaHighLine[1])
+temaHighAngle = f_lineAngle(temaHighLine, temaHighLine[1])
+emaLowAngle  = f_lineAngle(emaLowLine,  emaLowLine[1])
+demaLowAngle = f_lineAngle(demaLowLine, demaLowLine[1])
+temaLowAngle = f_lineAngle(temaLowLine, temaLowLine[1])
+// 각도 텍스트: 부호(+/−)+소수1자리+°. na → "-". (+0.0°/−12.8°/+37.4°)
+f_angleStr(float a) => na(a) ? "-" : (a >= 0 ? "+" : "") + str.tostring(a, "0.0") + "°"
+// 3값 표시(고가|저가|종가). 폭 처리: ° 유지(부호+소수1자리+°, 구분자 " | "). 각 값은 최대 7자(예 "−12.8°") → 3값+구분자 ≈ 27자, size.small 셀 폭 수용 판단(과폭 시 ° 생략 등 추가 조정 여지, 현재 미적용).
+f_angle3(float aHigh, float aLow, float aClose) => f_angleStr(aHigh) + " | " + f_angleStr(aLow) + " | " + f_angleStr(aClose)
+// 셀 배경색 = 세 각도 평균 기준(데드밴드 ±5°). ⚠️ na 처리: 하나라도 na면 평균 계산 없이 회색. 세 값 모두 유효할 때만 평균으로 판정.
+f_angle3Color(float aHigh, float aLow, float aClose) =>
+    (na(aHigh) or na(aLow) or na(aClose)) ? color.new(color.gray, 40) :
+     (aHigh + aLow + aClose) / 3.0 > angleDeadbandDeg ? color.new(ltUpColor, 30) :
+     (aHigh + aLow + aClose) / 3.0 < -angleDeadbandDeg ? color.new(ltDownColor, 30) : color.new(color.gray, 40)
+emaAngleText = f_angle3(emaHighAngle, emaLowAngle, emaCloseAngle)
+demaAngleText = f_angle3(demaHighAngle, demaLowAngle, demaCloseAngle)
+temaAngleText = f_angle3(temaHighAngle, temaLowAngle, temaCloseAngle)
+emaAngleColor = f_angle3Color(emaHighAngle, emaLowAngle, emaCloseAngle)
+demaAngleColor = f_angle3Color(demaHighAngle, demaLowAngle, demaCloseAngle)
+temaAngleColor = f_angle3Color(temaHighAngle, temaLowAngle, temaCloseAngle)
+
 // ── 단기 추세(20선 vs 50선) 셀 — 원본 이식 ────────────────────────────────────────────────
 stReady = not na(vwma20) and not na(vwma50)
 stUp = stReady and vwma20 > vwma50
@@ -1083,40 +1164,47 @@ f_pctStr(float p) =>
 // ── 상태 테이블 렌더링(우측 상단) — 추세 3행 / 가격 구조 및 변동성 / 지지·저항 ────────────────
 //  스타일: 원본과 동일(섹션 헤더 딥 네이비 #1B2A4A·병합, 행 라벨 회색 배경, 값 셀 판정색, 흰 글자, size.small).
 //  vwap상태(20)는 가격 구조 섹션 첫 행이다.
-var table statusTable = table.new(position.top_right, 2, 14, border_width=1, border_color=color.new(color.gray, 50))
+var table statusTable = table.new(position.top_right, 2, 17, border_width=1, border_color=color.new(color.gray, 50))
 if showStatusTable and barstate.islast
-    // 섹션1: 추세 확인 (단기/중기/장기)
+    // 섹션1: 추세 확인 (EMA/DEMA/TEMA 기울기 3행 → 단기/중기/장기 = 총 6행)
     table.cell(statusTable, 0, 0, "추세 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.cell(statusTable, 1, 0, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.merge_cells(statusTable, 0, 0, 1, 0)
-    table.cell(statusTable, 0, 1, "단기추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 1, stCellText, text_color=color.white, bgcolor=stCellColor, text_size=size.small)
-    table.cell(statusTable, 0, 2, "중기추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 2, mtCellText, text_color=color.white, bgcolor=mtCellColor, text_size=size.small)
-    table.cell(statusTable, 0, 3, "장기추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 3, ltCellText, text_color=color.white, bgcolor=ltCellColor, text_size=size.small)
+    // EMA/DEMA/TEMA 기울기 각도(종가 리본선 기준, atan(봉당기울기/ATR14), 데드밴드 색만 ±5°) — 최상단 3행
+    table.cell(statusTable, 0, 1, "EMA 기울기", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 1, emaAngleText, text_color=color.white, bgcolor=emaAngleColor, text_size=size.small)
+    table.cell(statusTable, 0, 2, "DEMA 기울기", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 2, demaAngleText, text_color=color.white, bgcolor=demaAngleColor, text_size=size.small)
+    table.cell(statusTable, 0, 3, "TEMA 기울기", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 3, temaAngleText, text_color=color.white, bgcolor=temaAngleColor, text_size=size.small)
+    table.cell(statusTable, 0, 4, "단기추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 4, stCellText, text_color=color.white, bgcolor=stCellColor, text_size=size.small)
+    table.cell(statusTable, 0, 5, "중기추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 5, mtCellText, text_color=color.white, bgcolor=mtCellColor, text_size=size.small)
+    table.cell(statusTable, 0, 6, "장기추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 6, ltCellText, text_color=color.white, bgcolor=ltCellColor, text_size=size.small)
     // 섹션2: 가격 구조 및 변동성 확인 (vwap상태20 최상단 → 비정상 → 이격도 → 되돌림)
-    table.cell(statusTable, 0, 4, "가격 구조 및 변동성 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.cell(statusTable, 1, 4, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.merge_cells(statusTable, 0, 4, 1, 4)
+    table.cell(statusTable, 0, 7, "가격 구조 및 변동성 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
+    table.cell(statusTable, 1, 7, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
+    table.merge_cells(statusTable, 0, 7, 1, 7)
     // vwap 상태(20)를 2행으로 분리: 행1=기울기·밴드폭(1·2번째 값), 행2=밴드 국면·내 위치(3번째 값 + % 위치)
-    table.cell(statusTable, 0, 5, "vwap 기울기", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 5, vwSlopeText + " | " + vwBwStateText, text_color=color.white, bgcolor=vwSlopeColor, text_size=size.small)
-    table.cell(statusTable, 0, 6, "vwap 구간", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 6, vwBandPosText, text_color=color.white, bgcolor=vwBandColor, text_size=size.small)
-    table.cell(statusTable, 0, 7, "비정상 매수/매도", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 7, abnCellText, text_color=color.white, bgcolor=abnCellColor, text_size=size.small)
-    table.cell(statusTable, 0, 8, "이격도 (" + str.tostring(disparityMaLen) + ")", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 8, disparityCellText, text_color=color.white, bgcolor=disparityCellColor, text_size=size.small)
-    table.cell(statusTable, 0, 9, "되돌림 가격", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 9, na(disparityPullbackPrice) ? "-" : f_priceStr(disparityPullbackPrice) + " (" + f_pctStr(disparityPullbackPrice) + ")", text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
+    table.cell(statusTable, 0, 8, "vwap 기울기", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 8, vwSlopeText + " | " + vwBwStateText, text_color=color.white, bgcolor=vwSlopeColor, text_size=size.small)
+    table.cell(statusTable, 0, 9, "vwap 구간", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 9, vwBandPosText, text_color=color.white, bgcolor=vwBandColor, text_size=size.small)
+    table.cell(statusTable, 0, 10, "비정상 매수/매도", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 10, abnCellText, text_color=color.white, bgcolor=abnCellColor, text_size=size.small)
+    table.cell(statusTable, 0, 11, "이격도 (" + str.tostring(disparityMaLen) + ")", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 11, disparityCellText, text_color=color.white, bgcolor=disparityCellColor, text_size=size.small)
+    table.cell(statusTable, 0, 12, "되돌림 가격", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 12, na(disparityPullbackPrice) ? "-" : f_priceStr(disparityPullbackPrice) + " (" + f_pctStr(disparityPullbackPrice) + ")", text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
     // 섹션3: 지지·저항 확인 (50선 / 100선 / 200선)
-    table.cell(statusTable, 0, 10, "지지·저항 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.cell(statusTable, 1, 10, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.merge_cells(statusTable, 0, 10, 1, 10)
-    table.cell(statusTable, 0, 11, "50선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 11, vwSrText, text_color=color.white, bgcolor=vwSrColor, text_size=size.small)
-    table.cell(statusTable, 0, 12, "100선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 12, ltM1SrText, text_color=color.white, bgcolor=ltM1SrColor, text_size=size.small)
-    table.cell(statusTable, 0, 13, "200선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 13, ltM2SrText, text_color=color.white, bgcolor=ltM2SrColor, text_size=size.small)
+    table.cell(statusTable, 0, 13, "지지·저항 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
+    table.cell(statusTable, 1, 13, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
+    table.merge_cells(statusTable, 0, 13, 1, 13)
+    table.cell(statusTable, 0, 14, "50선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 14, vwSrText, text_color=color.white, bgcolor=vwSrColor, text_size=size.small)
+    table.cell(statusTable, 0, 15, "100선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 15, ltM1SrText, text_color=color.white, bgcolor=ltM1SrColor, text_size=size.small)
+    table.cell(statusTable, 0, 16, "200선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 16, ltM2SrText, text_color=color.white, bgcolor=ltM2SrColor, text_size=size.small)
