@@ -1,5 +1,10 @@
 //@version=6
-indicator(title="Auto VWAP", shorttitle="Auto VWAP", overlay=true, max_bars_back=1000)
+// explicit_plot_zorder=true: plot()/hline()/fill()의 z-order를 코드 "선언 순서"로 고정(먼저 선언=뒤, 나중 선언=앞). VWMA 50/100/200+fill을 나머지 plot보다 뒤로 두는 근거.
+//  ⚠️ 기존 코드도 이미 "나중 선언=앞" 기본 거동에 부합하게 선언돼 있어(밴드1→밴드2→정역배열 fill→리본→SAR) 이 인자는 그 상대 순서를 명시 고정할 뿐 기존 z를 바꾸지 않는다.
+//  ⚠️ bgcolor는 이 인자와 무관하게 항상 최후면 그룹 고정 → 비정상 배경(bgcolor)은 explicit_plot_zorder로 순서 제어가 안 되며 모든 plot/fill보다 뒤(가장 뒤)에 그려진다.
+//     (직전 z-order 작업에서 비정상 배경을 plot(±1e20)+fill로 전환했으나 그 fill이 auto-scale을 폭발시켜 bgcolor로 복원 — 아래 "비정상 매수/매도 배경 — bgcolor로 복원" 참조.)
+//     plotshape/드로잉(label/table)은 이 인자 영향 밖(각자 상위 그룹 최전면 유지).
+indicator(title="Auto VWAP", shorttitle="Auto VWAP", overlay=true, max_bars_back=1000, explicit_plot_zorder=true)
 
 hideonDWM = input(false, title="Hide VWAP on 1D or Above", group="VWAP Settings", display=display.none)
 // VWAP 누적은 "최근 N봉 롤링(Recent Bars)" 단일 방식으로 고정(CEO 지시 — 앵커모드 제거). 세션/거래일 앵커 분기·입력·세션 리셋 전부 삭제됨.
@@ -291,15 +296,6 @@ abnShowBg = input.bool(true, title="비정상 매수/매도 배경 표시", grou
 abnSellBgColor = input.color(color.blue, title="비정상 매도 배경 색(파랑)", group=ABN_GROUP)
 abnBuyBgColor = input.color(#FF9800, title="비정상 매수 배경 색(주황)", group=ABN_GROUP)
 abnBgTransp = input.int(82, minval=0, maxval=100, title="비정상 배경 투명도", group=ABN_GROUP)
-// 과매수/과매도 수평선(CEO 지시) — 최근 2개 비정상 이벤트(구간) 방향 조합으로 매수선/매도선을 표시.
-abnShowLevelLines = input.bool(true, title="과매수/과매도 수평선 표시", group=ABN_GROUP, tooltip="가장 최근 2개의 비정상 이벤트(구간) 방향을 보고 수평선을 표시합니다. 최근 2개에 매도(과매도)가 포함되면 가장 최근 과매도 구간의 최저가에 파랑(수평선 매도 색) 수평선을, 매수(과매수)가 포함되면 가장 최근 과매수 구간의 최고가에 빨강(수평선 매수 색) 수평선을 그립니다. 따라서 둘 다 매도면 매도선 1개, 둘 다 매수면 매수선 1개, 매도 1+매수 1(순서 무관)이면 두 선 모두(총 2개) 표시합니다. 각 선은 그 방향 가장 최근 1건 구간의 극값입니다. 화면 전체 가로이며(굵기·점선/실선은 아래 옵션), 새 구간이 나올 때마다 극값으로 갱신합니다. 확정봉 구간 추적이라 리페인팅이 없습니다. 표시 전용 옵션입니다.")
-// 과매수/과매도 수평선 전용 색(CEO 지시: 옵션화) — 배경색(abnBuyBgColor/abnSellBgColor)과 독립으로 바꿀 수 있게 별도 input을 둔다.
-//  기본값은 배경색과 동일(매수=빨강 color.red / 매도=파랑 color.blue) → 기존 동작 그대로. 사용자가 배경색과 다르게 지정하려면 이 값을 조정한다.
-abnLevelBuyColor = input.color(color.red, title="과매수 수평선 색(매수)", group=ABN_GROUP, active=abnShowLevelLines, tooltip="가장 최근 비정상 매수(과매수) 방향일 때 그리는 수평선 색. 기본 빨강(비정상 매수 배경색과 동일). 비정상 배경색과 독립적으로 조정할 수 있습니다.")
-abnLevelSellColor = input.color(color.blue, title="과매도 수평선 색(매도)", group=ABN_GROUP, active=abnShowLevelLines, tooltip="가장 최근 비정상 매도(과매도) 방향일 때 그리는 수평선 색. 기본 파랑(비정상 매도 배경색과 동일). 비정상 배경색과 독립적으로 조정할 수 있습니다.")
-// 수평선 굵기(옵션) — 기본 1(현재 동작). 점선/실선은 abnLevelDashed로 선택(기본 점선=현재 동작).
-abnLevelWidth = input.int(1, minval=1, maxval=5, title="과매수/과매도 수평선 굵기", group=ABN_GROUP, active=abnShowLevelLines, display=display.none, tooltip="수평선 두께(px). 기본 1(현재 동작). 굵게 하면 더 눈에 띄지만 차트를 가릴 수 있습니다.")
-abnLevelDashed = input.bool(true, title="과매수/과매도 수평선 점선", group=ABN_GROUP, active=abnShowLevelLines, display=display.none, tooltip="켜면 점선(기본, 현재 동작), 끄면 실선으로 수평선을 그립니다.")
 
 // 이격도(Disparity) 자기완결 이식 — 비정상 상태 래치 리셋(원본 abnDisparityNeutral)에만 사용. 이치모쿠 원본 산식·input 그대로.
 DISP_GROUP = "이격도"
@@ -434,81 +430,6 @@ if barstate.isconfirmed
 
 // 세로 배경색(원본 동일): 비정상 매도(abnCandleState==1)=파랑, 비정상 매수(abnCandleState==-1)=주황(리본 역배열 빨강과 구분).
 abnBg = abnCandleState == 1 ? color.new(abnSellBgColor, abnBgTransp) : abnCandleState == -1 ? color.new(abnBuyBgColor, abnBgTransp) : na
-
-// =========================
-// 과매수/과매도 수평선(CEO 지시) — 최근 2개 비정상 이벤트(구간) 방향 조합으로 매수선/매도선을 각각 표시.
-//  "이벤트(구간)" 정의: 비정상 매수/매도가 연속되는 봉을 한 "구간"으로 본다. 상태가 그 방향으로 새로 진입하는 봉(진입 엣지)이 새 이벤트의 시작이다.
-//   → 방향 히스토리(curEvtDir=최근 이벤트, prevEvtDir=직전 이벤트)를 이 진입 엣지에서만 shift한다(방향 전환/중립 복귀 후 재진입도 각각 새 이벤트).
-//  표시 규칙(최근 2개 이벤트에 그 방향이 포함되면 그 방향 선 표시):
-//   ▸ 매도선(파랑) 표시 = (curEvtDir==1 or prevEvtDir==1) — 최근 2개 중 매도 포함. y=가장 최근 과매도 구간 low 최솟값(abnSellRunLow).
-//   ▸ 매수선(빨강) 표시 = (curEvtDir==-1 or prevEvtDir==-1) — 최근 2개 중 매수 포함. y=가장 최근 과매수 구간 high 최댓값(abnBuyRunHigh).
-//   → 둘 다 매도면 매도선 1개, 둘 다 매수면 매수선 1개, 매도1+매수1(순서 무관)이면 두 선 모두(총 2개). 각 선은 그 방향 가장 최근 1건 구간의 극값.
-//  구간 극값(유지): 진입 엣지에서 그 방향 극값을 그 봉 값으로 초기화하고, 같은 방향 지속 시 high 최댓값/low 최솟값을 누적 → 진행 중 구간도 최신 극값으로 갱신.
-//   각 방향 극값(abnBuyRunHigh/abnSellRunLow)은 방향별 독립 var라 항상 그 방향 "가장 최근 1건"을 담는다(혼합이면 두 값이 각자 최근 매수·매도 구간을 유지).
-//  ▸ 라인 오브젝트는 방향별 1개씩(var line abnBuyLine/abnSellLine). 최초 1회만 line.new, 이후 set_*로 갱신 → 오브젝트 누적 없음(항상 최대 2개, max_lines_count 무관).
-//   미표시 방향은 line.delete + na로 잔상 제거(앞서 1개 통합 때의 잔상 교정 방식과 동일).
-//  ▸ extend=extend.both + xloc.bar_index로 화면 전체 가로. 점선(abnLevelDashed)·굵기(abnLevelWidth) 옵션을 두 선에 각각 연결.
-//  ⚠️ abnCandleState/이벤트 방향 히스토리는 확정 성격 래치(진입 엣지 판정)라 신규 리페인팅 없음(원본 배경과 동일 특성). 형성 중 현재봉의 high/low 갱신은 원본 배경 실시간성과 동일.
-// =========================
-// 진입 엣지: 이번 봉이 그 방향 비정상인데 직전 봉은 그 방향이 아니었으면 = 새 구간(이벤트) 시작.
-abnBuyEnter = abnCandleState == -1 and (na(abnCandleState[1]) or abnCandleState[1] != -1)   // 과매수 구간 진입
-abnSellEnter = abnCandleState == 1 and (na(abnCandleState[1]) or abnCandleState[1] != 1)     // 과매도 구간 진입
-var float abnBuyRunHigh = na    // 현재(가장 최근) 과매수 구간의 누적 최고가
-var float abnSellRunLow = na    // 현재(가장 최근) 과매도 구간의 누적 최저가
-if abnBuyEnter
-    abnBuyRunHigh := high
-else if abnCandleState == -1
-    abnBuyRunHigh := math.max(nz(abnBuyRunHigh, high), high)
-if abnSellEnter
-    abnSellRunLow := low
-else if abnCandleState == 1
-    abnSellRunLow := math.min(nz(abnSellRunLow, low), low)
-// 이벤트 방향 히스토리 — 진입 엣지에서만 shift. curEvtDir=최근 이벤트 방향, prevEvtDir=직전 이벤트 방향(-1=매수, 1=매도, 0=아직 없음).
-//  ▸ 새 이벤트가 시작될 때(진입 엣지) 직전 최근값을 prev로 밀고(shift) 새 방향을 cur에 넣는다. 같은 방향 연속 봉(구간 내부)은 새 이벤트가 아니므로 shift하지 않는다.
-var int curEvtDir = 0
-var int prevEvtDir = 0
-if abnBuyEnter
-    prevEvtDir := curEvtDir
-    curEvtDir := -1
-else if abnSellEnter
-    prevEvtDir := curEvtDir
-    curEvtDir := 1
-// 최근 2개 이벤트에 그 방향이 포함되면 그 방향 선을 표시(혼합이면 둘 다). na·표시토글 가드.
-showBuyLevel  = abnShowLevelLines and (curEvtDir == -1 or prevEvtDir == -1) and not na(abnBuyRunHigh)
-showSellLevel = abnShowLevelLines and (curEvtDir == 1 or prevEvtDir == 1) and not na(abnSellRunLow)
-abnLevelStyle = abnLevelDashed ? line.style_dotted : line.style_solid
-// 매수선(빨강, high 최댓값) — 표시 조건 충족 시 그림/갱신, 미충족 시 삭제+na(잔상 제거).
-var line abnBuyLine = na
-if showBuyLevel
-    if na(abnBuyLine)
-        abnBuyLine := line.new(bar_index, abnBuyRunHigh, bar_index + 1, abnBuyRunHigh, xloc=xloc.bar_index, extend=extend.both, color=abnLevelBuyColor, style=abnLevelStyle, width=abnLevelWidth)
-    else
-        line.set_xy1(abnBuyLine, bar_index, abnBuyRunHigh)
-        line.set_xy2(abnBuyLine, bar_index + 1, abnBuyRunHigh)
-        line.set_color(abnBuyLine, abnLevelBuyColor)
-        line.set_style(abnBuyLine, abnLevelStyle)
-        line.set_width(abnBuyLine, abnLevelWidth)
-else if not na(abnBuyLine)
-    line.delete(abnBuyLine)
-    abnBuyLine := na
-// 매도선(파랑, low 최솟값) — 표시 조건 충족 시 그림/갱신, 미충족 시 삭제+na(잔상 제거).
-var line abnSellLine = na
-if showSellLevel
-    if na(abnSellLine)
-        abnSellLine := line.new(bar_index, abnSellRunLow, bar_index + 1, abnSellRunLow, xloc=xloc.bar_index, extend=extend.both, color=abnLevelSellColor, style=abnLevelStyle, width=abnLevelWidth)
-    else
-        line.set_xy1(abnSellLine, bar_index, abnSellRunLow)
-        line.set_xy2(abnSellLine, bar_index + 1, abnSellRunLow)
-        line.set_color(abnSellLine, abnLevelSellColor)
-        line.set_style(abnSellLine, abnLevelStyle)
-        line.set_width(abnSellLine, abnLevelWidth)
-else if not na(abnSellLine)
-    line.delete(abnSellLine)
-    abnSellLine := na
-// 각 방향 수평선 값의 우측 가격축 라벨(CEO 지시로 미표시). 라벨 전용 plot이라 display=display.none으로 끄면 가격축 숫자 라벨만 사라지고 차트 위 선은 그대로다(차트 선은 위 line 오브젝트가 그림 → 영향 없음).
-//  → 라인 자체(abnBuyLine/abnSellLine)는 유지, 우측 가격축 라벨만 숨김. plot 값·조건·색은 불변(display 인자만 변경). 확정 성격 값이라 신규 리페인팅 없음.
-plot(showBuyLevel ? abnBuyRunHigh : na, title="과매수선(매수)", color=abnLevelBuyColor, display=display.none, editable=true)
-plot(showSellLevel ? abnSellRunLow : na, title="과매도선(매도)", color=abnLevelSellColor, display=display.none, editable=true)
 
 // =========================
 // 지수 추세 리본(EMA/DEMA/TEMA) 계산 + 정배열/역배열 배경 판정(CEO 재설계 — 페인팅 리본은 종가, 배경 판정은 저가/고가 기준 2세트).
@@ -680,6 +601,44 @@ sarVal = ta.sar(sarStart, sarIncrement, sarMaximum)
 bool sarBelow = not na(sarVal) and sarVal < close    // SAR 종가 아래(상승) → 롱 색
 bool sarAbove = not na(sarVal) and sarVal >= close   // SAR 종가 이상(하락) → 숏 색 (sar==close 경계는 하락 쪽에 포함해 na 방지)
 
+// =========================================================================================
+// [z-order 블록 #1 — VWMA 50/100/200 + 100~200 fill]  ★ plot/fill 중 가장 뒤(back-most).
+//  explicit_plot_zorder=true이므로 이 plot/fill들을 파일에서 가장 먼저 선언 → 이후 모든 plot/fill(VWAP·밴드·정역배열·리본·SAR)보다 뒤에 그려진다.
+//  ⚠️ 단, bgcolor(비정상 배경)는 explicit_plot_zorder와 무관하게 항상 최후면 그룹이라 이 VWMA보다도 뒤에 온다(비정상 배경 복원 주석 참조).
+//     실제 레이어(뒤→앞) = [비정상 배경 bgcolor] → [이 VWMA 블록] → [나머지 페인팅].
+//  ⚠️ 계산(f_ltMa·vwma20/50·ltMa1/2·ltUp)·plot 산식·색·오프셋·display는 이동 전과 100% 동일 — 오직 선언 위치(z-order)만 앞으로 옮겼다.
+//  ⚠️ ta.vwma/f_ltMa 확정봉 기반 → 신규 리페인팅 없음. 우측 가격축 라벨 제거(display.all - display.price_scale, 다른 선과 동일 패턴).
+// =========================================================================================
+// 100/200선: 원본 f_ltMa switch 그대로(기본 VWMA). 50선/20선: ta.vwma 고정(원본 동일).
+f_ltMa(int length) =>
+    switch ltMaType
+        "SMA" => ta.sma(close, length)
+        "EMA" => ta.ema(close, length)
+        "WMA" => ta.wma(close, length)
+        "VWMA" => ta.vwma(close, length)
+vwma20 = ta.vwma(close, 20)   // 단기 추세(20선 vs 50선)의 빠른 선. 로직 전용(페인트 없음). 원본 동일.
+vwma50 = ta.vwma(close, 50)   // 단기 추세의 느린 선이자 표시선(2px). 원본 동일.
+ltMa1 = f_ltMa(ltLen1)        // 거래량 가중 100선
+ltMa2 = f_ltMa(ltLen2)        // 거래량 가중 200선
+ltUp = ltMa1 > ltMa2          // 우상향 장기 추세(100선 > 200선)
+// 50선 색 = vwma50Color(딥 오렌지 #FF6D00 기본 — 리본 노랑과 구분). 100/200/fill 색은 원본 따름(파랑/보라).
+plot(showVwma50 ? vwma50 : na, title="거래량 가중 50선(VWMA 50)", color=vwma50Color, linewidth=2, display=display.all - display.price_scale, editable=true)
+ltPlot1 = plot(showLongTrend ? ltMa1 : na, title="거래량 가중 100선(VWMA 100)", color=ltColor1, linewidth=2, display=display.all - display.price_scale, editable=true)
+ltPlot2 = plot(showLongTrend ? ltMa2 : na, title="거래량 가중 200선(VWMA 200)", color=ltColor2, linewidth=2, display=display.all - display.price_scale, editable=true)
+fill(ltPlot1, ltPlot2, title="100~200선 fill", color=showLongTrend ? (ltUp ? color.new(ltColor1, ltFillTransp) : color.new(ltColor2, ltFillTransp)) : na, editable=true)
+
+// =========================================================================================
+// [비정상 매수/매도 배경 — bgcolor로 복원]  ★ CEO 지시(auto-scale 폭발 버그 수정).
+//  ⚠️ 렌더 방식 복원(CEO 지시): 직전 z-order 작업에서 이 배경을 plot(±1e20) 무한대 기준선 2개 + 그 사이 fill로 전환했으나,
+//   실측(차트)에서 display.none plot이라도 그 fill이 ±1e20 범위로 렌더되어 가격축 auto-scale을 ±수경대로 폭발시킴(정적 가정이 실측에서 틀림).
+//   → 극단값 plot 2개와 fill을 제거하고 **다시 bgcolor()로 복원**한다(스케일에 영향 없는 유일한 화면 전체 배경).
+//  ⚠️ z-order 제약 인지: bgcolor는 explicit_plot_zorder와 무관하게 항상 최후면 그룹이라, 복원 후 실제 레이어는
+//   (뒤→앞) [비정상 배경 bgcolor] → [VWMA 50/100/200+fill] → [나머지 페인팅]. 즉 비정상 배경은 "중간"이 아니라 "가장 뒤"가 된다
+//   (Pine 구조상 auto-scale과 양립하기 위해 불가피). VWMA를 나머지보다 뒤로 두는 것(위 최하단 블록 #1 선언 순서)은 유지.
+//  ⚠️ 색·조건·투명도·판정(abnBg/abnShowBg/abnCandleState 래치)은 전부 불변 — 렌더 방식만 fill→bgcolor로 환원(전체 화면 세로 스트립·같은 색·같은 투명도).
+// =========================================================================================
+bgcolor(abnShowBg ? abnBg : na, title="비정상 매수/매도 배경")
+
 // VWAP 중앙선: 두께 2px(CEO 지시 — 지지/저항 색 규칙). 선은 동적 색, 우측 가격축 라벨은 흰색 고정(CEO 지시).
 //  색 = vwapLineColor(지지/저항 규칙 ON이면 녹/빨강/흰색, OFF면 기존 activeLineColor).
 //  ▸ 동적 색 선: 가격축(price_scale)만 제외해 pane·상태줄·데이터윈도우에만 표시(밴드와 동일 패턴). 가격축 라벨이 선색을 따라가지 않게 함.
@@ -713,13 +672,11 @@ plot(showRibbon ? temaLine : na, title="지수 리본 TEMA", color=ribbonTemaCol
 //    ⚠️ 청산선 제거(CEO 지시)로 기존 SAR 색이 참조하던 청산선 색(long/shortClearLineColor)이 삭제됨 → 상단에 이미 선언된 지지/저항 색 상수(녹=상승/지지, 빨강=하락/저항)로 대체(의미 일치·잔존 참조 0).
 //  ⚠️ sarBelow/sarAbove는 상호배타·전영역(close 기준 </>= 이분)이라 삼항 우선순위 충돌 없음. sarVal 유효 시 한쪽이 항상 참이므로 else na 분기는 워밍업(na) 외 사실상 도달 불가. 색 삼항은 color/na 타입 정합.
 //  ⚠️ ta.sar 확정봉 기반 — 신규 리페인팅 없음.
-//  ⚠️ 가격축 라벨 제거(CEO 지시): 차트 십자는 유지하되 우측 가격축의 숫자 라벨만 끈다(display.all - display.price_scale). 색·스타일·offset 불변. 과매수/과매도선과 동일 패턴.
+//  ⚠️ 가격축 라벨 제거(CEO 지시): 차트 십자는 유지하되 우측 가격축의 숫자 라벨만 끈다(display.all - display.price_scale). 색·스타일·offset 불변.
 plot(sarVal, title="Parabolic SAR", style=plot.style_cross, color = sarBelow ? LOWER_BREAK_LINE_COLOR : sarAbove ? UPPER_BREAK_LINE_COLOR : na, offset=offset, editable=true, display=display.all - display.price_scale)
 
-// 비정상 매수/매도 세로 배경(bgcolor) — 이치모쿠 이식. 매도=파랑, 매수=빨강. 표시 전용.
-//  ⚠️ 정배열/역배열 배경(밴드2 영역 한정 fill)과 시각 충돌 확인: 비정상 배경은 화면 전체 세로 스트립(bgcolor)이고 반투명(기본 투명도 82로 더 옅음)이라
-//   밴드2 영역 fill과 겹쳐도 각자 반투명으로 합성될 뿐 서로 덮어쓰지 않는다(bgcolor+fill 공존). 색도 파랑/빨강 vs 녹/빨강으로 구분된다.
-bgcolor(abnShowBg ? abnBg : na, title="비정상 매수/매도 배경")
+// 비정상 매수/매도 배경 bgcolor()는 위쪽(VWMA 블록 뒤)에서 선언한다(auto-scale 폭발 버그 수정 — 극단값 fill 제거·bgcolor 복원 주석 참조).
+//  bgcolor는 항상 최후면 그룹이라 선언 위치와 무관하게 가장 뒤에 그려진다. 색·조건·투명도·판정은 전부 불변이다.
 
 // =========================================================================================
 // [이식+신규] 윌리엄스 프랙탈(확정·strict) + 로직1(ratio 게이트) + 로직2(후보) + 후보 반투명 배경 + %R 다이버전스
@@ -853,20 +810,8 @@ if barstate.islast
 //  기존 auto-vwap 로직(정/역배열 배경·비정상 배경·억제 게이트·VWAP·밴드·SAR)은 전혀 건드리지 않는다.
 // =========================================================================================
 
-// ── 거래량 가중선 계산 ──────────────────────────────────────────────────────────────────
-// 100/200선: 원본 f_ltMa switch 그대로(기본 VWMA). 50선/20선: ta.vwma 고정(원본 동일).
-f_ltMa(int length) =>
-    switch ltMaType
-        "SMA" => ta.sma(close, length)
-        "EMA" => ta.ema(close, length)
-        "WMA" => ta.wma(close, length)
-        "VWMA" => ta.vwma(close, length)
-vwma20 = ta.vwma(close, 20)   // 단기 추세(20선 vs 50선)의 빠른 선. 로직 전용(페인트 없음). 원본 동일.
-vwma50 = ta.vwma(close, 50)   // 단기 추세의 느린 선이자 표시선(2px). 원본 동일.
-ltMa1 = f_ltMa(ltLen1)        // 거래량 가중 100선
-ltMa2 = f_ltMa(ltLen2)        // 거래량 가중 200선
-ltUp = ltMa1 > ltMa2          // 우상향 장기 추세(100선 > 200선)
-
+// ── 거래량 가중선 계산·페인팅은 z-order 최하단(back-most) 배치를 위해 파일 앞쪽 밴드 plot 직전으로 이동함(CEO z-order 지시).
+//    계산(f_ltMa·vwma20/50·ltMa1/2·ltUp)과 plot+fill이 "VWMA z-order 블록"으로 옮겨졌다. 산식·색·오프셋 전부 불변, 위치(선언 순서)만 변경.
 // ── 거래량 가중 표준편차 σ_vw(원본 f_vwStdev 이식) — 100/200선 지지/저항 판정 전용 밴드1 산출용 ──
 //  σ_vw = sqrt(max( Σ(close²·vol)/Σvol − vwma² , 0)). 원본 산식 동일(rolling length 윈도우).
 f_vwStdev(float vwma, int len) =>
@@ -912,13 +857,7 @@ f_srBand2(float center, float up2, float lo2) =>
         isBot := close < center and ((close >= lo2 and close <= lowerNear2) or (close > lowerNear2 and low < lowerNear2))
     [isTop, isBot]
 
-// ── 페인팅: 거래량 가중 50/100/200선(각 2px) + 100~200 fill ─────────────────────────────
-//  50선 색 = vwma50Color(딥 오렌지 #FF6D00 기본 — 리본 노랑과 구분). 100/200/fill 색은 원본 따름(파랑/보라).
-//  ⚠️ ta.vwma/f_ltMa 확정봉 기반 → 신규 리페인팅 없음. 우측 가격축 라벨 제거(display.all - display.price_scale, 다른 선과 동일 패턴).
-plot(showVwma50 ? vwma50 : na, title="거래량 가중 50선(VWMA 50)", color=vwma50Color, linewidth=2, display=display.all - display.price_scale, editable=true)
-ltPlot1 = plot(showLongTrend ? ltMa1 : na, title="거래량 가중 100선(VWMA 100)", color=ltColor1, linewidth=2, display=display.all - display.price_scale, editable=true)
-ltPlot2 = plot(showLongTrend ? ltMa2 : na, title="거래량 가중 200선(VWMA 200)", color=ltColor2, linewidth=2, display=display.all - display.price_scale, editable=true)
-fill(ltPlot1, ltPlot2, title="100~200선 fill", color=showLongTrend ? (ltUp ? color.new(ltColor1, ltFillTransp) : color.new(ltColor2, ltFillTransp)) : na, editable=true)
+// ── 거래량 가중 50/100/200선 + 100~200 fill의 페인팅은 z-order 최하단(back-most) 배치를 위해 위쪽 "VWMA z-order 블록"으로 이동함(CEO z-order 지시). 여기서는 제거됨. 계산·plot 산식/색/오프셋 전부 불변.
 
 // ── vwap 상태(20) 전용 20봉 VWAP·밴드(원본 이식) — computeVwapSet를 20봉으로 한 번 더 호출(함수-로컬 var 독립 누적) ──
 //  화면 VWAP(vwapValue, recentBars=50)와 완전히 별개 인스턴스라 산식은 동일하고 윈도우만 vwapStateBars(20). 확정봉 누적 → 리페인팅 없음.
@@ -958,6 +897,22 @@ vwBwStateText = vwBwStateBase == "-" or na(vwBwPct) ? vwBwStateBase : vwBwStateB
 vwBandState = not vwHasVwapS ? "-" : vwBreakUpper ? "상단 이탈" : vwBreakLower ? "하단 이탈" : vwUpperWalk ? "상단 밴드워킹" : vwLowerWalk ? "하단 밴드워킹" : vwResistNear ? "상단 저항" : vwSupportNear ? "하단 지지" : "중앙 공방"
 vwBandStateShort = (vwUpperWalk or vwLowerWalk) ? "밴드워킹" : vwBandState
 vwBandColor = not vwHasVwapS ? color.new(color.gray, 40) : vwBreakUpper ? color.new(#6D8A70, 0) : vwBreakLower ? color.new(#8A6D6D, 0) : vwUpperWalk ? color.new(color.green, 0) : vwLowerWalk ? color.new(color.red, 0) : vwResistNear ? color.new(#A57A7A, 0) : vwSupportNear ? color.new(#6E8F72, 0) : vwSlopeDown ? color.new(#A57A7A, 0) : vwSlopeUp ? color.new(#6E8F72, 0) : color.new(color.gray, 30)
+
+// ── 행 분리용 파생값(판정 산식 불변, 표시 분리만) ──────────────────────────────────────────
+//  행1 "vwap 기울기·밴드폭(20)" 배경색 = 기존 vwBandColor 패턴 중 기울기(추세) 성격만 반영(1·2번째 값 기준).
+//    이탈/밴드워킹/근접(3번째 값)은 행2로 이전 → 행1 색은 slope만으로 결정(원본 색톤 재사용: 상승=#6E8F72, 하락=#A57A7A, 평탄=gray30).
+vwSlopeColor = not vwHasVwapS ? color.new(color.gray, 40) : vwSlopeUp ? color.new(#6E8F72, 0) : vwSlopeDown ? color.new(#A57A7A, 0) : color.new(color.gray, 30)
+//  행2 "밴드 국면·내 위치" 배경색 = 기존 vwBandColor 그대로(3번째 값 상태색).
+//  ⚠️ 괄호 % 산식 교체(CEO 지시): 기존 (close−center)/(band2−center)×100(20봉 세트, 중앙~밴드2 0~100%) 방식을 폐기하고,
+//    **화면에 그려지는 vwap 밴드 선들의 오른쪽 끝 %갭 라벨과 동일 산식·동일 세트**로 종가의 %갭을 표시한다.
+//    ▸ 밴드 %라벨(802~805) = formatPercentGap(bandValue, vwapValue) = (bandValue/vwapValue − 1)×100, "+0.00%" 포맷, **화면 50봉 세트**(vwapValue).
+//    ▸ 괄호 % = 그 라벨의 close 버전 = formatPercentGap(close, vwapValue) = (close/vwapValue − 1)×100. → 종가가 특정 밴드선에 머물면 그 밴드 라벨과 같은 %가 나온다.
+//    ▸ 세트 선택 근거(CEO 보고): 밴드 %라벨은 20봉(vwap상태)이 아니라 **화면 50봉 세트(vwapValue)**를 쓴다. CEO가 지목한 "화면 밴드 선 끝 라벨"과 일치시키려 그 50봉 세트로 구현.
+//    ▸ 부호·자리수: formatPercentGap과 동일(소수 2자리, 양수 앞 "+"). 상태 텍스트(vwBandStateShort, 20봉 6상태)는 그대로 — 괄호 안 %만 교체.
+//    ▸ 가드: formatPercentGap 내부에 na(bandValue/baseValue)·baseValue==0 가드 내장. 추가로 화면 VWAP 유효성(shouldPlot·not na(vwapValue)) 없으면 미표기(빈 문자열).
+vwBandCloseGap = shouldPlot and not na(vwapValue) ? formatPercentGap(close, vwapValue) : ""
+vwBandPctStr = vwBandCloseGap == "" ? "" : " (" + vwBandCloseGap + ")"
+vwBandPosText = vwBandStateShort + vwBandPctStr
 
 // ── 추세 셀 색 공통 상수(원본 이식) ──────────────────────────────────────────────────────
 ltUpColor = #0E9C8A     // 상승계열 청록
@@ -1128,7 +1083,7 @@ f_pctStr(float p) =>
 // ── 상태 테이블 렌더링(우측 상단) — 추세 3행 / 가격 구조 및 변동성 / 지지·저항 ────────────────
 //  스타일: 원본과 동일(섹션 헤더 딥 네이비 #1B2A4A·병합, 행 라벨 회색 배경, 값 셀 판정색, 흰 글자, size.small).
 //  vwap상태(20)는 가격 구조 섹션 첫 행이다.
-var table statusTable = table.new(position.top_right, 2, 13, border_width=1, border_color=color.new(color.gray, 50))
+var table statusTable = table.new(position.top_right, 2, 14, border_width=1, border_color=color.new(color.gray, 50))
 if showStatusTable and barstate.islast
     // 섹션1: 추세 확인 (단기/중기/장기)
     table.cell(statusTable, 0, 0, "추세 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
@@ -1144,21 +1099,24 @@ if showStatusTable and barstate.islast
     table.cell(statusTable, 0, 4, "가격 구조 및 변동성 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.cell(statusTable, 1, 4, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.merge_cells(statusTable, 0, 4, 1, 4)
-    table.cell(statusTable, 0, 5, "vwap 상태 (20)", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 5, vwSlopeText + " | " + vwBwStateText + " | " + vwBandStateShort, text_color=color.white, bgcolor=vwBandColor, text_size=size.small)
-    table.cell(statusTable, 0, 6, "비정상 매수/매도", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 6, abnCellText, text_color=color.white, bgcolor=abnCellColor, text_size=size.small)
-    table.cell(statusTable, 0, 7, "이격도 (" + str.tostring(disparityMaLen) + ")", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 7, disparityCellText, text_color=color.white, bgcolor=disparityCellColor, text_size=size.small)
-    table.cell(statusTable, 0, 8, "되돌림 가격", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 8, na(disparityPullbackPrice) ? "-" : f_priceStr(disparityPullbackPrice) + " (" + f_pctStr(disparityPullbackPrice) + ")", text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
+    // vwap 상태(20)를 2행으로 분리: 행1=기울기·밴드폭(1·2번째 값), 행2=밴드 국면·내 위치(3번째 값 + % 위치)
+    table.cell(statusTable, 0, 5, "vwap 기울기", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 5, vwSlopeText + " | " + vwBwStateText, text_color=color.white, bgcolor=vwSlopeColor, text_size=size.small)
+    table.cell(statusTable, 0, 6, "vwap 구간", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 6, vwBandPosText, text_color=color.white, bgcolor=vwBandColor, text_size=size.small)
+    table.cell(statusTable, 0, 7, "비정상 매수/매도", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 7, abnCellText, text_color=color.white, bgcolor=abnCellColor, text_size=size.small)
+    table.cell(statusTable, 0, 8, "이격도 (" + str.tostring(disparityMaLen) + ")", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 8, disparityCellText, text_color=color.white, bgcolor=disparityCellColor, text_size=size.small)
+    table.cell(statusTable, 0, 9, "되돌림 가격", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 9, na(disparityPullbackPrice) ? "-" : f_priceStr(disparityPullbackPrice) + " (" + f_pctStr(disparityPullbackPrice) + ")", text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
     // 섹션3: 지지·저항 확인 (50선 / 100선 / 200선)
-    table.cell(statusTable, 0, 9, "지지·저항 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.cell(statusTable, 1, 9, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.merge_cells(statusTable, 0, 9, 1, 9)
-    table.cell(statusTable, 0, 10, "50선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 10, vwSrText, text_color=color.white, bgcolor=vwSrColor, text_size=size.small)
-    table.cell(statusTable, 0, 11, "100선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 11, ltM1SrText, text_color=color.white, bgcolor=ltM1SrColor, text_size=size.small)
-    table.cell(statusTable, 0, 12, "200선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 12, ltM2SrText, text_color=color.white, bgcolor=ltM2SrColor, text_size=size.small)
+    table.cell(statusTable, 0, 10, "지지·저항 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
+    table.cell(statusTable, 1, 10, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
+    table.merge_cells(statusTable, 0, 10, 1, 10)
+    table.cell(statusTable, 0, 11, "50선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 11, vwSrText, text_color=color.white, bgcolor=vwSrColor, text_size=size.small)
+    table.cell(statusTable, 0, 12, "100선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 12, ltM1SrText, text_color=color.white, bgcolor=ltM1SrColor, text_size=size.small)
+    table.cell(statusTable, 0, 13, "200선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 13, ltM2SrText, text_color=color.white, bgcolor=ltM2SrColor, text_size=size.small)
