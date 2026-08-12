@@ -1,0 +1,137 @@
+//@version=6
+// Williams Fractal (윌리엄스 프랙탈, 표준 5봉)
+//  - 중심봉 + 좌우 각 n봉(기본 n=2 → 총 5봉)으로 확정되는 표준 윌리엄스 프랙탈.
+//  - 확정 신호: 중심봉 기준 우측 n봉이 모두 나온 뒤에만 판정 → 중심봉 기준 n봉 지연.
+//    plotshape offset=-n 으로 중심봉(과거) 위치에 소급 표시. 과거봉 소급은 정상(리페인팅 아님):
+//    한번 확정된 프랙탈은 이후 재계산되지 않고, 미래참조(request.security lookahead 등)도 없다.
+//  ⚠️ 로컬 Pine 컴파일러가 없어 정적 리뷰로 검증했으며, TradingView 최종 컴파일 확인이 필요하다.
+indicator(title="Williams Fractal", shorttitle="Williams Fractal", overlay=true)
+
+// =========================
+// 기본 설정
+// =========================
+// n = 중심봉 좌우 각각의 봉 수. 표준 윌리엄스 프랙탈은 n=2(총 5봉 = 중심봉 + 좌 2 + 우 2).
+n = input.int(2, minval=1, title="좌우 봉 수 n (총 프랙탈 봉수 = 2n+1)", group="기본 설정", tooltip="중심봉 좌우 각각의 비교 봉 수. 기본 2 → 총 5봉(표준 윌리엄스 프랙탈). n=1이면 3봉, n=3이면 7봉.")
+strictMode = input.bool(true, "엄격 모드", group="기본 설정", tooltip="ON: 인접 봉 단조(피라미드/계곡) 요구 — 매도 좌측 단조상승·우측 단조하강, 매수 대칭. OFF: 표준 프랙탈(중심이 좌우보다 높기/낮기만). 기본 ON.")
+
+// =========================
+// 윌리엄스 %R 다이버전스
+// =========================
+// %R는 오버레이 차트에 라인으로 그리지 않고(별창 지표라 오버레이 부적합), 다이버전스 발생 봉에 원 마커만 표시.
+// ta.wpr(len) = 윌리엄스 %R: 100 * (high[len_max] - close) / (high[len_max] - low[len_min]) 계열, 종가(close) 기준, 범위 −100~0.
+// 강세(매수) 다이버전스: 직전 봉이 하단 밴드 아래(wpr[1] < wprLower) 진입 후, 현재 봉에서 종가는 낮아졌는데 %R은 상승(close < close[1] and wpr > wpr[1]). 가격 비교는 종가(close) 기준.
+// 약세(매도) 다이버전스: 직전 봉이 상단 밴드 위(wpr[1] > wprUpper) 진입 후, 현재 봉에서 종가는 높아졌는데 %R은 하락(close > close[1] and wpr < wpr[1]). 가격 비교는 종가(close) 기준.
+// 리페인팅 0: close[1]·wpr[1]·wpr 모두 확정봉/과거참조. 원은 확정된 현재봉에 그림(offset 0). 미래참조·request.security 없음.
+// 주의: ta.wpr(%R) 값과 다이버전스 가격 비교 항 모두 종가(close) 기준으로 일관.
+showWprDiv = input.bool(true,  "%R 다이버전스 원 표시", group="윌리엄스 %R", tooltip="윌리엄스 %R 강세/약세 다이버전스 발생 봉에 원 마커 표시 여부. 기본 ON. %R 라인 자체는 오버레이라 그리지 않음.")
+wprLen     = input.int(14, "윌리엄스 %R 길이", group="윌리엄스 %R", minval=1, tooltip="윌리엄스 %R(ta.wpr) 계산 기간. 표준 14. 종가 기준, 범위 −100~0.")
+wprLower   = input.int(-80, "%R 하단 밴드", group="윌리엄스 %R", tooltip="강세 다이버전스 진입 임계. 직전 봉 %R가 이 값 아래이면 과매도 진입으로 본다. 표준 −80.")
+wprUpper   = input.int(-20, "%R 상단 밴드", group="윌리엄스 %R", tooltip="약세 다이버전스 진입 임계. 직전 봉 %R가 이 값 위이면 과매수 진입으로 본다. 표준 −20.")
+
+// =========================
+// 표시 토글
+// =========================
+showSignals    = input.bool(true, title="확정 프랙탈 신호 표시", group="표시", tooltip="확정된 상방(매도)/하방(매수) 프랙탈 신호 마커 표시 여부. 기본 ON.")
+
+// =========================
+// 색상 (상단 집약 선언)
+// =========================
+buyColor  = input.color(#2962FF, title="매수(하방 프랙탈) 색", group="색상")
+sellColor = input.color(color.red,   title="매도(상방 프랙탈) 색", group="색상")
+wprBullColor = input.color(#66BB6A, title="%R 강세 다이버전스 원 색(매수)", group="색상", tooltip="윌리엄스 %R 강세 다이버전스 원 마커 색. 밝은 녹(#66BB6A). 매수 삼각형(파랑 #2962FF)과 매수 원(녹)이 색으로 구분되며, 위치(매수=belowbar/매도=abovebar)로도 구분된다. 위치·크기·조건 불변, 색만 변경.")
+wprBearColor = input.color(#FFEB3B, title="%R 약세 다이버전스 원 색(매도)", group="색상", tooltip="윌리엄스 %R 약세 다이버전스 원 마커 색. 프랙탈 삼각형과 구분되도록 노랑. 위치·크기·조건 불변, 색만 분리.")
+
+// =========================
+// 확정 프랙탈 판정 (중심봉 = 현재봉 기준 n봉 전)
+// =========================
+// 중심봉은 offset -n(= 현재봉에서 n봉 전). 확정에는 중심봉 + 우측 n봉 필요.
+// 현재봉(우측 n번째 봉)이 나온 시점에 중심봉 low[n]/high[n]을 좌우 각 n봉과 비교한다.
+//
+// 하방(저점) 프랙탈 = 중심봉 저가가 좌우 각 n봉 저가보다 모두 낮음 → 매수 신호.
+// 상방(고점) 프랙탈 = 중심봉 고가가 좌우 각 n봉 고가보다 모두 높음 → 매도 신호.
+//
+// 좌측 비교: low[n]  < low[n+i]  (i = 1..n)
+// 우측 비교: low[n]  < low[n-i]  (i = 1..n) → low[n-1]..low[0]
+//
+// 엄격 모드(strictMode ON): 표준식을 '인접 봉 단조'로 강화(계단식 산/계곡).
+//   상방 좌측 단조상승: high[len+i] < high[len+i-1] (i=1..n) → high[len+n]<…<high[len+1]<high[len]
+//   상방 우측 단조하강: high[len-i] < high[len-i+1] (i=1..n) → high[len]>high[len-1]>…>high[len-n]
+//   ⇒ n=2: high[len+2]<high[len+1]<high[len]>high[len-1]>high[len-2] (CEO 예시와 정합)
+//   하방은 low에 부등호 반전(계곡 모양).
+//   인덱스 규칙: 중심=[len], 좌측(과거)=[len+i], 우측(최근)=[len-i]. 모두 과거참조 → 리페인팅 0.
+isDownFractal(len) =>          // 하방(저점) 프랙탈: 중심봉 low[len]이 최저(엄격 시 계곡)
+    center = low[len]
+    bool ok = true
+    for i = 1 to len
+        if strictMode
+            // 좌측 단조하강(중심 향해): low[len+i] > low[len+i-1]  /  우측 단조상승: low[len-i] > low[len-i+1]
+            if not (low[len + i] > low[len + i - 1] and low[len - i] > low[len - i + 1])
+                ok := false
+        else
+            if not (center < low[len + i] and center < low[len - i])
+                ok := false
+    ok
+
+isUpFractal(len) =>            // 상방(고점) 프랙탈: 중심봉 high[len]이 최고(엄격 시 피라미드)
+    center = high[len]
+    bool ok = true
+    for i = 1 to len
+        if strictMode
+            // 좌측 단조상승(중심 향해): high[len+i] < high[len+i-1]  /  우측 단조하강: high[len-i] < high[len-i+1]
+            if not (high[len + i] < high[len + i - 1] and high[len - i] < high[len - i + 1])
+                ok := false
+        else
+            if not (center > high[len + i] and center > high[len - i])
+                ok := false
+    ok
+
+downFractalRaw = isDownFractal(n)   // 확정 매수(하방) 프랙탈 원신호 (현재봉 = 우측 n번째)
+upFractalRaw   = isUpFractal(n)     // 확정 매도(상방) 프랙탈 원신호
+
+// --- 동시 확정 시 봉색으로 1개만 남기기 ---
+// 같은 중심봉이 국소 고점이자 저점이라 상방(매도)·하방(매수) 프랙탈이 동시 확정될 수 있다(드문 경우).
+// 이때 중심봉 색으로 1개만 표시한다. 판정 기준 = 중심봉(offset -n 정합) → close[n] vs open[n].
+//   양봉(close[n] > open[n]) → 매수(하방)만 표시(매도 억제)
+//   음봉(close[n] < open[n]) → 매도(상방)만 표시(매수 억제)
+//   도지(close[n] == open[n]) → 방향 근거 없음 → 둘 다 억제(중립·자본 보존). 동시 확정일 때만 발동.
+bothConfirmed  = downFractalRaw and upFractalRaw
+centerBull     = close[n] > open[n]
+centerBear     = close[n] < open[n]
+downFractalConfirmed = downFractalRaw and (not bothConfirmed or centerBull)   // 동시 확정+양봉일 때만 매수 유지
+upFractalConfirmed   = upFractalRaw   and (not bothConfirmed or centerBear)   // 동시 확정+음봉일 때만 매도 유지
+
+// =========================
+// 윌리엄스 %R 다이버전스 판정
+// =========================
+// wpr: 확정봉 close 기준(ta.wpr, 종가 기반 불변). 직전 봉(밴드 밖 진입 상태) + 현재 봉 다이버전스 조건 → 현재봉에 원.
+// 가격 비교 항: 강세=종가(close<close[1]), 약세=종가(close>close[1]). %R 계산도 종가 그대로 → 일관.
+// 표준 [1] 참조 방식 채택: "직전 봉이 밴드 밖 진입"을 wpr[1]로 직접 확인하면 진입 래치가 필요 없다.
+//   (밴드 진입을 여러 봉 전으로 확장하려면 래치가 필요하나, CEO 지시 "직전 봉 wpr[1]" = 즉시 반등 다이버전스 → [1] 참조로 충분·정확.)
+wpr = ta.wpr(wprLen)
+bullWprDiv = wpr[1] < wprLower and (close < close[1] and wpr > wpr[1])   // 강세(매수): 과매도 진입 후 종가↓·%R↑
+bearWprDiv = wpr[1] > wprUpper and (close > close[1] and wpr < wpr[1])   // 약세(매도): 과매수 진입 후 종가↑·%R↓
+
+// =========================
+// 마커 그리기
+// =========================
+
+// --- 윌리엄스 %R 다이버전스 원 — 확정된 현재봉(offset 0)에 그림. location.belowbar(매수)/abovebar(매도)로 배치 ---
+// 화면 고정 거리: TradingView는 같은 location(belowbar/abovebar)의 plotshape들을 화면상 일정 픽셀 간격으로
+//   자동 세로 스택(겹침 방지)한다. 따라서 차트 확대/축소해도 삼각형-원 간의 화면상 거리가 일정하게 유지된다.
+//   (기존 location.absolute + ATR margin은 가격 단위 offset이라 확대/축소 시 화면 거리가 변했음 → 제거.)
+// 레이어(z-order): 같은 location에서 plotshape는 '먼저 호출=아래 레이어(뒤), 나중 호출=위 레이어(앞)'로 그려진다.
+//   원 plotshape 2개를 삼각형 plotshape보다 모두 '먼저' 호출하므로, 원=아래 레이어(뒤)·삼각형=위 레이어(앞)가 되어
+//   원과 삼각형이 겹칠 때 삼각형이 원을 덮어 앞에 보인다(CEO 지시: 원이 삼각형 아래 레이어).
+// 스택 위치 부수효과: 같은 location에서 먼저 호출한 plotshape가 '봉에 더 가깝게' 쌓인다.
+//   따라서 순서를 원 먼저로 바꾼 뒤에는 원이 삼각형보다 봉에 더 가까워진다(원=안쪽, 삼각형=바깥쪽).
+//   레이어(원=뒤)를 우선한 결과이며, 스택 위치는 이전(원=바깥)과 반대가 된다.
+// 방향 정합: 강세(매수) 원=belowbar(삼각형 아래), 약세(매도) 원=abovebar(삼각형 위). 색·조건·토글·location 불변, 호출 순서 불변(원 먼저).
+// 크기: 원은 tiny 단일(비겹침/겹침 구분 없이 모든 다이버전스 봉에 tiny 원 1개).
+plotshape(showWprDiv and bullWprDiv, title="%R 강세 다이버전스(매수)", style=shape.circle, location=location.belowbar, color=color.new(wprBullColor, 0), size=size.tiny, offset=0)
+plotshape(showWprDiv and bearWprDiv, title="%R 약세 다이버전스(매도)", style=shape.circle, location=location.abovebar, color=color.new(wprBearColor, 0), size=size.tiny, offset=0)
+
+// --- 프랙탈 매수/매도 신호(불투명), offset=-n 으로 중심봉에 소급 ---
+// 이 신호는 후행성(2봉 지연 확정)이다: 중심봉 + 우측 n봉이 모두 나온 뒤에만 확정되어 중심봉에 소급 표시된다.
+// 원 plotshape보다 '나중' 호출 → 삼각형=위 레이어(앞). 겹칠 때 삼각형이 원 위에 그려진다.
+plotshape(showSignals and downFractalConfirmed ? low[n]  : na, title="프랙탈 매수 신호", style=shape.triangleup,   location=location.belowbar, color=color.new(buyColor,  0), size=size.tiny, offset=-n)
+plotshape(showSignals and upFractalConfirmed   ? high[n] : na, title="프랙탈 매도 신호", style=shape.triangledown, location=location.abovebar, color=color.new(sellColor, 0), size=size.tiny, offset=-n)
