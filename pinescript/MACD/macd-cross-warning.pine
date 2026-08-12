@@ -1,0 +1,188 @@
+//@version=6
+indicator(title="MACD-Cross-Warning", shorttitle="MACD-Cross-Warning")
+
+// ============================================================================
+// MACD Cross Warning + Triple-Stoch-style Background
+// - 베이스: CM MACD MTF V2.1 (fastEMA12 - slowEMA26, signal EMA9, hist = macd - signal)
+//   → Pine v5 사양을 v6로 이관. MACD/Signal 라인·히스토그램·크로스 dots·트렌드 색·알림 유지.
+// - 신규: 골든/데드 크로스 "조기 경보"(수렴 감지 + ATR 정규화 근접) → 확정봉 기준.
+// - 배경: TRIPLE-STOCH 웨이브 배경과 동일 팔레트(#2E7D32 / #C62828, 투명도 80, editable).
+// 주의: 조기 경보는 "관찰 준비" 신호이며 진입 트리거가 아니다(오탐/위플로 한계 있음).
+//       파라미터·유효성은 백테스트 전 미검증 가설 — 알고리즘 수학자 검증 필요.
+// ============================================================================
+
+// --- 헬퍼: N봉 연속 상승/하락 판정(과거참조라 리페인팅 안전) ---
+// 확정봉 시리즈를 넘겨 받는다는 전제. src[0]가 가장 최근 참조값.
+is_rising(src, bars) =>
+    rising = true
+    for i = 0 to bars - 1
+        rising := rising and (src[i] > src[i + 1])
+    rising
+
+is_falling(src, bars) =>
+    falling = true
+    for i = 0 to bars - 1
+        falling := falling and (src[i] < src[i + 1])
+    falling
+
+// ============================================================================
+// 입력 — 기본 MACD (CM V2.1 표준값)
+// ============================================================================
+res           = input.timeframe("",  "Indicator TimeFrame", group="기본 설정", tooltip="상위 TF 지정 시 미확정봉에서 값이 변할 수 있음(리페인팅) — 교차검증은 확정봉 기준으로만 신뢰. lookahead_off 적용됨.")
+src           = input.source(close, "Source", group="기본 설정")
+fast_length   = input.int(12, "Fast Length", minval=1, group="기본 설정")
+slow_length   = input.int(26, "Slow Length", minval=1, group="기본 설정")
+signal_length = input.int(9, "Signal Smoothing", minval=1, maxval=999, group="기본 설정")
+sma_source    = input.string("EMA", "Oscillator MA Type", options=["SMA", "EMA"], group="기본 설정")
+sma_signal    = input.string("EMA", "Signal Line MA Type", options=["SMA", "EMA"], group="기본 설정")
+
+// ============================================================================
+// 입력 — 표시 (CM V2.1 표시 옵션 유지)
+// ============================================================================
+show_macd     = input.bool(true, "Show MACD Lines", group="Show Plots?", inline="SP10")
+show_macd_LW  = input.int(2, "MACD Width", minval=0, maxval=5, group="Show Plots?", inline="SP11")
+show_signal_LW= input.int(1, "Signal Width", minval=0, maxval=5, group="Show Plots?", inline="SP11")
+show_Hist     = input.bool(true, "Show Histogram", group="Show Plots?", inline="SP20")
+show_hist_LW  = input.int(5, "-- Width", minval=0, maxval=5, group="Show Plots?", inline="SP20")
+hist_scale    = input.float(3.0, "Histogram Scale", minval=0.1, step=0.1, group="Show Plots?")
+show_trend    = input.bool(true, "Show MACD Lines w/ Trend Color", group="Show Plots?", inline="SP30")
+show_HB       = input.bool(false, "Show Highlight Price Bars", group="Show Plots?", inline="SP40")
+show_dots     = input.bool(true, "Show Circle on Cross", group="Show Plots?", inline="SP60")
+show_dots_LW  = input.int(3, "-- Width", minval=0, maxval=5, group="Show Plots?", inline="SP60")
+
+// ============================================================================
+// 입력 — 색상 (CM V2.1 팔레트 유지)
+// ============================================================================
+col_macd      = input.color(#FF6D00, "MACD Line  ", group="Color Settings", inline="CS1")
+col_signal    = input.color(#2962FF, "Signal Line  ", group="Color Settings", inline="CS1")
+col_trnd_Up   = input.color(#4BAF4F, "Trend Up      ", group="Color Settings", inline="CS2")
+col_trnd_Dn   = input.color(#B71D1C, "Trend Down    ", group="Color Settings", inline="CS2")
+col_grow_above = input.color(color.white, "Above   Grow", group="Histogram Colors", inline="Hist10")
+col_fall_above = input.color(#B8B8B8, "Fall", group="Histogram Colors", inline="Hist10")
+col_grow_below = input.color(color.white, "Below Grow", group="Histogram Colors", inline="Hist20")
+col_fall_below = input.color(#B8B8B8, "Fall", group="Histogram Colors", inline="Hist20")
+
+// ============================================================================
+// 입력 — 크로스 조기 경보 (신규, 수학자 설계)
+// ============================================================================
+show_warn_bg  = input.bool(true, "조기 경보 배경 표시", group="크로스 조기 경보", tooltip="골든/데드 크로스 주의 구간을 배경색으로 표시. 확정봉 기준으로 뜨므로 한 봉 지연 감수(리페인팅 방지).")
+warn_N        = input.int(3, "조기경보 수렴 봉수", minval=2, maxval=20, group="크로스 조기 경보", tooltip="히스토그램이 0으로 몇 봉 연속 수렴해야 경보로 볼지. 값이 클수록 경보가 드물고 늦음.")
+warn_k        = input.float(0.15, "조기경보 근접 ATR 배수", minval=0.01, step=0.05, group="크로스 조기 경보", tooltip="|hist| < warn_k * ATR 일 때만 '크로스 임박'으로 간주. ATR로 정규화하여 심볼/TF 이식성 확보.")
+warn_atrLen   = input.int(14, "조기경보 ATR 길이", minval=1, group="크로스 조기 경보")
+warn_accel    = input.bool(false, "가속도 조건", group="크로스 조기 경보", tooltip="ON이면 히스토그램 2차 차분(수렴 가속) 조건을 추가로 요구 → 경보가 더 엄격해짐.")
+warn_bg_transp= input.int(60, "경보 배경 투명도", minval=0, maxval=100, group="크로스 조기 경보", tooltip="0=불투명, 100=완전투명. 기본 60.")
+warn_persist_on = input.bool(true, "상태 지속 필터", group="크로스 조기 경보", tooltip="ON: 반대 상태가 M봉 이상 지속된 뒤 반전 임박 시에만 경보(갓 전환 직후 노이즈 컷). OFF: 현재 상태만 확인.")
+warn_persist_M  = input.int(6, "상태 지속 최소 봉수 M", minval=2, maxval=100, group="크로스 조기 경보", tooltip="반대 상태(hist 부호)가 최소 몇 봉 유지돼야 경보 허용. warn_N보다 커야 의미. 기본 6.")
+
+// ============================================================================
+// 입력 — 알림 (CM V2.1 알림 유지 + 조기 경보 알림)
+// ============================================================================
+alert_Long    = input.bool(true, "MACD Cross Up", group="Alerts", inline="Alert10")
+alert_Short   = input.bool(true, "MACD Cross Dn", group="Alerts", inline="Alert10")
+alert_Long_A  = input.bool(false, "MACD Cross Up & > 0", group="Alerts", inline="Alert20")
+alert_Short_B = input.bool(false, "MACD Cross Dn & < 0", group="Alerts", inline="Alert20")
+
+// ============================================================================
+// 계산 (MTF, lookahead_off) — CM V2.1 산식
+// ============================================================================
+indicator_tf = res == "" ? timeframe.period : res
+
+fast_ma = request.security(syminfo.tickerid, indicator_tf, sma_source == "SMA" ? ta.sma(src, fast_length) : ta.ema(src, fast_length), lookahead=barmerge.lookahead_off)
+slow_ma = request.security(syminfo.tickerid, indicator_tf, sma_source == "SMA" ? ta.sma(src, slow_length) : ta.ema(src, slow_length), lookahead=barmerge.lookahead_off)
+macd = fast_ma - slow_ma
+signal = request.security(syminfo.tickerid, indicator_tf, sma_signal == "SMA" ? ta.sma(macd, signal_length) : ta.ema(macd, signal_length), lookahead=barmerge.lookahead_off)
+hist = macd - signal
+// ATR도 지표 TF 기준으로 정규화(심볼/TF 이식성). MTF 미지정 시 현재 TF ATR.
+warn_atr = request.security(syminfo.tickerid, indicator_tf, ta.atr(warn_atrLen), lookahead=barmerge.lookahead_off)
+
+// --- 트렌드 / 크로스 조건 (CM V2.1) ---
+trend_up   = macd > signal
+trend_dn   = macd < signal
+cross_UP   = signal[1] >= macd[1] and signal < macd
+cross_DN   = signal[1] <= macd[1] and signal > macd
+cross_UP_A = cross_UP and macd > 0
+cross_DN_B = cross_DN and macd < 0
+
+// ============================================================================
+// 크로스 조기 경보 (확정봉 기준 — 미마감봉 점멸/리페인팅 방지)
+// ============================================================================
+// 판정을 직전 확정봉([1])으로 읽어 상위 TF 미마감봉에서 경보가 점멸하지 않게 한다.
+// (배경/경보가 한 봉 지연되지만, 확정봉 기준 신뢰가 우선.)
+//
+// 골든 크로스 주의: 히스토그램이 아직 0 아래(hist<0)지만 N봉 연속 상승(0으로 수렴)하고,
+//                   0 근접(|hist| < warn_k*ATR). 가속도 조건 ON이면 2차 차분>0 추가.
+// 데드 크로스 주의: 대칭(hist>0, N봉 연속 하락, 0 근접, 2차 차분<0).
+//
+// 2차 차분(수렴 가속): d1 = hist - hist[1], d2 = d1 - d1[1] = hist - 2*hist[1] + hist[2].
+c_hist   = hist[1]
+c_atr    = warn_atr[1]
+// N봉 연속 상승/하락 판정은 확정봉 시리즈(hist[1] 기준으로 한 봉 밀어서 참조).
+warn_rising  = is_rising(hist[1], warn_N)
+warn_falling = is_falling(hist[1], warn_N)
+// 확정봉 기준 2차 차분: (hist[1]-hist[2]) - (hist[2]-hist[3]) = hist[1] - 2*hist[2] + hist[3].
+d2_conf = hist[1] - 2.0 * hist[2] + hist[3]
+
+near_zero    = not na(c_atr) and math.abs(c_hist) < warn_k * c_atr
+// 상태 지속 필터: 반대 상태(hist 부호)가 M봉 이상 유지된 뒤의 반전 임박만 경보(갓 전환 노이즈 컷).
+// barssince(과거참조)·확정봉 hist[1] 기준 → 리페인팅 안전. 토글 OFF면 not warn_persist_on=true로 기존 동작 복원.
+// 경계 등호는 golden_warn/dead_warn의 엄격 부등호(c_hist<0 / >0)와 대칭: >=0(비데드)의 여집합=데드 순수 유지.
+persist_g = not warn_persist_on or ta.barssince(hist[1] >= 0) >= warn_persist_M   // 데드 상태 M봉 지속
+persist_d = not warn_persist_on or ta.barssince(hist[1] <= 0) >= warn_persist_M   // 골든 상태 M봉 지속
+golden_warn  = c_hist < 0 and warn_rising  and near_zero and (not warn_accel or d2_conf > 0) and persist_g
+dead_warn    = c_hist > 0 and warn_falling and near_zero and (not warn_accel or d2_conf < 0) and persist_d
+
+// ============================================================================
+// 시각 — 히스토그램 색 (CM V2.1: var로 평탄구간 색 유지, 시각 전용)
+// ============================================================================
+var bool histA_IsUp = false
+var bool histA_IsDown = false
+var bool histB_IsDown = false
+var bool histB_IsUp = false
+histA_IsUp   := hist == hist[1] ? histA_IsUp[1]   : hist > hist[1] and hist > 0
+histA_IsDown := hist == hist[1] ? histA_IsDown[1] : hist < hist[1] and hist > 0
+histB_IsDown := hist == hist[1] ? histB_IsDown[1] : hist < hist[1] and hist <= 0
+histB_IsUp   := hist == hist[1] ? histB_IsUp[1]   : hist > hist[1] and hist <= 0
+
+hist_col = histA_IsUp ? col_grow_above : histA_IsDown ? col_fall_above : histB_IsDown ? col_grow_below : histB_IsUp ? col_fall_below : color.silver
+display_hist = hist * hist_scale
+
+// MACD 선 트렌드 색 (Show Trend ON일 때만 트렌드색, OFF면 기본 오렌지)
+trend_col = show_trend and trend_up ? col_trnd_Up : show_trend and trend_dn ? col_trnd_Dn : col_macd
+
+// ============================================================================
+// 배경 — TRIPLE-STOCH 웨이브 배경과 동일 방식
+// 골든 주의(hist<0)/데드 주의(hist>0) 위치 조건 상호배타 → 두 배경 동시 점등 불가.
+// 확정봉 기준(golden_warn/dead_warn이 [1] 값으로 판정됨) → 한 봉 지연.
+// ============================================================================
+bgcolor(show_warn_bg and golden_warn ? color.new(#2E7D32, warn_bg_transp) : na, title="Golden Cross Warning", editable=true)
+bgcolor(show_warn_bg and dead_warn   ? color.new(#C62828, warn_bg_transp) : na, title="Dead Cross Warning",   editable=true)
+
+// ============================================================================
+// 시각 — 바 색 / 라인 / 히스토그램 / 크로스 dots (CM V2.1)
+// ============================================================================
+barcolor(show_HB and trend_up ? col_trnd_Up : na, title="Trend Up", editable=false)
+barcolor(show_HB and trend_dn ? col_trnd_Dn : na, title="Trend Dn", editable=false)
+
+plot(show_Hist ? display_hist : na, title="Histogram", style=plot.style_columns, color=color.new(hist_col, 0), linewidth=show_hist_LW, display=display.all - display.price_scale)
+plot(show_macd ? signal : na, title="Signal", color=color.new(col_signal, 0), style=plot.style_line, linewidth=show_signal_LW)
+plot(show_macd ? macd : na, title="MACD", color=color.new(trend_col, 0), style=plot.style_line, linewidth=show_macd_LW)
+plot(0, title="0 Line", color=color.new(color.gray, 0), style=plot.style_line, linewidth=1, editable=false, display=display.all - display.price_scale)
+plot(show_dots and cross_UP ? macd : na, title="Dots Up", color=color.new(col_trnd_Up, 0), style=plot.style_circles, linewidth=show_dots_LW, editable=false, display=display.all - display.price_scale)
+plot(show_dots and cross_DN ? macd : na, title="Dots Down", color=color.new(col_trnd_Dn, 0), style=plot.style_circles, linewidth=show_dots_LW, editable=false, display=display.all - display.price_scale)
+
+// ============================================================================
+// 알림 — CM V2.1 4종 (확정봉 종가 기준) + 조기 경보 2종
+// ============================================================================
+if alert_Long and cross_UP
+    alert("Symbol = (" + syminfo.tickerid + ") TimeFrame = (" + indicator_tf + ") Current Price (" + str.tostring(close) + ") MACD Crosses Up.", alert.freq_once_per_bar_close)
+if alert_Short and cross_DN
+    alert("Symbol = (" + syminfo.tickerid + ") TimeFrame = (" + indicator_tf + ") Current Price (" + str.tostring(close) + ") MACD Crosses Down.", alert.freq_once_per_bar_close)
+if alert_Long_A and cross_UP_A
+    alert("Symbol = (" + syminfo.tickerid + ") TimeFrame = (" + indicator_tf + ") Current Price (" + str.tostring(close) + ") MACD > 0 And Crosses Up.", alert.freq_once_per_bar_close)
+if alert_Short_B and cross_DN_B
+    alert("Symbol = (" + syminfo.tickerid + ") TimeFrame = (" + indicator_tf + ") Current Price (" + str.tostring(close) + ") MACD < 0 And Crosses Down.", alert.freq_once_per_bar_close)
+
+alertcondition(golden_warn, title="Golden Cross Warning", message="MACD 히스토그램이 0 아래에서 상승 수렴 — 골든 크로스 주의(관찰 준비, 진입 트리거 아님).")
+alertcondition(dead_warn, title="Dead Cross Warning", message="MACD 히스토그램이 0 위에서 하락 수렴 — 데드 크로스 주의(관찰 준비, 진입 트리거 아님).")
+
+//End Code
