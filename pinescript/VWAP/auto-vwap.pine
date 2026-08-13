@@ -125,14 +125,10 @@ ribbonBgTransp = input.int(80, title="배경 투명도", minval=0, maxval=100, g
 showTransitionLines = input.bool(false, title="상승/하락 전환 수평선 표시", group=RIBBON_GROUP, tooltip="켜면 배경 전환 임계가격(다음 봉 종가가 여기 오면 정/역배열로 갈리는 값)을 차트에 수평선 + 우측 프라이스 스케일 라벨로 그립니다. 상태별 표시는 상태 테이블의 상승/하락 전환 2행과 동일하게 매핑됩니다: 중립이면 상승(녹·xUp)·하락(빨강·xDn) 둘 다, 정배열(녹)이면 하락 전환 선만(=xUp, 녹 이탈 하방), 역배열(빨강)이면 상승 전환 선만(=xDn, 빨강 이탈 상방)을 그립니다. 상태 게이트는 baseState(억제·플립 이전 순수 기울기 순서) 기준입니다. ⚠️ 임계가격이 확정봉[2] base값 기준이라 라이브 봉 내내 고정되고 봉 마감(확정) 시에만 갱신됩니다 — 선·가격축 라벨이 실시간 봉에서 깜빡이지 않습니다(1봉 지연, 표시 전용).")
 transUpLineColor = input.color(color.rgb(0, 255, 0), title="상승 전환 수평선 색(순수 녹)", group=RIBBON_GROUP, active=showTransitionLines, tooltip="상승 전환 임계 수평선 색. 순수 녹(rgb(0,255,0)). 직전 밴드2 정배열 선색에서 이관한 값입니다.")
 transDnLineColor = input.color(color.rgb(255, 0, 0), title="하락 전환 수평선 색(순수 빨강)", group=RIBBON_GROUP, active=showTransitionLines, tooltip="하락 전환 임계 수평선 색. 순수 빨강(rgb(255,0,0)). 직전 밴드2 역배열 선색에서 이관한 값입니다.")
-// ── 추세 확인 테이블 EMA/DEMA/TEMA 기울기 셀 "과매수/과매도 기울기" 승격 색(알고리즘 수학자 사양) ──
-//  기울기 3행 셀 배경은 세 각도 평균(고+저+종)/3으로 방향색(청록/자홍)/회색을 칠한다(f_angle3Color). 그 위에 최상위 우선순위로 "과열" 승격 분기를 얹는다.
-//  |평균각| >= angleOverheatDeg(기본 45°)이면 방향색 대신 과열색: 평균>0(가파른 상승=과매수)→어두운 파랑 / 평균<0(가파른 하락=과매도)→어두운 주황.
-//  ⚠️ 이건 "기울기가 가파르다"는 과열 알림일 뿐 반전 신호가 아니다(미검증 가설, 백테스트·신호화 미구현). angleDeadbandDeg(±5°)와 별개 임계다.
-//  ⚠️ 비정상 매수/매도 배경(abnBuyBgColor 밝은 주황·abnSellBgColor 밝은 파랑)과 의미가 반대로 겹치므로(과매수=파랑 vs 비정상매도=파랑 등) 명도로 확연히 구분되는 어두운 톤을 기본값으로 골랐다.
-angleOverheatDeg = input.float(45.0, minval=20.0, maxval=85.0, step=1.0, title="기울기 과열 임계(°)", group=RIBBON_GROUP, tooltip="추세 확인 테이블 EMA/DEMA/TEMA 기울기 셀에서, 세 각도 평균의 절대값이 이 값 이상이면 방향색(청록/자홍) 대신 과열색(과매수=어두운 파랑·과매도=어두운 주황)으로 승격합니다. 데드밴드(±5°, 하드코딩)와 별개이며 항상 데드밴드보다 커야 방향색의 부분집합이 됩니다. 기본 45°(=봉당 기울기가 ATR14와 같은 정도). ⚠️ 기울기가 가파르다는 과열 알림일 뿐 반전 신호가 아닙니다(미검증 가설). 전략성 파라미터(수학자 리뷰 대상).")
-angleOverheatUpColor = input.color(#0D47A1, title="기울기 과매수 색(어두운 파랑)", group=RIBBON_GROUP, tooltip="가파른 상승(평균각>0, |평균각|>=과열 임계) 기울기 셀 배경. 어두운 딥네이비(#0D47A1) 기본. 비정상 매도 배경(밝은 파랑)과 명도로 구분됩니다.")
-angleOverheatDownColor = input.color(#BF360C, title="기울기 과매도 색(어두운 주황)", group=RIBBON_GROUP, tooltip="가파른 하락(평균각<0, |평균각|>=과열 임계) 기울기 셀 배경. 어두운 벽돌색 딥오렌지(#BF360C) 기본. 비정상 매수 배경(밝은 주황 #FF9800)과 명도로 구분됩니다.")
+// ── 추세 확인 테이블 EMA/DEMA/TEMA 기울기 3행 셀 배경색(CEO 지시 — 표시 순서 규칙) ──
+//  셀 배경은 표시 순서(오래된→최신) 세 각도 v1=slope3각·v2=slope2각·v3=slope1각의 서열로 칠한다(f_angle3Color).
+//  v1<v2<v3(정배열, 시간갈수록 기울기↑)→녹(ltUpColor·30) / v1>v2>v3(역배열)→적(ltDownColor·30) / na 또는 그 외→회색(중립).
+//  ⚠️ 기존 평균 기반 색·데드밴드(±5°)·과매수/과매도 과열 승격(딥네이비/딥오렌지)은 CEO 지시로 제거됨(전용 input·const 삭제).
 
 // =========================
 // 윌리엄스 프랙탈 + 각도필터(ratio) + 후보(1봉 조기, 삼각형/역삼각형 마커) + %R 다이버전스
@@ -351,8 +347,11 @@ abnLookback = abnBbLen
 abnCycleLen = math.max(1, int(abnBbLen / 2))
 abnTorque = 2.0 / (abnVibration + 1.0)
 abnPhasingLag = int((abnVibration - 1) / 2.0)
-abnUp = ta.rma(math.max(ta.change(close), 0), abnCycleLen)
-abnDown = ta.rma(-math.min(ta.change(close), 0), abnCycleLen)
+// [성능] ta.change(close) 중복 호출(과거 2회 → 1회) 제거. ta.change는 close[1] 참조 stateful 계산이라 2회 호출 시 각각 재계산됨.
+//  chgClose를 1회 계산해 max/min에 재사용 → 값 완전 동일(math.max(chg,0)·-math.min(chg,0)의 chg가 같은 series). 산식·워밍업·series 정합 불변.
+chgClose = ta.change(close)
+abnUp = ta.rma(math.max(chgClose, 0), abnCycleLen)
+abnDown = ta.rma(-math.min(chgClose, 0), abnCycleLen)
 abnRsiRaw = abnDown == 0 ? 100.0 : abnUp == 0 ? 0.0 : 100.0 - 100.0 / (1.0 + abnUp / abnDown)
 var float abnCrsi = na
 abnCrsi := abnTorque * (2.0 * abnRsiRaw - nz(abnRsiRaw[abnPhasingLag])) + (1.0 - abnTorque) * nz(abnCrsi[1])
@@ -529,7 +528,9 @@ interimState = (baseState == 1 and greenSuppress) or (baseState == -1 and redSup
 //    · 빨강→녹 직접 억제: paintState[1]==-1 and interimState==1 → paintState=0.
 //    · 그 외에는 paintState=interimState. 경계 1봉만 억제 → 다음 봉은 paintState[1]==0이라 자동 정상 페인팅(연속 빨강/녹은 그대로 표시).
 var int paintState = 0
-paintState := (nz(paintState[1], 0) == 1 and interimState == -1) or (nz(paintState[1], 0) == -1 and interimState == 1) ? 0 : interimState
+// [성능] nz(paintState[1], 0) 동일 부분식 2회 → prevPaint 1회로 CSE. paintState[1]은 직전봉 확정값이라 현재봉 평가 중 불변, 값 완전 동일.
+prevPaint = nz(paintState[1], 0)
+paintState := (prevPaint == 1 and interimState == -1) or (prevPaint == -1 and interimState == 1) ? 0 : interimState
 // ④ 래치 전이 — set(트리거) 먼저, 그 뒤 **interimState**(국면 감지값) 기준으로 반대 래치 clear.
 //    ⚠️ 해제는 paintState(페인팅)가 아니라 interimState(국면 감지)로 판정한다(CEO 지시):
 //       플립 억제로 빨강을 안 그려도(paintState==0) 빨강 국면이 감지(interimState==-1)됐으면 상승 반전 후보를 꺼야 하므로.
@@ -759,7 +760,25 @@ fill(upperBand_2, lowerBand_2, title="Bands Fill #2", color=activeFillColor, dis
 //  ⚠️ 밴드2 값 유효(not na)·shouldPlot일 때만. paintState는 3계층 최종값이다: baseState(종가 리본 기울기 순서: 정배열 ema<dema<tema=1, 역배열 ema>dema>tema=−1, 그 외/na=0)
 //   → interimState(반전 후보 래치 bullCand/bearCand 억제 반영) → paintState(직접 플립 억제: 녹→직접빨강/빨강→직접녹 경계 1봉 미페인팅). 실시간 봉에서 변한다(리페인팅, CEO 의도).
 //   래치 전이·플립 억제 참조값(paintState[1])은 확정봉에서 고정되어 과거봉 배경은 불변. 색은 정/역 전용색 + 투명도. 밴드2 선(plot) 색은 불변.
-fill(upperBand_2, lowerBand_2, color = (showRibbonExpBg and shouldPlot and paintState != 0 and not na(upperBandValue2) and not na(lowerBandValue2)) ? (paintState == 1 ? color.new(ribbonBullBgColor, ribbonBgTransp) : color.new(ribbonBearBgColor, ribbonBgTransp)) : na, title="정배열/역배열 배경", display=display.all, editable=true)
+// ─────────────────────────────────────────────────────────────────────────────
+// ▸ 패턴 캔들 무조건 억제(CEO 지시 — 정렬 버그 수정): fill은 **그려지는 봉 = 현재봉[0]** 위치에 렌더된다.
+//   위 3계층 억제(bullTrigger/bearTrigger·greenSuppress/redSuppress)는 slope와 정합을 위해 전부 **확정봉[1]** 입력으로 산출되므로,
+//   그 억제가 반영된 paintState가 만드는 배경은 **[1] 봉의 패턴·기울기**를 담고 있으나 화면에는 **[0] 위치**에 그려진다(1봉 지연·무깜빡임 설계).
+//   → 그 결과 "배경이 실제로 얹히는 캔들([0])"의 자기 패턴은 3계층 억제가 검사하지 않아, [0] 캔들이 아래 패턴을 충족해도 반대 배경이 그 위에 뜰 수 있었다(정렬 어긋남 = 판정봉[1] ≠ 렌더봉[0]).
+//   → 해결: **fill이 그려지는 바로 그 봉[0]의 자기 OHLC·밴드1[0]** 로 패턴을 재검사해, 충족 시 그 위치의 반대 배경을 **최우선·무조건** 비운다(래치·플립·전환 상태와 무관). 판정봉=렌더봉([0])으로 정렬.
+//     · 하단 패턴(빨강 억제) = low[0] < lowerBandValue1[0] AND 아래꼬리 > 몸통  → 이 봉 위치에 빨강(paintState==-1) 배경 금지.
+//     · 상단 패턴(녹 억제)   = high[0] > upperBandValue1[0] AND 윗꼬리 > 몸통    → 이 봉 위치에 녹(paintState==1) 배경 금지. (빨강·녹 동일 대칭.)
+//   ⚠️ 이 무조건 억제는 **[0] 자기 봉 입력**이라 라이브 봉 동안 값이 변할 수 있다(억제=배경 제거 방향뿐이므로 신규 반대색 점멸은 없음). 그려지는 캔들과 판정 캔들이 같아야 한다는 CEO 지시(정합 우선)를 따른 것으로, 3계층의 확정봉 무깜빡임과 별개 계층이다.
+//   ⚠️ paintState 산식·slope·baseState·interimState·전환/기울기/임계값은 전부 불변 — fill 색 게이트에만 무조건 억제를 얹는다(표시 정합만 수정).
+bgBody   = math.abs(close - open)
+bgUpWick = high - math.max(close, open)
+bgDnWick = math.min(close, open) - low
+// 렌더봉[0] 자기 패턴 — 하단 패턴이면 빨강 무조건 억제, 상단 패턴이면 녹 무조건 억제(대칭). 밴드1[0] na(워밍업)면 부등식 false → 억제 미발동(안전).
+bgBearPattern = not na(lowerBandValue1) and low  < lowerBandValue1 and bgDnWick > bgBody   // 하단밴드1 이탈 + 아래꼬리>몸통 → 빨강 억제
+bgBullPattern = not na(upperBandValue1) and high > upperBandValue1 and bgUpWick > bgBody   // 상단밴드1 돌파 + 윗꼬리>몸통 → 녹 억제
+// paintState가 그리려는 색을, 렌더봉[0] 반대 패턴이면 최우선 무조건 억제(0 간주). 빨강(−1)은 하단 패턴에, 녹(+1)은 상단 패턴에 억제.
+bgPaintState = (paintState == -1 and bgBearPattern) or (paintState == 1 and bgBullPattern) ? 0 : paintState
+fill(upperBand_2, lowerBand_2, color = (showRibbonExpBg and shouldPlot and bgPaintState != 0 and not na(upperBandValue2) and not na(lowerBandValue2)) ? (bgPaintState == 1 ? color.new(ribbonBullBgColor, ribbonBgTransp) : color.new(ribbonBearBgColor, ribbonBgTransp)) : na, title="정배열/역배열 배경", display=display.all, editable=true)
 
 // 지수 추세 리본 3선(EMA/DEMA/TEMA) — 각 1px, price scale 라벨 없음(display.all − display.price_scale). 표시 전용 오버레이.
 //  ⚠️ ta.ema 누적(확정 성격)이라 신규 리페인팅 없음. showRibbon OFF면 na로 미표시.
@@ -1012,70 +1031,59 @@ ltDownColor = #C2185B   // 하락계열 자홍
 ltAtrTable = ta.atr(14)
 ltDeadBand = not na(ltAtrTable) ? ltAtrTable * ltFlatTol : 0.0
 
-// ── EMA/DEMA/TEMA 기울기 각도(추세 확인 섹션 상단 3행) — 표시 전용 신규(CEO 확정) ─────────────
-//  ▸ 소스: 각 행(EMA/DEMA/TEMA)을 **고가·저가·종가 소스 각각의 기울기 각도 3값**으로 표시(CEO 지시).
-//    - 종가 리본: 위에서 선언한 화면 종가 리본선(emaLine/demaLine/temaLine = ta.ema/dema/tema(close, ribbonLen)) 그대로 재사용.
-//      종가 slope는 정/역배열 배경 블록에서 선언한 slopeEma/slopeDema/slopeTema를 그대로 공유 → 배경·테이블 종가 각도가 동일 기울기값(CEO 지시).
-//    - 고가 리본(emaHighLine/demaHighLine/temaHighLine = ta.ema/dema/tema(high, ribbonLen)) · 저가 리본(...Low... = ta.ema/dema/tema(low, ribbonLen)):
-//      **표시 전용으로 재도입**(앞서 배경 단순화 때 제거된 고가/저가 리본을 테이블 표시 목적으로만 부활). DEMA=2e1−e2, TEMA=3e1−3e2+e3 표준식을 고가·저가 소스에도 동일 적용.
-//      ⚠️ 이 고가/저가 리본은 **plot 안 함·배경(baseState/interimState/paintState) 판정에도 안 씀** — 오직 테이블 3값 표시 전용(종가 순서 판정 유지).
-//  ▸ 각도 = atan(봉당 기울기 / ATR14). 봉당 기울기 = **확정봉 − 직전 확정봉**([1]−[2] 차분, CEO 지시 = 라이브 봉 깜빡임 제거·확정봉 기준 = 20선 리본의 "확정된 기울기") — 소스·선별로 각각 계산.
-//    분모 angleAtrRef = ltAtrTable[1](위 ta.atr(14)의 확정봉 값. slope가 [1]−[2]라 분모도 확정봉[1]으로 일치. 신규 input 없음. 프랙탈 블록의 글로벌 atrRef와 충돌 회피 위해 angleAtrRef로 명명). 봉당 ±1 ATR = ±45°, 치역 (−90°,+90°), 포화 없음. 세 선·세 소스 동일 분모라 비교 가능.
-//  ▸ 소스는 20길이 리본선(ta.ema/dema/tema(source, ribbonLen), ribbonLen 기본 20). "20선 리본" 기준(고가·저가·종가 각각).
-//  ▸ 값 표시: 각 행을 `고가각 | 저가각 | 종가각` 순서로 표시(예 `+37.4° | +35.1° | +36.2°`). 각 각도는 부호(+/−)+소수1자리+°, na는 "-", 구분자 " | ". (폭 처리 — 아래 f_angle3 주석 참조.)
-//  ▸ 데드밴드 ±5°(하드코딩 const, 신규 input 없음)는 **셀 배경색 판정에만** 적용 — 각도 수치 자체엔 미적용.
-//  ▸ 셀 배경색: **세 각도의 평균 = (고가각 + 저가각 + 종가각)/3** 기준. 평균>+5°→상승색·평균<−5°→하락색·사이/na→회색.
-//    ⚠️ na 처리(택일): 세 각도 중 **하나라도 na면 평균 계산 안 하고 회색**(워밍업/도지 방어, 부분 평균으로 오도하지 않음). 세 값 모두 유효할 때만 평균으로 색칠.
-//  ▸ ⚠️ 확정봉 기준(CEO 지시): [1]−[2](확정봉 차분) 사용으로 **3값·셀색이 라이브 봉[0] 동안 변하지 않고 봉 마감(확정) 시에만 갱신된다(깜빡임 제거·1봉 지연, 배경·전환과 동일 기준봉)**. 과거봉은 확정 후 고정. 워밍업 [2] na면 각도 na → "-".
-angleDeadbandDeg = 5.0
-// ⚠️ 확정봉 기준(CEO 지시): 기울기 각도(고/저/종 3소스)를 전부 확정봉[1]−[2]로 시프트하므로 정규화 ATR 분모도 확정봉 값(ta.atr(14)[1])으로 일치시킨다.
-//    slope가 [1]−[2] 차분이므로 분모도 그 확정봉 시점 ATR을 써야 각도가 라이브 봉 내내 불변(깜빡임 제거)·기준봉 정합.
+// ── EMA/DEMA/TEMA 기울기 각도(추세 확인 섹션 상단 3행) — 표시 전용(CEO 재설계: 시간축 종가 3-슬로프) ─────────────
+//  ▸ 소스: 각 행(EMA/DEMA/TEMA)을 **종가 기준 리본선의 "시간축 3-슬로프" 각도 3값**으로 표시(CEO 지시).
+//    - 종가 리본(emaLine/demaLine/temaLine = ta.ema/dema/tema(close, ribbonLen)) 그대로 재사용 — 화면에 그려지는 그 3선.
+//    - ⚠️ 이전의 "고가·저가·종가 3소스" 표시는 폐기. 고가/저가 리본(emaHighLine/…/emaLowLine/…)·그 각도 변수는 이 표시 전용이었으므로 함께 제거(dangling 방지). 배경(baseState/interimState/paintState)은 종가 순서 판정 그대로 불변.
+//  ▸ 3-슬로프(시간축, 한 선 안에서 3구간 기울기): 종가 리본선을 시간축으로 3구간 차분한다.
+//    - slope1 = line - line[1]   (= line[0] - line[1], **현재봉[0] 포함 → 라이브 봉에서 갱신·리페인팅**)
+//    - slope2 = line[1] - line[2]
+//    - slope3 = line[2] - line[3]
+//  ▸ 각도 = todegrees(atan(slope_i / atrRef)). atrRef = 기존 각도 정규화 ATR(ta.atr(14))을 세 슬로프에 **동일 분모**로 재사용.
+//    분모 angleAtrRef = ltAtrTable[1](위 ta.atr(14)의 확정봉 값. 신규 input 없음. 프랙탈 블록의 글로벌 atrRef와 충돌 회피 위해 angleAtrRef로 명명). 봉당 ±1 ATR = ±45°, 치역 (−90°,+90°), 포화 없음. 세 선·세 슬로프 동일 분모라 비교 가능.
+//  ▸ 소스는 20길이 리본선(ta.ema/dema/tema(close, ribbonLen), ribbonLen 기본 20). "20선 리본" 기준.
+//  ▸ 값 표시(CEO 지시 — 오래된→최신 역순): 각 행을 `slope3각 | slope2각 | slope1각` 순서로 표시(예 `+5.1° | −12.8° | +37.4°`). 각 각도는 부호(+/−)+소수1자리+°, na는 "-", 구분자 " | ". 값·각도 산식 불변, 순서만 역순.
+//  ▸ 셀 배경색(CEO 지시 — 표시 순서 규칙, 평균·데드밴드·과열 승격 제거): 표시 순서 세 값 v1=slope3각(오래됨)·v2=slope2각·v3=slope1각(최신).
+//    ① 하나라도 na → 회색(중립). ② v1<v2<v3(정배열, 시간갈수록 기울기↑) → 녹색(ltUpColor·30). ③ v1>v2>v3(역배열) → 적색(ltDownColor·30). ④ 그 외 → 회색(중립).
+//    ⚠️ 순서 비교는 각도값(atan 단조)이라 slope 원값 비교와 동치. na 가드 유지(워밍업 line[3] 등/도지 방어).
+//  ▸ ⚠️ 리페인팅(CEO 명시 정의): slope1이 현재봉[0]을 포함하므로(맨 마지막 열) **1열 값·셀색이 라이브 봉[0] 동안 변한다(갱신·리페인팅)** — 봉 마감 시 확정. slope2/slope3은 확정봉 차분이라 라이브 봉 내내 불변. 최종 동작은 TradingView 컴파일·차트 확인 필요. 워밍업 line[3] na면 slope3 각도 na → 셀 회색·해당 값 "-".
+// 정규화 ATR 분모(ta.atr(14)의 확정봉 값). 세 슬로프(현재봉 포함 slope1 + 확정봉 slope2/3)에 동일 분모로 적용.
 angleAtrRef = ltAtrTable[1]
-// 고가·저가 리본 재도입(표시 전용) — 종가 리본(emaLine/demaLine/temaLine)과 동일 표준식을 high/low 소스에 적용. plot·배경 판정에는 쓰지 않는다.
-ribbonHiE1 = ta.ema(high, ribbonLen)
-ribbonHiE2 = ta.ema(ribbonHiE1, ribbonLen)
-ribbonHiE3 = ta.ema(ribbonHiE2, ribbonLen)
-emaHighLine  = ribbonHiE1
-demaHighLine = 2 * ribbonHiE1 - ribbonHiE2
-temaHighLine = 3 * ribbonHiE1 - 3 * ribbonHiE2 + ribbonHiE3
-ribbonLoE1 = ta.ema(low, ribbonLen)
-ribbonLoE2 = ta.ema(ribbonLoE1, ribbonLen)
-ribbonLoE3 = ta.ema(ribbonLoE2, ribbonLen)
-emaLowLine  = ribbonLoE1
-demaLowLine = 2 * ribbonLoE1 - ribbonLoE2
-temaLowLine = 3 * ribbonLoE1 - 3 * ribbonLoE2 + ribbonLoE3
-// 소스·선별 각도(확정봉 [1]−[2] 차분 / ATR14[1]). na 가드: linePrev·angleAtrRef na 또는 angleAtrRef<=0이면 각도 na.
-//  ⚠️ 확정봉 기준(CEO 지시): 호출 인자를 (line[1], line[2])로 넘겨 확정봉 차분을 계산한다(함수 산식 lineNow−linePrev 불변, 인자만 [1]/[2]로 시프트).
-f_lineAngle(float lineNow, float linePrev) => (na(linePrev) or na(angleAtrRef) or angleAtrRef <= 0) ? na : math.todegrees(math.atan((lineNow - linePrev) / angleAtrRef))
-// 종가 각도는 slopeEma/Dema/Tema(배경 블록 확정봉 [1]−[2] 차분) 재사용 — 배경·테이블 종가 각도 동일 값(CEO 지시). 워밍업 가드도 확정봉 직전 emaLine[2] 기준. 고가/저가는 위 표시 전용 리본으로 계산.
-emaCloseAngle  = (na(emaLine[2])  or na(angleAtrRef) or angleAtrRef <= 0) ? na : math.todegrees(math.atan(slopeEma  / angleAtrRef))
-demaCloseAngle = (na(demaLine[2]) or na(angleAtrRef) or angleAtrRef <= 0) ? na : math.todegrees(math.atan(slopeDema / angleAtrRef))
-temaCloseAngle = (na(temaLine[2]) or na(angleAtrRef) or angleAtrRef <= 0) ? na : math.todegrees(math.atan(slopeTema / angleAtrRef))
-emaHighAngle  = f_lineAngle(emaHighLine[1],  emaHighLine[2])
-demaHighAngle = f_lineAngle(demaHighLine[1], demaHighLine[2])
-temaHighAngle = f_lineAngle(temaHighLine[1], temaHighLine[2])
-emaLowAngle  = f_lineAngle(emaLowLine[1],  emaLowLine[2])
-demaLowAngle = f_lineAngle(demaLowLine[1], demaLowLine[2])
-temaLowAngle = f_lineAngle(temaLowLine[1], temaLowLine[2])
+// 시간축 슬로프 각도 헬퍼: slope=lineNow−linePrev, 각도=atan(slope/angleAtrRef). na 가드: lineNow·linePrev·angleAtrRef na 또는 angleAtrRef<=0이면 각도 na.
+f_lineAngle(float lineNow, float linePrev) => (na(lineNow) or na(linePrev) or na(angleAtrRef) or angleAtrRef <= 0) ? na : math.todegrees(math.atan((lineNow - linePrev) / angleAtrRef))
+// 종가 리본선 시간축 3-슬로프 각도. ⚠️ slope1은 현재봉[0] 포함(line[0]−line[1]) → 라이브 봉 갱신(리페인팅). slope2=line[1]−line[2], slope3=line[2]−line[3](확정봉 차분).
+emaSlope1Angle  = f_lineAngle(emaLine,     emaLine[1])
+emaSlope2Angle  = f_lineAngle(emaLine[1],  emaLine[2])
+emaSlope3Angle  = f_lineAngle(emaLine[2],  emaLine[3])
+demaSlope1Angle = f_lineAngle(demaLine,    demaLine[1])
+demaSlope2Angle = f_lineAngle(demaLine[1], demaLine[2])
+demaSlope3Angle = f_lineAngle(demaLine[2], demaLine[3])
+temaSlope1Angle = f_lineAngle(temaLine,    temaLine[1])
+temaSlope2Angle = f_lineAngle(temaLine[1], temaLine[2])
+temaSlope3Angle = f_lineAngle(temaLine[2], temaLine[3])
 // 각도 텍스트: 부호(+/−)+소수1자리+°. na → "-". (+0.0°/−12.8°/+37.4°)
 f_angleStr(float a) => na(a) ? "-" : (a >= 0 ? "+" : "") + str.tostring(a, "0.0") + "°"
-// 3값 표시(고가|저가|종가). 폭 처리: ° 유지(부호+소수1자리+°, 구분자 " | "). 각 값은 최대 7자(예 "−12.8°") → 3값+구분자 ≈ 27자, size.small 셀 폭 수용 판단(과폭 시 ° 생략 등 추가 조정 여지, 현재 미적용).
-f_angle3(float aHigh, float aLow, float aClose) => f_angleStr(aHigh) + " | " + f_angleStr(aLow) + " | " + f_angleStr(aClose)
-// 셀 배경색 = 세 각도 평균 기준(데드밴드 ±5°). ⚠️ na 처리: 하나라도 na면 평균 계산 없이 회색. 세 값 모두 유효할 때만 평균으로 판정.
-// 우선순위(수학자 사양 — 승격, 대체 아님): ①하나라도 na→회색 ②|평균|>=angleOverheatDeg 과열 승격(평균>0=과매수→어두운 파랑 / 평균<0=과매도→어두운 주황)
-//   ③평균>+5°→상승색 / 평균<−5°→하락색 / 그 외→회색(기존 그대로). 과열은 항상 방향(±5°)의 부분집합이라(45°≥5°) 논리 충돌 없음. 평균은 기존과 동일 값 재사용(새 집계축 없음).
-// ⚠️ 과열색은 "기울기가 가파르다"는 과열 알림일 뿐 반전 신호가 아니다(미검증 가설, [0] 리페인팅 유지·표시 전용, 백테스트/신호화 미구현).
-f_angle3Color(float aHigh, float aLow, float aClose) =>
-    (na(aHigh) or na(aLow) or na(aClose)) ? color.new(color.gray, 40) :
-     math.abs((aHigh + aLow + aClose) / 3.0) >= angleOverheatDeg ? ((aHigh + aLow + aClose) / 3.0 > 0 ? color.new(angleOverheatUpColor, 30) : color.new(angleOverheatDownColor, 30)) :
-     (aHigh + aLow + aClose) / 3.0 > angleDeadbandDeg ? color.new(ltUpColor, 30) :
-     (aHigh + aLow + aClose) / 3.0 < -angleDeadbandDeg ? color.new(ltDownColor, 30) : color.new(color.gray, 40)
-emaAngleText = f_angle3(emaHighAngle, emaLowAngle, emaCloseAngle)
-demaAngleText = f_angle3(demaHighAngle, demaLowAngle, demaCloseAngle)
-temaAngleText = f_angle3(temaHighAngle, temaLowAngle, temaCloseAngle)
-emaAngleColor = f_angle3Color(emaHighAngle, emaLowAngle, emaCloseAngle)
-demaAngleColor = f_angle3Color(demaHighAngle, demaLowAngle, demaCloseAngle)
-temaAngleColor = f_angle3Color(temaHighAngle, temaLowAngle, temaCloseAngle)
+// 3값 표시(CEO 지시 — 오래된→최신 역순: slope3|slope2|slope1). 폭 처리: ° 유지(부호+소수1자리+°, 구분자 " | "). 각 값은 최대 7자(예 "−12.8°") → 3값+구분자 ≈ 27자, size.small 셀 폭 수용 판단(과폭 시 ° 생략 등 추가 조정 여지, 현재 미적용).
+//  인자 순서 = 표시 순서: v1=slope3각(첫·가장 오래된), v2=slope2각, v3=slope1각(셋째·최신 = 현재봉[0]−[1] 포함).
+f_angle3(float a1, float a2, float a3) => f_angleStr(a1) + " | " + f_angleStr(a2) + " | " + f_angleStr(a3)
+// 셀 배경색 = 표시 순서(오래된→최신) 규칙(CEO 지시 — 평균·데드밴드·과열 승격 제거).
+//  v1=slope3각(오래됨)·v2=slope2각·v3=slope1각(최신)으로 두고:
+//   ① 하나라도 na → 회색(중립).
+//   ② v1<v2<v3(정배열, 시간갈수록 기울기↑) → 녹색(ltUpColor·투명도 30).
+//   ③ v1>v2>v3(역배열) → 적색(ltDownColor·투명도 30).
+//   ④ 그 외 → 회색(중립).
+//  ⚠️ 순서 비교는 각도값(atan 단조)이라 slope 원값 비교와 동치. na 가드 유지. 표시 전용(반전 신호 아님).
+f_angle3Color(float a1, float a2, float a3) =>
+    (na(a1) or na(a2) or na(a3)) ? color.new(color.gray, 40) :
+     (a1 < a2 and a2 < a3) ? color.new(ltUpColor, 30) :
+     (a1 > a2 and a2 > a3) ? color.new(ltDownColor, 30) : color.new(color.gray, 40)
+// 표시·색 인자 순서 = 오래된→최신(slope3, slope2, slope1). 값·각도 산식은 불변, 순서만 역순.
+emaAngleText = f_angle3(emaSlope3Angle, emaSlope2Angle, emaSlope1Angle)
+demaAngleText = f_angle3(demaSlope3Angle, demaSlope2Angle, demaSlope1Angle)
+temaAngleText = f_angle3(temaSlope3Angle, temaSlope2Angle, temaSlope1Angle)
+emaAngleColor = f_angle3Color(emaSlope3Angle, emaSlope2Angle, emaSlope1Angle)
+demaAngleColor = f_angle3Color(demaSlope3Angle, demaSlope2Angle, demaSlope1Angle)
+temaAngleColor = f_angle3Color(temaSlope3Angle, temaSlope2Angle, temaSlope1Angle)
 
 // ── 단기 추세(20선 vs 50선) 셀 — 원본 이식 ────────────────────────────────────────────────
 stReady = not na(vwma20) and not na(vwma50)
@@ -1261,7 +1269,7 @@ if showStatusTable and barstate.islast
     table.cell(statusTable, 0, 0, "추세 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.cell(statusTable, 1, 0, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.merge_cells(statusTable, 0, 0, 1, 0)
-    // EMA/DEMA/TEMA 기울기 각도(종가 리본선 기준, atan(봉당기울기/ATR14), 데드밴드 색만 ±5°) — 최상단 3행
+    // EMA/DEMA/TEMA 기울기 각도(종가 리본선 시간축 3-슬로프) — 최상단 3행. 표시 순서 = 오래된→최신 = slope3([2]−[3]) | slope2([1]−[2]) | slope1([0]−[1]), atan(slope/ATR14). 셀색=표시 순서 서열(v1<v2<v3 녹 / v1>v2>v3 적 / na·그 외 회색). ⚠️ slope1이 현재봉[0] 포함이라(맨 마지막 열) 1열 값·셀색 라이브 봉 갱신(리페인팅).
     table.cell(statusTable, 0, 1, "EMA 기울기", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
     table.cell(statusTable, 1, 1, emaAngleText, text_color=color.white, bgcolor=emaAngleColor, text_size=size.small)
     table.cell(statusTable, 0, 2, "DEMA 기울기", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
