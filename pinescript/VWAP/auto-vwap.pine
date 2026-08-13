@@ -120,49 +120,22 @@ transDnLineColor = input.color(color.rgb(255, 0, 0), title="하락 전환 수평
 //  ▸ "기본": 현행 각도°(시간축 3-슬로프 각도 = todegrees(atan(slope/ATR(14))))·표시·셀색 완전 불변(회귀 안전, 기본값).
 //  ▸ "ATR 정규화": 표시 텍스트를 ATR 배수(±0.00x, 봉당 ATR 배수·디멘션리스)로, 셀색을 데드존·가속 임계·부호 조건 규칙으로 대체(표시 전용).
 //  ⚠️ 이 토글은 테이블 기울기 3행의 "표시(텍스트·셀색)"에만 영향한다. 밴드 배경·baseState·전환 판정·전환 임계 게이트는 두 모드 모두 현행 그대로(정규화 안 함, 코드 불변).
-slopeDisplayMode = input.string("기본", title="기울기 표시 모드", options=["기본", "ATR 정규화"], group=RIBBON_GROUP, tooltip="추세 확인 테이블의 EMA/DEMA/TEMA 기울기 3행 표시 + 밴드 배경·전환 행 판정을 함께 바꿉니다(매매 신호·주문 로직은 불변, 표시/국면 판정 전용).\n\n▸ 기본: 현행 각도°(시간축 3-슬로프 각도). 값·셀색·밴드 배경·전환 판정 완전 동일(값 비트 동일 — 회귀 0).\n▸ ATR 정규화: 봉당 기울기를 ATR(14)로 나눈 배수(±0.00x, 디멘션리스)로 표시하고, 밴드 배경·전환 행 판정도 정규화 가속 서열(EMA→DEMA→TEMA의 정규화 기울기 emaNS<demaNS<temaNS·데드존·가속임계·부호 조건)로 전환합니다. 셀색·배경·전환 행은 데드존·가속 임계(아래 두 파라미터)로 결정합니다.\n\n⚠️ [변경] 이전엔 '표시만' 바뀌었으나, 이제 ATR 정규화 모드는 밴드 배경(fill)과 전환 행(활성/셀색/괄호값)까지 정규화 판정으로 전환합니다. 전환 선(차트, 기본 OFF)만 모드 무관 raw 각도-순서 게이트를 유지합니다.\n⚠️ 정규화 모드에서 밴드 배경은 '한 소스의 가속 서열'입니다 — DEMA·TEMA는 EMA에서 파생된 선(2·EMA−EMA(EMA), 3·EMA−3·EMA(EMA)+EMA(EMA(EMA)))이라 독립 3표가 아니라 한 소스의 지연차입니다.\n⚠️ 정규화 배경은 라이브 봉에서 raw보다 임계 경계에서 더 자주 깜빡일 수 있습니다(정상). 데드존/가속최소는 표시 가독성 파라미터이므로 종목별 튜닝·백테스트 최적화 금지.")
-slopeDeadZone = input.float(0.10, title="정규화 데드존(ATR/봉)", minval=0.0, step=0.01, group=RIBBON_GROUP, active=slopeDisplayMode == "ATR 정규화", tooltip="ATR 정규화 모드 전용. 세 정규화 기울기 |v1|,|v2|,|v3|가 모두 이 값 미만이면 '무의미 기울기(횡보 휩쏘)'로 보고 셀을 회색 처리합니다. 단위=봉당 ATR 배수. 기본 0.10.\n\n⚠️ 표시 가독성 파라미터입니다 — 종목별 튜닝·백테스트 최적화 금지(전략 파라미터 아님, 이 값을 매매 신호 최적화에 쓰지 마세요).")
-slopeAccelMin = input.float(0.05, title="정규화 가속 최소(ATR/봉)", minval=0.0, step=0.01, group=RIBBON_GROUP, active=slopeDisplayMode == "ATR 정규화", tooltip="ATR 정규화 모드 전용. 인접 정규화 기울기 차(가속)가 이 값 이상이어야 가속으로 인정합니다. 상승 가속(녹)=v1<v2<v3 AND (v2−v1)≥이값 AND (v3−v2)≥이값 AND v3>0. 하락 가속(적)=v1>v2>v3 AND (v1−v2)≥이값 AND (v2−v3)≥이값 AND v3<0. 단위=봉당 ATR 배수 차. 기본 0.05.\n\n▸ v3(최신) 부호 조건은 '하락 중 완만화인데 순서만 증가하면 녹으로 오판'하던 현행 결함을 고치는 것입니다(정규화와 무관한 실 버그 수정, ATR 정규화 모드에만 적용).\n⚠️ 표시 가독성 파라미터입니다 — 종목별 튜닝·백테스트 최적화 금지.")
+slopeDisplayMode = input.string("기본", title="기울기 표시 모드", options=["기본", "ATR 정규화"], group=RIBBON_GROUP, tooltip="밴드 배경·전환 행 판정·삼각형 마커를 각도-순서(기본) 또는 ATR 정규화 가속 서열로 전환합니다(매매 신호·주문 로직은 불변, 표시/국면 판정 전용).\n\n⚠️ [CEO 지시] 추세 확인 1~3행(EMA/DEMA/TEMA 기울기 3행)은 이 모드와 무관하게 항상 기본 각도(°)로 표시됩니다. ATR 정규화 모드는 밴드 배경·전환 판정·삼각형에만 적용되며, 이 3행의 값·셀색에는 영향을 주지 않습니다.\n\n▸ 기본: 각도°(시간축 3-슬로프 각도) 기반 각도-순서로 밴드 배경·전환 판정.\n▸ ATR 정규화: 밴드 배경·전환 행 판정·삼각형을 정규화 가속 서열(EMA→DEMA→TEMA의 정규화 기울기 emaNS<demaNS<temaNS·데드존·가속임계·부호 조건)로 전환합니다. 배경·전환 행은 데드존·가속 임계(아래 두 파라미터)로 결정합니다.\n\n⚠️ ATR 정규화 모드는 밴드 배경(fill)과 전환 행(활성/셀색/괄호값)을 정규화 판정으로 전환합니다. 전환 선(차트, 기본 OFF)만 모드 무관 raw 각도-순서 게이트를 유지합니다.\n⚠️ 정규화 모드에서 밴드 배경은 '한 소스의 가속 서열'입니다 — DEMA·TEMA는 EMA에서 파생된 선(2·EMA−EMA(EMA), 3·EMA−3·EMA(EMA)+EMA(EMA(EMA)))이라 독립 3표가 아니라 한 소스의 지연차입니다.\n⚠️ 정규화 배경은 라이브 봉에서 raw보다 임계 경계에서 더 자주 깜빡일 수 있습니다(정상). 데드존/가속최소는 표시 가독성 파라미터이므로 종목별 튜닝·백테스트 최적화 금지.")
+slopeDeadZone = input.float(0.10, title="정규화 데드존(ATR/봉)", minval=0.0, step=0.01, group=RIBBON_GROUP, active=slopeDisplayMode == "ATR 정규화", tooltip="ATR 정규화 모드의 밴드 배경·전환 판정 전용(추세 확인 1~3행 표시엔 미적용). 세 정규화 기울기 |emaNS|,|demaNS|,|temaNS|가 모두 이 값 미만이면 '무의미 기울기(횡보 휩쏘)'로 보고 배경/전환을 억제(중립)합니다. 단위=봉당 ATR 배수. 기본 0.10.\n\n⚠️ 표시 가독성 파라미터입니다 — 종목별 튜닝·백테스트 최적화 금지(전략 파라미터 아님, 이 값을 매매 신호 최적화에 쓰지 마세요).")
+slopeAccelMin = input.float(0.05, title="정규화 가속 최소(ATR/봉)", minval=0.0, step=0.01, group=RIBBON_GROUP, active=slopeDisplayMode == "ATR 정규화", tooltip="ATR 정규화 모드의 밴드 배경·전환 판정 전용(추세 확인 1~3행 표시엔 미적용). 인접 정규화 기울기 차(가속)가 이 값 이상이어야 가속으로 인정합니다. 상승 가속(녹)=emaNS<demaNS<temaNS AND 인접 차 ≥이값 AND temaNS>0. 하락 가속(적)=emaNS>demaNS>temaNS AND 인접 차 ≥이값 AND temaNS<0. 단위=봉당 ATR 배수 차. 기본 0.05.\n\n▸ 최신(temaNS) 부호 조건은 '하락 중 완만화인데 순서만 증가하면 녹으로 오판'하던 현행 결함을 고치는 것입니다(정규화와 무관한 실 버그 수정, ATR 정규화 모드에만 적용).\n⚠️ 표시 가독성 파라미터입니다 — 종목별 튜닝·백테스트 최적화 금지.")
 // ── 추세 확인 테이블 EMA/DEMA/TEMA 기울기 3행 셀 배경색(CEO 지시 — 표시 순서 규칙) ──
 //  셀 배경은 표시 순서(오래된→최신) 세 각도 v1=slope3각·v2=slope2각·v3=slope1각의 서열로 칠한다(f_angle3Color).
 //  v1<v2<v3(정배열, 시간갈수록 기울기↑)→녹(ltUpColor·30) / v1>v2>v3(역배열)→적(ltDownColor·30) / na 또는 그 외→회색(중립).
 //  ⚠️ 기존 평균 기반 색·데드밴드(±5°)·과매수/과매도 과열 승격(딥네이비/딥오렌지)은 CEO 지시로 제거됨(전용 input·const 삭제).
 
-// =========================
-// 윌리엄스 프랙탈 + 각도필터(ratio) + 후보(1봉 조기, 삼각형/역삼각형 마커) + %R 다이버전스
-//   — WILLIAMS-FRACTAL/williams-fractal.pine에서 프랙탈/strict/%R 다이버전스 로직·페인팅을 이식하고,
-//     알고리즘 수학자 사양의 각도 정교화(로직1 ratio 대칭 게이트) + 후보(로직2)를 신규 구현.
-//   ▸ 확정 프랙탈(양방향): fracN=2(총 5봉). 저가=매수(하방)/고가=매도(상방). offset −fracN 으로 중심봉에 소급(리페인팅 아님).
-//   ▸ 로직1(가짜 프랙탈 제거): 중심봉 ATR로 정규화한 좌/우 기울기의 대칭비(ratio)·강도(slopeMin)·유효성 게이트. degree/atan 미사용.
-//   ▸ 로직2(후보, 1봉 조기): 중심봉=[1]·미래 1봉=[0] 기준으로 봉당 기울기 재계산. 상태저장 없이 순수 함수적(리페인팅 최소).
-//   ▸ 후보 마커(배경 제거 — 본부 지시): 매수 후보=삼각형 위(▲, belowbar)·매도 후보=역삼각형(▼, abovebar), offset −1(중심봉+1).
-//     색은 확정 프랙탈 색(매수/매도) 공유·투명도 50으로 구분. barstate.isconfirmed 게이트로 확정봉에서만 표시(실시간 점멸 없음).
-//   ▸ 상승 반전(저점 매수)·하락 반전(고점 매도) 양방향 모두 대칭 적용.
-//   ⚠️ 변수/함수 접두어 frac* 로 기존 auto-vwap(ta.atr=abnAtr/ltAtrTable, n 미사용)와의 충돌을 회피한다. plotshape/ta.wpr는 이 파일 최초 사용.
-//   ⚠️ 표시 전용 국면 표식 성격이며, 단일 신호가 아니라 이치모쿠·테이블·보조지표 정렬 확인용으로 설계(펀드 철학: 단일 신호 불신).
-//   ⚠️ 로컬 Pine 컴파일러가 없어 정적 리뷰로 검증했으며, 최종 동작은 TradingView 컴파일·차트 확인이 필요하다.
-// =========================
-FRAC_GROUP = "윌리엄스 프랙탈"
-fracN = input.int(2, minval=1, title="좌우 봉 수 n (총 프랙탈 봉수 = 2n+1)", group=FRAC_GROUP, tooltip="중심봉 좌우 각각의 비교 봉 수. 기본 2 → 총 5봉(표준 윌리엄스 프랙탈). n=1이면 3봉, n=3이면 7봉. 확정은 중심봉 기준 n봉 지연(offset −n 소급, 리페인팅 아님).")
-fracStrictMode = input.bool(true, "엄격 모드(피라미드/계곡 단조)", group=FRAC_GROUP, tooltip="ON: 인접 봉 단조(피라미드/계곡) 요구 — 매도(고점) 좌측 단조상승·우측 단조하강, 매수(저점) 대칭(계곡). OFF: 표준 프랙탈(중심이 좌우보다 높기/낮기만). 기본 ON.")
-showFracSignals = input.bool(true, title="확정 프랙탈 신호 표시", group=FRAC_GROUP, tooltip="게이트(로직1)를 통과한 확정 상방(매도)/하방(매수) 프랙탈 마커 표시 여부. offset −n 소급. 기본 ON.")
-// 로직1 — 가짜 프랙탈 제거(ratio 대칭 게이트). 판정은 ratio만(degree/atan 미사용). 미세 프랙탈은 slopeMin 게이트로 탈락(CEO 확정).
-fracSymMin = input.float(0.5, minval=0.2, maxval=0.9, step=0.05, title="대칭비 최소 symMin(확정)", group=FRAC_GROUP, tooltip="확정 프랙탈 좌/우 기울기의 대칭비 하한. min(좌,우)/max(좌,우) ≥ 이 값이어야 통과. 1에 가까울수록 좌우 대칭(정삼각형)만 인정. 기본 0.5. 전략성 파라미터(수학자 리뷰 대상).")
-fracSlopeMin = input.float(0.5, minval=0.0, maxval=2.0, step=0.1, title="기울기 강도 최소 slopeMin(ATR 배수)", group=FRAC_GROUP, tooltip="중심봉 ATR로 정규화한 좌/우 기울기 중 큰 쪽이 이 값 이상이어야 통과(미세 프랙탈 탈락). 0이면 강도 게이트 무효. 기본 0.5. 전략성 파라미터(수학자 리뷰 대상).")
-fracAtrLen = input.int(14, minval=5, maxval=50, title="정규화 ATR 길이(atrLen)", group=FRAC_GROUP, tooltip="기울기 정규화용 ATR 길이. 중심봉 기준으로 얼려 사용(atrRef=ATR[n]). 기본 14. 프랙탈 전용(비정상/테이블 ATR과 별개).")
-fracCandRelax = input.float(0.7, minval=0.3, maxval=1.0, step=0.05, title="후보 대칭비 완화 candRelax", group=FRAC_GROUP, tooltip="후보(로직2) 대칭비 하한 = symMin × candRelax. 기본 0.7(확정 0.5 → 후보 0.35). 1이면 완화 없음. 낮을수록 후보를 널널하게 잡음. 전략성 파라미터(수학자 리뷰 대상).")
-fracShowCandidate = input.bool(true, title="후보(1봉 조기) 마커 표시", group=FRAC_GROUP, tooltip="확정 1봉 전 후보를 마커(offset −1)로 표시. 매수 후보=삼각형 위(▲, belowbar)·매도 후보=역삼각형(▼, abovebar). 후보는 순수 함수적 재계산(상태저장 없음)이며, 마커는 확정봉(barstate.isconfirmed)에서만 표시(실시간 점멸 없음). 기본 ON.")
-fracBuyColor = input.color(#2962FF, title="매수(하방 프랙탈) 색", group=FRAC_GROUP, tooltip="확정 매수(저점) 프랙탈 삼각형 + 매수 후보 삼각형(투명도 50) 색. 기본 파랑.")
-fracSellColor = input.color(color.red, title="매도(상방 프랙탈) 색", group=FRAC_GROUP, tooltip="확정 매도(고점) 프랙탈 삼각형 + 매도 후보 역삼각형(투명도 50) 색. 기본 빨강.")
-fracCandMarkerTransp = input.int(50, minval=0, maxval=100, title="후보 마커 투명도", group=FRAC_GROUP, active=fracShowCandidate, tooltip="후보 삼각형/역삼각형 마커의 투명도(0=불투명, 100=완전 투명). 기본 50. 색은 확정 프랙탈 색(매수/매도)을 공유하며 이 투명도만 다르게 적용해 확정 마커와 구분합니다.")
 // 윌리엄스 %R 다이버전스(williams-fractal 이식) — %R 라인은 오버레이 부적합이라 다이버전스 봉에 원 마커만 표시.
 WPR_GROUP = "윌리엄스 %R 다이버전스"
-showWprDiv = input.bool(true, "%R 다이버전스 원 표시", group=WPR_GROUP, tooltip="윌리엄스 %R 강세(매수)/약세(매도) 다이버전스 발생 봉에 원 마커 표시. %R 라인 자체는 오버레이라 그리지 않음. 기본 ON.")
+showWprDiv = input.bool(true, "%R 다이버전스 원 표시", group=WPR_GROUP, tooltip="윌리엄스 %R 강세(매수)/약세(매도) 다이버전스 발생 봉에 원 마커 표시. %R 라인 자체는 오버레이라 그리지 않음. 기본 ON. ⚠️ 이 옵션은 전환 후보 삼각형의 '%R 방향 확인 억제 필터'도 함께 켭니다(원이 실제로 그려지는 경우만 억제): 직전 확정봉에 녹색 원(강세)이 나고 현재봉이 저점을 높이면(상승 확인) 빨강(하락 후보) 삼각형 억제, 직전 봉에 노랑 원(약세)이 나고 현재봉이 고점을 낮추면(하락 확인) 파랑(상승 후보) 삼각형 억제. 이 옵션을 끄면 원과 함께 억제 필터도 비활성.")
 wprLen = input.int(14, "윌리엄스 %R 길이", group=WPR_GROUP, minval=1, tooltip="윌리엄스 %R(ta.wpr) 계산 기간. 표준 14. 종가 기준, 범위 −100~0.")
 wprLower = input.int(-80, "%R 하단 밴드", group=WPR_GROUP, tooltip="강세 다이버전스 진입 임계. 직전 봉 %R가 이 값 아래이면 과매도 진입으로 본다. 표준 −80.")
 wprUpper = input.int(-20, "%R 상단 밴드", group=WPR_GROUP, tooltip="약세 다이버전스 진입 임계. 직전 봉 %R가 이 값 위이면 과매수 진입으로 본다. 표준 −20.")
-wprBullColor = input.color(color.rgb(0, 255, 0), title="%R 강세 다이버전스 원 색(매수)", group=WPR_GROUP, active=showWprDiv, tooltip="윌리엄스 %R 강세 다이버전스 원 마커 색. 밝은 순수 녹(rgb(0,255,0)). 매수 삼각형(파랑)과 색·위치(belowbar)로 구분.")
-wprBearColor = input.color(#FFEB3B, title="%R 약세 다이버전스 원 색(매도)", group=WPR_GROUP, active=showWprDiv, tooltip="윌리엄스 %R 약세 다이버전스 원 마커 색. 프랙탈 삼각형과 구분되도록 노랑. 위치(abovebar)로도 구분.")
+wprBullColor = input.color(color.rgb(0, 255, 0), title="%R 강세 다이버전스 원 색(매수)", group=WPR_GROUP, active=showWprDiv, tooltip="윌리엄스 %R 강세 다이버전스 원 마커 색. 밝은 순수 녹(rgb(0,255,0)). 상승 전환 후보 삼각형(파랑)과 색·위치(belowbar)로 구분. ⚠️ 상승 전환 후보 삼각형은 이제 이 원과 동일하게 리얼타임(현재봉[0]·offset 0)으로 그려져 같은 봉에 동시에 뜰 수 있습니다 — 삼각형은 리얼타임 표시로 봉 마감 전 변동·리페인팅 가능하며 매매 신호가 아닙니다(이 %R 원은 확정/과거참조라 리페인팅 없음, 특성이 다름).")
+wprBearColor = input.color(#FFEB3B, title="%R 약세 다이버전스 원 색(매도)", group=WPR_GROUP, active=showWprDiv, tooltip="윌리엄스 %R 약세 다이버전스 원 마커 색. 하락 전환 후보 삼각형(빨강)과 구분되도록 노랑. 위치(abovebar)로도 구분. ⚠️ 하락 전환 후보 삼각형은 이제 이 원과 동일하게 리얼타임(현재봉[0]·offset 0)으로 그려져 같은 봉에 동시에 뜰 수 있습니다 — 삼각형은 리얼타임 표시로 봉 마감 전 변동·리페인팅 가능하며 매매 신호가 아닙니다(이 %R 원은 확정/과거참조라 리페인팅 없음, 특성이 다름).")
 
 DEFAULT_LINE_COLOR = #FFFFFF
 LOWER_BREAK_LINE_COLOR = #00FF00
@@ -532,17 +505,16 @@ bgFillState = (baseState == -1 and not bgAnyAngleGreen) ? -1
 //  ▸ 목적: slopeDisplayMode=="ATR 정규화"일 때 밴드 배경(fill)과 전환 행 판정을 raw 각도-순서(baseState/bgFillState)가 아니라
 //    정규화 slope(봉당 기울기÷ATR)의 데드존·가속 임계·부호 조건으로 결정한다. "기본" 모드에선 원본 값 비트 동일(회귀 0).
 //  ▸ ATR 분모 재사용: bgAngleRef(=ta.atr(14), 497행)를 재사용한다. 이는 아래 표시부 ltAtrTable(=ta.atr(14), 994행)과 동일 함수·동일 인자 → 동일 series 값.
-//    따라서 여기 emaNS/demaNS/temaNS는 표시부 emaNorm1/demaNorm1/temaNorm1과 수학적으로 완전히 동일한 산식이다(분자=line[0]−line[1], 분모=ATR(14)).
+//    여기 emaNS/demaNS/temaNS는 봉당 정규화 기울기(분자=line[0]−line[1], 분모=ATR(14))로, 밴드 배경·전환 판정·전환행 괄호값의 단일 소스다.
 //    신규 ta.* 호출 없음(bgAngleRef 재사용) — CSE 유지.
-//  ▸ 표시부(1058행)와의 관계: emaNS(=이 블록)는 아래 f_norm3Color가 쓰는 emaNorm1과 동일 값이므로, 배경·전환 판정과 표시 셀색이 정합한다(정규화 모드에서 배경≈셀 일치).
-//    표시 셀색은 3-슬로프 서열(norm3<norm2<norm1)을 보지만, 배경은 '한 소스(EMA→DEMA→TEMA)의 가속 서열'(emaNS<demaNS<temaNS)을 본다 — 판정 축이 다름(주석·툴팁 caveat 참조).
+//  ▸ [CEO 지시] 추세 확인 1~3행 표시는 이 정규화값을 쓰지 않는다(항상 각도° Base 고정, 1043행 참조). emaNS/demaNS/temaNS는 배경·전환 판정·전환행 괄호값 전용이다.
 //  ▸ 리페인팅: emaNS는 현재봉[0]을 포함(line[0]−line[1])하므로 라이브 봉 동안 갱신될 수 있다. raw 배경보다 임계(deadZone/accelMin) 경계에서 더 자주 깜빡일 수 있다(정상·표시 전용).
 //  ⚠️ deadZone/accelMin은 표시 가독성 파라미터다 — 종목별 튜닝·백테스트 최적화 금지(매매 신호 아님).
 useNormSlope = slopeDisplayMode == "ATR 정규화"
 emaNS  = (emaLine  - emaLine[1])  / bgAngleRef   // = 표시부 emaNorm1(동일 산식)
 demaNS = (demaLine - demaLine[1]) / bgAngleRef   // = 표시부 demaNorm1
 temaNS = (temaLine - temaLine[1]) / bgAngleRef   // = 표시부 temaNorm1
-//  normValid: ATR 유효(양수)·3값 모두 유효할 때만 가속 판정 신뢰(무효 시 baseStateNorm=0 → 회색·배경 없음, f_norm3Color na 회색과 정합).
+//  normValid: ATR 유효(양수)·3값 모두 유효할 때만 가속 판정 신뢰(무효 시 baseStateNorm=0 → 배경 없음·중립).
 normValid = not na(bgAngleRef) and bgAngleRef > 0 and not na(emaNS) and not na(demaNS) and not na(temaNS)
 //  deadAll: 세 정규화 기울기가 모두 데드존 미만이면 무의미 기울기(횡보 휩쏘) → 배경 없음(표시 셀 데드존 회색과 정합).
 deadAll = math.abs(emaNS) < slopeDeadZone and math.abs(demaNS) < slopeDeadZone and math.abs(temaNS) < slopeDeadZone
@@ -811,97 +783,12 @@ plot(showRibbon ? temaLine : na, title="지수 리본 TEMA", color=ribbonTemaCol
 //  barcolor는 봉의 몸통색을 바꾸는 것이라 밴드 fill·bgcolor와 레이어가 달라 공존한다. 색·조건·판정(abnCandleState 래치)은 불변이다.
 
 // =========================================================================================
-// [이식+신규] 윌리엄스 프랙탈(확정·strict) + 로직1(ratio 게이트) + 로직2(후보) + 후보 반투명 배경 + %R 다이버전스
-//  아래 프랙탈/strict/%R 다이버전스 판정·페인팅은 williams-fractal.pine 원본 로직 그대로 이식하고,
-//  로직1/로직2/후보 배경은 알고리즘 수학자 사양(수식·기본값·offset·isconfirmed 가드)대로 신규 구현했다.
-//  기존 auto-vwap 로직(정/역배열 배경·비정상 배경·억제 게이트·VWAP·밴드·테이블)은 전혀 건드리지 않는다.
+// [이식+신규] 전환 후보 삼각형 마커(꼬리 필터 + 중복 억제 래치) + %R 다이버전스
+//  아래 %R 다이버전스 판정·페인팅은 williams-fractal.pine 원본 로직 그대로 이식하고,
+//  전환 후보 삼각형은 상단 전환 후보 판정(candUp/candDn)을 리얼타임(현재봉[0]) 기준으로 마커화(꼬리 필터·중복 억제 래치)한 신규 구현이다(%R 원과 동일 타이밍).
+//  기존 auto-vwap 로직(정/역배열 배경·비정상 배경·억제 게이트·VWAP·밴드·테이블·전환행 셀색·%R)은 전혀 건드리지 않는다.
+//  ⚠️ (구 윌리엄스 프랙탈 이식·로직1(ratio 게이트)·로직2(후보)·후보 반투명 배경은 CEO 지시(A안)로 전면 제거됨 — %R은 존치. plotshape/ta.wpr는 이 파일 최초 사용.)
 // =========================================================================================
-
-// ── 확정 프랙탈 판정(중심봉 = 현재봉 기준 fracN봉 전) — williams-fractal 원본 isDownFractal/isUpFractal 그대로 이식 ──
-//  하방(저점) 프랙탈 = 중심봉 저가가 좌우 각 len봉 저가보다 모두 낮음 → 매수. 상방(고점)=중심봉 고가가 최고 → 매도.
-//  좌측(과거)=[len+i], 우측(최근)=[len-i]. 엄격 모드는 인접 봉 단조(피라미드/계곡)로 강화. 모두 과거참조 → 리페인팅 0.
-isDownFractal(len) =>
-    center = low[len]
-    bool ok = true
-    for i = 1 to len
-        if fracStrictMode
-            if not (low[len + i] > low[len + i - 1] and low[len - i] > low[len - i + 1])
-                ok := false
-        else
-            if not (center < low[len + i] and center < low[len - i])
-                ok := false
-    ok
-
-isUpFractal(len) =>
-    center = high[len]
-    bool ok = true
-    for i = 1 to len
-        if fracStrictMode
-            if not (high[len + i] < high[len + i - 1] and high[len - i] < high[len - i + 1])
-                ok := false
-        else
-            if not (center > high[len + i] and center > high[len - i])
-                ok := false
-    ok
-
-downFractalRaw = isDownFractal(fracN)   // 확정 매수(하방) 프랙탈 원신호(현재봉 = 우측 fracN번째)
-upFractalRaw   = isUpFractal(fracN)     // 확정 매도(상방) 프랙탈 원신호
-
-// --- 동시 확정 시 봉색으로 1개만 남기기(williams-fractal 원본 처리 그대로) ---
-//  중심봉이 국소 고점이자 저점이라 상방·하방 동시 확정 가능(드묾). 중심봉(offset -fracN 정합) close[fracN] vs open[fracN]로 1개만.
-//   양봉→매수만, 음봉→매도만, 도지→둘 다 억제(중립·자본 보존). 동시 확정일 때만 발동.
-bothConfirmed  = downFractalRaw and upFractalRaw
-centerBull     = close[fracN] > open[fracN]
-centerBear     = close[fracN] < open[fracN]
-downFractalConfirmed = downFractalRaw and (not bothConfirmed or centerBull)
-upFractalConfirmed   = upFractalRaw   and (not bothConfirmed or centerBear)
-
-// ── 로직1 — 가짜 프랙탈 제거(ratio 대칭 게이트, degree 미사용) — 알고리즘 수학자 사양 ──
-//  정규화 척도: 중심봉 기준으로 얼린 ATR(atrRef=fracAtrN[fracN]). 판정은 대칭비(ratio)만 사용(atan/degree 미사용).
-//  고점(매도): 과거 fracN봉 상승·미래 fracN봉 하강. 저점(매수): 부호 반전(과거 하강·미래 상승, 둘 다 양수).
-fracAtrN = ta.atr(fracAtrLen)
-atrRef   = fracAtrN[fracN]
-// 고점(매도) 프랙탈 기울기 — 과거 상승 / 미래 하강
-slopeUpRise = na(atrRef) or atrRef == 0 ? na : (high[fracN] - high[fracN + fracN]) / atrRef
-slopeUpDrop = na(atrRef) or atrRef == 0 ? na : (high[fracN] - high[fracN - fracN]) / atrRef
-// 저점(매수) 프랙탈 기울기 — 과거 하강(양수) / 미래 상승(양수), 부호 반전
-slopeDnFall = na(atrRef) or atrRef == 0 ? na : (low[fracN + fracN] - low[fracN]) / atrRef
-slopeDnRise = na(atrRef) or atrRef == 0 ? na : (low[fracN - fracN] - low[fracN]) / atrRef
-// 상방(매도) 게이트
-upSlopeValid = not na(slopeUpRise) and not na(slopeUpDrop) and slopeUpRise > 0 and slopeUpDrop > 0
-upMax        = upSlopeValid ? math.max(slopeUpRise, slopeUpDrop) : na
-upStrong     = upSlopeValid and upMax >= fracSlopeMin
-upSym        = upSlopeValid and upMax != 0 ? math.min(slopeUpRise, slopeUpDrop) / upMax : na
-upGate       = upSlopeValid and upStrong and not na(upSym) and upSym >= fracSymMin
-// 하방(매수) 게이트
-dnSlopeValid = not na(slopeDnFall) and not na(slopeDnRise) and slopeDnFall > 0 and slopeDnRise > 0
-dnMax        = dnSlopeValid ? math.max(slopeDnFall, slopeDnRise) : na
-dnStrong     = dnSlopeValid and dnMax >= fracSlopeMin
-dnSym        = dnSlopeValid and dnMax != 0 ? math.min(slopeDnFall, slopeDnRise) / dnMax : na
-dnGate       = dnSlopeValid and dnStrong and not na(dnSym) and dnSym >= fracSymMin
-// 게이트 적용 확정 프랙탈(plotshape 조건은 이 Gated 값으로)
-upFractalConfirmedGated   = upFractalConfirmed   and upGate
-downFractalConfirmedGated = downFractalConfirmed and dnGate
-
-// ── 로직2 — 후보(1봉 조기) + 전이(상태저장 없이 순수 함수적) — 알고리즘 수학자 사양 ──
-//  후보 시점: 중심봉=[1], 미래 1봉=[0]. atrRefC=fracAtrN[1]. 봉당 기울기(과거 구간은 /fracN로 봉당 환산).
-//  symMinCand = symMin × candRelax. var 래치 없이 매 봉 [1]/과거참조 재계산 → 리페인팅 위험 최소.
-atrRefC        = fracAtrN[1]
-fracSymMinCand = fracSymMin * fracCandRelax
-// 고점(매도) 후보
-slopeUpRiseC = na(atrRefC) or atrRefC == 0 ? na : (high[1] - high[1 + fracN]) / atrRefC / fracN   // 봉당 상승
-slopeUpDrop1 = na(atrRefC) or atrRefC == 0 ? na : (high[1] - high[0]) / atrRefC                    // 미래 1봉 봉당 하강
-upCandValid  = not na(slopeUpRiseC) and not na(slopeUpDrop1) and slopeUpRiseC > 0 and slopeUpDrop1 > 0
-upCandMax    = upCandValid ? math.max(slopeUpRiseC, slopeUpDrop1) : na
-symCandUp    = upCandValid and upCandMax != 0 ? math.min(slopeUpRiseC, slopeUpDrop1) / upCandMax : na
-upCandidate  = upCandValid and upCandMax >= fracSlopeMin and not na(symCandUp) and symCandUp >= fracSymMinCand
-// 저점(매수) 후보 — 대칭
-slopeDnFallC = na(atrRefC) or atrRefC == 0 ? na : (low[1 + fracN] - low[1]) / atrRefC / fracN      // 봉당 하강(양수)
-slopeDnRise1 = na(atrRefC) or atrRefC == 0 ? na : (low[0] - low[1]) / atrRefC                       // 미래 1봉 봉당 상승(양수)
-dnCandValid  = not na(slopeDnFallC) and not na(slopeDnRise1) and slopeDnFallC > 0 and slopeDnRise1 > 0
-dnCandMax    = dnCandValid ? math.max(slopeDnFallC, slopeDnRise1) : na
-symCandDn    = dnCandValid and dnCandMax != 0 ? math.min(slopeDnFallC, slopeDnRise1) / dnCandMax : na
-dnCandidate  = dnCandValid and dnCandMax >= fracSlopeMin and not na(symCandDn) and symCandDn >= fracSymMinCand
 
 // ── 윌리엄스 %R 다이버전스 판정(williams-fractal 원본 그대로 이식) ──
 //  wpr: 확정봉 close 기준. 직전 봉이 밴드 밖 진입(wpr[1]) + 현재 봉 다이버전스 조건 → 현재봉(offset 0) 원. 가격 비교는 종가(close).
@@ -910,24 +797,69 @@ wpr = ta.wpr(wprLen)
 bullWprDiv = wpr[1] < wprLower and (close < close[1] and wpr > wpr[1])   // 강세(매수): 과매도 진입 후 종가↓·%R↑
 bearWprDiv = wpr[1] > wprUpper and (close > close[1] and wpr < wpr[1])   // 약세(매도): 과매수 진입 후 종가↑·%R↓
 
-// ── 후보 마커 표시 게이트(non-repaint 통일 — 본부 지시) ──
-//  후보 삼각형/역삼각형은 barstate.isconfirmed(확정봉)에서만 표시해 실시간 점멸을 없앤다.
-//  판정식(symMinCand 등)·offset(−1, 중심봉+1)·전이 로직은 불변 — 표시 게이트만 isconfirmed로 통일.
-//  후보는 여전히 확정(offset −fracN)보다 1봉 빠르게 뜬다(중심봉+1 = offset −1). 과거봉의 [1]/[1+n]/[0] 입력은 확정 후 불변 → 리페인팅 없음.
-fracCandBuyShow  = fracShowCandidate and dnCandidate and barstate.isconfirmed
-fracCandSellShow = fracShowCandidate and upCandidate and barstate.isconfirmed
+// ── 전환 후보 삼각형 마커(꼬리 필터 + 중복 억제 래치) — CEO 지시로 프랙탈 대체 신규 구현 ──
+//  ▸ 소스: 상단 전환 후보 판정 candUp(상승)/candDn(하락)(밴드 배경 없음 bgFillStateGated==0 + 종가가 전환 임계가 돌파). 판정식·임계는 불변, 여기선 마커화만.
+//  ▸ 리얼타임(현재봉[0]) 기준(CEO 지시 — %R 원 마커와 동시 표출):  candUp/candDn·xUp/xDn·close 모두 현재봉[0] 라이브값이라, [1] 시프트 없이 그대로 평가하고 offset 0으로 현재봉 위치에 그린다.
+//     → %R 다이버전스 원(ta.wpr 기반, offset 0·barstate 게이트 없음)과 완전 동일 타이밍/게이트 → 원(노랑/녹)과 삼각형이 같은 봉에 동시에 뜨고, 봉 마감 전 라이브로 깜빡일 수 있다(CEO 허용).
+//     ⚠️ 리페인팅(의도·정상): 봉 확정 전 종가·임계가 변동에 따라 삼각형이 나타났다 사라질 수 있다(과거봉은 확정 후 불변·비리페인팅). 표시 전용, 매매 신호 아님(%R 원과 동일 특성).
+//  ▸ 꼬리 필터(반대편 꼬리 우세 봉 억제): 상승 후보인데 위꼬리>몸통이면 반등 실패 신호로 보고 억제, 하락 후보인데 아래꼬리>몸통이면 억제. body/wick도 현재봉[0] 기준(라이브).
+//  ▸ 중복 억제 래치(도배 방지): 같은 방향 삼각형이 한 번 뜨면, 방향 전환/승격 이벤트가 오기 전까지 같은 방향 재표시 안 함(대칭).
+//     · 파랑 해제 = 상승 확정(==1) OR 하락 후보(candDn) OR 하락 확정(==−1). 빨강 해제 = 하락 확정(==−1) OR 상승 후보(candUp) OR 상승 확정(==1). (현재봉[0] 라이브 상태 기준.)
+//     ⚠️ 래치 var 오염 방지(리얼타임 처리): var 래치(blueLatched/redLatched)를 미확정 라이브값으로 갱신하면 영구 오염되므로, **래치 상태 커밋(리셋·세팅)은 봉 확정(barstate.isconfirmed)에서만** 한다.
+//        표시(blueShow/redShow)는 라이브 raw + "직전 확정봉까지 확정된 래치"로 계산 → %R처럼 라이브 깜빡임을 허용하되(같은 봉 내 조건 참↔거짓 왕복 시 삼각형 깜빡임=CEO 요구), var는 확정값만 담아 오염 없음.
+//        트레이드오프: 라이브 봉에서 "이미 이 봉에 파랑을 그렸으니 억제"까지 즉시 반영하진 않고(래치는 직전 확정봉 기준), 봉 확정 시 억제 이벤트를 확정 반영한다 — 도배 방지 의미(확정 이벤트 간 억제)는 유지하며 안전.
+//  ▸ 색: 상승 삼각형 = candBgUpColor(#1565C0, 전환행 상승 후보 셀 파랑 재사용) 봉 아래(위 방향). 하락 삼각형 = #C62828(Material Red 800, 밴드 배경 빨강과 동일 톤앤매너) 봉 위(아래 방향).
+//     확정 자홍(#C2185B)·전환행 하락 셀 주황(#EF6C00)·%R 원색(순수 녹/노랑)과 hue로 구분. 삼각형은 차트 추가 표현일 뿐 전환행 셀색(파랑/주황)은 그대로 병존.
+//  ⚠️ 신규 임계 파라미터 없음(꼬리/몸통·래치는 candUp/candDn·OHLC에서 파생, 자유도 0). 표시 전용·매매 신호 아님(이치모쿠·테이블·보조지표 정렬 확인용).
+triCandBuyColor = #1565C0   // 상승 전환 후보 삼각형 색(전환행 상승 후보 셀 파랑 재사용)
+triCandSellColor = #C62828  // 하락 전환 후보 삼각형 색(밴드 배경 빨강 톤앤매너, Material Red 800)
+// 현재봉[0] 라이브 기준 후보·꼬리필터 — body/upperWick/lowerWick 모두 현재봉 OHLC(%R 원과 동일 라이브 타이밍).
+cBody      = math.abs(close - open)
+cUpperWick = high - math.max(open, close)
+cLowerWick = math.min(open, close) - low
+blueRaw = candUp and not (cUpperWick > cBody)   // 상승 후보(라이브), 위꼬리>몸통이면 억제
+redRaw  = candDn and not (cLowerWick > cBody)    // 하락 후보(라이브), 아래꼬리>몸통이면 억제
+// 중복 억제 래치 — 표시는 라이브, 커밋(리셋·세팅)은 봉 확정(barstate.isconfirmed)에서만(var 오염 방지). 상태는 현재봉[0] 라이브 기준.
+var bool blueLatched = false
+var bool redLatched  = false
+resetBlue = (bgFillStateGated == 1) or candDn or (bgFillStateGated == -1)
+resetRed  = (bgFillStateGated == -1) or candUp or (bgFillStateGated == 1)
+// 표시 판정: 라이브 raw + "직전 확정봉까지 확정된 래치"(var). 리셋이 서면 이 봉에선 억제 해제(라이브 반영) → %R처럼 라이브 깜빡임.
+blueShow = blueRaw and not (blueLatched and not resetBlue)
+redShow  = redRaw and not (redLatched and not resetRed)
+// ── %R 다이버전스 방향 확인 억제 필터(CEO 지시) — 기존 판정·꼬리필터·래치는 불변, 이 조건만 추가 억제로 AND 결합 ──
+//  ▸ 원리: 확정된 직전 봉[1]에 %R 원이 뜨고, 현재봉[0]이 그 방향을 "가격으로 확인"해 주면 반대 방향 후보 삼각형을 억제한다(다이버전스 방향과 어긋나는 역방향 후보 제거).
+//     · 녹색 원(강세=상승, bullWprDiv)이 직전 봉에 났고 + 현재봉이 저점을 높이면(low>low[1], 상승 확인) → 현재봉 빨강(하락 후보) 억제.
+//     · 노랑 원(약세=하락, bearWprDiv)이 직전 봉에 났고 + 현재봉이 고점을 낮추면(high<high[1], 하락 확인) → 현재봉 파랑(상승 후보) 억제.
+//  ▸ 색 매핑 근거(코드 확정): wprBullColor=녹(rgb 0,255,0)=bullWprDiv=매수/상승, wprBearColor=노랑(#FFEB3B)=bearWprDiv=매도/하락 → 본부 해석과 일치.
+//  ▸ 정합·리페인팅: 원 참조는 [1](확정된 직전 봉이라 안정, 비리페인팅). 저점높임/고점낮춤은 현재봉[0] 라이브(삼각형과 동일 타이밍)라 봉 마감 전 변동 가능(삼각형 자체가 라이브라 정상).
+//     원 조건은 "실제로 그려지는" greenCircle/yellowCircle(showWprDiv 포함) 기준 — 사용자가 %R 원 표시를 끄면 이 억제도 걸리지 않아 화면과 정합.
+//  ⚠️ 신규 파라미터 없음(기존 bullWprDiv/bearWprDiv·showWprDiv·OHLC에서 파생). %R 판정·마커는 불변(참조만).
+greenCircle  = showWprDiv and bullWprDiv   // 녹색 원(강세=상승) 실제 표출 조건
+yellowCircle = showWprDiv and bearWprDiv   // 노랑 원(약세=하락) 실제 표출 조건
+suppressRed  = greenCircle[1] and (low > low[1])     // 녹색원 직후 저점 높임(상승 확인) → 빨강(하락 후보) 억제
+suppressBlue = yellowCircle[1] and (high < high[1])  // 노랑원 직후 고점 낮춤(하락 확인) → 파랑(상승 후보) 억제
+blueShow := blueShow and not suppressBlue
+redShow  := redShow and not suppressRed
+// 래치 상태 커밋 — 봉 확정 시에만 var에 반영(미확정 라이브값이 var를 영구 오염시키지 않도록). 리셋 우선, 그다음 표시분 세팅.
+if barstate.isconfirmed
+    if resetBlue
+        blueLatched := false
+    if resetRed
+        redLatched := false
+    if blueShow
+        blueLatched := true
+    if redShow
+        redLatched := true
 
 // ── 마커 그리기(원본 레이어 컨벤션: 원 먼저=아래 레이어, 삼각형 나중=위 레이어) ──
 //  %R 다이버전스 원 — 확정된 현재봉(offset 0), belowbar(매수)/abovebar(매도). 화면 고정 픽셀 스택(자동 겹침 방지).
 plotshape(showWprDiv and bullWprDiv, title="%R 강세 다이버전스(매수)", style=shape.circle, location=location.belowbar, color=color.new(wprBullColor, 0), size=size.tiny, offset=0)
 plotshape(showWprDiv and bearWprDiv, title="%R 약세 다이버전스(매도)", style=shape.circle, location=location.abovebar, color=color.new(wprBearColor, 0), size=size.tiny, offset=0)
-// 후보 마커(offset −1 = 중심봉) — 확정 1봉 전 조기 표시. 순수 함수적 재계산(상태저장 없음). 확정 삼각형과 색은 공유하되 투명도 50으로 구분.
-//  매수 후보=삼각형 위(▲, belowbar)·매도 후보=역삼각형(▼, abovebar). 확정봉(isconfirmed)에서만 표시 → 실시간 점멸 없음(본부 지시).
-plotshape(fracCandBuyShow  ? low[1]  : na, title="프랙탈 매수 후보", style=shape.triangleup,   location=location.belowbar, color=color.new(fracBuyColor,  fracCandMarkerTransp), size=size.tiny, offset=-1)
-plotshape(fracCandSellShow ? high[1] : na, title="프랙탈 매도 후보", style=shape.triangledown, location=location.abovebar, color=color.new(fracSellColor, fracCandMarkerTransp), size=size.tiny, offset=-1)
-// 확정 프랙탈 매수/매도(게이트 통과분), offset −fracN 으로 중심봉에 소급. 후행 확정(fracN봉 지연) → 리페인팅 아님.
-plotshape(showFracSignals and downFractalConfirmedGated ? low[fracN]  : na, title="프랙탈 매수 신호", style=shape.triangleup,   location=location.belowbar, color=color.new(fracBuyColor,  0), size=size.tiny, offset=-fracN)
-plotshape(showFracSignals and upFractalConfirmedGated   ? high[fracN] : na, title="프랙탈 매도 신호", style=shape.triangledown, location=location.abovebar, color=color.new(fracSellColor, 0), size=size.tiny, offset=-fracN)
+// 전환 후보 삼각형(offset 0 = 현재봉[0], %R 원과 동일 타이밍) — 상승=봉 아래 파랑 위방향(▲), 하락=봉 위 빨강 아래방향(▼). 꼬리필터·중복억제 래치 통과분만.
+//  현재봉[0] 라이브 판정·래치(커밋은 봉 확정에서만) → %R 원과 동시에 뜨고 봉 마감 전 라이브 깜빡임 가능(과거봉은 확정·비리페인팅). 후보 셀색(파랑/주황)과 병존하는 차트 추가 표현.
+plotshape(blueShow, title="상승 전환 후보(삼각형)", style=shape.triangleup,   location=location.belowbar, color=triCandBuyColor,  size=size.tiny, offset=0)
+plotshape(redShow,  title="하락 전환 후보(삼각형)", style=shape.triangledown, location=location.abovebar, color=triCandSellColor, size=size.tiny, offset=0)
 
 if barstate.islast
     lineEndX = bar_index + offset
@@ -1061,7 +993,7 @@ ltDeadBand = not na(ltAtrTable) ? ltAtrTable * ltFlatTol : 0.0
 //    - slope2 = line[1] - line[2]
 //    - slope3 = line[2] - line[3]
 //  ▸ 각도 = todegrees(atan(slope_i / atrRef)). atrRef = 기존 각도 정규화 ATR(ta.atr(14))을 세 슬로프에 **동일 분모**로 재사용.
-//    분모 angleAtrRef = ltAtrTable(위 ta.atr(14)의 현재봉[0] 값. CEO 지시로 [1]→[0] 시프트. 신규 input 없음. 프랙탈 블록의 글로벌 atrRef와 충돌 회피 위해 angleAtrRef로 명명). 봉당 ±1 ATR = ±45°, 치역 (−90°,+90°), 포화 없음. 세 선·세 슬로프 동일 분모라 비교 가능.
+//    분모 angleAtrRef = ltAtrTable(위 ta.atr(14)의 현재봉[0] 값. CEO 지시로 [1]→[0] 시프트. 신규 input 없음). 봉당 ±1 ATR = ±45°, 치역 (−90°,+90°), 포화 없음. 세 선·세 슬로프 동일 분모라 비교 가능.
 //  ▸ 소스는 20길이 리본선(ta.ema/dema/tema(close, ribbonLen), ribbonLen 기본 20). "20선 리본" 기준.
 //  ▸ 값 표시(CEO 지시 — 오래된→최신 역순): 각 행을 `slope3각 | slope2각 | slope1각` 순서로 표시(예 `+5.1° | −12.8° | +37.4°`). 각 각도는 부호(+/−)+소수1자리+°, na는 "-", 구분자 " | ". 값·각도 산식 불변, 순서만 역순.
 //  ▸ 셀 배경색(CEO 지시 — 표시 순서 규칙, 평균·데드밴드·과열 승격 제거): 표시 순서 세 값 v1=slope3각(오래됨)·v2=slope2각·v3=slope1각(최신).
@@ -1107,55 +1039,26 @@ emaAngleColorBase = f_angle3Color(emaSlope3Angle, emaSlope2Angle, emaSlope1Angle
 demaAngleColorBase = f_angle3Color(demaSlope3Angle, demaSlope2Angle, demaSlope1Angle)
 temaAngleColorBase = f_angle3Color(temaSlope3Angle, temaSlope2Angle, temaSlope1Angle)
 
-// ── [ATR 정규화 모드] 기울기 3행 표시(수학자 1번 설계) — 표시 전용, 배경/게이트와 격리 ──────────────
-//  ▸ 산식: normSlope_i = (line[k] − line[k+n]) / (ATR(14) × n), n=1 고정 → 분모는 사실상 ATR(14)=ltAtrTable(신규 ta.atr 호출 없음, CSE 재사용).
-//    단위 = 봉당 ATR 배수(디멘션리스). slope1=line[0]−line[1](현재봉[0] 포함 → 라이브 갱신·리페인팅, slope2/3은 확정봉 차분(라이브 불변) — 각도 모드와 동일 거동.
-//  ▸ ⚠️ 이 블록은 표시 전용이다. 위쪽 배경 판정(bgFillState 등)·baseState·전환 임계 게이트는 이 변수를 참조하지 않는다(격리). 밴드 배경은 두 모드 모두 현행 각도-순서 규칙 유지.
-//  ▸ na 가드: ltAtrTable na 또는 ≤0, 또는 lineNow/linePrev na면 정규화 값 na(→ 텍스트 "-", 셀 회색). 각도 모드 na 가드와 정합.
-f_normSlope(float lineNow, float linePrev) => (na(lineNow) or na(linePrev) or na(ltAtrTable) or ltAtrTable <= 0) ? na : (lineNow - linePrev) / ltAtrTable
-emaNorm1  = f_normSlope(emaLine,     emaLine[1])
-emaNorm2  = f_normSlope(emaLine[1],  emaLine[2])
-emaNorm3  = f_normSlope(emaLine[2],  emaLine[3])
-demaNorm1 = f_normSlope(demaLine,    demaLine[1])
-demaNorm2 = f_normSlope(demaLine[1], demaLine[2])
-demaNorm3 = f_normSlope(demaLine[2], demaLine[3])
-temaNorm1 = f_normSlope(temaLine,    temaLine[1])
-temaNorm2 = f_normSlope(temaLine[1], temaLine[2])
-temaNorm3 = f_normSlope(temaLine[2], temaLine[3])
-// 정규화 텍스트: 부호(+/−)+소수2자리+"x"(예 +0.35x, −0.12x). na → "-".
+// ── 기울기 3행 표시(추세 확인 1~3행) — 모드 무관 항상 각도° 고정(CEO 지시) ──────────────────────
+//  ▸ [설계 변경] 이전엔 slopeDisplayMode에 따라 각도°(Base) / ATR 정규화 배수(Norm)로 표시부가 분기했으나,
+//    CEO 지시로 추세 확인 1~3행은 모드와 무관하게 항상 기본(Base) 각도° 텍스트 + 순서 비교 셀색으로만 출력한다.
+//  ▸ ATR 정규화 모드(slopeDisplayMode)는 이제 밴드 배경(fill)·전환 행 판정·삼각형 마커에만 적용된다(기울기 3행 표시엔 미적용).
+//    정규화 slope 계산값(emaNS/demaNS/temaNS)은 배경 게이트·전환행 활성 괄호값이 참조하므로 게이트 블록(위)에 그대로 유지된다.
+//  ▸ 이 변경으로 정규화 3행 표시 전용 계산·헬퍼(f_normSlope, emaNorm1~temaNorm3, f_norm3, f_norm3Color,
+//    *AngleTextNorm/*AngleColorNorm 6종)는 미참조가 되어 제거했다. f_normStr는 전환행(4~5행) 괄호값이 계속 참조하므로 유지(아래).
+// 정규화 갭 텍스트 포맷: 부호(+/−)+소수2자리+"x"(예 +0.35x, −0.12x). na → "-". ── 전환행(4~5행) 활성 괄호값 전용(1273~1274행 참조).
 f_normStr(float v) => na(v) ? "-" : (v >= 0 ? "+" : "") + str.tostring(v, "0.00") + "x"
-// 3값 표시(오래된→최신: normSlope3 | normSlope2 | normSlope1) — 각도 모드와 동일 표시 순서. 인자 순서 = 표시 순서(v1, v2, v3).
-f_norm3(float v1, float v2, float v3) => f_normStr(v1) + " | " + f_normStr(v2) + " | " + f_normStr(v3)
-// 셀색(정규화 스케일 규칙 — 수학자 설계). v1=normSlope3(오래됨), v2=normSlope2, v3=normSlope1(최신 = 현재봉[0] 포함).
-//   ① 하나라도 na → 회색.
-//   ② |v1|,|v2|,|v3| 모두 < deadZone → 회색(데드존, 무의미 기울기·횡보 휩쏘 차단).
-//   ③ v1<v2<v3 AND (v2−v1)≥accelMin AND (v3−v2)≥accelMin AND v3>0 → 녹(상승 가속).
-//   ④ v1>v2>v3 AND (v1−v2)≥accelMin AND (v2−v3)≥accelMin AND v3<0 → 적(하락 가속).
-//   ⑤ 그 외 → 회색.
-//  ⚠️ ③④의 v3 부호 조건은 '하락 중 완만화인데 순서만 증가하면 녹 오판'하던 현행 결함을 고친 것(정규화와 무관한 실 버그 수정, 정규화 모드에만 적용). 투명도 30(녹/적)·40(회색)은 각도 모드 셀색과 동일.
-f_norm3Color(float v1, float v2, float v3) =>
-    (na(v1) or na(v2) or na(v3)) ? color.new(color.gray, 40) :
-     (math.abs(v1) < slopeDeadZone and math.abs(v2) < slopeDeadZone and math.abs(v3) < slopeDeadZone) ? color.new(color.gray, 40) :
-     (v1 < v2 and v2 < v3 and (v2 - v1) >= slopeAccelMin and (v3 - v2) >= slopeAccelMin and v3 > 0) ? color.new(ltUpColor, 30) :
-     (v1 > v2 and v2 > v3 and (v1 - v2) >= slopeAccelMin and (v2 - v3) >= slopeAccelMin and v3 < 0) ? color.new(ltDownColor, 30) : color.new(color.gray, 40)
-// 정규화 텍스트·셀색(표시 순서 = 오래된→최신: norm3, norm2, norm1).
-emaAngleTextNorm = f_norm3(emaNorm3, emaNorm2, emaNorm1)
-demaAngleTextNorm = f_norm3(demaNorm3, demaNorm2, demaNorm1)
-temaAngleTextNorm = f_norm3(temaNorm3, temaNorm2, temaNorm1)
-emaAngleColorNorm = f_norm3Color(emaNorm3, emaNorm2, emaNorm1)
-demaAngleColorNorm = f_norm3Color(demaNorm3, demaNorm2, demaNorm1)
-temaAngleColorNorm = f_norm3Color(temaNorm3, temaNorm2, temaNorm1)
 
-// ── 모드 선택(표시 전용 분기). "기본"이면 각도° 경로(바이트 동일), "ATR 정규화"면 배수 경로. ──
-//  ⚠️ useNormSlope는 위 정규화 게이트 블록(bgFillState 직후)에서 이미 선언됨(밴드 배경·전환 판정과 표시가 동일 플래그를 공유 → 단일 소스). 여기서 재선언하지 않는다.
-emaAngleText = useNormSlope ? emaAngleTextNorm : emaAngleTextBase
-demaAngleText = useNormSlope ? demaAngleTextNorm : demaAngleTextBase
-temaAngleText = useNormSlope ? temaAngleTextNorm : temaAngleTextBase
-emaAngleColor = useNormSlope ? emaAngleColorNorm : emaAngleColorBase
-demaAngleColor = useNormSlope ? demaAngleColorNorm : demaAngleColorBase
-temaAngleColor = useNormSlope ? temaAngleColorNorm : temaAngleColorBase
-// 기울기 3행 셀 툴팁(모드별). 정규화 모드에서만 밴드 배경 불일치·독립 착시 caveat를 노출한다.
-slopeCellTooltip = useNormSlope ? "ATR 정규화 모드: 값=봉당 기울기÷ATR(14) 배수(±0.00x, 오래된→최신). 셀색=데드존/가속 임계/부호 조건 규칙.\n⚠️ 이 셀 색은 밴드 배경 판정과 일치하지 않을 수 있습니다(밴드 배경은 현행 각도-순서 규칙 유지). 셀색=배경색 일치는 '기본' 모드에서만 보장됩니다.\n⚠️ DEMA·TEMA는 EMA 파생선이라 독립 확인이 아닙니다 — 3행 동일 방향은 독립 3표가 아니라 한 소스의 지연차입니다. 표시 전용(매매 신호 아님)." : "기본 모드: 값=시간축 3-슬로프 각도°(오래된→최신), 셀색=각도 서열(v1<v2<v3 녹 / v1>v2>v3 적 / na·그 외 회색). 표시 전용."
+// ── 기울기 3행 값·셀색: 항상 Base(각도°) 고정. 모드 분기 없음(CEO 지시). ──
+//  ⚠️ slopeDisplayMode(ATR 정규화)를 켜도 이 3행은 각도° 텍스트·각도 서열 셀색 그대로. 정규화는 배경·전환·삼각형에만 적용.
+emaAngleText = emaAngleTextBase
+demaAngleText = demaAngleTextBase
+temaAngleText = temaAngleTextBase
+emaAngleColor = emaAngleColorBase
+demaAngleColor = demaAngleColorBase
+temaAngleColor = temaAngleColorBase
+// 기울기 3행 셀 툴팁 — 모드 무관 단일 문구(항상 각도° 표시). 정규화 caveat 제거(3행은 정규화 미적용).
+slopeCellTooltip = "추세 확인 1~3행: 모드와 무관하게 항상 기본 각도(°) 표시. 값=시간축 3-슬로프 각도°(오래된→최신), 셀색=각도 서열(v1<v2<v3 녹 / v1>v2>v3 적 / na·그 외 회색). 표시 전용(매매 신호 아님).\n⚠️ ATR 정규화 모드는 밴드 배경·전환 판정·삼각형에만 적용되며, 이 3행 표시에는 영향을 주지 않습니다."
 
 // ── 단기 추세(20선 vs 50선) 셀 — 원본 이식 ────────────────────────────────────────────────
 stReady = not na(vwma20) and not na(vwma50)
