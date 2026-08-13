@@ -80,31 +80,22 @@ srBandStdMult = input.float(1.0, minval=0.1, step=0.5, title="100·200선 지지
 vwapStateBars = input.int(20, minval=1, title="vwap 상태 전용 최근 봉 수(6상태)", group=TABLE_GROUP, tooltip="vwap 상태(20) 6상태(위/아래·지지·저항·밴드워킹·이탈·중앙 공방) 판정 전용 별도 VWAP·밴드 윈도우(기본 20봉). 화면 VWAP(50)·50선 지지/저항과 이원화. 전략 파라미터(수학자 리뷰 대상).")
 
 // =========================
-// 지수 추세 리본(EMA/DEMA/TEMA) + 정배열/역배열 배경 — 표시 전용.
+// 지수 추세 리본(EMA/DEMA/TEMA) + 밴드 배경 — 표시 전용.
 //  ▸ 페인팅 리본(plot, 종가 기준): 단일 소스 close에 EMA를 3중 누적(e1=EMA(close), e2=EMA(e1), e3=EMA(e2))해
 //     EMA=e1, DEMA=2e1−e2, TEMA=3e1−3e2+e3 를 그린다(모두 확정 성격 ta.ema 누적 → 신규 리페인팅 없음).
 //     TEMA는 DEMA보다, DEMA는 EMA보다 지연이 작아, 세 선의 상대 위치·기울기가 추세 국면을 압축해 보여준다. 이 3선만 화면에 표시.
-//  ▸ 정배열/역배열 배경(CEO 재설계 — 단일 종가 리본 기울기 순서): 배경 판정에 **테이블 EMA/DEMA/TEMA 기울기와 동일한 값**을 쓴다.
-//     즉 종가 리본선(emaLine/demaLine/temaLine)의 확정봉 [1]−[2] 차분(slopeEma/slopeDema/slopeTema)을 그대로 재사용한다(배경·테이블 각도 일치).
-//     ▸ 녹(정배열) = slopeEma < slopeDema and slopeDema < slopeTema (ema<dema<tema 순서).
-//     ▸ 빨강(역배열) = slopeEma > slopeDema and slopeDema > slopeTema (반대).
-//     ▸ 그 외 = 배경 없음(baseState=0). 두 조건은 상호배타라 동시발생 없음. na 가드: 세 기울기 중 na 있으면 0.
-//     ▸ 3계층 상태머신(CEO 지시): baseState(순서 판정) → interimState(반전 후보 래치 억제) → paintState(직접 플립 억제). fill이 참조하는 최종값은 paintState.
-//     ▸ [계층2] 반전 후보 래치 억제(stateless 억제를 상태머신으로 확장): baseState 직후 반전 후보 래치(bullCand/bearCand)로 억제·연속성을 부여해 interimState를 만든다.
-//        ① 상승 반전 후보(녹색 측): 트리거 = 확정봉 고가[1] > 밴드1 상단[1](upperBandValue1[1]) AND 윗꼬리>몸통(확정봉[1] 요소) → 그 봉 녹색 억제 + bullCand ON.
-//           bullCand 유지 중엔 baseState 녹색 봉이 직전 확정봉 대비 낮은 고가(high[1] < high[2])면 녹색 억제 지속, 고가 회복(high[1] >= high[2])이면 녹색 허용. 빨강 국면 감지(interimState==-1) 시 bullCand OFF.
-//        ② 하락 반전 후보(빨강 측·대칭): 트리거 = 확정봉 저가[1] < 밴드1 하단[1](lowerBandValue1[1]) AND 아랫꼬리>몸통 → 그 봉 빨강 억제 + bearCand ON.
-//           bearCand 유지 중엔 baseState 빨강 봉이 직전 확정봉 대비 높은 저가(low[1] > low[2])면 빨강 억제 지속, 저가 회복(low[1] <= low[2])이면 빨강 허용. 녹 국면 감지(interimState==1) 시 bearCand OFF.
-//        → 목표: 반전 후보 발생 후 즉시 반대 배경이 깜빡이지 않고 실제 고가 회복(또는 반대 국면 출현)까지 억제 연속.
-//        봉 기준은 slope와 동일한 **확정봉 [1]**(high/low/close/open·밴드1 확정값[1]·직전 확정봉 high[2]/low[2]). 억제 판정은 라이브 봉[0] 동안 확정값이라 불변, 봉 마감 시에만 갱신(깜빡임 없음, 배경과 동일 특성).
-//     ▸ [계층3] 직접 전환(플립) 억제(CEO 지시): interimState 위에 paintState를 둔다. 직전봉 페인팅이 녹(paintState[1]==1)인데 이번 interimState==-1(빨강)이면 paintState=0(경계봉 미페인팅), 반대(빨강→녹)도 대칭. 그 외 paintState=interimState.
-//        · 경계 1봉만 억제 → 다음 봉은 paintState[1]==0이라 자동 정상 페인팅(연속 빨강/녹은 그대로 표시). 국면이 직접 뒤집히는 첫 봉만 비운다.
-//     ▸ 후보 해제 "간주"(CEO 지시): 후보 래치 해제는 페인팅(paintState)이 아니라 **국면 감지(interimState)** 기준. 플립으로 빨강을 안 그려도(paintState==0) 빨강 국면(interimState==-1)이 감지됐으면 상승 후보는 꺼진다.
-//     ▸ 필터 제거 유지(CEO 지시): 이전의 저가/고가 소스 분리·동시발생 tie-break(봉색/꼬리)는 부활시키지 않는다(제거 상태 유지). 순서 판정·slope·색·투명도·fill 방식 불변.
-//  ▸ 확정봉 기준·깜빡임 제거(CEO 지시): slope가 **확정봉 [1]−[2] 기준**이고 억제·paintState 입력도 전부 확정봉([1]/[2])이라 **배경이 라이브 봉[0] 동안 불변, 봉 마감(확정) 시에만 갱신**된다(깜빡임 없음, 1봉 지연).
-//     상태머신(var paintState·래치)은 매 봉 실행되지만 입력이 확정값이라 라이브 봉에서 갱신해도 과거봉 재실행 시 동일하게 재현된다(결정론). 과거봉의 래치·paintState[1]도 확정 후 고정.
-//     평가 순서 고정: baseState → interimState(후보 래치 억제) → paintState(플립 억제) 순으로 확정하고, 후보 해제는 interimState 확정값 기준으로 평가(플립 억제 이후가 아니라 interim 기준)해 순환을 끊는다.
-//     과거봉은 확정 후 고정. CEO가 "테이블 기울기값과 일치 + 라이브 봉 깜빡임 제거"를 의도한 결과다.
+//  ▸ 밴드 배경(CEO 재정의 — 전환 셀 + 기울기 3행 컨플루언스): 밴드2(상단2~하단2) 영역 fill 색을 아래 3규칙으로만 결정한다.
+//     옛 억제/래치/플립(baseState→interimState→paintState 배경체인, bullCand/bearCand·greenSuppress/redSuppress·bgPaintState)은 전면 제거됨.
+//     ① 하락 전환 셀이 빨강(baseState==-1) AND 기울기 1~3행 셀 중 녹색이 하나도 없음 → 빨강 배경.
+//     ② 상승 전환 셀이 녹색(baseState== 1) AND 기울기 1~3행 셀 중 빨강이 하나도 없음 → 녹색 배경.
+//     ③ 1·2 모두 아니면 → 배경 없음. (①②는 baseState 부호가 달라 상호배타.)
+//     ▸ "전환 셀 색" = 테이블 상승/하락 전환 2행(upCellBg/dnCellBg)과 동일 근거: 상승=녹은 baseState==1, 하락=빨강은 baseState==-1.
+//     ▸ "기울기 셀 색" = 테이블 기울기 3행(f_angle3Color)과 동일 판정: 각 행(EMA/DEMA/TEMA)의 표시 순서 각도 v1=slope3·v2=slope2·v3=slope1에 대해
+//        v1<v2<v3 → 녹(정배열), v1>v2>v3 → 빨강(역배열), 그 외/na → 회색(녹도 빨강도 아님). 배경 판정은 이 3행 각각의 green/red 불리언을 OR로 모아 "녹 있음/빨강 있음"을 본다.
+//        ⚠️ 각도=atan(slope/ref)는 ref(=ta.atr(14) 현재봉[0])>0에서 단조증가라 순서 비교가 raw slope 순서와 동치 → 배경에선 각 라인 raw 차분(slope)으로 동일 판정을 재현하고, ref na/≤0(회색)도 동일하게 가드한다(테이블 셀색과 완전 일치).
+//  ▸ 확정봉/리페인팅 특성: slope2/slope3은 확정봉 차분(라이브 불변), slope1은 현재봉[0] 포함(라이브 갱신) — 테이블 기울기 3행과 100% 동일한 값·거동이므로 배경도 그와 일치한다. 과거봉은 확정 후 고정.
+//  ▸ 색·투명도: 기존 배경 input(ribbonBullBgColor/ribbonBearBgColor + ribbonBgTransp) 그대로 재사용(색 변경 아님, 조건만 교체). 밴드2 선(plot) 색·값은 불변.
+//  ⚠️ baseState(종가 리본 기울기 순서)는 전환 셀·전환선·전환 임계 게이트와 공유되므로 남긴다(배경 로직 아님). 배경 판정만 위 3규칙으로 계산한다.
 //  ⚠️ 매매 신호가 아니라 표시 전용 국면 배경이다. 기존 auto-vwap 기능과 무관.
 // =========================
 RIBBON_GROUP = "지수 추세 리본"
@@ -113,16 +104,16 @@ ribbonLen = input.int(20, title="지수 리본 길이", minval=1, group=RIBBON_G
 ribbonEmaColor = input.color(color.yellow, title="EMA 선 색", group=RIBBON_GROUP, active=showRibbon, tooltip="EMA 선 색. 기본 노랑.")
 ribbonDemaColor = input.color(color.aqua, title="DEMA 선 색", group=RIBBON_GROUP, active=showRibbon, tooltip="DEMA(2·EMA−EMA(EMA)) 선 색. 기본 하늘색.")
 ribbonTemaColor = input.color(#FF80AB, title="TEMA 선 색", group=RIBBON_GROUP, active=showRibbon, tooltip="TEMA(3·EMA−3·EMA(EMA)+EMA(EMA(EMA))) 선 색. 기본 분홍.")
-// 정배열/역배열 배경(CEO 재설계) — 세 선의 직전봉 대비 기울기를 부호 포함 서열로 비교해 판정. 밴드2(±2σ) 영역 fill로 그린다.
-showRibbonExpBg = input.bool(true, title="정배열/역배열 배경 표시", group=RIBBON_GROUP, tooltip="켜면 화면 종가 리본선(EMA/DEMA/TEMA)의 기울기 순서로 정배열(녹)/역배열(빨강)을 판정해 밴드2(상단2~하단2) 영역을 반투명 배경으로 채웁니다. 배경 판정에는 테이블에 표시되는 EMA/DEMA/TEMA 기울기와 동일한 값(종가 리본선의 확정봉 [1]−[2] 차분)을 그대로 씁니다. 녹(정배열)=slopeEma<slopeDema<slopeTema(ema<dema<tema 순서), 빨강(역배열)=slopeEma>slopeDema>slopeTema(반대), 그 외/na는 배경 없음. 두 조건은 상호배타라 동시발생이 없어 별도 tie-break가 없습니다. 순서 판정 직후 반전 후보 래치로 억제·연속성을 적용합니다 — 확정봉 고가[1]가 밴드1 상단[1] 위 AND 윗꼬리>몸통이면 상승 반전 후보(녹 억제 + 후보 ON)이고, 후보 유지 중엔 정배열 봉이 직전 확정봉보다 낮은 고가(high[1]<high[2])면 녹 억제를 이어가며 고가 회복(high[1]>=high[2])이나 빨강 배경 실제 표시 시 후보를 해제합니다(빨강 측은 저가/하단 밴드1·역배열·low[1]>low[2]로 대칭). 반전 후보 발생 후 반대 배경이 즉시 깜빡이지 않고 실제 회복까지 억제가 이어집니다. ⚠️ 기울기·억제 판정을 전부 확정봉[1]/[2] 기준으로 시프트해 배경이 라이브 봉[0] 동안 변하지 않고 봉 마감(확정) 시에만 갱신됩니다(깜빡임 제거·1봉 지연). 상태머신·래치는 매 봉 실행되지만 확정값 입력이라 과거봉은 결정론적으로 고정됩니다. 표시 전용.")
+// 밴드 배경(CEO 재정의) — 전환 셀 상태 + 기울기 3행 컨플루언스로만 판정. 밴드2(±2σ) 영역 fill로 그린다(옛 억제/래치/플립 제거).
+showRibbonExpBg = input.bool(true, title="정배열/역배열 배경 표시", group=RIBBON_GROUP, tooltip="켜면 밴드2(상단2~하단2) 영역을 반투명 배경으로 채웁니다. 배경 색은 상태 테이블의 '상승/하락 전환 셀 색'과 '기울기 3행(EMA/DEMA/TEMA) 셀 색'의 컨플루언스로만 결정됩니다(CEO 재정의): ① 하락 전환 셀이 빨강(하락 전환 상태) AND 기울기 3행 중 녹색이 하나도 없음 → 빨강 배경. ② 상승 전환 셀이 녹색(상승 전환 상태) AND 기울기 3행 중 빨강이 하나도 없음 → 녹색 배경. ③ 둘 다 아니면 배경 없음. 기울기 셀 색은 테이블과 동일 판정(표시 순서 각도 v1<v2<v3=녹 정배열, v1>v2>v3=빨강 역배열, 그 외/na=회색)입니다. ⚠️ 기울기 1열(slope1)은 현재봉[0]을 포함하므로 배경도 라이브 봉 동안 갱신될 수 있습니다(테이블 기울기 3행과 동일 거동, 봉 마감 시 확정). 옛 반전 후보 래치·직접 플립 억제·패턴 무조건 억제는 CEO 지시로 전면 제거됐습니다. 표시 전용(매매 신호 아님).")
 ribbonBullBgColor = input.color(#2E7D32, title="정배열 배경색", group=RIBBON_GROUP, active=showRibbonExpBg, tooltip="정배열 구간 밴드2 영역 배경색. 기본 녹색 #2E7D32. 아래 투명도와 합쳐 반투명으로 칠합니다.")
 ribbonBearBgColor = input.color(#C62828, title="역배열 배경색", group=RIBBON_GROUP, active=showRibbonExpBg, tooltip="역배열 구간 밴드2 영역 배경색. 기본 빨강 #C62828. 아래 투명도와 합쳐 반투명으로 칠합니다.")
-ribbonBgTransp = input.int(80, title="배경 투명도", minval=0, maxval=100, group=RIBBON_GROUP, active=showRibbonExpBg, tooltip="정배열/역배열 배경색의 투명도(0=불투명, 100=완전 투명). 기본 80.")
-// 상승/하락 전환 수평선(Part C) — 배경 전환 임계가격(xUp/xDn, 확정봉[2] base 기준)을 차트에 수평선 + 우측 프라이스 스케일 라벨로 그린다.
+ribbonBgTransp = input.int(70, title="배경 투명도", minval=0, maxval=100, group=RIBBON_GROUP, active=showRibbonExpBg, tooltip="정배열/역배열 배경색의 투명도(0=불투명, 100=완전 투명). 기본 70.")
+// 상승/하락 전환 수평선(Part C) — 배경 전환 임계가격(xUp/xDn, 확정봉[1] base + 현재봉 close 투영 기준)을 차트에 수평선 + 우측 프라이스 스케일 라벨로 그린다.
 //  ▸ 색: 상승 전환 선 = 순수 녹 rgb(0,255,0), 하락 전환 선 = 순수 빨강 rgb(255,0,0)(직전 밴드2 선색 롤백에서 이관한 값). input.color로 노출.
-//  ▸ 상태별 표시(테이블 2행과 동일 매핑): 게이트 상태는 **baseState(rawState=억제·플립 이전 순수 기울기 순서)** 기준. 중립(baseState==0)=둘 다 표시(상승=xUp, 하락=xDn) / 정배열(1)=하락 전환 선만(=xUp, 녹 이탈 하방), 상승 선 숨김 / 역배열(-1)=상승 전환 선만(=xDn, 빨강 이탈 상방), 하락 선 숨김. (배경 fill만 paintState 유지, 전환 표시는 baseState.)
-//  ▸ upOk/dnOk(na·비양수 방어) 미충족 시 해당 선 숨김. 확정봉 기준: xUp/xDn이 확정봉[2] base값 기반이라 선도 라이브 봉 동안 고정, 봉 마감(확정) 시에만 갱신되는 전방 목표(깜빡임 없음).
-showTransitionLines = input.bool(false, title="상승/하락 전환 수평선 표시", group=RIBBON_GROUP, tooltip="켜면 배경 전환 임계가격(다음 봉 종가가 여기 오면 정/역배열로 갈리는 값)을 차트에 수평선 + 우측 프라이스 스케일 라벨로 그립니다. 상태별 표시는 상태 테이블의 상승/하락 전환 2행과 동일하게 매핑됩니다: 중립이면 상승(녹·xUp)·하락(빨강·xDn) 둘 다, 정배열(녹)이면 하락 전환 선만(=xUp, 녹 이탈 하방), 역배열(빨강)이면 상승 전환 선만(=xDn, 빨강 이탈 상방)을 그립니다. 상태 게이트는 baseState(억제·플립 이전 순수 기울기 순서) 기준입니다. ⚠️ 임계가격이 확정봉[2] base값 기준이라 라이브 봉 내내 고정되고 봉 마감(확정) 시에만 갱신됩니다 — 선·가격축 라벨이 실시간 봉에서 깜빡이지 않습니다(1봉 지연, 표시 전용).")
+//  ▸ 상태별 표시(테이블 2행과 동일 매핑): 게이트 상태는 **baseState(순수 기울기 서열)** 기준. 중립(baseState==0)=둘 다 표시(상승=xUp, 하락=xDn) / 정배열(1)=하락 전환 선만(=xUp, 녹 이탈 하방), 상승 선 숨김 / 역배열(-1)=상승 전환 선만(=xDn, 빨강 이탈 상방), 하락 선 숨김. (전환 표시·밴드 배경 모두 baseState 기준으로 통일.)
+//  ▸ upOk/dnOk(na·비양수 방어) 미충족 시 해당 선 숨김. 현재봉 기준: xUp/xDn이 확정봉[1] base + 현재봉 close 투영이라 선도 라이브 봉 동안 갱신되는 전방 목표(깜빡임 있음, 과거봉은 확정).
+showTransitionLines = input.bool(false, title="상승/하락 전환 수평선 표시", group=RIBBON_GROUP, tooltip="켜면 배경 전환 임계가격(다음 봉 종가가 여기 오면 정/역배열로 갈리는 값)을 차트에 수평선 + 우측 프라이스 스케일 라벨로 그립니다. 상태별 표시: 중립이면 상승(녹·xUp)·하락(빨강·xDn) 둘 다, 정배열(녹)이면 하락 전환 선만(=xUp, 녹 이탈 하방), 역배열(빨강)이면 상승 전환 선만(=xDn, 빨강 이탈 상방)을 그립니다. 상태 게이트는 baseState(순수 기울기 순서·임계가격 산식과 정합) 기준입니다. ⚠️ 상태 테이블 전환 2행의 활성표시·셀색은 밴드 배경 상태(bgFillState) 게이트로 바뀌었으나(밴드 배경과 일치), 이 수평선은 임계가격 자체라 baseState 게이트를 유지합니다 — 선엔 '전환 중' 텍스트가 없어 텍스트 모순은 없습니다(baseState==±1이지만 기울기 반대색으로 밴드 배경이 없는 봉에선 선은 뜨고 테이블 행은 중립일 수 있음). ⚠️ 임계가격이 확정봉[1] base + 현재봉 close 투영 기준이라 라이브 봉 동안 갱신됩니다 — 선·가격축 라벨이 실시간 봉에서 깜빡일 수 있습니다(현재봉[0] 실시간, 과거봉은 확정·비리페인팅, 표시 전용).")
 transUpLineColor = input.color(color.rgb(0, 255, 0), title="상승 전환 수평선 색(순수 녹)", group=RIBBON_GROUP, active=showTransitionLines, tooltip="상승 전환 임계 수평선 색. 순수 녹(rgb(0,255,0)). 직전 밴드2 정배열 선색에서 이관한 값입니다.")
 transDnLineColor = input.color(color.rgb(255, 0, 0), title="하락 전환 수평선 색(순수 빨강)", group=RIBBON_GROUP, active=showTransitionLines, tooltip="하락 전환 임계 수평선 색. 순수 빨강(rgb(255,0,0)). 직전 밴드2 역배열 선색에서 이관한 값입니다.")
 // ── 추세 확인 테이블 EMA/DEMA/TEMA 기울기 3행 셀 배경색(CEO 지시 — 표시 순서 규칙) ──
@@ -446,20 +437,18 @@ if barstate.isconfirmed
 abnBg = abnCandleState == 1 ? color.new(abnSellBgColor, abnBgTransp) : abnCandleState == -1 ? color.new(abnBuyBgColor, abnBgTransp) : na
 
 // =========================
-// 지수 추세 리본(EMA/DEMA/TEMA) 계산 + 정배열/역배열 배경 판정(CEO 재설계 — 단일 종가 리본 기울기 순서, 필터 제거).
+// 지수 추세 리본(EMA/DEMA/TEMA) 계산 + baseState(리본 서열) + 밴드 배경 판정용 컨플루언스.
 //  ▸ 페인팅 리본(plot, 종가 기준): e1=EMA(close,len), e2=EMA(e1,len), e3=EMA(e2,len). EMA=e1, DEMA=2e1−e2, TEMA=3e1−3e2+e3.
 //     이 3선(emaLine/demaLine/temaLine)만 화면에 plot(각 1px, price scale off). 모두 ta.ema 누적(확정 성격) → 신규 리페인팅 없음.
-//  ▸ 배경 판정 = 테이블 EMA/DEMA/TEMA 기울기와 **동일한 값**(종가 리본선, 확정봉 [1]−[2] 차분)을 그대로 재사용한다(CEO 지시 — 배경과 테이블 각도 일치, 라이브 봉 깜빡임 제거).
+//  ▸ baseState(종가 리본 기울기 서열) — 테이블 EMA/DEMA/TEMA 기울기 slope1과 **동일한 값**(종가 리본선, 현재봉 [0]−[1] 차분)을 재사용한다.
 //     slopeEma/Dema/Tema를 여기서 선언하고, 아래 테이블 각도 블록이 이 값을 그대로 참조한다(중복 계산 제거).
-//  ▸ 녹(정배열) = slopeEma < slopeDema and slopeDema < slopeTema (ema<dema<tema 순서).
-//  ▸ 빨강(역배열) = slopeEma > slopeDema and slopeDema > slopeTema (반대).
-//  ▸ 그 외 = 배경 없음(baseState=0). 두 조건은 상호배타라 동시발생 없음.
-//  ▸ na 가드: 세 기울기 중 na가 하나라도 있으면 0(배경 없음).
-//  ▸ 3계층 상태머신(CEO 지시): baseState → interimState(반전 후보 래치 억제) → paintState(직접 플립 억제). baseState 확정 직후 아래 "반전 후보 래치" 블록에서 interimState·paintState를 확정한다(아래 블록 참조). fill은 paintState 참조.
-//  ▸ 필터 제거 유지(CEO 지시): 이전의 저가/고가 소스 분리(emaLow/High 등)·동시발생 tie-break(봉색/꼬리 greenPick/redPick)는 부활시키지 않는다(제거 상태 유지).
-//  ⚠️ 확정봉 기준·깜빡임 제거(CEO 지시): slope가 확정봉 [1]−[2] 기준이고 억제 판정 입력도 전부 확정봉([1]/[2])이라 배경이 **라이브 봉[0] 동안 변하지 않고 봉 마감(확정) 시에만 갱신**된다(깜빡임 없음, 1봉 지연).
-//     상태머신(var paintState·반전 후보 래치)은 매 봉 실행되지만 입력이 확정값이라 라이브 봉에서 갱신해도 과거봉 재실행 시 동일하게 재현된다(결정론 — 아래 래치 블록 참조).
-//     과거봉은 확정 후 고정. CEO가 "테이블 기울기값과 일치 + 라이브 봉 깜빡임 제거"를 의도한 결과다.
+//     · 1(정배열) = slopeEma < slopeDema < slopeTema. · −1(역배열) = slopeEma > slopeDema > slopeTema. · 그 외/na = 0. (상호배타.)
+//     ⚠️ baseState는 배경 로직이 아니라 **전환 셀(upCellBg/dnCellBg)·전환선·전환 임계 게이트에서 공유**된다(그래서 남긴다).
+//        전환 2행 매핑: baseState==1=상승 전환(셀 녹), baseState==−1=하락 전환(셀 빨강), 0=중립. 밴드 배경도 이 전환 셀 색을 규칙 입력으로 읽는다.
+//  ▸ 밴드 배경(CEO 재정의 — 아래 블록에서 산출하는 bgFillState): 전환 셀 색(baseState) + 기울기 3행(EMA/DEMA/TEMA) 셀 색(f_angle3Color와 동일 판정)의 컨플루언스로만 결정한다.
+//     ① baseState==−1 AND 기울기 3행 중 녹 없음 → 빨강. ② baseState==1 AND 기울기 3행 중 빨강 없음 → 녹. ③ 그 외 없음.
+//     옛 억제/래치/플립(interimState/paintState·bullCand/bearCand·greenSuppress/redSuppress·bgPaintState)은 CEO 지시로 전면 제거됨.
+//  ⚠️ 리페인팅: slope2/slope3은 확정봉 차분(라이브 불변)이나, 기울기 셀 판정에 쓰는 slope1은 현재봉[0]을 포함하므로 배경도 라이브 봉 동안 갱신될 수 있다(테이블 기울기 3행과 동일 거동). 과거봉은 확정 후 고정.
 //  ⚠️ 밴드2 값(upperBandValue2/lowerBandValue2)·shouldPlot은 위에서 이미 계산됨(선언순서 안전).
 // =========================
 // 페인팅 리본(plot 대상) — 종가 기준. plot은 아래에서 emaLine/demaLine/temaLine 3선만 그린다(불변).
@@ -469,112 +458,93 @@ ribbonE3 = ta.ema(ribbonE2, ribbonLen)
 emaLine = ribbonE1
 demaLine = 2 * ribbonE1 - ribbonE2
 temaLine = 3 * ribbonE1 - 3 * ribbonE2 + ribbonE3
-// 종가 리본선 기울기(확정봉 [1]−[2] 차분) — 테이블 EMA/DEMA/TEMA 기울기와 동일 값. 아래 테이블 각도 블록이 이 세 변수를 그대로 재사용한다.
-//  ⚠️ 확정봉 기준(CEO 지시 — 라이브 봉 깜빡임 제거): 리본 기울기 기반 표시(각도·배경·전환)를 전부 확정봉으로 한 봉 시프트한다.
-//     현재봉[0]은 형성 중이라 마감 전까지 값이 변하지만, 직전 마감봉[1]은 확정되어 라이브 봉 내내 불변 → 봉 마감(확정) 시에만 갱신(1봉 지연).
-//     slope = line[1]−line[2](확정봉 차분). 요소 간 기준봉을 전부 [1]/[2]로 통일한다.
-//  na 가드: 워밍업 초반 봉에서 line[2]가 na면 차분도 na → 아래 정/역배열 부등식이 false → 배경 미표시(baseState=0).
-slopeEma = emaLine[1] - emaLine[2]
-slopeDema = demaLine[1] - demaLine[2]
-slopeTema = temaLine[1] - temaLine[2]
-// 정/역배열 순서 판정(baseState) — 종가 리본 기울기 순서만으로 결정(tie-break·저가/고가 분리는 제거 상태 유지).
-//  녹(정배열)=ema<dema<tema, 빨강(역배열)=ema>dema>tema. 상호배타(동시발생 없음), 그 외/na는 0.
-//  ⚠️ baseState는 "억제 전" 순서 판정값이다. 아래 반전 후보 래치가 이를 억제해 interimState를, 그 위 플립 억제가 최종 paintState를 만든다.
+// 종가 리본선 기울기(현재봉 [0]−[1] 차분) — 테이블 EMA/DEMA/TEMA 기울기 slope1과 동일 값. 아래 테이블 각도 블록이 이 세 변수를 그대로 재사용한다.
+//  ⚠️ 현재봉[0] 기준(CEO 지시 — 실시간화, 깜빡임 감수): baseState용 리본 기울기(slopeEma/Dema/Tema)는 현재봉 [0]−[1] 차분으로 시프트한다(전환 셀·전환선·밴드 배경이 라이브 봉 동안 갱신).
+//     현재봉[0]은 형성 중이라 마감 전까지 값이 변한다 → baseState·전환셀(4·5행)·전환선·전환 임계 게이트·밴드 배경이 라이브 봉에서 실시간 갱신(봉 마감 시 확정, 과거봉은 결정론적·비리페인팅).
+//     slope = line[0]−line[1](현재봉 차분). 요소 간 기준봉을 전부 [0]/[1]로 통일한다.
+//  na 가드: 워밍업 초반 봉에서 line[1]이 na면 차분도 na → 아래 정/역배열 부등식이 false → baseState=0(전환 중립).
+slopeEma = emaLine[0] - emaLine[1]
+slopeDema = demaLine[0] - demaLine[1]
+slopeTema = temaLine[0] - temaLine[1]
+// 정/역배열 순서 판정(baseState) — 종가 리본 기울기 서열만으로 결정. 전환 셀·전환선·전환 임계 게이트에서 공유(배경도 이를 규칙 입력으로 읽는다).
+//  1(정배열/상승 전환)=ema<dema<tema, −1(역배열/하락 전환)=ema>dema>tema. 상호배타(동시발생 없음), 그 외/na는 0(중립).
 baseState = (slopeEma < slopeDema and slopeDema < slopeTema) ? 1
      : (slopeEma > slopeDema and slopeDema > slopeTema) ? -1
      : 0
 // =========================
-// 반전 후보 래치(bullCand/bearCand) — 밴드1 이탈+긴꼬리 stateless 억제를 **상태 기반 상태머신**으로 확장(CEO 지시).
-//  목적: 배경 연속성 — 반전 후보 발생 후 즉시 반대 배경이 깜빡이지 않고, 실제 고가 회복(또는 반대 배경 출현)까지 억제가 이어지게 한다.
-//  ▸ 캔들 요소(확정봉 [1]): body=|close[1]−open[1]|, upWick=high[1]−max(close[1],open[1]), dnWick=min(close[1],open[1])−low[1]. (기존 정의를 확정봉으로 시프트 — CEO 지시.)
-//  ▸ 후보 트리거(= 기존 greenSuppress/redSuppress 패턴 재사용, 확정봉[1]·밴드1[1]):
-//     · bullTrigger = 확정봉 고가[1] > 밴드1 상단[1](upperBandValue1[1]) AND 윗꼬리>몸통  → 상승 반전 후보(녹색 측). 이 봉 녹색 억제 + bullCand ON.
-//     · bearTrigger = 확정봉 저가[1] < 밴드1 하단[1](lowerBandValue1[1]) AND 아랫꼬리>몸통 → 하락 반전 후보(빨강 측). 이 봉 빨강 억제 + bearCand ON.
-//  ▸ 억제식(이 봉의 배경 억제 여부 — baseState 기준):
-//     · greenSuppress = bullTrigger  OR  (bullCand and baseState==1 and high[1] < high[2])   ← 후보 유지 중 baseState 녹색 봉이 직전 확정봉 대비 낮은 고가면 억제 지속. high[1]>=high[2](고가 회복/돌파)이면 허용.
-//     · redSuppress   = bearTrigger  OR  (bearCand and baseState==-1 and low[1]  > low[2])    ← 후보 유지 중 baseState 빨강 봉이 직전 확정봉 대비 높은 저가면 억제 지속. low[1]<=low[2](저가 회복/돌파)이면 허용.
-//  ▸ interimState(계층2 = 국면 감지): baseState에서 해당 측이 억제되면 0으로 눌러 배경 국면을 없앤다.
-//     interimState = (baseState==1 and greenSuppress) or (baseState==-1 and redSuppress) ? 0 : baseState.
-//  ▸ paintState(계층3 = 직접 플립 억제 → fill 참조값): 직전봉 페인팅이 녹(paintState[1]==1)인데 interimState==-1(빨강)이면(또는 대칭) paintState=0, 그 외 paintState=interimState. 경계 1봉만 미페인팅.
-//  ▸ 해제(순환 의존 해소 — 평가 순서 고정): 후보 해제는 페인팅(paintState)이 아니라 **interimState(국면 감지)** 기준으로 판정한다(CEO 지시). 플립으로 빨강을 안 그려도 빨강 국면(interimState==-1)이면 상승 후보를 끈다.
-//     → 그래서 **① baseState→interimState→paintState 확정을 먼저** 하고, **② interimState로 반대 래치를 해제**한다(clear는 set 이후·interim 기준). 이렇게 순서를 고정해 순환을 끊는다.
-//     · bullCand OFF: interimState == -1(빨강 국면 감지, 플립 미페인팅이어도). · bearCand OFF: interimState == 1(녹 국면 감지).
-//     · set과 clear가 겹치는 극단(같은 봉 트리거+반대국면)은 로직상 불가하나, 안전하게 set을 먼저(트리거) 반영 후 clear를 평가한다. bullTrigger면 greenSuppress=true라 baseState==1이 눌려 interimState!=1 → bearCand OFF는 발동하지 않음(반대도 대칭).
-//  ▸ 직전봉 비교: high[2]/low[2](확정봉[1]의 직전 확정봉). 후보 다음 첫 확정봉에선 자연히 후보봉의 고가/저가와 비교된다.
-//  ▸ na 가드: 밴드1[1]이 na(워밍업)면 트리거 부등식 false → 억제 미발동. high[2]/low[2]가 na(초기봉)면 비교 false → 유지 억제 미발동(안전).
-//  ⚠️ 확정봉 기준·과거봉 결정론(CEO 지시): 억제 판정(greenSuppress/redSuppress)·interimState·paintState 입력이 전부 확정봉([1]/[2])이라 라이브 봉[0] 동안 값이 불변, 봉 마감(확정) 시에만 갱신된다(배경과 동일 특성, 깜빡임 없음). 플립 억제 참조값 paintState[1]은 직전 봉값.
-//     래치 상태 전이(set/clear = bullCand/bearCand 갱신)는 매 봉 실행하되 입력이 확정값[1]/[2]이라 과거봉의 래치 값·paintState[1]이 확정 후 불변 → 재실행해도 과거 결과가 바뀌지 않는다(결정론 보장).
-//     (기존 barstate.isconfirmed 가드는 [0] 입력의 라이브 변동을 막기 위함이었으나, 입력을 확정봉으로 시프트해 그 가드 없이도 결정론이 성립한다.)
+// 밴드 배경용 "전환 셀 상태 + 기울기 3행 컨플루언스" 불리언(CEO 재정의 — 옛 억제/래치/플립 전면 제거).
+//  ▸ 밴드2 배경(아래 fill)은 이제 아래 3규칙으로만 결정한다:
+//     ① 하락 전환 셀이 빨강(baseState==-1) AND 기울기 1~3행 셀 중 녹색이 하나도 없음 → 빨강 배경.
+//     ② 상승 전환 셀이 녹색(baseState== 1) AND 기울기 1~3행 셀 중 빨강이 하나도 없음 → 녹색 배경.
+//     ③ 그 외 → 배경 없음.
+//  ▸ "전환 셀 색"(테이블 전환 2행 upCellBg/dnCellBg와 동일 근거): 상승 전환 셀 녹 = baseState==1, 하락 전환 셀 빨강 = baseState==-1.
+//  ▸ "기울기 셀 색"(테이블 기울기 3행 f_angle3Color와 동일 판정): 각 행(EMA/DEMA/TEMA)의 표시 순서 각도 v1=slope3·v2=slope2·v3=slope1에 대해
+//     v1<v2<v3 → 녹(정배열), v1>v2>v3 → 빨강(역배열), 그 외/na → 회색(녹도 빨강도 아님).
+//     각도=atan(slope/ref)는 ref>0에서 단조증가라 순서 비교가 raw slope 순서와 동치이므로, 여기서는 각 라인의 raw 차분(slope)으로 동일 판정을 재현한다.
+//     ⚠️ f_angle3Color/angleAtrRef(=ltAtrTable 현재봉[0])는 이 배경 fill보다 아래에서 선언되므로, 선언 순서 안전을 위해 배경용 판정을 여기서 자체 계산한다.
+//        ref(=ta.atr(14) 현재봉[0]) na 또는 <=0이면 f_angle3Color는 회색 → 여기서도 녹/빨강 둘 다 false가 되도록 bgAngleRef 가드를 동일 적용한다(테이블 셀색과 완전 일치).
+//  ▸ 확정봉 정합: slope2/slope3은 확정봉 차분(라이브 불변), slope1은 현재봉[0] 포함(라이브 갱신) — 테이블 기울기 3행과 100% 동일한 값·거동. 배경도 그 값과 일치(리페인팅 특성 동일).
+//  ⚠️ 표시 전용 국면 배경(매매 신호 아님). baseState는 전환셀·전환선·전환 임계 게이트와 공유되므로 남기고, 배경 판정만 아래 규칙으로 계산한다.
 // =========================
-var bool bullCand = false
-var bool bearCand = false
-// ⚠️ 확정봉 기준(CEO 지시): 억제 트리거의 봉값(high/low/body/upWick/dnWick)·밴드1도 확정봉[1]으로, 직전봉 비교는 확정봉의 직전=[2]로 통일한다.
-//    slope(위)가 [1]−[2]로 시프트됐으므로 baseState도 확정봉 기준이며, 봉값·밴드1·직전봉 참조를 전부 [1]/[2]로 맞춰 기준봉이 어긋나지 않게 한다.
-//    라이브 봉[0] 동안 이 입력들은 모두 확정된 [1]/[2] 값이라 불변 → 억제 판정·interimState·paintState가 봉 마감 시에만 갱신(깜빡임 제거).
-body   = math.abs(close[1] - open[1])
-upWick = high[1] - math.max(close[1], open[1])
-dnWick = math.min(close[1], open[1]) - low[1]
-bullTrigger = high[1] > upperBandValue1[1] and upWick > body   // 상승 반전 후보 트리거(확정봉 [1]·밴드1[1])
-bearTrigger = low[1]  < lowerBandValue1[1] and dnWick > body   // 하락 반전 후보 트리거(확정봉 [1]·밴드1[1])
-// ① 이 봉 억제 판정 — 트리거(신규 후보) OR 후보 유지 중(확정봉[1]이 직전 확정봉[2] 대비 낮은 고가 / 높은 저가). baseState 기준으로 해당 측만.
-greenSuppress = bullTrigger or (bullCand and baseState == 1  and high[1] < high[2])
-redSuppress   = bearTrigger or (bearCand and baseState == -1 and low[1]  > low[2])
-// ② 중간 상태(interimState) 확정 — 후보 래치 억제까지 반영한 "국면 감지"값. 이 값으로 후보 해제(clear)·플립 억제를 판정한다.
-//    (기존 ribbonState → interimState로 이름 분리. fill이 참조하는 최종값은 아래 ③의 paintState.)
-interimState = (baseState == 1 and greenSuppress) or (baseState == -1 and redSuppress) ? 0 : baseState
-// ③ 직접 전환(플립) 억제 — 최종 페인팅 상태(paintState). fill(배경)이 참조하는 값.
-//    직전봉 페인팅이 녹색인데 이번 봉 국면이 빨강(또는 그 반대)으로 "직접" 뒤집히는 경계 1봉만 미페인팅(0)한다.
-//    · 녹→빨강 직접 억제: paintState[1]==1 and interimState==-1 → paintState=0 (이 빨강 경계봉 미표시).
-//    · 빨강→녹 직접 억제: paintState[1]==-1 and interimState==1 → paintState=0.
-//    · 그 외에는 paintState=interimState. 경계 1봉만 억제 → 다음 봉은 paintState[1]==0이라 자동 정상 페인팅(연속 빨강/녹은 그대로 표시).
-var int paintState = 0
-// [성능] nz(paintState[1], 0) 동일 부분식 2회 → prevPaint 1회로 CSE. paintState[1]은 직전봉 확정값이라 현재봉 평가 중 불변, 값 완전 동일.
-prevPaint = nz(paintState[1], 0)
-paintState := (prevPaint == 1 and interimState == -1) or (prevPaint == -1 and interimState == 1) ? 0 : interimState
-// ④ 래치 전이 — set(트리거) 먼저, 그 뒤 **interimState**(국면 감지값) 기준으로 반대 래치 clear.
-//    ⚠️ 해제는 paintState(페인팅)가 아니라 interimState(국면 감지)로 판정한다(CEO 지시):
-//       플립 억제로 빨강을 안 그려도(paintState==0) 빨강 국면이 감지(interimState==-1)됐으면 상승 반전 후보를 꺼야 하므로.
-//    ⚠️ 확정봉 기준(CEO 지시): 트리거·interimState가 확정봉[1] 입력으로 산출되므로 매 봉 실행해도 라이브 봉[0] 동안 값이 불변이고 과거봉은 결정론적으로 고정된다.
-//       (기존 barstate.isconfirmed 가드는 [0] 입력의 라이브 변동을 막기 위함이었으나, 입력을 [1]/[2]로 시프트해 확정값만 쓰므로 가드 없이도 라이브 봉 갱신·과거봉 재현이 안전하다.)
-if bullTrigger
-    bullCand := true
-if bearTrigger
-    bearCand := true
-if interimState == -1   // 빨강 국면 감지(플립 미페인팅이어도) → 상승 후보 해제
-    bullCand := false
-if interimState == 1    // 녹 국면 감지 → 하락 후보 해제
-    bearCand := false
+// 배경 판정용 ATR 참조 — 아래 테이블 angleAtrRef(=ltAtrTable=ta.atr(14) 현재봉[0])와 동일 series(선언 순서 회피용 자체 계산). na/≤0이면 각도 na → f_angle3Color 회색과 정합.
+bgAngleRef = ta.atr(14)
+bgAngleValid = not na(bgAngleRef) and bgAngleRef > 0
+// 각 리본선의 표시 순서 세 slope(오래된→최신): sl3=line[2]−line[3], sl2=line[1]−line[2], sl1=line[0]−line[1]. 각도 순서(v1<v2<v3 등)와 동치.
+//  na 가드: line[3] 등 워밍업 na면 차분 na → 부등식 false → 해당 행 녹/빨강 아님(회색). f_angle3Color의 na 회색과 일치.
+emaSl1 = emaLine   - emaLine[1]
+emaSl2 = emaLine[1]  - emaLine[2]
+emaSl3 = emaLine[2]  - emaLine[3]
+demaSl1 = demaLine   - demaLine[1]
+demaSl2 = demaLine[1] - demaLine[2]
+demaSl3 = demaLine[2] - demaLine[3]
+temaSl1 = temaLine   - temaLine[1]
+temaSl2 = temaLine[1] - temaLine[2]
+temaSl3 = temaLine[2] - temaLine[3]
+// 각 기울기 행 녹/빨강 = f_angle3Color 판정과 동일(v1<v2<v3 녹, v1>v2>v3 빨강). ATR ref 무효(회색)면 둘 다 false.
+emaAngGreen  = bgAngleValid and emaSl3  < emaSl2  and emaSl2  < emaSl1
+emaAngRed    = bgAngleValid and emaSl3  > emaSl2  and emaSl2  > emaSl1
+demaAngGreen = bgAngleValid and demaSl3 < demaSl2 and demaSl2 < demaSl1
+demaAngRed   = bgAngleValid and demaSl3 > demaSl2 and demaSl2 > demaSl1
+temaAngGreen = bgAngleValid and temaSl3 < temaSl2 and temaSl2 < temaSl1
+temaAngRed   = bgAngleValid and temaSl3 > temaSl2 and temaSl2 > temaSl1
+// 기울기 3행 중 녹 있음 / 빨강 있음.
+bgAnyAngleGreen = emaAngGreen or demaAngGreen or temaAngGreen
+bgAnyAngleRed   = emaAngRed   or demaAngRed   or temaAngRed
+// 밴드 배경 상태(1=녹 배경, −1=빨강 배경, 0=없음) — CEO 3규칙. baseState(전환 셀 색)와 기울기 컨플루언스 결합.
+//  빨강 배경 = 하락 전환 셀 빨강(baseState==-1) AND 기울기 녹 하나도 없음.
+//  녹 배경   = 상승 전환 셀 녹(baseState==1)   AND 기울기 빨강 하나도 없음. 두 조건 상호배타(baseState 부호가 다름).
+bgFillState = (baseState == -1 and not bgAnyAngleGreen) ? -1
+     : (baseState == 1 and not bgAnyAngleRed) ? 1
+     : 0
 
 // =========================
 // 배경 전환 임계가격 역산(알고리즘 수학자 사양 — 그대로 구현). "다음 봉 종가"가 어디에 오면 배경이 상승(녹)/하락(빨강)으로 갈리는지 역산한 전방 목표값.
 //  ▸ 리본 재귀: e1=EMA(close), e2=EMA(e1), e3=EMA(e2). 다음 봉 종가 x가 들어오면 e1'=α·x+β·e1, e2'=α·e1'+β·e2, e3'=α·e2'+β·e3 (α=2/(len+1), β=1−α).
-//     녹(정배열) **기울기 순서조건** slopeEma<slopeDema<slopeTema (slope=line[1]−line[2])의 전이 임계를 x에 대해 푼 것이 xr1(1차 전이 임계)·xr2(2차 전이 임계)이고, 그 max/min이 상·하 임계다(레벨 순서가 아니라 기울기 순서 전이). 산식은 수학자 검증값 그대로.
-//  ▸ base값은 **확정봉[2] 값(ribbonE1[2]/E2[2]/E3[2])** 사용 — slope가 line[1]−line[2]이므로 "다음 봉" 투영의 재귀 시작점 e1=E1[2]가 slope의 뺄셈항 line[2]와 정합(CEO 지시: base [1]→[2] 시프트, 상태와 한 칸 어긋남 교정).
-//     확정봉[2] 리본값을 base로 두어 "다음=확정봉[1]"의 기울기 전이 임계를 투영 → 임계가격이 라이브 봉 내내 고정(봉 마감 시에만 갱신).
-//  ▸ ribValid: 확정봉 세 리본값(E1[2]/E2[2]/E3[2]) + emaLine[3](확정봉 slope 워밍업 완료 여부)가 모두 유효할 때만 산식 신뢰. xUp/xDn은 런타임 max/min으로 취함(어느 게 xr1/xr2인지 파라미터에 따라 뒤바뀌므로 하드코딩 금지).
+//     녹(정배열) **기울기 순서조건** slopeEma<slopeDema<slopeTema (slope=line[0]−line[1])의 전이 임계를 x에 대해 푼 것이 xr1(1차 전이 임계)·xr2(2차 전이 임계)이고, 그 max/min이 상·하 임계다(레벨 순서가 아니라 기울기 순서 전이). 산식은 수학자 검증값 그대로.
+//  ▸ base값은 **확정봉[1] 값(ribbonE1[1]/E2[1]/E3[1])** 사용(Option A — 현재봉 정렬) — slope가 line[0]−line[1]이므로 "현재봉" 투영의 재귀 시작점 e1=E1[1]가 slope의 뺄셈항 line[1]와 정합(CEO 지시: base [2]→[1] 시프트, baseState 상태와 기준봉 통일). 투영 종가 x = 현재봉 종가 close(=close[0]).
+//     확정봉[1] 리본값을 base로 두어 "현재=현재봉[0]"의 기울기 전이 임계를 투영 → 임계가격이 라이브 봉 동안 갱신(현재봉 close 기준 실시간).
+//  ▸ ribValid: 확정봉 세 리본값(E1[1]/E2[1]/E3[1]) + emaLine[2](현재봉 slope 워밍업 완료 여부)가 모두 유효할 때만 산식 신뢰. xUp/xDn은 런타임 max/min으로 취함(어느 게 xr1/xr2인지 파라미터에 따라 뒤바뀌므로 하드코딩 금지).
 //  ▸ xUp = 녹 진입 최소가 / 녹 이탈 하방 경계, xDn = 빨강 진입 최대가 / 빨강 이탈 상방 경계. upOk/dnOk: 가격이 양수(>0)일 때만 표시.
-//  ⚠️ 확정봉 전방성(CEO 인지): base값이 확정봉[1]이라 라이브 봉 동안 불변이고, 봉 마감(확정) 시에만 임계가격이 갱신되는 "전방 목표"다(깜빡임 없음). 억제/플립 계층 때문에 이 가격에 도달해도 배경이 안 뜰 수 있음(순서조건 역산만 반영).
+//  ⚠️ 현재봉 전방성(CEO 인지 — 깜빡임 감수): base값이 확정봉[1]이고 투영 종가가 현재봉 close(=close[0])라, 임계가격이 라이브 봉 동안 갱신되는 "전방 목표"다(깜빡임 있음, 과거봉은 확정·비리페인팅). 전환 불변식(라이브 close 기준): 중립 ⟺ xDn<close<xUp, 녹(baseState==1)⟹close>xUp, 빨강(baseState==-1)⟹close<xDn 이 항등 성립. 억제/플립 없이 순서조건 역산만 반영.
 ribAlpha = 2.0 / (ribbonLen + 1)
 ribBeta  = 1.0 - ribAlpha
-ribValid = not na(ribbonE1[2]) and not na(ribbonE2[2]) and not na(ribbonE3[2]) and not na(emaLine[3])
-xr1 = ((1 + ribBeta) * ribbonE1[2] - ribbonE2[2]) / ribBeta
-xr2 = ((1 - math.pow(ribBeta, 3)) * ribbonE1[2] - ribAlpha * (ribBeta + 2) * ribbonE2[2] + ribAlpha * ribbonE3[2]) / (ribAlpha * ribBeta * ribBeta)
+ribValid = not na(ribbonE1[1]) and not na(ribbonE2[1]) and not na(ribbonE3[1]) and not na(emaLine[2])
+xr1 = ((1 + ribBeta) * ribbonE1[1] - ribbonE2[1]) / ribBeta
+xr2 = ((1 - math.pow(ribBeta, 3)) * ribbonE1[1] - ribAlpha * (ribBeta + 2) * ribbonE2[1] + ribAlpha * ribbonE3[1]) / (ribAlpha * ribBeta * ribBeta)
 xUp = math.max(xr1, xr2)   // 녹 진입 최소가 / 녹 이탈 하방 경계
 xDn = math.min(xr1, xr2)   // 빨강 진입 최대가 / 빨강 이탈 상방 경계
 upOk = ribValid and xUp > 0
 dnOk = ribValid and xDn > 0
-// 지속 봉수 카운터 — ta.barssince는 매 봉 평가돼야 카운터가 유지되므로 전역 스코프에서 산출(테이블 블록 밖). 텍스트 조립은 아래 헬퍼 정의 이후.
-// nz 가드: 워밍업(전환 트리거가 아직 한 번도 없었던 구간)에서 ta.barssince가 na를 반환하면 "NaN봉" 표기가 되므로 nz(...,0)으로 0봉 폴백. 조건식 자체는 불변.
-// ⚠️ +1(CEO 지시): 전환 첫 봉에서 카운트가 0봉이 아니라 1봉부터 시작하도록 nz(...,0) 뒤에 +1을 더한다. 조건식(barssince 인자)은 불변, 표기값만 1시작.
-barsSinceUp = nz(ta.barssince(baseState[1] != 1 and baseState == 1), 0) + 1     // 마지막 상승(녹) 전환 이후 봉수(전환 첫 봉=1) — 전환 표시는 rawState=baseState 기준
-barsSinceDn = nz(ta.barssince(baseState[1] != -1 and baseState == -1), 0) + 1   // 마지막 하락(빨강) 전환 이후 봉수(전환 첫 봉=1) — 전환 표시는 rawState=baseState 기준
+// ⚠️ 옛 지속 봉수 카운터(barsSinceUp/barsSinceDn·ta.barssince baseState 전환 트리거)는 제거됨(CEO 지시) —
+//    활성 전환 상태의 괄호 표기가 "(N봉)"에서 리본 기울기차 2값 "(값1 | 값2)"으로 교체돼 더 이상 쓰이지 않는다(dangling 방지). 텍스트 산출은 전환 텍스트 블록(transDelta1/2) 참조.
 
 // =========================
 // 실시간 상승/하락 전환 수평선 + 프라이스 스케일 라벨(Part C) — 위 xUp/xDn(배경 전환 임계가격)·baseState(전환 게이트, rawState)·upOk/dnOk 재사용.
-//  ▸ 상태별 가격 매핑(상태 테이블 "상승 전환"/"하락 전환" 2행과 동일) — 게이트 상태는 **baseState(rawState=억제·플립 이전 순수 기울기 순서 상태)** 기준(CEO 지시로 paintState→baseState 통일, 임계 산식과 정합):
+//  ▸ 상태별 가격 매핑 — 게이트 상태는 **baseState(순수 기울기 서열 상태)** 기준(임계 산식과 정합, 가격 산식 불변):
 //     · 상승 전환 선 가격 = baseState==0 ? xUp : baseState==-1 ? xDn : na  (baseState==1이면 숨김/na)
 //     · 하락 전환 선 가격 = baseState==0 ? xDn : baseState==1 ? xUp : na  (baseState==-1이면 숨김/na)
 //     즉 중립(0)=둘 다 표시(상승=xUp·하락=xDn), 정배열(1)=하락 전환 선만(=xUp, 녹 이탈 하방·상승 선 숨김), 역배열(-1)=상승 전환 선만(=xDn, 빨강 이탈 상방·하락 선 숨김).
+//  ⚠️ 테이블 전환 행과의 관계(CEO 버그수정 이후): 테이블 전환 2행의 활성표시·셀색은 bgFillState(밴드 배경)로 게이트하지만, 이 수평선(차트, 기본 OFF)은 "슬로프 순서 전이 임계가격" 자체라 그 임계 산식과 정합하는 baseState 게이트를 유지한다(가격 산식 불변). baseState==±1이지만 bgFillState==0(기울기 반대색 존재)인 봉에선 선은 baseState 매핑대로, 테이블 행은 비활성(중립)으로 보일 수 있다 — 선엔 "전환 중" 텍스트가 없어 텍스트 모순은 없다. 선까지 bgFillState로 맞출지는 별도 판단(본부장 검토 대상).
 //  ▸ upOk/dnOk 미충족(na·비양수) 시 해당 선 숨김. xUp은 upOk, xDn은 dnOk로 게이트(선이 참조하는 임계가 어느 것이냐에 따라 upOk/dnOk 선택).
 //  ▸ 렌더 방식(선+가격축 라벨): 방향별로 var line 1개씩(총 2개)을 두고 매 봉 현재 임계로 갱신한다.
 //     · 수평선: line.new(직전봉, 가격, 현재봉, 가격, extend=extend.both)로 pane 전체에 수평 연장(양끝 무한 연장 → 완전 수평선). 미표시 봉은 line.delete로 지운다.
@@ -756,29 +726,15 @@ upperBand_2 = plot(upperBandValue2, title="Upper Band #2", color=activeLineColor
 lowerBand_2 = plot(lowerBandValue2, title="Lower Band #2", color=activeLineColor, offset=offset, display=displayBand2, editable=true, linewidth=1, linestyle=plot.linestyle_dashed)
 // fill(±2σ 채움)은 밴드2 원값 선(upperBand_2/lowerBand_2)에 직접 붙인다. clamp 폐기로 선 자체가 항상 원값이라 별도 fill ref plot 불필요. 현재 display=none.
 fill(upperBand_2, lowerBand_2, title="Bands Fill #2", color=activeFillColor, display=display.none, editable=true)
-// 정배열/역배열 배경(밴드2 영역 한정 fill) — paintState==1(정배열·녹)/−1(역배열·빨강)인 봉만 밴드2(상단2~하단2) 영역을 반투명색으로 채운다.
-//  ⚠️ 밴드2 값 유효(not na)·shouldPlot일 때만. paintState는 3계층 최종값이다: baseState(종가 리본 기울기 순서: 정배열 ema<dema<tema=1, 역배열 ema>dema>tema=−1, 그 외/na=0)
-//   → interimState(반전 후보 래치 bullCand/bearCand 억제 반영) → paintState(직접 플립 억제: 녹→직접빨강/빨강→직접녹 경계 1봉 미페인팅). 실시간 봉에서 변한다(리페인팅, CEO 의도).
-//   래치 전이·플립 억제 참조값(paintState[1])은 확정봉에서 고정되어 과거봉 배경은 불변. 색은 정/역 전용색 + 투명도. 밴드2 선(plot) 색은 불변.
-// ─────────────────────────────────────────────────────────────────────────────
-// ▸ 패턴 캔들 무조건 억제(CEO 지시 — 정렬 버그 수정): fill은 **그려지는 봉 = 현재봉[0]** 위치에 렌더된다.
-//   위 3계층 억제(bullTrigger/bearTrigger·greenSuppress/redSuppress)는 slope와 정합을 위해 전부 **확정봉[1]** 입력으로 산출되므로,
-//   그 억제가 반영된 paintState가 만드는 배경은 **[1] 봉의 패턴·기울기**를 담고 있으나 화면에는 **[0] 위치**에 그려진다(1봉 지연·무깜빡임 설계).
-//   → 그 결과 "배경이 실제로 얹히는 캔들([0])"의 자기 패턴은 3계층 억제가 검사하지 않아, [0] 캔들이 아래 패턴을 충족해도 반대 배경이 그 위에 뜰 수 있었다(정렬 어긋남 = 판정봉[1] ≠ 렌더봉[0]).
-//   → 해결: **fill이 그려지는 바로 그 봉[0]의 자기 OHLC·밴드1[0]** 로 패턴을 재검사해, 충족 시 그 위치의 반대 배경을 **최우선·무조건** 비운다(래치·플립·전환 상태와 무관). 판정봉=렌더봉([0])으로 정렬.
-//     · 하단 패턴(빨강 억제) = low[0] < lowerBandValue1[0] AND 아래꼬리 > 몸통  → 이 봉 위치에 빨강(paintState==-1) 배경 금지.
-//     · 상단 패턴(녹 억제)   = high[0] > upperBandValue1[0] AND 윗꼬리 > 몸통    → 이 봉 위치에 녹(paintState==1) 배경 금지. (빨강·녹 동일 대칭.)
-//   ⚠️ 이 무조건 억제는 **[0] 자기 봉 입력**이라 라이브 봉 동안 값이 변할 수 있다(억제=배경 제거 방향뿐이므로 신규 반대색 점멸은 없음). 그려지는 캔들과 판정 캔들이 같아야 한다는 CEO 지시(정합 우선)를 따른 것으로, 3계층의 확정봉 무깜빡임과 별개 계층이다.
-//   ⚠️ paintState 산식·slope·baseState·interimState·전환/기울기/임계값은 전부 불변 — fill 색 게이트에만 무조건 억제를 얹는다(표시 정합만 수정).
-bgBody   = math.abs(close - open)
-bgUpWick = high - math.max(close, open)
-bgDnWick = math.min(close, open) - low
-// 렌더봉[0] 자기 패턴 — 하단 패턴이면 빨강 무조건 억제, 상단 패턴이면 녹 무조건 억제(대칭). 밴드1[0] na(워밍업)면 부등식 false → 억제 미발동(안전).
-bgBearPattern = not na(lowerBandValue1) and low  < lowerBandValue1 and bgDnWick > bgBody   // 하단밴드1 이탈 + 아래꼬리>몸통 → 빨강 억제
-bgBullPattern = not na(upperBandValue1) and high > upperBandValue1 and bgUpWick > bgBody   // 상단밴드1 돌파 + 윗꼬리>몸통 → 녹 억제
-// paintState가 그리려는 색을, 렌더봉[0] 반대 패턴이면 최우선 무조건 억제(0 간주). 빨강(−1)은 하단 패턴에, 녹(+1)은 상단 패턴에 억제.
-bgPaintState = (paintState == -1 and bgBearPattern) or (paintState == 1 and bgBullPattern) ? 0 : paintState
-fill(upperBand_2, lowerBand_2, color = (showRibbonExpBg and shouldPlot and bgPaintState != 0 and not na(upperBandValue2) and not na(lowerBandValue2)) ? (bgPaintState == 1 ? color.new(ribbonBullBgColor, ribbonBgTransp) : color.new(ribbonBearBgColor, ribbonBgTransp)) : na, title="정배열/역배열 배경", display=display.all, editable=true)
+// 밴드 배경(밴드2 영역 한정 fill) — bgFillState==1(녹 배경)/−1(빨강 배경)인 봉만 밴드2(상단2~하단2) 영역을 반투명색으로 채운다.
+//  ⚠️ 밴드2 값 유효(not na)·shouldPlot일 때만. bgFillState는 위 리본 블록에서 CEO 3규칙으로 산출한 최종값이다:
+//   · 빨강(−1) = 하락 전환 셀 빨강(baseState==−1) AND 기울기 1~3행 셀 중 녹 하나도 없음.
+//   · 녹(+1)   = 상승 전환 셀 녹(baseState==+1)   AND 기울기 1~3행 셀 중 빨강 하나도 없음.
+//   · 그 외 0 = 배경 없음. 두 조건은 baseState 부호가 달라 상호배타.
+//  색·투명도는 기존 정/역배열 배경 input(ribbonBullBgColor/ribbonBearBgColor + ribbonBgTransp) 그대로 재사용(색 변경 아님, 조건만 교체).
+//  ⚠️ 옛 억제/래치/플립/paintState·[0]자기패턴 무조건 억제(bgBearPattern/bgBullPattern/bgPaintState)는 CEO 지시로 전면 제거됨(이 배경은 전환셀+기울기 컨플루언스만 참조).
+//  ⚠️ 밴드2 선(plot) 색·값은 불변. slope1이 현재봉[0]을 포함하므로 배경도 라이브 봉 동안 갱신될 수 있다(테이블 기울기 3행과 동일 거동).
+fill(upperBand_2, lowerBand_2, color = (showRibbonExpBg and shouldPlot and bgFillState != 0 and not na(upperBandValue2) and not na(lowerBandValue2)) ? (bgFillState == 1 ? color.new(ribbonBullBgColor, ribbonBgTransp) : color.new(ribbonBearBgColor, ribbonBgTransp)) : na, title="밴드 배경", display=display.all, editable=true)
 
 // 지수 추세 리본 3선(EMA/DEMA/TEMA) — 각 1px, price scale 라벨 없음(display.all − display.price_scale). 표시 전용 오버레이.
 //  ⚠️ ta.ema 누적(확정 성격)이라 신규 리페인팅 없음. showRibbon OFF면 na로 미표시.
@@ -1034,21 +990,21 @@ ltDeadBand = not na(ltAtrTable) ? ltAtrTable * ltFlatTol : 0.0
 // ── EMA/DEMA/TEMA 기울기 각도(추세 확인 섹션 상단 3행) — 표시 전용(CEO 재설계: 시간축 종가 3-슬로프) ─────────────
 //  ▸ 소스: 각 행(EMA/DEMA/TEMA)을 **종가 기준 리본선의 "시간축 3-슬로프" 각도 3값**으로 표시(CEO 지시).
 //    - 종가 리본(emaLine/demaLine/temaLine = ta.ema/dema/tema(close, ribbonLen)) 그대로 재사용 — 화면에 그려지는 그 3선.
-//    - ⚠️ 이전의 "고가·저가·종가 3소스" 표시는 폐기. 고가/저가 리본(emaHighLine/…/emaLowLine/…)·그 각도 변수는 이 표시 전용이었으므로 함께 제거(dangling 방지). 배경(baseState/interimState/paintState)은 종가 순서 판정 그대로 불변.
+//    - ⚠️ 이전의 "고가·저가·종가 3소스" 표시는 폐기. 고가/저가 리본(emaHighLine/…/emaLowLine/…)·그 각도 변수는 이 표시 전용이었으므로 함께 제거(dangling 방지). baseState(종가 순서 판정)·밴드 배경(전환셀+기울기 컨플루언스)은 종가 리본 기준 그대로.
 //  ▸ 3-슬로프(시간축, 한 선 안에서 3구간 기울기): 종가 리본선을 시간축으로 3구간 차분한다.
 //    - slope1 = line - line[1]   (= line[0] - line[1], **현재봉[0] 포함 → 라이브 봉에서 갱신·리페인팅**)
 //    - slope2 = line[1] - line[2]
 //    - slope3 = line[2] - line[3]
 //  ▸ 각도 = todegrees(atan(slope_i / atrRef)). atrRef = 기존 각도 정규화 ATR(ta.atr(14))을 세 슬로프에 **동일 분모**로 재사용.
-//    분모 angleAtrRef = ltAtrTable[1](위 ta.atr(14)의 확정봉 값. 신규 input 없음. 프랙탈 블록의 글로벌 atrRef와 충돌 회피 위해 angleAtrRef로 명명). 봉당 ±1 ATR = ±45°, 치역 (−90°,+90°), 포화 없음. 세 선·세 슬로프 동일 분모라 비교 가능.
+//    분모 angleAtrRef = ltAtrTable(위 ta.atr(14)의 현재봉[0] 값. CEO 지시로 [1]→[0] 시프트. 신규 input 없음. 프랙탈 블록의 글로벌 atrRef와 충돌 회피 위해 angleAtrRef로 명명). 봉당 ±1 ATR = ±45°, 치역 (−90°,+90°), 포화 없음. 세 선·세 슬로프 동일 분모라 비교 가능.
 //  ▸ 소스는 20길이 리본선(ta.ema/dema/tema(close, ribbonLen), ribbonLen 기본 20). "20선 리본" 기준.
 //  ▸ 값 표시(CEO 지시 — 오래된→최신 역순): 각 행을 `slope3각 | slope2각 | slope1각` 순서로 표시(예 `+5.1° | −12.8° | +37.4°`). 각 각도는 부호(+/−)+소수1자리+°, na는 "-", 구분자 " | ". 값·각도 산식 불변, 순서만 역순.
 //  ▸ 셀 배경색(CEO 지시 — 표시 순서 규칙, 평균·데드밴드·과열 승격 제거): 표시 순서 세 값 v1=slope3각(오래됨)·v2=slope2각·v3=slope1각(최신).
 //    ① 하나라도 na → 회색(중립). ② v1<v2<v3(정배열, 시간갈수록 기울기↑) → 녹색(ltUpColor·30). ③ v1>v2>v3(역배열) → 적색(ltDownColor·30). ④ 그 외 → 회색(중립).
 //    ⚠️ 순서 비교는 각도값(atan 단조)이라 slope 원값 비교와 동치. na 가드 유지(워밍업 line[3] 등/도지 방어).
 //  ▸ ⚠️ 리페인팅(CEO 명시 정의): slope1이 현재봉[0]을 포함하므로(맨 마지막 열) **1열 값·셀색이 라이브 봉[0] 동안 변한다(갱신·리페인팅)** — 봉 마감 시 확정. slope2/slope3은 확정봉 차분이라 라이브 봉 내내 불변. 최종 동작은 TradingView 컴파일·차트 확인 필요. 워밍업 line[3] na면 slope3 각도 na → 셀 회색·해당 값 "-".
-// 정규화 ATR 분모(ta.atr(14)의 확정봉 값). 세 슬로프(현재봉 포함 slope1 + 확정봉 slope2/3)에 동일 분모로 적용.
-angleAtrRef = ltAtrTable[1]
+// 정규화 ATR 분모(ta.atr(14)의 현재봉[0] 값). 세 슬로프(현재봉 포함 slope1 + 확정봉 slope2/3)에 동일 분모로 적용.
+angleAtrRef = ltAtrTable
 // 시간축 슬로프 각도 헬퍼: slope=lineNow−linePrev, 각도=atan(slope/angleAtrRef). na 가드: lineNow·linePrev·angleAtrRef na 또는 angleAtrRef<=0이면 각도 na.
 f_lineAngle(float lineNow, float linePrev) => (na(lineNow) or na(linePrev) or na(angleAtrRef) or angleAtrRef <= 0) ? na : math.todegrees(math.atan((lineNow - linePrev) / angleAtrRef))
 // 종가 리본선 시간축 3-슬로프 각도. ⚠️ slope1은 현재봉[0] 포함(line[0]−line[1]) → 라이브 봉 갱신(리페인팅). slope2=line[1]−line[2], slope3=line[2]−line[3](확정봉 차분).
@@ -1245,20 +1201,35 @@ f_pctStr(float p) =>
     d = (p - close) / close * 100
     (d > 0 ? "+" : "") + str.tostring(d, "0.0") + "%"
 
-// 상승/하락 전환 임계가격 표시 텍스트(위 배경 전환 임계가격 역산 블록의 xUp/xDn·upOk/dnOk·barsSince* 사용).
-//  ⚠️ 비직관 포인트(수학자 §4): 현재 상태 반대 방향으로 "국면이 풀리는" 경계다. 게이트 상태는 **baseState(rawState=억제·플립 이전 순수 기울기 순서 상태)** 기준(CEO 지시로 paintState→baseState 통일, 임계 산식과 정합).
-//     · 녹(baseState==1) 상태의 하락전환행 → 중립으로 풀리는 하방 임계 = **xUp**(녹 이탈 하방).
-//     · 빨강(baseState==-1) 상태의 상승전환행 → 중립으로 풀리는 상방 임계 = **xDn**(빨강 이탈 상방).
-//     · 중립(0)에서는 녹 진입 최소가=xUp / 빨강 진입 최대가=xDn.
-//  현재 방향 유지 중인 행은 "N봉"(마지막 전환 이후 지속 봉수)을 표시한다.
-upText = baseState == 1 ? ("상승 전환 (" + str.tostring(barsSinceUp) + "봉)") : baseState == -1 ? (dnOk ? f_priceStr(xDn) + " (" + f_pctStr(xDn) + ")" : "-") : (upOk ? f_priceStr(xUp) + " (" + f_pctStr(xUp) + ")" : "-")
-dnText = baseState == -1 ? ("하락 전환 (" + str.tostring(barsSinceDn) + "봉)") : baseState == 1 ? (upOk ? f_priceStr(xUp) + " (" + f_pctStr(xUp) + ")" : "-") : (dnOk ? f_priceStr(xDn) + " (" + f_pctStr(xDn) + ")" : "-")
-// 전환 행 값 셀(1열) 배경색(CEO 지시) — 해당 전환 상태일 때만 방향색, 그 외 기본 중립 회색. 게이트는 baseState(rawState) 기준(전환 표시 통일).
-//  ▸ baseState==1(상승 전환 중) → 상승 전환행 값 셀 = 기울기 3행 상승색과 동일 color.new(ltUpColor, 30).
-//  ▸ baseState==-1(하락 전환 중) → 하락 전환행 값 셀 = color.new(ltDownColor, 30)(투명도 30 일치).
-//  ▸ 그 외(해당 전환 아님) → 기존 기본 셀 배경 color.new(color.gray, 40) 유지. 라벨 셀(0열)은 불변.
-upCellBg = baseState == 1 ? color.new(ltUpColor, 30) : color.new(color.gray, 40)
-dnCellBg = baseState == -1 ? color.new(ltDownColor, 30) : color.new(color.gray, 40)
+// 상승/하락 전환 임계가격 표시 텍스트(위 배경 전환 임계가격 역산 블록의 xUp/xDn·upOk/dnOk 사용).
+//  ⚠️ 게이트 통일(CEO 버그수정): 전환 행의 활성표시·셀색 게이트를 baseState→**bgFillState(밴드 배경 상태)**로 바꿔 밴드 배경과 정확히 일치시킨다. 가격 산식(xUp/xDn)은 불변, "어느 모드를 보여줄지"의 게이트만 bgFillState로 통일한다.
+//     · 배경 녹(bgFillState==1) 상태의 하락전환행(비활성) → 중립으로 풀리는 하방 임계 = **xUp**(녹 이탈 하방).
+//     · 배경 빨강(bgFillState==-1) 상태의 상승전환행(비활성) → 중립으로 풀리는 상방 임계 = **xDn**(빨강 이탈 상방).
+//     · 배경 없음(bgFillState==0)에서는 두 행 다 비활성: 상승행 = 녹 진입 최소가 xUp / 하락행 = 빨강 진입 최대가 xDn.
+//  현재 방향(밴드 배경) 유지 중인 행(활성 전환 상태)은 괄호에 **리본 기울기차 2값**을 표시한다(CEO 지시 — 옛 "(N봉)"·barssince 표기 폐기). 활성 텍스트는 "상승/하락 (…)"으로 축약(옛 "상승 전환/하락 전환"에서 "전환" 제거).
+//   ▸ 값1 = 현재봉 dema 각도 − 현재봉 ema 각도 = demaSlope1Angle − emaSlope1Angle.
+//   ▸ 값2 = 현재봉 tema 각도 − 현재봉 dema 각도 = temaSlope1Angle − demaSlope1Angle.
+//   "현재봉 각도" = 각 리본선의 slope1(line[0]−line[1]) 각도(기울기 3행 slope1 각도 재사용, atan(slope/angleAtrRef)). 값1·값2는 각도 차(도).
+//   ▸ 표기: "상승 (값1 | 값2)" / "하락 (값1 | 값2)" — 각 값 부호+소수1자리+°, 구분자 " | "(기울기 3행 표기와 통일). ("전환" 축약, CEO 지시.)
+//   ▸ na 처리: slope1 각도 중 하나라도 na이면(워밍업 line[1] 등) 해당 차값을 "-"로 표기(f_angleStr의 na 관례와 동일).
+//  ⚠️ 리페인팅(기존 특성과 동일): slope1이 현재봉[0]을 포함하므로 이 괄호 2값도 라이브 봉 동안 갱신되고 봉 마감 시 확정된다(기울기 3행 slope1 열과 동일 거동).
+// 리본 기울기차 2값 — 현재봉 slope1 각도 차. 각도가 na면 차도 na → f_angleStr에서 "-".
+transDelta1 = (na(demaSlope1Angle) or na(emaSlope1Angle)) ? na : demaSlope1Angle - emaSlope1Angle   // 값1 = dema각 − ema각
+transDelta2 = (na(temaSlope1Angle) or na(demaSlope1Angle)) ? na : temaSlope1Angle - demaSlope1Angle  // 값2 = tema각 − dema각
+transDeltaText = f_angleStr(transDelta1) + " | " + f_angleStr(transDelta2)
+// ⚠️ 게이트 = bgFillState(밴드 배경 상태)로 통일(CEO 버그수정): 전환 행 활성표시·셀색이 밴드 배경(bgFillState)과 정확히 일치하도록 baseState→bgFillState로 재게이트한다.
+//  bgFillState는 baseState의 부분집합(==1⟹baseState==1·기울기 빨강 없음, ==-1⟹baseState==-1·기울기 녹 없음)이라, 밴드 배경이 없으면(bgFillState==0) 두 전환 행 다 비활성·중립이 된다.
+//  ▸ 상승 행: bgFillState==1(배경 녹) → 활성 "상승 (값1|값2)". 그 외 → 전환가격+%(비활성). 가격 선택도 bgFillState로 통일: 배경 빨강(-1)이면 xDn, 아니면 xUp.
+//  ▸ 하락 행: bgFillState==-1(배경 빨강) → 활성 "하락 (값1|값2)". 그 외 → 전환가격+%(비활성). 가격 선택: 배경 녹(1)이면 xUp, 아니면 xDn.
+//  ▸ 활성 텍스트는 "상승 전환/하락 전환"에서 "전환"을 뺀 "상승/하락 (…)"으로 축약(CEO 지시). 괄호 안 값(dema각−ema각 | tema각−dema각)·형식은 불변.
+upText = bgFillState == 1 ? ("상승 (" + transDeltaText + ")") : bgFillState == -1 ? (dnOk ? f_priceStr(xDn) + " (" + f_pctStr(xDn) + ")" : "-") : (upOk ? f_priceStr(xUp) + " (" + f_pctStr(xUp) + ")" : "-")
+dnText = bgFillState == -1 ? ("하락 (" + transDeltaText + ")") : bgFillState == 1 ? (upOk ? f_priceStr(xUp) + " (" + f_pctStr(xUp) + ")" : "-") : (dnOk ? f_priceStr(xDn) + " (" + f_pctStr(xDn) + ")" : "-")
+// 전환 행 값 셀(1열) 배경색(CEO 버그수정) — 밴드 배경(bgFillState)과 정확히 일치하도록 게이트. 밴드 배경이 없으면(bgFillState==0) 두 행 다 중립 회색.
+//  ▸ bgFillState==1(밴드 배경 녹) → 상승 전환행 값 셀 = 기울기 3행 상승색과 동일 color.new(ltUpColor, 30). (하락 행은 중립.)
+//  ▸ bgFillState==-1(밴드 배경 빨강) → 하락 전환행 값 셀 = color.new(ltDownColor, 30)(투명도 30 일치). (상승 행은 중립.)
+//  ▸ 그 외(bgFillState==0) → 기존 기본 셀 배경 color.new(color.gray, 40) 유지. 라벨 셀(0열)은 불변. ⇒ 전환 행 셀색 == 밴드 배경색 항상 성립.
+upCellBg = bgFillState == 1 ? color.new(ltUpColor, 30) : color.new(color.gray, 40)
+dnCellBg = bgFillState == -1 ? color.new(ltDownColor, 30) : color.new(color.gray, 40)
 
 // ── 상태 테이블 렌더링(우측 상단) — 추세 3행 / 가격 구조 및 변동성 / 지지·저항 ────────────────
 //  스타일: 원본과 동일(섹션 헤더 딥 네이비 #1B2A4A·병합, 행 라벨 회색 배경, 값 셀 판정색, 흰 글자, size.small).
@@ -1277,7 +1248,7 @@ if showStatusTable and barstate.islast
     table.cell(statusTable, 0, 3, "TEMA 기울기", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
     table.cell(statusTable, 1, 3, temaAngleText, text_color=color.white, bgcolor=temaAngleColor, text_size=size.small)
     // 전환 임계가격 2행(수학자 사양) — TEMA 기울기 바로 아래. 값=다음 봉 종가 기준 배경 전환 임계가격(순서조건 역산). 특별 색 규칙 없음 → 일반 셀 배경(gray 40) 관례. 툴팁으로 caveat 명시.
-    threshTooltip = "다음 봉 종가 기준 전환 임계가격(순서조건 ema<dema<tema 역산). 억제/플립 계층 때문에 도달해도 배경이 안 뜰 수 있음. 매 봉 갱신되는 전방 목표(현재봉 확정값 기준)."
+    threshTooltip = "비활성(밴드 배경 없음/반대 배경): 다음 봉 종가 기준 전환 임계가격(순서조건 ema<dema<tema 역산, 매 봉 갱신되는 전방 목표·현재봉 확정값 기준). 활성 상태(상승행&밴드 배경 녹/하락행&밴드 배경 빨강)엔 '상승 (…)'/'하락 (…)'으로 표기하고 셀색을 밴드 배경색과 일치시킵니다. 괄호=리본 기울기차 2값 '(dema각−ema각 | tema각−dema각)' — 각 값은 현재봉 slope1 각도(기울기 3행 slope1)의 차(도), 부호+소수1자리+°. slope1이 현재봉[0] 포함이라 라이브 봉 갱신(봉 마감 시 확정). ⚠️ 게이트는 밴드 배경 상태(bgFillState)라 밴드 배경이 없으면 두 전환 행 다 중립·비활성입니다."
     table.cell(statusTable, 0, 4, "상승 전환 (" + str.tostring(ribbonLen) + ")", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=threshTooltip)
     table.cell(statusTable, 1, 4, upText, text_color=color.white, bgcolor=upCellBg, text_size=size.small, tooltip=threshTooltip)
     table.cell(statusTable, 0, 5, "하락 전환 (" + str.tostring(ribbonLen) + ")", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=threshTooltip)
