@@ -1,8 +1,8 @@
 //@version=6
 // explicit_plot_zorder=true: plot()/hline()/fill()의 z-order를 코드 "선언 순서"로 고정(먼저 선언=뒤, 나중 선언=앞). VWMA 50/100/200+fill을 나머지 plot보다 뒤로 두는 근거.
 //  ⚠️ 기존 코드도 이미 "나중 선언=앞" 기본 거동에 부합하게 선언돼 있어(밴드1→밴드2→정역배열 fill→리본) 이 인자는 그 상대 순서를 명시 고정할 뿐 기존 z를 바꾸지 않는다.
-//  ⚠️ bgcolor는 이 인자와 무관하게 항상 최후면 그룹 고정 → 비정상 배경(bgcolor)은 explicit_plot_zorder로 순서 제어가 안 되며 모든 plot/fill보다 뒤(가장 뒤)에 그려진다.
-//     (직전 z-order 작업에서 비정상 배경을 plot(±1e20)+fill로 전환했으나 그 fill이 auto-scale을 폭발시켜 bgcolor로 복원 — 아래 "비정상 매수/매도 배경 — bgcolor로 복원" 참조.)
+//  ⚠️ 비정상 매수/매도는 이제 barcolor(캔들 몸통색)로 표시한다(CEO 지시 — 배경 bgcolor → barcolor 전환). barcolor는 이 인자와 무관하게 봉 몸통색을 바꾸며 밴드 fill과 레이어가 달라 공존한다.
+//     (과거엔 비정상을 bgcolor 전체 화면 배경으로 칠했으나 CEO 지시로 캔들 몸통색 오버라이드로 이관 — 아래 "비정상 매수/매도 — 캔들 몸통색(barcolor)" 참조.)
 //     plotshape/드로잉(label/table)은 이 인자 영향 밖(각자 상위 그룹 최전면 유지).
 indicator(title="Auto VWAP", shorttitle="Auto VWAP", overlay=true, max_bars_back=1000, explicit_plot_zorder=true)
 
@@ -105,7 +105,7 @@ ribbonEmaColor = input.color(color.yellow, title="EMA 선 색", group=RIBBON_GRO
 ribbonDemaColor = input.color(color.aqua, title="DEMA 선 색", group=RIBBON_GROUP, active=showRibbon, tooltip="DEMA(2·EMA−EMA(EMA)) 선 색. 기본 하늘색.")
 ribbonTemaColor = input.color(#FF80AB, title="TEMA 선 색", group=RIBBON_GROUP, active=showRibbon, tooltip="TEMA(3·EMA−3·EMA(EMA)+EMA(EMA(EMA))) 선 색. 기본 분홍.")
 // 밴드 배경(CEO 재정의) — 전환 셀 상태 + 기울기 3행 컨플루언스로만 판정. 밴드2(±2σ) 영역 fill로 그린다(옛 억제/래치/플립 제거).
-showRibbonExpBg = input.bool(true, title="정배열/역배열 배경 표시", group=RIBBON_GROUP, tooltip="켜면 밴드2(상단2~하단2) 영역을 반투명 배경으로 채웁니다. 배경 색은 상태 테이블의 '상승/하락 전환 셀 색'과 '기울기 3행(EMA/DEMA/TEMA) 셀 색'의 컨플루언스로만 결정됩니다(CEO 재정의): ① 하락 전환 셀이 빨강(하락 전환 상태) AND 기울기 3행 중 녹색이 하나도 없음 → 빨강 배경. ② 상승 전환 셀이 녹색(상승 전환 상태) AND 기울기 3행 중 빨강이 하나도 없음 → 녹색 배경. ③ 둘 다 아니면 배경 없음. 기울기 셀 색은 테이블과 동일 판정(표시 순서 각도 v1<v2<v3=녹 정배열, v1>v2>v3=빨강 역배열, 그 외/na=회색)입니다. ⚠️ 기울기 1열(slope1)은 현재봉[0]을 포함하므로 배경도 라이브 봉 동안 갱신될 수 있습니다(테이블 기울기 3행과 동일 거동, 봉 마감 시 확정). 옛 반전 후보 래치·직접 플립 억제·패턴 무조건 억제는 CEO 지시로 전면 제거됐습니다. 표시 전용(매매 신호 아님).")
+showRibbonExpBg = input.bool(true, title="정배열/역배열 배경 표시", group=RIBBON_GROUP, tooltip="켜면 밴드2(상단2~하단2) 영역을 반투명 배경으로 채웁니다. 배경 색은 상태 테이블의 '상승/하락 전환 셀 색'과 '기울기 3행(EMA/DEMA/TEMA) 셀 색'의 컨플루언스로만 결정됩니다(CEO 재정의): ① 하락 전환 셀이 빨강(하락 전환 상태) AND 기울기 3행 중 녹색이 하나도 없음 → 빨강 배경. ② 상승 전환 셀이 녹색(상승 전환 상태) AND 기울기 3행 중 빨강이 하나도 없음 → 녹색 배경. ③ 둘 다 아니면 배경 없음. 기울기 셀 색은 테이블과 동일 판정(표시 순서 각도 v1<v2<v3=녹 정배열, v1>v2>v3=빨강 역배열, 그 외/na=회색)입니다. ⚠️ 기울기 1열(slope1)은 현재봉[0]을 포함하므로 배경도 라이브 봉 동안 갱신될 수 있습니다(테이블 기울기 3행과 동일 거동, 봉 마감 시 확정). 옛 반전 후보 래치·직접 플립 억제·패턴 무조건 억제는 CEO 지시로 전면 제거됐습니다. 표시 전용(매매 신호 아님).\n\n⚠️ [정규화 모드 전환] '기울기 표시 모드'가 'ATR 정규화'면 이 배경 판정이 위 각도-순서 컨플루언스가 아니라 정규화 가속 서열(EMA→DEMA→TEMA의 정규화 기울기 emaNS<demaNS<temaNS·데드존·가속임계·부호 조건)로 전환됩니다(전환 행도 함께). '기본' 모드에선 위 규칙 그대로(값 비트 동일). ① EMA/DEMA/TEMA는 파생 관계라 독립 3표가 아닙니다 — 정규화 배경은 '한 소스의 가속 서열'입니다. ② 정규화 배경은 라이브 봉에서 raw보다 임계(데드존/가속최소) 경계에서 더 자주 깜빡일 수 있습니다. ③ 데드존/가속최소는 표시 가독성 파라미터이므로 종목별 튜닝·백테스트 최적화 금지.\n\n⚠️ [전환 후보 — 밴드 배경 미표시] 위 컨플루언스가 아직 안 붙었어도(확정 배경 없음) 종가가 전환 임계가를 이미 돌파하면 '후보'가 잡히나, CEO 지시로 후보는 밴드 배경을 칠하지 않습니다('어지럽다'). 밴드 배경은 확정(상승=녹·하락=빨강)일 때만 뜹니다. 후보는 상태 테이블 전환행 셀색으로만 확인합니다(상승 후보=파랑, 하락 후보=주황). 후보 셀은 라이브 종가가 임계가를 돌파할 때 실시간 깜빡일 수 있습니다(표시 전용, 매매 신호 아님).")
 ribbonBullBgColor = input.color(#2E7D32, title="정배열 배경색", group=RIBBON_GROUP, active=showRibbonExpBg, tooltip="정배열 구간 밴드2 영역 배경색. 기본 녹색 #2E7D32. 아래 투명도와 합쳐 반투명으로 칠합니다.")
 ribbonBearBgColor = input.color(#C62828, title="역배열 배경색", group=RIBBON_GROUP, active=showRibbonExpBg, tooltip="역배열 구간 밴드2 영역 배경색. 기본 빨강 #C62828. 아래 투명도와 합쳐 반투명으로 칠합니다.")
 ribbonBgTransp = input.int(70, title="배경 투명도", minval=0, maxval=100, group=RIBBON_GROUP, active=showRibbonExpBg, tooltip="정배열/역배열 배경색의 투명도(0=불투명, 100=완전 투명). 기본 70.")
@@ -116,6 +116,13 @@ ribbonBgTransp = input.int(70, title="배경 투명도", minval=0, maxval=100, g
 showTransitionLines = input.bool(false, title="상승/하락 전환 수평선 표시", group=RIBBON_GROUP, tooltip="켜면 배경 전환 임계가격(다음 봉 종가가 여기 오면 정/역배열로 갈리는 값)을 차트에 수평선 + 우측 프라이스 스케일 라벨로 그립니다. 상태별 표시: 중립이면 상승(녹·xUp)·하락(빨강·xDn) 둘 다, 정배열(녹)이면 하락 전환 선만(=xUp, 녹 이탈 하방), 역배열(빨강)이면 상승 전환 선만(=xDn, 빨강 이탈 상방)을 그립니다. 상태 게이트는 baseState(순수 기울기 순서·임계가격 산식과 정합) 기준입니다. ⚠️ 상태 테이블 전환 2행의 활성표시·셀색은 밴드 배경 상태(bgFillState) 게이트로 바뀌었으나(밴드 배경과 일치), 이 수평선은 임계가격 자체라 baseState 게이트를 유지합니다 — 선엔 '전환 중' 텍스트가 없어 텍스트 모순은 없습니다(baseState==±1이지만 기울기 반대색으로 밴드 배경이 없는 봉에선 선은 뜨고 테이블 행은 중립일 수 있음). ⚠️ 임계가격이 확정봉[1] base + 현재봉 close 투영 기준이라 라이브 봉 동안 갱신됩니다 — 선·가격축 라벨이 실시간 봉에서 깜빡일 수 있습니다(현재봉[0] 실시간, 과거봉은 확정·비리페인팅, 표시 전용).")
 transUpLineColor = input.color(color.rgb(0, 255, 0), title="상승 전환 수평선 색(순수 녹)", group=RIBBON_GROUP, active=showTransitionLines, tooltip="상승 전환 임계 수평선 색. 순수 녹(rgb(0,255,0)). 직전 밴드2 정배열 선색에서 이관한 값입니다.")
 transDnLineColor = input.color(color.rgb(255, 0, 0), title="하락 전환 수평선 색(순수 빨강)", group=RIBBON_GROUP, active=showTransitionLines, tooltip="하락 전환 임계 수평선 색. 순수 빨강(rgb(255,0,0)). 직전 밴드2 역배열 선색에서 이관한 값입니다.")
+// ── 기울기 3행(추세 확인 EMA/DEMA/TEMA) 표시 모드 토글(수학자 1번 설계 — 표시 전용) ──
+//  ▸ "기본": 현행 각도°(시간축 3-슬로프 각도 = todegrees(atan(slope/ATR(14))))·표시·셀색 완전 불변(회귀 안전, 기본값).
+//  ▸ "ATR 정규화": 표시 텍스트를 ATR 배수(±0.00x, 봉당 ATR 배수·디멘션리스)로, 셀색을 데드존·가속 임계·부호 조건 규칙으로 대체(표시 전용).
+//  ⚠️ 이 토글은 테이블 기울기 3행의 "표시(텍스트·셀색)"에만 영향한다. 밴드 배경·baseState·전환 판정·전환 임계 게이트는 두 모드 모두 현행 그대로(정규화 안 함, 코드 불변).
+slopeDisplayMode = input.string("기본", title="기울기 표시 모드", options=["기본", "ATR 정규화"], group=RIBBON_GROUP, tooltip="추세 확인 테이블의 EMA/DEMA/TEMA 기울기 3행 표시 + 밴드 배경·전환 행 판정을 함께 바꿉니다(매매 신호·주문 로직은 불변, 표시/국면 판정 전용).\n\n▸ 기본: 현행 각도°(시간축 3-슬로프 각도). 값·셀색·밴드 배경·전환 판정 완전 동일(값 비트 동일 — 회귀 0).\n▸ ATR 정규화: 봉당 기울기를 ATR(14)로 나눈 배수(±0.00x, 디멘션리스)로 표시하고, 밴드 배경·전환 행 판정도 정규화 가속 서열(EMA→DEMA→TEMA의 정규화 기울기 emaNS<demaNS<temaNS·데드존·가속임계·부호 조건)로 전환합니다. 셀색·배경·전환 행은 데드존·가속 임계(아래 두 파라미터)로 결정합니다.\n\n⚠️ [변경] 이전엔 '표시만' 바뀌었으나, 이제 ATR 정규화 모드는 밴드 배경(fill)과 전환 행(활성/셀색/괄호값)까지 정규화 판정으로 전환합니다. 전환 선(차트, 기본 OFF)만 모드 무관 raw 각도-순서 게이트를 유지합니다.\n⚠️ 정규화 모드에서 밴드 배경은 '한 소스의 가속 서열'입니다 — DEMA·TEMA는 EMA에서 파생된 선(2·EMA−EMA(EMA), 3·EMA−3·EMA(EMA)+EMA(EMA(EMA)))이라 독립 3표가 아니라 한 소스의 지연차입니다.\n⚠️ 정규화 배경은 라이브 봉에서 raw보다 임계 경계에서 더 자주 깜빡일 수 있습니다(정상). 데드존/가속최소는 표시 가독성 파라미터이므로 종목별 튜닝·백테스트 최적화 금지.")
+slopeDeadZone = input.float(0.10, title="정규화 데드존(ATR/봉)", minval=0.0, step=0.01, group=RIBBON_GROUP, active=slopeDisplayMode == "ATR 정규화", tooltip="ATR 정규화 모드 전용. 세 정규화 기울기 |v1|,|v2|,|v3|가 모두 이 값 미만이면 '무의미 기울기(횡보 휩쏘)'로 보고 셀을 회색 처리합니다. 단위=봉당 ATR 배수. 기본 0.10.\n\n⚠️ 표시 가독성 파라미터입니다 — 종목별 튜닝·백테스트 최적화 금지(전략 파라미터 아님, 이 값을 매매 신호 최적화에 쓰지 마세요).")
+slopeAccelMin = input.float(0.05, title="정규화 가속 최소(ATR/봉)", minval=0.0, step=0.01, group=RIBBON_GROUP, active=slopeDisplayMode == "ATR 정규화", tooltip="ATR 정규화 모드 전용. 인접 정규화 기울기 차(가속)가 이 값 이상이어야 가속으로 인정합니다. 상승 가속(녹)=v1<v2<v3 AND (v2−v1)≥이값 AND (v3−v2)≥이값 AND v3>0. 하락 가속(적)=v1>v2>v3 AND (v1−v2)≥이값 AND (v2−v3)≥이값 AND v3<0. 단위=봉당 ATR 배수 차. 기본 0.05.\n\n▸ v3(최신) 부호 조건은 '하락 중 완만화인데 순서만 증가하면 녹으로 오판'하던 현행 결함을 고치는 것입니다(정규화와 무관한 실 버그 수정, ATR 정규화 모드에만 적용).\n⚠️ 표시 가독성 파라미터입니다 — 종목별 튜닝·백테스트 최적화 금지.")
 // ── 추세 확인 테이블 EMA/DEMA/TEMA 기울기 3행 셀 배경색(CEO 지시 — 표시 순서 규칙) ──
 //  셀 배경은 표시 순서(오래된→최신) 세 각도 v1=slope3각·v2=slope2각·v3=slope1각의 서열로 칠한다(f_angle3Color).
 //  v1<v2<v3(정배열, 시간갈수록 기울기↑)→녹(ltUpColor·30) / v1>v2>v3(역배열)→적(ltDownColor·30) / na 또는 그 외→회색(중립).
@@ -267,7 +274,7 @@ computeVwapSet(int barsLen, float srcArg) =>
 // =========================
 // 비정상 매수/매도 — SUPER-ICHIMOKU 메인 지표(advanced-ichimoku.pine)의 "비정상 캔들"(비정상 매수/매도) 판정을 이식(포팅).
 //  판정: cRSI 과매수/과매도(도미넌트 사이클) + 볼린저 밴드 이탈(고가/저가 기준). 두 조건이 동시 성립하면 비정상.
-//   ▸ 비정상 매수(과매수 구간, abnCandleState==-1) = cRSI 과매수(abnIsOB) AND 고가가 볼린저 상단 밴드를 초과(초과폭÷캔들범위 ≥ 비율). → 주황 배경.
+//   ▸ 비정상 매수(과매수 구간, abnCandleState==-1) = cRSI 과매수(abnIsOB) AND 고가가 볼린저 상단 밴드를 초과(초과폭÷캔들범위 ≥ 비율). → 붉은 캔들.
 //   ▸ 비정상 매도(과매도 구간, abnCandleState== 1) = cRSI 과매도(abnIsOS) AND 저가가 볼린저 하단 밴드를 이탈(이탈폭÷캔들범위 ≥ 비율). → 파랑 배경.
 //   ⚠️ 이치모쿠 원본과 매핑: "비정상 매수 = 과매수(cRSI≥OB + 상단밴드 돌파)"·"비정상 매도 = 과매도(cRSI≤OS + 하단밴드 이탈)". 지시 매핑(비정상매수=과매수·비정상매도=과매도)과 정확히 일치.
 //  ⚠️ 자기완결 포팅(이치모쿠 의존 제거):
@@ -293,11 +300,11 @@ abnBodyRatio = input.float(0.3, minval=0.0, step=0.05, title="비정상 밴드 �
 //  ⚠️ 전략성 파라미터(수학자 리뷰 대상): 임계·배수 변경은 반등 감시 민감도(전략)를 바꾼다.
 abnAtrMult = input.float(1.5, minval=0.1, step=0.1, title="비정상 반등 감시 ATR 배수", group=ABN_GROUP, tooltip="비정상 캔들 이후 그 방향과 반대되는 가격 되돌림(반등)이 이 ATR 배수 이상이면 '롱/숏 감시'(abnWatch)로 판정합니다. 기본 1.5(이치모쿠 반등 감시와 동일 — 기본/강화 2단은 단일 감시로 통합됨). 전략성 파라미터(수학자 리뷰 대상).")
 abnRsiMoveLimit = input.float(15.0, minval=0.1, step=0.1, title="비정상 RSI 이동 제한", group=ABN_GROUP, tooltip="반등 감시 게이트의 RSI 이동 상한. 가격 되돌림이 ATR 조건을 충족해도, 그 사이 RSI 되돌림 폭이 이 값 이하일 때만 '감시'로 인정합니다(가격은 되돌렸는데 RSI 과열은 아직 안 풀린 반등 초기 국면). 기본 15(이치모쿠 반등 감시와 동일). 전략성 파라미터(수학자 리뷰 대상).")
-abnShowBg = input.bool(true, title="비정상 매수/매도 배경 표시", group=ABN_GROUP, tooltip="비정상 매도=파랑, 비정상 매수=빨강 배경으로 세로 스트립을 칠합니다. (반등 감시 배경은 CEO 지시로 제거됨)")
-// 비정상 매수/매도 세로 배경색(CEO 명시: 매도=파랑, 매수=빨강 — 방향 직관과 반대지만 지시대로)
-abnSellBgColor = input.color(color.blue, title="비정상 매도 배경 색(파랑)", group=ABN_GROUP)
-abnBuyBgColor = input.color(#FF9800, title="비정상 매수 배경 색(주황)", group=ABN_GROUP)
-abnBgTransp = input.int(82, minval=0, maxval=100, title="비정상 배경 투명도", group=ABN_GROUP)
+abnShowBg = input.bool(true, title="비정상 매수/매도 캔들색 표시", group=ABN_GROUP, tooltip="비정상 매도=파랑, 비정상 매수=주황으로 해당 봉의 캔들 몸통색을 칠합니다(CEO 지시로 배경 → 캔들 몸통색 전환). 비정상이 아닌 봉은 캔들 기본색을 유지합니다. (반등 감시 배경은 CEO 지시로 제거됨)")
+// 비정상 매수/매도 캔들 몸통색(CEO 명시: 매도=파랑, 매수=붉은색 — 과매수=고점 경고 직관(붉은=위험)에 부합. 하락 전환 후보 배경 주황과 색 구분 위해 주황→붉은 계열 변경)
+abnSellBgColor = input.color(color.blue, title="비정상 매도 캔들색(파랑)", group=ABN_GROUP)
+abnBuyBgColor = input.color(#E53935, title="비정상 매수 캔들색(붉은색)", group=ABN_GROUP)
+// (구 '비정상 배경 투명도' input은 캔들 몸통색 전환으로 미사용이 되어 제거 — 캔들 몸통은 불투명으로 색상 그대로 칠한다. 새 파라미터는 만들지 않음.)
 
 // 이격도(Disparity) 자기완결 이식 — 비정상 상태 래치 리셋(원본 abnDisparityNeutral)에만 사용. 이치모쿠 원본 산식·input 그대로.
 DISP_GROUP = "이격도"
@@ -433,8 +440,11 @@ if barstate.isconfirmed
     if abnBearBgOn
         abnWatch := -2
 
-// 세로 배경색(원본 동일): 비정상 매도(abnCandleState==1)=파랑, 비정상 매수(abnCandleState==-1)=주황(리본 역배열 빨강과 구분).
-abnBg = abnCandleState == 1 ? color.new(abnSellBgColor, abnBgTransp) : abnCandleState == -1 ? color.new(abnBuyBgColor, abnBgTransp) : na
+// 비정상 캔들 몸통색(CEO 지시 — 배경 bgcolor → barcolor 전환): 비정상 매도(abnCandleState==1)=파랑(abnSellBgColor), 비정상 매수(abnCandleState==-1)=붉은색(abnBuyBgColor). ※과매수=고점 경고 직관(붉은=위험)에 맞춰 주황→붉은 계열 변경(하락 전환 후보 배경 주황과 색 구분).
+//  ⚠️ 색상(hue)은 기존 배경색을 그대로 승계(톤앤매너 유지)하되, 캔들 몸통은 배경(투명도 82)처럼 은은하면 몸통색이 거의 안 보이므로 불투명(투명도 0)으로 칠한다.
+//   → abnBgTransp(배경 투명도)는 더 이상 캔들색에 적용하지 않는다(캔들은 몸통 전체를 덮는 오버라이드라 반투명이면 원래 캔들색과 뒤섞여 판독 저하). 색·판정(abnCandleState 래치)은 불변, 표현 매체만 배경→캔들.
+//  ⚠️ 비정상 구간이 아닌 봉은 na → barcolor(na)로 캔들 기본색 유지(오버라이드 안 함).
+abnBarColor = abnCandleState == 1 ? abnSellBgColor : abnCandleState == -1 ? abnBuyBgColor : na
 
 // =========================
 // 지수 추세 리본(EMA/DEMA/TEMA) 계산 + baseState(리본 서열) + 밴드 배경 판정용 컨플루언스.
@@ -518,6 +528,37 @@ bgFillState = (baseState == -1 and not bgAnyAngleGreen) ? -1
      : 0
 
 // =========================
+// [정규화 게이트] ATR 정규화 모드에서 밴드 배경·전환 판정을 '가속 서열' 규칙으로 전환(수학자 승인 스펙 — 제3안).
+//  ▸ 목적: slopeDisplayMode=="ATR 정규화"일 때 밴드 배경(fill)과 전환 행 판정을 raw 각도-순서(baseState/bgFillState)가 아니라
+//    정규화 slope(봉당 기울기÷ATR)의 데드존·가속 임계·부호 조건으로 결정한다. "기본" 모드에선 원본 값 비트 동일(회귀 0).
+//  ▸ ATR 분모 재사용: bgAngleRef(=ta.atr(14), 497행)를 재사용한다. 이는 아래 표시부 ltAtrTable(=ta.atr(14), 994행)과 동일 함수·동일 인자 → 동일 series 값.
+//    따라서 여기 emaNS/demaNS/temaNS는 표시부 emaNorm1/demaNorm1/temaNorm1과 수학적으로 완전히 동일한 산식이다(분자=line[0]−line[1], 분모=ATR(14)).
+//    신규 ta.* 호출 없음(bgAngleRef 재사용) — CSE 유지.
+//  ▸ 표시부(1058행)와의 관계: emaNS(=이 블록)는 아래 f_norm3Color가 쓰는 emaNorm1과 동일 값이므로, 배경·전환 판정과 표시 셀색이 정합한다(정규화 모드에서 배경≈셀 일치).
+//    표시 셀색은 3-슬로프 서열(norm3<norm2<norm1)을 보지만, 배경은 '한 소스(EMA→DEMA→TEMA)의 가속 서열'(emaNS<demaNS<temaNS)을 본다 — 판정 축이 다름(주석·툴팁 caveat 참조).
+//  ▸ 리페인팅: emaNS는 현재봉[0]을 포함(line[0]−line[1])하므로 라이브 봉 동안 갱신될 수 있다. raw 배경보다 임계(deadZone/accelMin) 경계에서 더 자주 깜빡일 수 있다(정상·표시 전용).
+//  ⚠️ deadZone/accelMin은 표시 가독성 파라미터다 — 종목별 튜닝·백테스트 최적화 금지(매매 신호 아님).
+useNormSlope = slopeDisplayMode == "ATR 정규화"
+emaNS  = (emaLine  - emaLine[1])  / bgAngleRef   // = 표시부 emaNorm1(동일 산식)
+demaNS = (demaLine - demaLine[1]) / bgAngleRef   // = 표시부 demaNorm1
+temaNS = (temaLine - temaLine[1]) / bgAngleRef   // = 표시부 temaNorm1
+//  normValid: ATR 유효(양수)·3값 모두 유효할 때만 가속 판정 신뢰(무효 시 baseStateNorm=0 → 회색·배경 없음, f_norm3Color na 회색과 정합).
+normValid = not na(bgAngleRef) and bgAngleRef > 0 and not na(emaNS) and not na(demaNS) and not na(temaNS)
+//  deadAll: 세 정규화 기울기가 모두 데드존 미만이면 무의미 기울기(횡보 휩쏘) → 배경 없음(표시 셀 데드존 회색과 정합).
+deadAll = math.abs(emaNS) < slopeDeadZone and math.abs(demaNS) < slopeDeadZone and math.abs(temaNS) < slopeDeadZone
+//  가속 서열 판정 — 한 소스(EMA→DEMA→TEMA 파생 서열)의 정규화 기울기가 가속 임계 이상으로 벌어지고 방향 부호가 일치할 때만.
+//   상승 배경: temaNS>demaNS>emaNS>0 AND 인접 차 ≥ accelMin. 하락 배경: temaNS<demaNS<emaNS<0 AND 인접 차 ≥ accelMin. 상호배타(부호 반대).
+bullAccel = normValid and not deadAll and temaNS > demaNS and demaNS > emaNS and emaNS > 0 and (demaNS - emaNS) >= slopeAccelMin and (temaNS - demaNS) >= slopeAccelMin
+bearAccel = normValid and not deadAll and temaNS < demaNS and demaNS < emaNS and emaNS < 0 and (emaNS - demaNS) >= slopeAccelMin and (demaNS - temaNS) >= slopeAccelMin
+baseStateNorm = bullAccel ? 1 : bearAccel ? -1 : 0
+bgFillStateNorm = baseStateNorm   // 안A: baseStateNorm 단독(추가 컨플루언스 없음, 수학자 승인)
+// ── 하류 게이트 분기(회귀 0 — 이 지점에서만) ──
+//  useNormSlope=false(기본 모드)이면 원본 baseState/bgFillState와 비트 동일 → 기본 모드 회귀 0.
+//  useNormSlope=true(ATR 정규화)이면 정규화 가속 서열 상태로 전환. raw 계산 라인(baseState/bgFillState/xr1/xr2/xUp/xDn)은 불변, 하류 참조만 교체.
+//  ⚠️ 전환 선(차트, 기본 OFF)은 임계가격 산식과 정합을 위해 raw baseState 게이트를 유지한다(정규화 모드에서도 raw 경로 불변). 따라서 baseState의 정규화 게이트 변수는 두지 않는다(미참조 방지). 배경/전환 행만 bgFillStateGated로 모드 분기한다.
+bgFillStateGated = useNormSlope ? bgFillStateNorm : bgFillState
+
+// =========================
 // 배경 전환 임계가격 역산(알고리즘 수학자 사양 — 그대로 구현). "다음 봉 종가"가 어디에 오면 배경이 상승(녹)/하락(빨강)으로 갈리는지 역산한 전방 목표값.
 //  ▸ 리본 재귀: e1=EMA(close), e2=EMA(e1), e3=EMA(e2). 다음 봉 종가 x가 들어오면 e1'=α·x+β·e1, e2'=α·e1'+β·e2, e3'=α·e2'+β·e3 (α=2/(len+1), β=1−α).
 //     녹(정배열) **기울기 순서조건** slopeEma<slopeDema<slopeTema (slope=line[0]−line[1])의 전이 임계를 x에 대해 푼 것이 xr1(1차 전이 임계)·xr2(2차 전이 임계)이고, 그 max/min이 상·하 임계다(레벨 순서가 아니라 기울기 순서 전이). 산식은 수학자 검증값 그대로.
@@ -535,6 +576,22 @@ xUp = math.max(xr1, xr2)   // 녹 진입 최소가 / 녹 이탈 하방 경계
 xDn = math.min(xr1, xr2)   // 빨강 진입 최대가 / 빨강 이탈 상방 경계
 upOk = ribValid and xUp > 0
 dnOk = ribValid and xDn > 0
+// =========================
+// [전환 후보] 밴드 배경 미확정(bgFillStateGated==0) 상태에서 종가가 전환 임계가를 이미 돌파한 "선행 후보" 표시(수학자 확정·CEO 승인, 방어코드 포함).
+//  ▸ 목적: 배경 컨플루언스(전환셀+기울기)가 아직 안 붙었지만(bgFillStateGated==0), 라이브 종가(close=close[0])가 이미 임계가를 넘어선 봉을 "임박(후보)"으로 선행 노출한다.
+//    · 상승 후보 = 종가가 녹 진입 최소가 xUp를 상향 돌파(close > xUp). 하락 후보 = 종가가 빨강 진입 최대가 xDn를 하향 돌파(close < xDn).
+//  ▸ 게이트: bgFillStateGated==0(밴드 배경 없음)일 때만 얹는다(배경 확정 ±1이 있으면 후보를 얹지 않음 — 확정 우선). upOk/dnOk(가격 양수·ribValid) 필수.
+//  ▸ 모드 분기 불필요: xUp/xDn/close는 기본·ATR 정규화 두 모드 동일 소스라, 부등호 판정 하나로 두 모드 모두 커버한다(useNormSlope 미참조). 신규 임계 파라미터 없음(부등호만 추가, 과최적화 자유도 0).
+//  ▸ candState 도메인: +2(상승 후보) / −2(하락 후보) / 0(없음). candUp·candDn 동시 성립은 논리상 미발생(xDn<xUp이라 close가 둘 다 넘을 수 없음) — 그래도 방어코드로 0 처리.
+//  ⚠️ 리페인팅(의도·정상): close[0]·xUp/xDn 모두 현재봉 라이브값이라 후보 상태는 라이브 봉 동안 깜빡일 수 있다(과거봉 확정·비리페인팅). 표시 전용, 매매 신호 아님.
+bgNeutral = bgFillStateGated == 0
+candUp = bgNeutral and upOk and (close > xUp)   // 상승 후보
+candDn = bgNeutral and dnOk and (close < xDn)   // 하락 후보
+candState = (candUp and candDn) ? 0 : candUp ? 2 : candDn ? -2 : 0   // 둘 다=방어코드(정상 미발생)
+// 배경 상태 확장 — 확정(±1)/후보(±2) 분리. 확정 우선(±1 있으면 그대로), 없을 때만 후보(±2) 얹음.
+//  도메인: −2(하락후보) / −1(하락확정) / 0(중립) / +1(상승확정) / +2(상승후보). 하류 배경 fill·전환행 셀색이 이 값을 참조.
+bgFillStateExt = (bgFillStateGated != 0) ? bgFillStateGated : candState
+// =========================
 // ⚠️ 옛 지속 봉수 카운터(barsSinceUp/barsSinceDn·ta.barssince baseState 전환 트리거)는 제거됨(CEO 지시) —
 //    활성 전환 상태의 괄호 표기가 "(N봉)"에서 리본 기울기차 2값 "(값1 | 값2)"으로 교체돼 더 이상 쓰이지 않는다(dangling 방지). 텍스트 산출은 전환 텍스트 블록(transDelta1/2) 참조.
 
@@ -671,8 +728,8 @@ color vwapLineColor = enableVwapSRColor ? vwapSRColor : activeLineColor
 // =========================================================================================
 // [z-order 블록 #1 — VWMA 50/100/200 + 100~200 fill]  ★ plot/fill 중 가장 뒤(back-most).
 //  explicit_plot_zorder=true이므로 이 plot/fill들을 파일에서 가장 먼저 선언 → 이후 모든 plot/fill(VWAP·밴드·정역배열·리본)보다 뒤에 그려진다.
-//  ⚠️ 단, bgcolor(비정상 배경)는 explicit_plot_zorder와 무관하게 항상 최후면 그룹이라 이 VWMA보다도 뒤에 온다(비정상 배경 복원 주석 참조).
-//     실제 레이어(뒤→앞) = [비정상 배경 bgcolor] → [이 VWMA 블록] → [나머지 페인팅].
+//  ⚠️ 비정상 매수/매도는 이제 barcolor(캔들 몸통색)이라 plot/fill과 레이어가 다르다(봉 몸통 ↔ 밴드 배경) → 이 VWMA/fill과 z-order 경합 없이 캔들 위에 별도로 그려진다.
+//     실제 레이어(뒤→앞) = [이 VWMA 블록] → [나머지 페인팅]; 비정상은 barcolor로 캔들 몸통에 직접(밴드 배경과 공존).
 //  ⚠️ 계산(f_ltMa·vwma20/50·ltMa1/2·ltUp)·plot 산식·색·오프셋·display는 이동 전과 100% 동일 — 오직 선언 위치(z-order)만 앞으로 옮겼다.
 //  ⚠️ ta.vwma/f_ltMa 확정봉 기반 → 신규 리페인팅 없음. 우측 가격축 라벨 제거(display.all - display.price_scale, 다른 선과 동일 패턴).
 // =========================================================================================
@@ -695,16 +752,14 @@ ltPlot2 = plot(showLongTrend ? ltMa2 : na, title="거래량 가중 200선(VWMA 2
 fill(ltPlot1, ltPlot2, title="100~200선 fill", color=showLongTrend ? (ltUp ? color.new(ltColor1, ltFillTransp) : color.new(ltColor2, ltFillTransp)) : na, editable=true)
 
 // =========================================================================================
-// [비정상 매수/매도 배경 — bgcolor로 복원]  ★ CEO 지시(auto-scale 폭발 버그 수정).
-//  ⚠️ 렌더 방식 복원(CEO 지시): 직전 z-order 작업에서 이 배경을 plot(±1e20) 무한대 기준선 2개 + 그 사이 fill로 전환했으나,
-//   실측(차트)에서 display.none plot이라도 그 fill이 ±1e20 범위로 렌더되어 가격축 auto-scale을 ±수경대로 폭발시킴(정적 가정이 실측에서 틀림).
-//   → 극단값 plot 2개와 fill을 제거하고 **다시 bgcolor()로 복원**한다(스케일에 영향 없는 유일한 화면 전체 배경).
-//  ⚠️ z-order 제약 인지: bgcolor는 explicit_plot_zorder와 무관하게 항상 최후면 그룹이라, 복원 후 실제 레이어는
-//   (뒤→앞) [비정상 배경 bgcolor] → [VWMA 50/100/200+fill] → [나머지 페인팅]. 즉 비정상 배경은 "중간"이 아니라 "가장 뒤"가 된다
-//   (Pine 구조상 auto-scale과 양립하기 위해 불가피). VWMA를 나머지보다 뒤로 두는 것(위 최하단 블록 #1 선언 순서)은 유지.
-//  ⚠️ 색·조건·투명도·판정(abnBg/abnShowBg/abnCandleState 래치)은 전부 불변 — 렌더 방식만 fill→bgcolor로 환원(전체 화면 세로 스트립·같은 색·같은 투명도).
+// [비정상 매수/매도 — 캔들 몸통색(barcolor)]  ★ CEO 지시(배경 bgcolor → 캔들 몸통색 전환).
+//  ⚠️ 표현 매체 전환: 직전엔 이 비정상 구간을 전체 화면 세로 배경(bgcolor)으로 칠했으나, CEO 지시로 **해당 봉의 캔들 몸통색(barcolor)** 오버라이드로 옮긴다.
+//   → 비정상 구간에서만 barcolor로 몸통을 칠하고(매도=파랑·매수=붉은색, 색상 승계), 비정상이 아닌 봉은 barcolor(na)로 캔들 기본색을 유지(오버라이드 안 함).
+//  ⚠️ z-order: barcolor는 봉의 몸통색 자체를 바꾸는 것이라 밴드 fill(정/역배열 배경·후보 배경)·bgcolor와 레이어가 다르다(캔들 몸통 vs 밴드 배경 → 시각 충돌 없이 공존).
+//   비정상 캔들색과 정배열/역배열·후보 밴드 배경이 동시에 떠도 서로 다른 대상(봉 몸통 ↔ 밴드 영역)에 그려지므로 겹쳐도 판독 가능.
+//  ⚠️ 색·조건·판정(abnBarColor/abnShowBg/abnCandleState 래치)은 전부 불변 — 렌더 매체만 bgcolor→barcolor로 전환(배경 투명도 abnBgTransp는 캔들색엔 미적용, 위 abnBarColor 주석 참조).
 // =========================================================================================
-bgcolor(abnShowBg ? abnBg : na, title="비정상 매수/매도 배경")
+barcolor(abnShowBg ? abnBarColor : na, title="비정상 매수/매도 캔들색")
 
 // VWAP 중앙선: 두께 2px(CEO 지시 — 지지/저항 색 규칙). 선은 동적 색, 우측 가격축 라벨은 흰색 고정(CEO 지시).
 //  색 = vwapLineColor(지지/저항 규칙 ON이면 녹/빨강/흰색, OFF면 기존 activeLineColor).
@@ -734,7 +789,17 @@ fill(upperBand_2, lowerBand_2, title="Bands Fill #2", color=activeFillColor, dis
 //  색·투명도는 기존 정/역배열 배경 input(ribbonBullBgColor/ribbonBearBgColor + ribbonBgTransp) 그대로 재사용(색 변경 아님, 조건만 교체).
 //  ⚠️ 옛 억제/래치/플립/paintState·[0]자기패턴 무조건 억제(bgBearPattern/bgBullPattern/bgPaintState)는 CEO 지시로 전면 제거됨(이 배경은 전환셀+기울기 컨플루언스만 참조).
 //  ⚠️ 밴드2 선(plot) 색·값은 불변. slope1이 현재봉[0]을 포함하므로 배경도 라이브 봉 동안 갱신될 수 있다(테이블 기울기 3행과 동일 거동).
-fill(upperBand_2, lowerBand_2, color = (showRibbonExpBg and shouldPlot and bgFillState != 0 and not na(upperBandValue2) and not na(lowerBandValue2)) ? (bgFillState == 1 ? color.new(ribbonBullBgColor, ribbonBgTransp) : color.new(ribbonBearBgColor, ribbonBgTransp)) : na, title="밴드 배경", display=display.all, editable=true)
+//  ⚠️ [후보 밴드 배경 제거 — CEO 지시] 참조는 bgFillStateExt(확정 ±1 + 후보 ±2)이나, 밴드 배경은 확정(±1)일 때만 칠한다. 후보(±2)는 "어지럽다"는 CEO 지시로 배경을 칠하지 않고(na) 테이블 전환행 셀색으로만 확인한다.
+//   · +1(상승 확정) → 녹(ribbonBullBgColor, 기존 유지)   · −1(하락 확정) → 빨강(ribbonBearBgColor, 기존 유지)
+//   · +2(상승 후보) → 배경 없음(na)   · −2(하락 후보) → 배경 없음(na)   · 0 → 없음.
+//   ▸ 후보 판독: 밴드 배경이 아니라 테이블 전환행 셀색(상승 후보=파랑 #1565C0 / 하락 후보=주황 #EF6C00)으로만 표시. 밴드 배경은 확정(녹/빨강)만.
+//   ⚠️ 판정 로직(bgFillStateExt·candUp/candDn·baseState·게이트)은 전부 불변 — 이번 변경은 배경 fill의 색 매핑에서 ±2를 na로 만든 것뿐. z-order·fill 위치·투명도 수준(ribbonBgTransp)·확정 색(녹/빨강)은 불변. bgFillStateExt 상태값·후보 상수(candBgUpColor/candBgDnColor)는 셀색이 계속 참조하므로 유지.
+candBgUpColor = #1565C0   // 상승 후보 셀색 파랑(전환행 셀 전용 — 밴드 배경엔 미사용, Material Blue 800)
+candBgDnColor = #EF6C00   // 하락 후보 셀색 주황(전환행 셀 전용 — 밴드 배경엔 미사용, Material Orange 800)
+bgFillColorExt = bgFillStateExt == 1  ? color.new(ribbonBullBgColor, ribbonBgTransp)
+              : bgFillStateExt == -1 ? color.new(ribbonBearBgColor, ribbonBgTransp)
+              : na
+fill(upperBand_2, lowerBand_2, color = (showRibbonExpBg and shouldPlot and bgFillStateExt != 0 and not na(upperBandValue2) and not na(lowerBandValue2)) ? bgFillColorExt : na, title="밴드 배경", display=display.all, editable=true)
 
 // 지수 추세 리본 3선(EMA/DEMA/TEMA) — 각 1px, price scale 라벨 없음(display.all − display.price_scale). 표시 전용 오버레이.
 //  ⚠️ ta.ema 누적(확정 성격)이라 신규 리페인팅 없음. showRibbon OFF면 na로 미표시.
@@ -742,8 +807,8 @@ plot(showRibbon ? emaLine : na, title="지수 리본 EMA", color=ribbonEmaColor,
 plot(showRibbon ? demaLine : na, title="지수 리본 DEMA", color=ribbonDemaColor, offset=offset, linewidth=1, display=display.all - display.price_scale, editable=true)
 plot(showRibbon ? temaLine : na, title="지수 리본 TEMA", color=ribbonTemaColor, offset=offset, linewidth=1, display=display.all - display.price_scale, editable=true)
 
-// 비정상 매수/매도 배경 bgcolor()는 위쪽(VWMA 블록 뒤)에서 선언한다(auto-scale 폭발 버그 수정 — 극단값 fill 제거·bgcolor 복원 주석 참조).
-//  bgcolor는 항상 최후면 그룹이라 선언 위치와 무관하게 가장 뒤에 그려진다. 색·조건·투명도·판정은 전부 불변이다.
+// 비정상 매수/매도 캔들 몸통색 barcolor()는 위쪽(VWMA 블록 뒤)에서 선언한다(CEO 지시 — 배경 bgcolor → barcolor 전환 주석 참조).
+//  barcolor는 봉의 몸통색을 바꾸는 것이라 밴드 fill·bgcolor와 레이어가 달라 공존한다. 색·조건·판정(abnCandleState 래치)은 불변이다.
 
 // =========================================================================================
 // [이식+신규] 윌리엄스 프랙탈(확정·strict) + 로직1(ratio 게이트) + 로직2(후보) + 후보 반투명 배경 + %R 다이버전스
@@ -1034,12 +1099,63 @@ f_angle3Color(float a1, float a2, float a3) =>
      (a1 < a2 and a2 < a3) ? color.new(ltUpColor, 30) :
      (a1 > a2 and a2 > a3) ? color.new(ltDownColor, 30) : color.new(color.gray, 40)
 // 표시·색 인자 순서 = 오래된→최신(slope3, slope2, slope1). 값·각도 산식은 불변, 순서만 역순.
-emaAngleText = f_angle3(emaSlope3Angle, emaSlope2Angle, emaSlope1Angle)
-demaAngleText = f_angle3(demaSlope3Angle, demaSlope2Angle, demaSlope1Angle)
-temaAngleText = f_angle3(temaSlope3Angle, temaSlope2Angle, temaSlope1Angle)
-emaAngleColor = f_angle3Color(emaSlope3Angle, emaSlope2Angle, emaSlope1Angle)
-demaAngleColor = f_angle3Color(demaSlope3Angle, demaSlope2Angle, demaSlope1Angle)
-temaAngleColor = f_angle3Color(temaSlope3Angle, temaSlope2Angle, temaSlope1Angle)
+// [기본 모드] 현행 각도° 텍스트·셀색(불변). ATR 정규화 모드가 아닐 때 이 값을 그대로 출력한다(회귀 안전 — 바이트 동일).
+emaAngleTextBase = f_angle3(emaSlope3Angle, emaSlope2Angle, emaSlope1Angle)
+demaAngleTextBase = f_angle3(demaSlope3Angle, demaSlope2Angle, demaSlope1Angle)
+temaAngleTextBase = f_angle3(temaSlope3Angle, temaSlope2Angle, temaSlope1Angle)
+emaAngleColorBase = f_angle3Color(emaSlope3Angle, emaSlope2Angle, emaSlope1Angle)
+demaAngleColorBase = f_angle3Color(demaSlope3Angle, demaSlope2Angle, demaSlope1Angle)
+temaAngleColorBase = f_angle3Color(temaSlope3Angle, temaSlope2Angle, temaSlope1Angle)
+
+// ── [ATR 정규화 모드] 기울기 3행 표시(수학자 1번 설계) — 표시 전용, 배경/게이트와 격리 ──────────────
+//  ▸ 산식: normSlope_i = (line[k] − line[k+n]) / (ATR(14) × n), n=1 고정 → 분모는 사실상 ATR(14)=ltAtrTable(신규 ta.atr 호출 없음, CSE 재사용).
+//    단위 = 봉당 ATR 배수(디멘션리스). slope1=line[0]−line[1](현재봉[0] 포함 → 라이브 갱신·리페인팅, slope2/3은 확정봉 차분(라이브 불변) — 각도 모드와 동일 거동.
+//  ▸ ⚠️ 이 블록은 표시 전용이다. 위쪽 배경 판정(bgFillState 등)·baseState·전환 임계 게이트는 이 변수를 참조하지 않는다(격리). 밴드 배경은 두 모드 모두 현행 각도-순서 규칙 유지.
+//  ▸ na 가드: ltAtrTable na 또는 ≤0, 또는 lineNow/linePrev na면 정규화 값 na(→ 텍스트 "-", 셀 회색). 각도 모드 na 가드와 정합.
+f_normSlope(float lineNow, float linePrev) => (na(lineNow) or na(linePrev) or na(ltAtrTable) or ltAtrTable <= 0) ? na : (lineNow - linePrev) / ltAtrTable
+emaNorm1  = f_normSlope(emaLine,     emaLine[1])
+emaNorm2  = f_normSlope(emaLine[1],  emaLine[2])
+emaNorm3  = f_normSlope(emaLine[2],  emaLine[3])
+demaNorm1 = f_normSlope(demaLine,    demaLine[1])
+demaNorm2 = f_normSlope(demaLine[1], demaLine[2])
+demaNorm3 = f_normSlope(demaLine[2], demaLine[3])
+temaNorm1 = f_normSlope(temaLine,    temaLine[1])
+temaNorm2 = f_normSlope(temaLine[1], temaLine[2])
+temaNorm3 = f_normSlope(temaLine[2], temaLine[3])
+// 정규화 텍스트: 부호(+/−)+소수2자리+"x"(예 +0.35x, −0.12x). na → "-".
+f_normStr(float v) => na(v) ? "-" : (v >= 0 ? "+" : "") + str.tostring(v, "0.00") + "x"
+// 3값 표시(오래된→최신: normSlope3 | normSlope2 | normSlope1) — 각도 모드와 동일 표시 순서. 인자 순서 = 표시 순서(v1, v2, v3).
+f_norm3(float v1, float v2, float v3) => f_normStr(v1) + " | " + f_normStr(v2) + " | " + f_normStr(v3)
+// 셀색(정규화 스케일 규칙 — 수학자 설계). v1=normSlope3(오래됨), v2=normSlope2, v3=normSlope1(최신 = 현재봉[0] 포함).
+//   ① 하나라도 na → 회색.
+//   ② |v1|,|v2|,|v3| 모두 < deadZone → 회색(데드존, 무의미 기울기·횡보 휩쏘 차단).
+//   ③ v1<v2<v3 AND (v2−v1)≥accelMin AND (v3−v2)≥accelMin AND v3>0 → 녹(상승 가속).
+//   ④ v1>v2>v3 AND (v1−v2)≥accelMin AND (v2−v3)≥accelMin AND v3<0 → 적(하락 가속).
+//   ⑤ 그 외 → 회색.
+//  ⚠️ ③④의 v3 부호 조건은 '하락 중 완만화인데 순서만 증가하면 녹 오판'하던 현행 결함을 고친 것(정규화와 무관한 실 버그 수정, 정규화 모드에만 적용). 투명도 30(녹/적)·40(회색)은 각도 모드 셀색과 동일.
+f_norm3Color(float v1, float v2, float v3) =>
+    (na(v1) or na(v2) or na(v3)) ? color.new(color.gray, 40) :
+     (math.abs(v1) < slopeDeadZone and math.abs(v2) < slopeDeadZone and math.abs(v3) < slopeDeadZone) ? color.new(color.gray, 40) :
+     (v1 < v2 and v2 < v3 and (v2 - v1) >= slopeAccelMin and (v3 - v2) >= slopeAccelMin and v3 > 0) ? color.new(ltUpColor, 30) :
+     (v1 > v2 and v2 > v3 and (v1 - v2) >= slopeAccelMin and (v2 - v3) >= slopeAccelMin and v3 < 0) ? color.new(ltDownColor, 30) : color.new(color.gray, 40)
+// 정규화 텍스트·셀색(표시 순서 = 오래된→최신: norm3, norm2, norm1).
+emaAngleTextNorm = f_norm3(emaNorm3, emaNorm2, emaNorm1)
+demaAngleTextNorm = f_norm3(demaNorm3, demaNorm2, demaNorm1)
+temaAngleTextNorm = f_norm3(temaNorm3, temaNorm2, temaNorm1)
+emaAngleColorNorm = f_norm3Color(emaNorm3, emaNorm2, emaNorm1)
+demaAngleColorNorm = f_norm3Color(demaNorm3, demaNorm2, demaNorm1)
+temaAngleColorNorm = f_norm3Color(temaNorm3, temaNorm2, temaNorm1)
+
+// ── 모드 선택(표시 전용 분기). "기본"이면 각도° 경로(바이트 동일), "ATR 정규화"면 배수 경로. ──
+//  ⚠️ useNormSlope는 위 정규화 게이트 블록(bgFillState 직후)에서 이미 선언됨(밴드 배경·전환 판정과 표시가 동일 플래그를 공유 → 단일 소스). 여기서 재선언하지 않는다.
+emaAngleText = useNormSlope ? emaAngleTextNorm : emaAngleTextBase
+demaAngleText = useNormSlope ? demaAngleTextNorm : demaAngleTextBase
+temaAngleText = useNormSlope ? temaAngleTextNorm : temaAngleTextBase
+emaAngleColor = useNormSlope ? emaAngleColorNorm : emaAngleColorBase
+demaAngleColor = useNormSlope ? demaAngleColorNorm : demaAngleColorBase
+temaAngleColor = useNormSlope ? temaAngleColorNorm : temaAngleColorBase
+// 기울기 3행 셀 툴팁(모드별). 정규화 모드에서만 밴드 배경 불일치·독립 착시 caveat를 노출한다.
+slopeCellTooltip = useNormSlope ? "ATR 정규화 모드: 값=봉당 기울기÷ATR(14) 배수(±0.00x, 오래된→최신). 셀색=데드존/가속 임계/부호 조건 규칙.\n⚠️ 이 셀 색은 밴드 배경 판정과 일치하지 않을 수 있습니다(밴드 배경은 현행 각도-순서 규칙 유지). 셀색=배경색 일치는 '기본' 모드에서만 보장됩니다.\n⚠️ DEMA·TEMA는 EMA 파생선이라 독립 확인이 아닙니다 — 3행 동일 방향은 독립 3표가 아니라 한 소스의 지연차입니다. 표시 전용(매매 신호 아님)." : "기본 모드: 값=시간축 3-슬로프 각도°(오래된→최신), 셀색=각도 서열(v1<v2<v3 녹 / v1>v2>v3 적 / na·그 외 회색). 표시 전용."
 
 // ── 단기 추세(20선 vs 50선) 셀 — 원본 이식 ────────────────────────────────────────────────
 stReady = not na(vwma20) and not na(vwma50)
@@ -1177,7 +1293,7 @@ ltM2SrColor = not ltM2HasMa ? color.new(color.gray, 50) : ltM2Support ? color.ne
 
 // ── 비정상 매수/매도 셀(원본 이식) — auto-vwap의 기존 abnCandleState/abnWatch 재사용. 셀 텍스트/색만 신설 ──
 //  ⚠️ abnCandleState: 1=비정상 매도(과매도), -1=비정상 매수(과매수) (auto-vwap 기존 부호). 텍스트도 원본과 동일 매핑.
-//  ⚠️ 색: 원본 abnOversold/Overbought/Bull/BearBaseColor 대신 auto-vwap의 배경색(매도=파랑 abnSellBgColor·매수=주황 abnBuyBgColor)과
+//  ⚠️ 색: 원본 abnOversold/Overbought/Bull/BearBaseColor 대신 auto-vwap의 배경색(매도=파랑 abnSellBgColor·매수=붉은색 abnBuyBgColor)과
 //     감시색(롱=녹·숏=빨강)으로 매핑(auto-vwap 색 체계 일관). 판정 래치(abnCandleState/abnWatch)는 불변 — 표시만.
 abnCandleTxt = abnCandleState == 1 ? "비정상 매도" : abnCandleState == -1 ? "비정상 매수" : ""
 abnWatchTxt = abnWatch == 2 ? "롱 감시" : abnWatch == -2 ? "숏 감시" : ""
@@ -1217,19 +1333,39 @@ f_pctStr(float p) =>
 transDelta1 = (na(demaSlope1Angle) or na(emaSlope1Angle)) ? na : demaSlope1Angle - emaSlope1Angle   // 값1 = dema각 − ema각
 transDelta2 = (na(temaSlope1Angle) or na(demaSlope1Angle)) ? na : temaSlope1Angle - demaSlope1Angle  // 값2 = tema각 − dema각
 transDeltaText = f_angleStr(transDelta1) + " | " + f_angleStr(transDelta2)
+// [정규화 모드 괄호값 — 혼합안] 활성 전환 상태에서 useNormSlope==true이면 괄호를 각도차 대신 '정규화 가속 갭 2값'으로 표시한다.
+//  ▸ 상승 활성(배경 녹): (demaNS−emaNS | temaNS−demaNS) — 게이트 bullAccel의 가속 임계 대상 두 인접 차와 동일(±0.00x, f_normStr 포맷).
+//  ▸ 하락 활성(배경 빨강): 부호 반대 = (emaNS−demaNS | demaNS−temaNS) — bearAccel의 두 인접 차.
+//  ▸ emaNS/demaNS/temaNS·f_normStr는 위에서 선언됨(참조 안전). na이면 f_normStr에서 "-". 비활성(대기) 행은 모드 무관 가격 raw 유지(아래 upText/dnText).
+transNormUpText = f_normStr(demaNS - emaNS) + " | " + f_normStr(temaNS - demaNS)
+transNormDnText = f_normStr(emaNS - demaNS) + " | " + f_normStr(demaNS - temaNS)
+transDeltaUpDisp = useNormSlope ? transNormUpText : transDeltaText
+transDeltaDnDisp = useNormSlope ? transNormDnText : transDeltaText
 // ⚠️ 게이트 = bgFillState(밴드 배경 상태)로 통일(CEO 버그수정): 전환 행 활성표시·셀색이 밴드 배경(bgFillState)과 정확히 일치하도록 baseState→bgFillState로 재게이트한다.
 //  bgFillState는 baseState의 부분집합(==1⟹baseState==1·기울기 빨강 없음, ==-1⟹baseState==-1·기울기 녹 없음)이라, 밴드 배경이 없으면(bgFillState==0) 두 전환 행 다 비활성·중립이 된다.
 //  ▸ 상승 행: bgFillState==1(배경 녹) → 활성 "상승 (값1|값2)". 그 외 → 전환가격+%(비활성). 가격 선택도 bgFillState로 통일: 배경 빨강(-1)이면 xDn, 아니면 xUp.
 //  ▸ 하락 행: bgFillState==-1(배경 빨강) → 활성 "하락 (값1|값2)". 그 외 → 전환가격+%(비활성). 가격 선택: 배경 녹(1)이면 xUp, 아니면 xDn.
 //  ▸ 활성 텍스트는 "상승 전환/하락 전환"에서 "전환"을 뺀 "상승/하락 (…)"으로 축약(CEO 지시). 괄호 안 값(dema각−ema각 | tema각−dema각)·형식은 불변.
-upText = bgFillState == 1 ? ("상승 (" + transDeltaText + ")") : bgFillState == -1 ? (dnOk ? f_priceStr(xDn) + " (" + f_pctStr(xDn) + ")" : "-") : (upOk ? f_priceStr(xUp) + " (" + f_pctStr(xUp) + ")" : "-")
-dnText = bgFillState == -1 ? ("하락 (" + transDeltaText + ")") : bgFillState == 1 ? (upOk ? f_priceStr(xUp) + " (" + f_pctStr(xUp) + ")" : "-") : (dnOk ? f_priceStr(xDn) + " (" + f_pctStr(xDn) + ")" : "-")
+//  게이트 = bgFillStateGated(정규화 모드 전환 반영). 비활성(대기) 행은 가격 raw 유지(xUp/xDn+%), 활성 행만 괄호값을 모드별로 분기(transDeltaUpDisp/DnDisp).
+upText = bgFillStateGated == 1 ? ("상승 (" + transDeltaUpDisp + ")") : bgFillStateGated == -1 ? (dnOk ? f_priceStr(xDn) + " (" + f_pctStr(xDn) + ")" : "-") : (upOk ? f_priceStr(xUp) + " (" + f_pctStr(xUp) + ")" : "-")
+dnText = bgFillStateGated == -1 ? ("하락 (" + transDeltaDnDisp + ")") : bgFillStateGated == 1 ? (upOk ? f_priceStr(xUp) + " (" + f_pctStr(xUp) + ")" : "-") : (dnOk ? f_priceStr(xDn) + " (" + f_pctStr(xDn) + ")" : "-")
 // 전환 행 값 셀(1열) 배경색(CEO 버그수정) — 밴드 배경(bgFillState)과 정확히 일치하도록 게이트. 밴드 배경이 없으면(bgFillState==0) 두 행 다 중립 회색.
 //  ▸ bgFillState==1(밴드 배경 녹) → 상승 전환행 값 셀 = 기울기 3행 상승색과 동일 color.new(ltUpColor, 30). (하락 행은 중립.)
 //  ▸ bgFillState==-1(밴드 배경 빨강) → 하락 전환행 값 셀 = color.new(ltDownColor, 30)(투명도 30 일치). (상승 행은 중립.)
 //  ▸ 그 외(bgFillState==0) → 기존 기본 셀 배경 color.new(color.gray, 40) 유지. 라벨 셀(0열)은 불변. ⇒ 전환 행 셀색 == 밴드 배경색 항상 성립.
-upCellBg = bgFillState == 1 ? color.new(ltUpColor, 30) : color.new(color.gray, 40)
-dnCellBg = bgFillState == -1 ? color.new(ltDownColor, 30) : color.new(color.gray, 40)
+// [전환 후보] 셀색 확장 — 확정(±1)은 기존 확정색(청록/자홍), 후보(±2)는 파랑/주황으로 구분, 그 외는 기존 중립 회색.
+//  ▸ 로직: 파랑 = 상승 후보(bgFillStateExt==2), 주황 = 하락 후보(bgFillStateExt==-2). 확정색(청록 ltUpColor #0E9C8A / 자홍 ltDownColor #C2185B)과 반드시 구분.
+//  ▸ 톤앤매너(CEO 요구): 후보색은 테이블 셀 톤과 조화되도록 확정 셀과 동일 투명도 30을 쓰되 색상(hue)만 다르게 골랐다.
+//    · candBgUpColor = #1565C0(Material Blue 800) — 확정 상승 청록(#0E9C8A)과 hue가 뚜렷이 다른 순수 파랑, 채도·명도 레벨 유사. 밴드 배경 녹(#2E7D32)과도 구분.
+//    · candBgDnColor = #EF6C00(Material Orange 800) — 확정 하락 자홍(#C2185B)과 뚜렷이 구분되는 주황, 밴드 배경 빨강(#C62828)과도 구분.
+//  ⚠️ [후보는 셀색 전용] 후보(±2) 밴드 배경은 CEO 지시로 제거됨(위 '밴드 배경' fill은 확정 ±1만 칠함). 후보 파랑/주황(candBgUpColor/candBgDnColor)은 이제 이 전환행 셀에서만 쓰인다 — 후보는 밴드 배경이 아니라 이 셀색으로만 확인.
+//  ⚠️ 후보 행 텍스트는 비활성이므로 xUp/xDn+% raw 유지(활성 각도차/정규화갭으로 바꾸지 않음 — 임박 상태이지 확정 아님, upText/dnText는 bgFillStateGated 게이트 그대로).
+upCellBg = bgFillStateExt == 1  ? color.new(ltUpColor, 30)
+         : bgFillStateExt == 2  ? color.new(candBgUpColor, 30)
+         : color.new(color.gray, 40)
+dnCellBg = bgFillStateExt == -1 ? color.new(ltDownColor, 30)
+         : bgFillStateExt == -2 ? color.new(candBgDnColor, 30)
+         : color.new(color.gray, 40)
 
 // ── 상태 테이블 렌더링(우측 상단) — 추세 3행 / 가격 구조 및 변동성 / 지지·저항 ────────────────
 //  스타일: 원본과 동일(섹션 헤더 딥 네이비 #1B2A4A·병합, 행 라벨 회색 배경, 값 셀 판정색, 흰 글자, size.small).
@@ -1241,14 +1377,14 @@ if showStatusTable and barstate.islast
     table.cell(statusTable, 1, 0, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.merge_cells(statusTable, 0, 0, 1, 0)
     // EMA/DEMA/TEMA 기울기 각도(종가 리본선 시간축 3-슬로프) — 최상단 3행. 표시 순서 = 오래된→최신 = slope3([2]−[3]) | slope2([1]−[2]) | slope1([0]−[1]), atan(slope/ATR14). 셀색=표시 순서 서열(v1<v2<v3 녹 / v1>v2>v3 적 / na·그 외 회색). ⚠️ slope1이 현재봉[0] 포함이라(맨 마지막 열) 1열 값·셀색 라이브 봉 갱신(리페인팅).
-    table.cell(statusTable, 0, 1, "EMA 기울기", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 1, emaAngleText, text_color=color.white, bgcolor=emaAngleColor, text_size=size.small)
-    table.cell(statusTable, 0, 2, "DEMA 기울기", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 2, demaAngleText, text_color=color.white, bgcolor=demaAngleColor, text_size=size.small)
-    table.cell(statusTable, 0, 3, "TEMA 기울기", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 3, temaAngleText, text_color=color.white, bgcolor=temaAngleColor, text_size=size.small)
+    table.cell(statusTable, 0, 1, "EMA 기울기", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=slopeCellTooltip)
+    table.cell(statusTable, 1, 1, emaAngleText, text_color=color.white, bgcolor=emaAngleColor, text_size=size.small, tooltip=slopeCellTooltip)
+    table.cell(statusTable, 0, 2, "DEMA 기울기", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=slopeCellTooltip)
+    table.cell(statusTable, 1, 2, demaAngleText, text_color=color.white, bgcolor=demaAngleColor, text_size=size.small, tooltip=slopeCellTooltip)
+    table.cell(statusTable, 0, 3, "TEMA 기울기", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=slopeCellTooltip)
+    table.cell(statusTable, 1, 3, temaAngleText, text_color=color.white, bgcolor=temaAngleColor, text_size=size.small, tooltip=slopeCellTooltip)
     // 전환 임계가격 2행(수학자 사양) — TEMA 기울기 바로 아래. 값=다음 봉 종가 기준 배경 전환 임계가격(순서조건 역산). 특별 색 규칙 없음 → 일반 셀 배경(gray 40) 관례. 툴팁으로 caveat 명시.
-    threshTooltip = "비활성(밴드 배경 없음/반대 배경): 다음 봉 종가 기준 전환 임계가격(순서조건 ema<dema<tema 역산, 매 봉 갱신되는 전방 목표·현재봉 확정값 기준). 활성 상태(상승행&밴드 배경 녹/하락행&밴드 배경 빨강)엔 '상승 (…)'/'하락 (…)'으로 표기하고 셀색을 밴드 배경색과 일치시킵니다. 괄호=리본 기울기차 2값 '(dema각−ema각 | tema각−dema각)' — 각 값은 현재봉 slope1 각도(기울기 3행 slope1)의 차(도), 부호+소수1자리+°. slope1이 현재봉[0] 포함이라 라이브 봉 갱신(봉 마감 시 확정). ⚠️ 게이트는 밴드 배경 상태(bgFillState)라 밴드 배경이 없으면 두 전환 행 다 중립·비활성입니다."
+    threshTooltip = "비활성(밴드 배경 없음/반대 배경): 다음 봉 종가 기준 전환 임계가격(순서조건 ema<dema<tema 역산, 매 봉 갱신되는 전방 목표·현재봉 확정값 기준). 활성 상태(상승행&밴드 배경 녹/하락행&밴드 배경 빨강)엔 '상승 (…)'/'하락 (…)'으로 표기하고 셀색을 밴드 배경색과 일치시킵니다. 괄호=리본 기울기차 2값 '(dema각−ema각 | tema각−dema각)' — 각 값은 현재봉 slope1 각도(기울기 3행 slope1)의 차(도), 부호+소수1자리+°. slope1이 현재봉[0] 포함이라 라이브 봉 갱신(봉 마감 시 확정). ⚠️ 게이트는 밴드 배경 상태(bgFillStateGated)라 밴드 배경이 없으면 두 전환 행 다 중립·비활성입니다.\n\n⚠️ [정규화 모드] '기울기 표시 모드'가 'ATR 정규화'면 이 행의 게이트·활성 판정이 raw 각도-순서가 아니라 정규화 가속 서열(emaNS<demaNS<temaNS·데드존·가속임계·부호)로 전환됩니다. 활성 괄호값도 각도차 대신 정규화 가속 갭 '(demaNS−emaNS | temaNS−demaNS)'(하락은 부호 반대, ±0.00x)로 바뀝니다. ① EMA→DEMA→TEMA는 파생 관계(독립 3표 아님) — 배경은 '한 소스의 가속 서열'입니다. ② 정규화 배경은 라이브 봉에서 raw보다 임계 경계에서 더 자주 깜빡일 수 있습니다. ③ 데드존/가속최소는 표시 가독성 파라미터이므로 최적화 금지.\n\n⚠️ [전환 후보 — 미확정 임박] 확정 밴드 배경(녹/빨강)이 아직 없을 때(컨플루언스 미충족) 종가가 전환 임계가를 이미 돌파하면 '후보'로 선행 표시합니다(기본·ATR 두 모드 공통). CEO 지시로 후보는 밴드 배경을 칠하지 않고 이 전환행 셀색으로만 표시합니다: ① 상승 후보 = 전환행 파랑 셀(밴드 배경 없음, 확정은 녹 배경 + 청록 셀). ② 하락 후보 = 전환행 주황 셀(밴드 배경 없음, 확정은 빨강 배경 + 자홍 셀). ③ 후보 셀은 종가가 임계가를 라이브로 돌파할 때 실시간 깜빡일 수 있습니다(표시 전용, 매매 신호 아님). 후보 행 텍스트는 비활성이라 임계가격+%(raw)를 그대로 표기합니다(각도차/정규화갭 아님 — 임박 상태이지 확정 아님)."
     table.cell(statusTable, 0, 4, "상승 전환 (" + str.tostring(ribbonLen) + ")", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=threshTooltip)
     table.cell(statusTable, 1, 4, upText, text_color=color.white, bgcolor=upCellBg, text_size=size.small, tooltip=threshTooltip)
     table.cell(statusTable, 0, 5, "하락 전환 (" + str.tostring(ribbonLen) + ")", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=threshTooltip)
