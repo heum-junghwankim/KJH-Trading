@@ -152,7 +152,7 @@ wprBearColor = input.color(#FFEB3B, title="%R 약세 다이버전스 원 색(매
 //  ⚠️ 성능: 동적밴드 이중루프는 봉당 O(2×101×cyclicmemory)로 무겁다 → 최근 triLookback(기본 200)봉에서만 밴드 계산+삼각형 표시를 수행하는 게이트를 둔다.
 //     crsiVal 재귀(rma·nz(crsiVal[1]))는 stateful이라 전체 봉에서 항상 계산한다(게이트 밖에선 밴드=na라 필터1 비적용, 3봉 정배열만 동작).
 CRSI_GROUP = "cRSI 삼각형 필터"
-useCrsiTriFilter = input.bool(true, title="cRSI 삼각형 필터 사용", group=CRSI_GROUP, tooltip="켜면 cRSI 필터(필터1 밴드 위치 + 필터2 3봉 정배열)로 전환 후보 삼각형(파랑/빨강)을 추가 억제합니다. 기본 ON(끄면 기존 삼각형 동작과 완전히 동일 — 회귀 없음). cRSI는 화면에 그려지지 않고 억제 판정에만 쓰입니다(페인트 없음).\n\n▸ 필터1(밴드 위치, 원본 동적밴드 이식): 밴드가 좁혀지지 않은 상태(not narrow)에서 cRSI 값(crsiVal)이 상단밴드(ub)를 초과(과매수)하면 → 파랑(상승 후보) 억제, 하단밴드(db) 미만(과매도)이면 → 빨강(하락 후보) 억제. 좁혀진(narrow) 상태에서는 필터1을 적용하지 않습니다(수축 구간은 돌파 관찰 구간이라 억제 제외).\n\n▸ 필터2(3봉 정배열): crsiVal이 과거 2봉→현재로 단조 상승(crsiVal[2]<crsiVal[1]<crsiVal[0])이면 상승 정배열 → 빨강(하락 후보) 억제. 대칭으로 단조 하락(crsiVal[2]>crsiVal[1]>crsiVal[0])이면 → 파랑(상승 후보) 억제.\n\n⚠️ 필터는 삼각형 '표시'에만 추가 AND 억제로 얹힙니다. candUp/candDn 판정·꼬리필터·중복억제 없음(래치 제거)·%R 억제·밴드 배경·전환 판정·기울기 3행·VWAP선은 전부 불변입니다. crsiVal[2]/[1]은 확정 과거봉, crsiVal[0]은 현재봉 라이브라 삼각형(리얼타임)과 라이브 정합됩니다(표시 전용, 매매 신호 아님). 워밍업(밴드 na, crsiVal[2]=na)에선 비교가 false라 억제하지 않습니다(안전 폴백).")
+useCrsiTriFilter = input.bool(true, title="cRSI 삼각형 필터 사용", group=CRSI_GROUP, tooltip="켜면 cRSI 필터(필터1 밴드 위치 + 필터2 3봉 정배열)로 전환 후보 삼각형(파랑/빨강)을 추가 억제합니다. 기본 ON(끄면 기존 삼각형 동작과 완전히 동일 — 회귀 없음). cRSI는 화면에 그려지지 않고 억제 판정에만 쓰입니다(페인트 없음).\n\n▸ 필터1(밴드 위치, 원본 동적밴드 이식): 밴드가 좁혀지지 않은 상태(not narrow)에서 cRSI 값(crsiVal)이 상단밴드(ub)를 초과(과매수)하면 → 파랑(상승 후보) 억제, 하단밴드(db) 미만(과매도)이면 → 빨강(하락 후보) 억제. 좁혀진(narrow) 상태에서는 필터1을 적용하지 않습니다(수축 구간은 돌파 관찰 구간이라 억제 제외).\n\n▸ 필터2(3봉 정배열): crsiVal이 과거 2봉→현재로 단조 상승(crsiVal[2]<crsiVal[1]<crsiVal[0])이면 상승 정배열 → 빨강(하락 후보) 억제. 대칭으로 단조 하락(crsiVal[2]>crsiVal[1]>crsiVal[0])이면 → 파랑(상승 후보) 억제.\n\n⚠️ 필터는 삼각형 '표시'에만 추가 AND 억제로 얹힙니다. candUp/candDn 판정·꼬리필터·중복 억제 래치(같은 방향 도배 방지, 반대 이벤트 전까지 억제)·%R 억제·밴드 배경·전환 판정·기울기 3행·VWAP선은 전부 불변입니다. crsiVal[2]/[1]은 확정 과거봉, crsiVal[0]은 현재봉 라이브라 삼각형(리얼타임)과 라이브 정합됩니다(표시 전용, 매매 신호 아님). 워밍업(밴드 na, crsiVal[2]=na)에선 비교가 false라 억제하지 않습니다(안전 폴백).")
 crsiDomCycle = input.int(20, minval=10, title="cRSI 지배 사이클 길이(Dominant Cycle)", group=CRSI_GROUP, active=useCrsiTriFilter, tooltip="cRSI 원본 기본값 20. 내부적으로 RSI 길이 cyclelen=domcycle/2=10, 밴드 분포 윈도우 cyclicmemory=domcycle×2=40으로 환산되어 crsiVal 재귀값·동적밴드 계산에 쓰입니다. ⚠️ 전략성 파라미터 — 수학자가 EMA 기울기 기간과의 호환성을 병렬 검토 중이며, 본부 조정 지시 시에만 변경합니다(임의 변경 금지).")
 crsiNarrowThreshold = input.float(20.0, minval=0.0, title="cRSI 밴드 좁혀짐 임계(Narrow)", group=CRSI_GROUP, active=useCrsiTriFilter, tooltip="필터1의 좁혀짐(narrow) 판정 임계(원본 narrowBandThreshold 기본 20). 밴드폭(crsiUb−crsiDb) ≤ 이 값이면 '좁혀짐(narrow)'으로 보고 필터1을 적용하지 않습니다(수축=돌파 관찰 구간). 밴드폭이 이 값보다 크면(넓음, not narrow) 상단 초과=과매수/하단 미만=과매도로 보고 해당 방향 후보를 억제합니다. ⚠️ 전략성 파라미터(수학자 리뷰 대상, 임의 변경 금지).")
 triLookback = input.int(200, minval=10, title="삼각형·동적밴드 최근 N봉 게이트", group=CRSI_GROUP, active=useCrsiTriFilter, tooltip="성능 게이트. 동적밴드 이중루프(무거움)와 삼각형 표시를 차트 우측 최근 N봉(기본 200)에만 한정합니다. 전체 히스토리에서 이중루프를 돌리면 페인팅이 실패할 수 있어(연산 상한 초과) 최근 봉만 계산합니다. crsiVal 재귀는 게이트와 무관하게 전체 봉에서 계산됩니다(상태 보존). ⚠️ 표시/성능 파라미터 — 과거 봉의 삼각형·밴드 필터는 이 범위 밖에서 계산·표시되지 않습니다.")
@@ -807,7 +807,7 @@ plot(showRibbon ? temaLine : na, title="지수 리본 TEMA", color=ribbonTemaCol
 // =========================================================================================
 // [이식+신규] 전환 후보 삼각형 마커(꼬리 필터 + 중복 억제 래치) + %R 다이버전스
 //  아래 %R 다이버전스 판정·페인팅은 williams-fractal.pine 원본 로직 그대로 이식하고,
-//  전환 후보 삼각형은 상단 전환 후보 판정(candUp/candDn)을 리얼타임(현재봉[0]) 기준으로 마커화(꼬리 필터·중복 억제 래치)한 신규 구현이다(%R 원과 동일 타이밍).
+//  전환 후보 삼각형은 상단 전환 후보 판정(candUp/candDn)을 리얼타임(현재봉[0]) 기준으로 마커화(꼬리 필터·중복 억제 래치 재도입)한 신규 구현이다(%R 원과 동일 타이밍).
 //  기존 auto-vwap 로직(정/역배열 배경·비정상 배경·억제 게이트·VWAP·밴드·테이블·전환행 셀색·%R)은 전혀 건드리지 않는다.
 //  ⚠️ (구 윌리엄스 프랙탈 이식·로직1(ratio 게이트)·로직2(후보)·후보 반투명 배경은 CEO 지시(A안)로 전면 제거됨 — %R은 존치. plotshape/ta.wpr는 이 파일 최초 사용.)
 // =========================================================================================
@@ -890,7 +890,12 @@ crsiNarrow = not na(crsiBandWidth) and crsiBandWidth <= crsiNarrowThreshold
 //     → %R 다이버전스 원(ta.wpr 기반, offset 0·barstate 게이트 없음)과 완전 동일 타이밍/게이트 → 원(노랑/녹)과 삼각형이 같은 봉에 동시에 뜨고, 봉 마감 전 라이브로 깜빡일 수 있다(CEO 허용).
 //     ⚠️ 리페인팅(의도·정상): 봉 확정 전 종가·임계가 변동에 따라 삼각형이 나타났다 사라질 수 있다(과거봉은 확정 후 불변·비리페인팅). 표시 전용, 매매 신호 아님(%R 원과 동일 특성).
 //  ▸ 꼬리 필터(반대편 꼬리 우세 봉 억제): 상승 후보인데 위꼬리>몸통이면 반등 실패 신호로 보고 억제, 하락 후보인데 아래꼬리>몸통이면 억제. body/wick도 현재봉[0] 기준(라이브).
-//  ▸ [CEO 지시] 중복 억제 래치(blueLatched/redLatched·resetBlue/resetRed) 전면 제거: 도배 방지 래치를 걷어내 candUp/candDn 판정이 서면 매 봉 그대로 표시한다(꼬리필터·%R 억제·cRSI 필터는 유지).
+//  ▸ [CEO 지시] 중복 억제 래치(blueLatched/redLatched·resetBlue/resetRed) 재도입(도배 방지): 같은 방향 삼각형이 한 번 뜨면, 반대 방향 이벤트가 오기 전까지 같은 방향 재표시를 억제한다(대칭).
+//     · 하늘색(상승, blueShow)이 뜨면 → 하락 확정(bgFillStateGated==-1) 또는 분홍 역삼각형(redShow)이 나오기 전까지 파랑 억제. resetBlue = (bgFillStateGated==-1) or redShow.
+//     · 분홍(하락, redShow)이 뜨면 → 상승 확정(bgFillStateGated==1) 또는 하늘색 삼각형(blueShow)이 나오기 전까지 빨강 억제. resetRed = (bgFillStateGated==1) or blueShow.
+//     ⚠️ 래치 var 오염 방지(리얼타임 처리, 수학자 경고): var 래치(blueLatched/redLatched)를 미확정 라이브값으로 갱신하면 영구 오염되므로, **래치 상태 커밋(리셋·세팅)은 봉 확정(barstate.isconfirmed)에서만** 한다.
+//        표시(blueShow/redShow)는 라이브 raw + "직전 확정봉까지 확정된 var 래치"로 계산(and not blueLatched) → %R처럼 라이브 깜빡임을 허용하되(CEO 요구), var는 확정값만 담아 오염 없음. 래치는 "같은 방향 연속 도배"만 막는다.
+//     ⚠️ 순환참조 처리(CEO 명세 리셋이 redShow/blueShow 최종값 참조): resetBlue가 redShow를, resetRed가 blueShow를 참조하므로 blueShow/redShow를 **먼저 완전히 계산(꼬리필터·%R 억제·cRSI 필터 AND 완료)한 뒤** 표시식 아래에서 resetBlue/resetRed를 그 확정 series 값으로 평가한다(선언 순서로 순환 제거). 표시식은 CEO 스니펫대로 단순 not latched(직전 확정 var)라 리셋식을 인라인 참조하지 않아 상호 순환이 없다.
 //  ▸ 색: 상승 삼각형 = triCandBuyColor(#4FC3F7 하늘색, CEO 지시로 셀색과 분리) 봉 아래(위 방향). 하락 삼각형 = triCandSellColor(#F06292 분홍, Material Pink 300 — CEO 지시로 하늘색과 대칭·셀색과 분리) 봉 위(아래 방향).
 //     밴드 배경 빨강(#C62828)·비정상 매수 붉은(#E53935)·확정 자홍(#C2185B)·전환행 하락 셀 주황(#EF6C00)·%R 원색(순수 녹/노랑)과 hue로 구분(분홍은 빨강보다 밝고 마젠타기). 삼각형은 차트 추가 표현일 뿐 전환행 셀색(파랑/주황)은 그대로 병존.
 //  ⚠️ 신규 임계 파라미터 없음(꼬리/몸통은 candUp/candDn·OHLC에서 파생, 자유도 0). 표시 전용·매매 신호 아님(이치모쿠·테이블·보조지표 정렬 확인용).
@@ -902,9 +907,11 @@ cUpperWick = high - math.max(open, close)
 cLowerWick = math.min(open, close) - low
 blueRaw = candUp and not (cUpperWick > cBody)   // 상승 후보(라이브), 위꼬리>몸통이면 억제
 redRaw  = candDn and not (cLowerWick > cBody)    // 하락 후보(라이브), 아래꼬리>몸통이면 억제
-// [CEO 지시] 중복 억제 래치 제거 — blueShow/redShow는 라이브 raw(꼬리필터 통과분) 그대로. 이후 %R 억제·cRSI 필터만 AND로 얹는다.
-blueShow = blueRaw
-redShow  = redRaw
+// [CEO 지시] 중복 억제 래치 재도입 — var는 직전 확정봉까지의 값(오염 방지). 표시식은 라이브 raw(꼬리필터 통과분) and not latched. 리셋/세팅 커밋은 아래 표시식 확정 후 barstate.isconfirmed에서만.
+var bool blueLatched = false
+var bool redLatched  = false
+blueShow = blueRaw and not blueLatched   // 파랑 래치 걸려있으면 억제(직전 확정 var 기준)
+redShow  = redRaw  and not redLatched    // 빨강 래치 걸려있으면 억제(직전 확정 var 기준)
 // ── %R 다이버전스 방향 확인 억제 필터(CEO 지시) — 기존 판정·꼬리필터·래치는 불변, 이 조건만 추가 억제로 AND 결합 ──
 //  ▸ 원리: 확정된 직전 봉[1]에 %R 원이 뜨고, 현재봉[0]이 그 방향을 "가격으로 확인"해 주면 반대 방향 후보 삼각형을 억제한다(다이버전스 방향과 어긋나는 역방향 후보 제거).
 //     · 녹색 원(강세=상승, bullWprDiv)이 직전 봉에 났고 + 현재봉이 저점을 높이면(low>low[1], 상승 확인) → 현재봉 빨강(하락 후보) 억제.
@@ -940,13 +947,28 @@ crsiSuppressBlue = useCrsiTriFilter and (crsiPosSuppressBlue or crsiDnAligned)  
 crsiSuppressRed  = useCrsiTriFilter and (crsiPosSuppressRed  or crsiUpAligned)   // 상승 정배열/하단 과매도 → 빨강(하락 후보) 억제
 blueShow := blueShow and not crsiSuppressBlue
 redShow  := redShow and not crsiSuppressRed
+// ── [CEO 지시] 중복 억제 래치 리셋식 + 확정봉 커밋 ──
+//  ▸ 리셋 조건(CEO 명세 1:1): 파랑 래치는 하락 확정(bgFillStateGated==-1) 또는 분홍 역삼각형(redShow) 표출 시 해제. 빨강 래치는 상승 확정(bgFillStateGated==1) 또는 하늘색 삼각형(blueShow) 표출 시 해제.
+//  ▸ 순환참조 처리: resetBlue가 redShow를, resetRed가 blueShow를 참조하지만 blueShow/redShow는 위에서 이미 완전 확정된 series 값이라(꼬리·%R·cRSI AND 완료) 여기서 읽는 것은 순환이 아니다(선언 순서로 해소). 표시식은 not latched(직전 확정 var)라 리셋식을 인라인 참조하지 않아 상호 순환 없음.
+resetBlue = (bgFillStateGated == -1) or redShow   // 하락 확정 or 분홍 역삼각형 → 파랑 래치 해제
+resetRed  = (bgFillStateGated ==  1) or blueShow   // 상승 확정 or 하늘색 삼각형 → 빨강 래치 해제
+//  ▸ 커밋(오염 방지): 미확정 라이브값이 var를 영구 오염시키지 않도록 봉 확정(barstate.isconfirmed)에서만 리셋→세팅 순으로 커밋. 리셋 우선(반대 이벤트가 서면 그 봉 확정 시 먼저 풀고), 그다음 이번 봉에 표출된 방향을 래치.
+if barstate.isconfirmed
+    if resetBlue
+        blueLatched := false
+    if resetRed
+        redLatched := false
+    if blueShow
+        blueLatched := true
+    if redShow
+        redLatched := true
 
 // ── 마커 그리기(원본 레이어 컨벤션: 원 먼저=아래 레이어, 삼각형 나중=위 레이어) ──
 //  %R 다이버전스 원 — 확정된 현재봉(offset 0), belowbar(매수)/abovebar(매도). 화면 고정 픽셀 스택(자동 겹침 방지).
 plotshape(showWprDiv and bullWprDiv, title="%R 강세 다이버전스(매수)", style=shape.circle, location=location.belowbar, color=color.new(wprBullColor, 0), size=size.tiny, offset=0)
 plotshape(showWprDiv and bearWprDiv, title="%R 약세 다이버전스(매도)", style=shape.circle, location=location.abovebar, color=color.new(wprBearColor, 0), size=size.tiny, offset=0)
 // 전환 후보 삼각형(offset 0 = 현재봉[0], %R 원과 동일 타이밍) — 상승=봉 아래 파랑 위방향(▲), 하락=봉 위 빨강 아래방향(▼). 꼬리필터·%R 억제·cRSI 필터 통과분만.
-//  현재봉[0] 라이브 판정(래치 제거) → %R 원과 동시에 뜨고 봉 마감 전 라이브 깜빡임 가능(과거봉은 확정·비리페인팅). 후보 셀색(파랑/주황)과 병존하는 차트 추가 표현.
+//  현재봉[0] 라이브 판정 + 중복 억제 래치(커밋은 봉 확정에서만) → %R 원과 동시에 뜨고 봉 마감 전 라이브 깜빡임 가능(과거봉은 확정·비리페인팅). 후보 셀색(파랑/주황)과 병존하는 차트 추가 표현.
 //  ⚠️ [CEO 지시] 성능 게이트(triGate): 삼각형 표시를 차트 우측 최근 triLookback봉(기본 200)에만 한정한다. 동적밴드 이중루프(무거움)와 동일 범위라, 전체 히스토리에서 밴드 계산+삼각형을 돌려 페인팅이 실패하는 것을 막는다.
 //     crsiVal 재귀는 게이트 밖에서도 전체 봉 계산(상태 보존). blueShow/redShow 판정식·꼬리필터·%R 억제·cRSI 필터는 불변이며, 게이트는 '표시'에만 AND로 얹힌다.
 triGate = bar_index > last_bar_index - triLookback   // 최근 triLookback봉(동적밴드 bandGate와 동일 범위, 토글과 독립)
