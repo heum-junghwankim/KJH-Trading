@@ -910,8 +910,19 @@ redRaw  = candDn and not (cLowerWick > cBody)    // 하락 후보(라이브), �
 // [CEO 지시] 중복 억제 래치 재도입 — var는 직전 확정봉까지의 값(오염 방지). 표시식은 라이브 raw(꼬리필터 통과분) and not latched. 리셋/세팅 커밋은 아래 표시식 확정 후 barstate.isconfirmed에서만.
 var bool blueLatched = false
 var bool redLatched  = false
-blueShow = blueRaw and not blueLatched   // 파랑 래치 걸려있으면 억제(직전 확정 var 기준)
-redShow  = redRaw  and not redLatched    // 빨강 래치 걸려있으면 억제(직전 확정 var 기준)
+// [CEO 지시] 래치 예외 — "기울기 셀이 더 강해지면 재표시".
+//  ▸ 셀 개수 소스: 기울기 3행(EMA/DEMA/TEMA) 녹/적 셀 개수. 위 배경 블록(507~512행)의 emaAngGreen/demaAngGreen/temaAngGreen·*AngRed를 그대로 합산한다.
+//     이 6개 불리언은 주석 506행대로 f_angle3Color(테이블 기울기 3행 셀색: v1<v2<v3=녹·v1>v2>v3=적·ATR ref 무효/na=회색)와 100% 동일 판정이라 "화면 녹/적 셀 개수"와 코드 카운트가 어긋나지 않는다. 선언이 위(507~512)라 순환참조 없음.
+greenCells = (emaAngGreen ? 1 : 0) + (demaAngGreen ? 1 : 0) + (temaAngGreen ? 1 : 0)   // 기울기 3행 중 녹색 셀 개수(0~3), f_angle3Color 녹과 정합
+redCells   = (emaAngRed   ? 1 : 0) + (demaAngRed   ? 1 : 0) + (temaAngRed   ? 1 : 0)   // 기울기 3행 중 적색 셀 개수(0~3), f_angle3Color 적과 정합
+//  ▸ 기록 var(오염 방지) — 삼각형이 실제 표출된 봉의 셀 개수. 초기값 na(첫 표시 전) → override의 na 가드로 첫 표시는 무조건 그림. 커밋은 래치와 동일하게 barstate.isconfirmed에서만(아래).
+var int lastBlueGreen = na   // 직전 표출 하늘색 삼각형 시점의 녹색 셀 개수
+var int lastRedRed    = na   // 직전 표출 분홍 역삼각형 시점의 적색 셀 개수
+//  ▸ 오버라이드: 억제(latched) 중이라도 현재 셀이 직전 표출 때보다 더 강하면(녹/적 셀 개수 초과) 억제 무시하고 표시. na 가드(첫 표시 전)로 순서 안전.
+blueOverride = blueLatched and not na(lastBlueGreen) and (greenCells > lastBlueGreen)   // 파랑 억제 중 + 녹색 셀 강화 → 재표시
+redOverride  = redLatched  and not na(lastRedRed)   and (redCells   > lastRedRed)       // 빨강 억제 중 + 적색 셀 강화 → 재표시
+blueShow = blueRaw and (not blueLatched or blueOverride)   // 파랑: 미래치이거나(정상) 셀 강화 오버라이드면 표시
+redShow  = redRaw  and (not redLatched  or redOverride)    // 빨강: 미래치이거나 셀 강화 오버라이드면 표시
 // ── %R 다이버전스 방향 확인 억제 필터(CEO 지시) — 기존 판정·꼬리필터·래치는 불변, 이 조건만 추가 억제로 AND 결합 ──
 //  ▸ 원리: 확정된 직전 봉[1]에 %R 원이 뜨고, 현재봉[0]이 그 방향을 "가격으로 확인"해 주면 반대 방향 후보 삼각형을 억제한다(다이버전스 방향과 어긋나는 역방향 후보 제거).
 //     · 녹색 원(강세=상승, bullWprDiv)이 직전 봉에 났고 + 현재봉이 저점을 높이면(low>low[1], 상승 확인) → 현재봉 빨강(하락 후보) 억제.
@@ -953,6 +964,7 @@ redShow  := redShow and not crsiSuppressRed
 resetBlue = (bgFillStateGated == -1) or redShow   // 하락 확정 or 분홍 역삼각형 → 파랑 래치 해제
 resetRed  = (bgFillStateGated ==  1) or blueShow   // 상승 확정 or 하늘색 삼각형 → 빨강 래치 해제
 //  ▸ 커밋(오염 방지): 미확정 라이브값이 var를 영구 오염시키지 않도록 봉 확정(barstate.isconfirmed)에서만 리셋→세팅 순으로 커밋. 리셋 우선(반대 이벤트가 서면 그 봉 확정 시 먼저 풀고), 그다음 이번 봉에 표출된 방향을 래치.
+//  ▸ [CEO 지시] 셀 강화 오버라이드 기록: 하늘색 삼각형이 실제 표출된 봉(첫 표시 또는 오버라이드 표시 — blueShow 최종 true)에서 lastBlueGreen := greenCells로 갱신. 대칭 red. 기록도 var라 리얼타임 오염 방지 위해 이 확정봉 게이트 안에서만 커밋(표시 판정은 위 라이브 blueShow/redShow).
 if barstate.isconfirmed
     if resetBlue
         blueLatched := false
@@ -960,8 +972,10 @@ if barstate.isconfirmed
         redLatched := false
     if blueShow
         blueLatched := true
+        lastBlueGreen := greenCells   // 표출 시점 녹색 셀 개수 기록(다음 억제 건의 오버라이드 기준)
     if redShow
         redLatched := true
+        lastRedRed := redCells   // 표출 시점 적색 셀 개수 기록
 
 // ── 마커 그리기(원본 레이어 컨벤션: 원 먼저=아래 레이어, 삼각형 나중=위 레이어) ──
 //  %R 다이버전스 원 — 확정된 현재봉(offset 0), belowbar(매수)/abovebar(매도). 화면 고정 픽셀 스택(자동 겹침 방지).
