@@ -137,6 +137,13 @@ wprUpper = input.int(-20, "%R 상단 밴드", group=WPR_GROUP, tooltip="약세 �
 wprBullColor = input.color(color.rgb(0, 255, 0), title="%R 강세 다이버전스 원 색(매수)", group=WPR_GROUP, active=showWprDiv, tooltip="윌리엄스 %R 강세 다이버전스 원 마커 색. 밝은 순수 녹(rgb(0,255,0)), 봉 아래(belowbar). 확정/과거참조라 리페인팅 없음.")
 wprBearColor = input.color(#FFEB3B, title="%R 약세 다이버전스 원 색(매도)", group=WPR_GROUP, active=showWprDiv, tooltip="윌리엄스 %R 약세 다이버전스 원 마커 색. 노랑(#FFEB3B), 봉 위(abovebar). 확정/과거참조라 리페인팅 없음.")
 
+// ── 기울기 정렬 삼각형 마커(CEO 지시 재도입) — 배경 없음(bgFillState==0)일 때만, 기울기 3행(EMA/DEMA/TEMA) 셀 색 순 개수(반대색 상쇄)로 표시. ──
+//  ▸ 녹색 셀 ≥2 → 봉 아래 파랑 삼각형(triangleup·belowbar), 빨간 셀 ≥2 → 봉 위 빨강 역삼각형(triangledown·abovebar). 중복 억제 래치는 반대 방향/배경 출현 시 해제.
+TRI_GROUP = "기울기 정렬 삼각형"
+showAlignTri = input.bool(true, "기울기 정렬 삼각형 표시", group=TRI_GROUP, tooltip="배경색이 없는 봉(밴드 배경 bgFillState==0)에서만, 기울기 3행(EMA/DEMA/TEMA 시간축 셀 색)의 순 개수(반대색 상쇄, 녹셀−적셀)가 2개 이상이면 봉 아래 파랑 삼각형(△), 순 적셀(적셀−녹셀)이 2개 이상이면 봉 위 빨강 역삼각형(▽)을 표시합니다. 예: 녹2·빨1 → 순녹 1 → 파랑 없음, 녹2·회1 → 순녹 2 → 파랑, 녹3 → 순녹 3 → 파랑(적색 대칭). 배경색이 칠해진 봉에는 배경이 정렬을 이미 나타내므로 삼각형을 그리지 않습니다. 중복 억제 래치: 같은 방향은 한 번 뜨면 반대 방향 삼각형이 뜨거나 배경색이 칠해지기 전까지 재표시를 억제합니다(대칭). ⚠️ 셀 색이 현재봉[0]을 포함하므로 삼각형도 라이브 봉 동안 깜빡일 수 있고(%R 원과 동일 특성) 봉 마감 시 확정됩니다 — 래치 커밋은 확정봉에서만 하여 리얼타임 오염이 없습니다. 표시 전용(매매 신호 아님).")
+alignTriUpColor = input.color(#1565C0, title="기울기 정렬 삼각형 색(상승·순녹셀≥2)", group=TRI_GROUP, active=showAlignTri, tooltip="순 녹셀(녹셀−적셀) 2개 이상일 때 봉 아래 삼각형(△) 색. 기본 파랑 #1565C0. %R 강세 원(녹)·정배열 배경(녹)·비정상 캔들과 구분되게 파랑 계열.")
+alignTriDnColor = input.color(#C62828, title="기울기 정렬 삼각형 색(하락·순적셀≥2)", group=TRI_GROUP, active=showAlignTri, tooltip="순 적셀(적셀−녹셀) 2개 이상일 때 봉 위 역삼각형(▽) 색. 기본 빨강 #C62828. %R 약세 원(노랑)과 위치·색으로 구분.")
+
 // ⚠️ cRSI 삼각형 필터 그룹(useCrsiTriFilter·crsiDomCycle·crsiNarrowThreshold·triLookback)은 CEO 지시로 전환 후보 삼각형과 함께 전면 제거됨.
 //    (비정상 캔들의 abnCrsi는 이와 무관한 독립 지표로 그대로 유지된다.)
 
@@ -705,6 +712,43 @@ bearWprDiv = wpr[1] > wprUpper and (close > close[1] and wpr < wpr[1])   // 약�
 // ── %R 다이버전스 원 마커 — 확정된 현재봉(offset 0), belowbar(매수)/abovebar(매도). 화면 고정 픽셀 스택(자동 겹침 방지). ──
 plotshape(showWprDiv and bullWprDiv, title="%R 강세 다이버전스(매수)", style=shape.circle, location=location.belowbar, color=color.new(wprBullColor, 0), size=size.tiny, offset=0)
 plotshape(showWprDiv and bearWprDiv, title="%R 약세 다이버전스(매도)", style=shape.circle, location=location.abovebar, color=color.new(wprBearColor, 0), size=size.tiny, offset=0)
+
+// =========================================================================================
+// [CEO 지시] 기울기 정렬 삼각형 마커 — 배경 없음(bgFillState==0)일 때만, 기울기 3행 셀 색 순 개수(반대색 상쇄) ≥2로 표시.
+//  ▸ 조건(CEO 명세·순 개수 상쇄): noBg = bgFillState==0. greenCnt = (emaLogGreen)+(demaLogGreen)+(temaLogGreen), redCnt = 적색 3셀 개수(478~483행 셀 색 bool 재사용, 새 판정 파라미터 없음).
+//     blueRaw = noBg and (greenCnt-redCnt)>=2 → 봉 아래 파랑 삼각형(triangleup·belowbar). redRaw = noBg and (redCnt-greenCnt)>=2 → 봉 위 빨강 역삼각형(triangledown·abovebar).
+//     ⚠️ 반대색 상쇄(CEO 명세): 녹2·빨1 → 순녹 1 → 파랑 X. 녹2·회1 → 순녹 2 → 파랑 O. 녹3 → 순녹 3 → 파랑 O. (적색 대칭 — 빨강 순개수 (redCnt-greenCnt)>=2)
+//  ▸ 중복 억제 래치(CEO 명세): 파랑 래치 해제 = 빨강 역삼각형 출현(redShow) OR 배경 칠해짐(bgFillState!=0). 빨강 래치 해제 = 파랑 삼각형 출현(blueShow) OR 배경 칠해짐(대칭).
+//     표시식(blueShow/redShow)은 라이브 raw and not (직전 확정봉까지의 var 래치) — %R 원처럼 라이브 깜빡임 허용하되 var는 확정값만 담아 오염 없음. 래치는 같은 방향 연속 도배만 억제.
+//  ▸ ⚠️ 리얼타임 오염 방지(필수): var 래치(blueLatched/redLatched)의 리셋·세팅 커밋은 봉 확정(barstate.isconfirmed)에서만. 미확정 라이브값이 var를 영구 오염시키지 않게 게이트.
+//  ▸ 순환참조 해소: resetBlue가 redShow를, resetRed가 blueShow를 참조하므로 blueShow/redShow를 먼저 완전 계산한 뒤(표시식은 not latched=직전 확정 var라 리셋식 인라인 참조 없음) 아래에서 resetBlue/resetRed를 확정 series로 평가 → 선언 순서로 순환 제거.
+//  ▸ 리페인팅 특성: 셀 색이 line[0]을 포함해 라이브 갱신되므로 삼각형도 봉 마감 전 깜빡임(%R 원과 동일 특성). 봉 마감 시 확정, 미래참조 없음. 표시 전용(매매 신호 아님).
+noBg = bgFillState == 0
+greenCnt = (emaLogGreen ? 1 : 0) + (demaLogGreen ? 1 : 0) + (temaLogGreen ? 1 : 0)
+redCnt   = (emaLogRed   ? 1 : 0) + (demaLogRed   ? 1 : 0) + (temaLogRed   ? 1 : 0)
+blueRaw = noBg and (greenCnt - redCnt) >= 2
+redRaw  = noBg and (redCnt - greenCnt) >= 2
+// 래치 var(직전 확정봉까지의 값 — 오염 방지). 표시식은 라이브 raw and not latched.
+var bool blueLatched = false
+var bool redLatched  = false
+blueShow = blueRaw and not blueLatched   // 파랑: 미래치(정상)면 표시
+redShow  = redRaw  and not redLatched    // 빨강: 미래치면 표시
+// 리셋 조건(CEO 명세 1:1) — 표시식(blueShow/redShow) 확정 후 평가(순환 해소). 반대 방향 삼각형 출현 or 배경 칠해짐 → 해당 방향 래치 해제.
+resetBlue = redShow or (bgFillState != 0)   // 빨강 역삼각형 or 배경 → 파랑 래치 해제
+resetRed  = blueShow or (bgFillState != 0)  // 파랑 삼각형 or 배경 → 빨강 래치 해제
+// 커밋(오염 방지) — 봉 확정에서만 리셋→세팅. 리셋 우선(반대 이벤트가 서면 그 봉 확정 시 먼저 풀고), 그다음 이번 봉에 표출된 방향을 래치.
+if barstate.isconfirmed
+    if resetBlue
+        blueLatched := false
+    if resetRed
+        redLatched := false
+    if blueShow
+        blueLatched := true
+    if redShow
+        redLatched := true
+// ── 삼각형 plotshape — %R 원 plotshape보다 "나중" 선언 → 동일 우선순위 그룹 내 선언 순서상 위 레이어(%R 원이 아래). 확정된 현재봉(offset 0). ──
+plotshape(showAlignTri and blueShow, title="기울기 정렬 상승 삼각형(순녹셀≥2)", style=shape.triangleup,   location=location.belowbar, color=color.new(alignTriUpColor, 0), size=size.tiny, offset=0)
+plotshape(showAlignTri and redShow,  title="기울기 정렬 하락 역삼각형(순적셀≥2)", style=shape.triangledown, location=location.abovebar, color=color.new(alignTriDnColor, 0), size=size.tiny, offset=0)
 
 if barstate.islast
     lineEndX = bar_index + offset
