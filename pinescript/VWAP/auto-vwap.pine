@@ -8,7 +8,7 @@ indicator(title="Auto VWAP", shorttitle="Auto VWAP", overlay=true, max_bars_back
 
 // VWAP 중앙선 표시 토글(CEO 지시 — 기본 ON). 켜면 pane에 VWAP 중앙선을 그리고(밴드2와 동일 1px·점선), 끄면 선을 숨긴다(값·색·계산 불변).
 //  ▸ 밴드2(showBand_2)와 동일 패턴: display = 켜짐 ? (display.all − display.price_scale) : display.none. 흰색 가격축 라벨은 이 토글과 독립(항상 price_scale에만 표시).
-showVwapLine = input.bool(true, title="VWAP 중앙선 표시", group="VWAP Settings", display=display.none, tooltip="켜면 화면 VWAP 중앙선을 차트에 그립니다(기본 ON). 스타일은 밴드2선과 동일하게 굵기 1px·점선(dashed)입니다. 선 색은 'VWAP 선 지지/저항 색' 규칙(ON이면 녹/빨강/흰색, OFF면 기본색)을 따릅니다. 끄면 선만 숨기며 VWAP 값·색 계산·우측 가격축 흰색 라벨에는 영향이 없습니다.")
+showVwapLine = input.bool(true, title="VWAP 중앙선 표시", group="VWAP Settings", display=display.none, tooltip="켜면 화면 VWAP 중앙선을 차트에 그립니다(기본 ON). 스타일은 밴드2선과 동일하게 굵기 1px·점선(dashed)입니다. 선 색은 CEO 지시로 고정 단색(중립 흰색)입니다 — 지지/저항 판정에 따라 변색하지 않습니다. 끄면 선만 숨기며 VWAP 값·계산·우측 가격축 흰색 라벨에는 영향이 없습니다.")
 hideonDWM = input(false, title="Hide VWAP on 1D or Above", group="VWAP Settings", display=display.none)
 // VWAP 누적은 "최근 N봉 롤링(Recent Bars)" 단일 방식으로 고정(CEO 지시 — 앵커모드 제거). 세션/거래일 앵커 분기·입력·세션 리셋 전부 삭제됨.
 //  ▸ 정합성: 원본 이치모쿠의 vwap상태(20)는 앵커 무관 Recent Bars 고정이 정답. 전 VWAP(화면 50봉·vwap상태20·중기추세 vwapValue·지지저항)이 Recent Bars 단일로 계산된다.
@@ -17,7 +17,7 @@ recentBars = input.int(defval=50, title="Recent Bars (기본 화면 VWAP)", minv
 src = input(title="Source", defval=hlc3, group="VWAP Settings", display=display.none)
 offset = input.int(0, title="Offset", group="VWAP Settings", display=display.none)
 enableDynamicLineColor = input.bool(false, title="Enable Dynamic Line Color", group="VWAP Settings", display=display.none)
-// VWAP 중앙선 지지/저항 색 규칙(CEO 확정 — near 구간 종가 + 꼬리 걸침 이탈). 화면 기본 VWAP 선(vwapValue)의 색을 봉 단위로 판정한다.
+// VWAP 중앙선 지지/저항 색 규칙(CEO 확정 — near 구간 종가 + 꼬리 걸침 이탈). ⚠️ 단, CEO 지시로 VWAP 선 색은 현재 고정 단색(중립 흰색)이라 이 판정은 선 색에 반영되지 않는다(로직·상태 보존용). 아래는 판정 규칙 서술.
 //  "near 구간" = VWAP와 밴드1 사이의 **동적 %(pct) 범위**(밴드1 전체가 아님). 하단 near=[lowerNear, vwap], 상단 near=[vwap, upperNear].
 //   ▸ upperNear = vwap + pct×(upperBand1 − vwap),  lowerNear = vwap − pct×(vwap − lowerBand1). 하단 near 최저=lowerNear, 상단 near 최고=upperNear.
 //   ▸ pct = 밴드폭 반비례 동적(좁을 때 최대 0.60, 넓을 때 최소 0.20). r=(upperBand1−lowerBand1)/vwap 를 rLow~rHigh 사이 정규화 후 max~min 반비례 보간·clamp. (계산부는 vwapSRColor 블록 참조)
@@ -27,7 +27,7 @@ enableDynamicLineColor = input.bool(false, title="Enable Dynamic Line Color", gr
 //  ★ close==vwap은 ①③ 양쪽에 걸리므로 저항을 먼저 평가 → 저항(빨강)으로 확정. 부동소수라 실제 동일값은 드묾.
 //  na/밴드1 유효성 가드(shouldPlot·not na(vwap/upperBand1/lowerBand1))가 워밍업·도지 방어. 모두 확정봉 세트값(close/high/low/vwap/밴드1·near) → 리페인팅 없음.
 //  enableDynamicLineColor(밴드2 이탈 녹/빨강)와 독립한 별도 VWAP 선 전용 색이다.
-enableVwapSRColor = input.bool(true, title="VWAP 선 지지/저항 색(구간 종가·꼬리 걸침 이탈)", group="VWAP Settings", tooltip="켜면 화면 VWAP 중앙선의 색을 봉 단위로 칠합니다(CEO 확정 규칙). 구간=VWAP와 밴드1 사이의 동적 near 범위(아래 '근처 구간 %' 참고). 하단 near 최저=lowerNear, 상단 near 최고=upperNear. 저항(빨강)=lowerNear≤종가≤VWAP(①), 또는 종가가 lowerNear 아래로 이탈했지만 고가가 lowerNear 위(② 꼬리 걸침). 지지(녹색)=VWAP≤종가≤upperNear(③), 또는 종가가 upperNear 위로 이탈했지만 저가가 upperNear 아래(④ 꼬리 걸침). 종가가 near 구간 밖이고 꼬리도 near에 안 걸치거나 워밍업(밴드1/VWAP na)이면 중립(흰색). 종가=VWAP 경계는 저항으로 처리합니다. 이 옵션은 아래 Enable Dynamic Line Color(밴드2 이탈 색)와 별개이며, 켜져 있으면 VWAP 선 색을 이 규칙이 담당합니다(밴드1·밴드2 등 다른 선 색은 기존대로).")
+enableVwapSRColor = input.bool(true, title="VWAP 선 지지/저항 색 판정(내부 상태 — 선 색 미반영)", group="VWAP Settings", tooltip="⚠️ CEO 지시로 VWAP 중앙선 색은 고정 단색(중립 흰색)으로 전환되어, 이 옵션은 더 이상 선 색에 영향을 주지 않습니다(판정 로직·상태 boolean 보존용으로만 유지). 판정 규칙(참고): 구간=VWAP와 밴드1 사이의 동적 near 범위(아래 '근처 구간 %' 참고). 하단 near 최저=lowerNear, 상단 near 최고=upperNear. 저항=lowerNear≤종가≤VWAP(①), 또는 종가가 lowerNear 아래로 이탈했지만 고가가 lowerNear 위(② 꼬리 걸침). 지지=VWAP≤종가≤upperNear(③), 또는 종가가 upperNear 위로 이탈했지만 저가가 upperNear 아래(④ 꼬리 걸침). 종가=VWAP 경계는 저항으로 처리. 향후 이 판정을 다른 표시에 재사용할 수 있도록 계산은 남겨 둡니다.")
 // VWAP 선색 "근처(near) 구간" 동적 % — 저항/지지 판정 구간을 밴드1 전체가 아니라 VWAP~밴드1의 일부(pct)로 좁힌다(CEO 지시).
 //  상단 구간 최고 = upperNear = vwap + pct×(upperBand1 − vwap), 하단 구간 최저 = lowerNear = vwap − pct×(vwap − lowerBand1). 저항(하단)·지지(상단) 동일 pct 대칭.
 //  ▸ pct = 밴드폭 반비례 동적 %: 밴드폭 좁음(저변동성)→최대 %(기본 60), 밴드폭 넓음(고변동성)→최소 %(기본 20).
@@ -143,7 +143,7 @@ TRI_GROUP = "기울기 정렬 삼각형"
 showAlignTri = input.bool(true, "기울기 정렬 삼각형 표시", group=TRI_GROUP, tooltip="배경색이 없는 봉(밴드 배경 bgFillState==0)에서만, 기울기 3행(EMA/DEMA/TEMA 시간축 셀 색)의 순 개수(반대색 상쇄, 녹셀−적셀)가 2개 이상이면 봉 아래 파랑 삼각형(△), 순 적셀(적셀−녹셀)이 2개 이상이면 봉 위 빨강 역삼각형(▽)을 표시합니다. 예: 녹2·빨1 → 순녹 1 → 파랑 없음, 녹2·회1 → 순녹 2 → 파랑, 녹3 → 순녹 3 → 파랑(적색 대칭). 배경색이 칠해진 봉에는 배경이 정렬을 이미 나타내므로 삼각형을 그리지 않습니다. 중복 억제 래치: 같은 방향은 한 번 뜨면 반대 방향 삼각형이 뜨거나 배경색이 칠해지기 전까지 재표시를 억제합니다(대칭). ⚠️ 셀 색이 현재봉[0]을 포함하므로 삼각형도 라이브 봉 동안 깜빡일 수 있고(%R 원과 동일 특성) 봉 마감 시 확정됩니다 — 래치 커밋은 확정봉에서만 하여 리얼타임 오염이 없습니다. 표시 전용(매매 신호 아님).")
 alignTriUpColor = input.color(#1565C0, title="기울기 정렬 삼각형 색(상승·순녹셀≥2)", group=TRI_GROUP, active=showAlignTri, tooltip="순 녹셀(녹셀−적셀) 2개 이상일 때 봉 아래 삼각형(△) 색. 기본 파랑 #1565C0. %R 강세 원(녹)·정배열 배경(녹)·비정상 캔들과 구분되게 파랑 계열.")
 alignTriDnColor = input.color(#C62828, title="기울기 정렬 삼각형 색(하락·순적셀≥2)", group=TRI_GROUP, active=showAlignTri, tooltip="순 적셀(적셀−녹셀) 2개 이상일 때 봉 위 역삼각형(▽) 색. 기본 빨강 #C62828. %R 약세 원(노랑)과 위치·색으로 구분.")
-showWickFilter = input.bool(true, title="삼각형 꼬리 필터", group=TRI_GROUP, active=showAlignTri, tooltip="불리한 꼬리가 있는 봉의 정렬 삼각형을 억제합니다. 파랑(상승·봉 아래)은 윗꼬리(고가 매도거부, high−max(open,close))가 몸통(|close−open|)보다 크면 억제, 빨강(하락·봉 위)은 아랫꼬리(저가 매수흡수, min(open,close)−low)가 몸통보다 크면 억제(대칭). 도지 가드: 몸통이 1틱(syminfo.mintick) 미만이면 필터 미적용(억제 안 함). 계수 없이 꼬리>몸통 그대로 판정 — 튜닝 대상 아님(수치 파라미터 미노출). ⚠️ 현재봉[0] 꼬리는 봉 마감 전 변동하므로 삼각형이 라이브로 깜빡일 수 있고 확정봉 기준으로 신뢰(셀 색·%R 원과 동일 특성). 표시 가독성 필터, 매매 신호 아님. 기본 ON. OFF면 기존 삼각형 동작(필터 미적용).")
+showWickFilter = input.bool(true, title="삼각형 꼬리 필터", group=TRI_GROUP, active=showAlignTri, tooltip="불리한 꼬리가 있는 봉의 정렬 삼각형을 억제합니다. 위/아래 꼬리 상쇄(순 꼬리): 양쪽 꼬리가 함께 달린 봉은 두 꼬리를 상쇄해 순 방향 꼬리 하나로 판정한 뒤 몸통과 비교합니다(예: 윗꼬리 1·아랫꼬리 0.5 → 순 위 꼬리 0.5). 파랑(상승·봉 아래)은 순 위 꼬리(윗꼬리−아랫꼬리, 0 하한)가 몸통(|close−open|)보다 크면 억제, 빨강(하락·봉 위)은 순 아래 꼬리(아랫꼬리−윗꼬리, 0 하한)가 몸통보다 크면 억제(대칭). 도지 가드: 몸통이 1틱(syminfo.mintick) 미만이면 필터 미적용(억제 안 함). 계수 없이 순 꼬리>몸통 그대로 판정 — 튜닝 대상 아님(수치 파라미터 미노출). ⚠️ 현재봉[0] 꼬리는 봉 마감 전 변동하므로 삼각형이 라이브로 깜빡일 수 있고 확정봉 기준으로 신뢰(셀 색·%R 원과 동일 특성). 표시 가독성 필터, 매매 신호 아님. 기본 ON. OFF면 기존 삼각형 동작(필터 미적용).")
 
 // ⚠️ cRSI 삼각형 필터 그룹(useCrsiTriFilter·crsiDomCycle·crsiNarrowThreshold·triLookback)은 CEO 지시로 전환 후보 삼각형과 함께 전면 제거됨.
 //    (비정상 캔들의 abnCrsi는 이와 무관한 독립 지표로 그대로 유지된다.)
@@ -614,11 +614,10 @@ if shouldPlot and not na(vwapValue) and not na(upperBandValue1) and not na(lower
         vwapResistance := true                  // 저항 상태(빨강). close==vwap은 여기서 우선 확정(지지보다 먼저).
     else if isSupport
         vwapSupport := true                     // 지지 상태(녹).
-    // 색칠은 옵션 ON일 때만(선색 표시 거동 보존). 상태 판정과 독립.
+    // 색칠은 옵션 ON일 때만(판정 로직 보존용 — 상태 판정과 독립). ⚠️ CEO 지시로 VWAP 중앙선 plot 색은 고정 흰색(DEFAULT_LINE_COLOR)으로 전환되어,
+    //   아래 vwapSRColor(녹/빨강/흰 산출)는 더 이상 VWAP 선 색에 반영되지 않는다(판정 로직·상태 boolean은 향후 재사용 대비 보존).
     if enableVwapSRColor
         vwapSRColor := vwapResistance ? UPPER_BREAK_LINE_COLOR : vwapSupport ? LOWER_BREAK_LINE_COLOR : DEFAULT_LINE_COLOR
-// 최종 VWAP 선 색: 지지/저항 규칙 ON이면 그 색(중립이면 흰색), OFF면 기존 activeLineColor(동적색 옵션 거동 보존).
-color vwapLineColor = enableVwapSRColor ? vwapSRColor : activeLineColor
 
 // =========================================================================================
 // [z-order 블록 #1 — VWMA 50/100/200 + 100~200 fill]  ★ plot/fill 중 가장 뒤(back-most).
@@ -656,13 +655,15 @@ fill(ltPlot1, ltPlot2, title="100~200선 fill", color=showLongTrend ? (ltUp ? co
 // =========================================================================================
 barcolor(abnShowBg ? abnBarColor : na, title="비정상 매수/매도 캔들색")
 
-// VWAP 중앙선: 두께 1px·점선(dashed)(CEO 지시 — 밴드2선과 동일 스타일). 선은 동적 색, 우측 가격축 라벨은 흰색 고정(CEO 지시).
-//  색 = vwapLineColor(지지/저항 규칙 ON이면 녹/빨강/흰색, OFF면 기존 activeLineColor). 색·값(vwapValue)·계산 전부 불변 — 렌더 스타일(1px·점선)·표시 게이트만 변경.
+// VWAP 중앙선: 두께 1px·점선(dashed)(CEO 지시 — 밴드2선과 동일 스타일). 선색은 고정 단색(중립 흰색, DEFAULT_LINE_COLOR), 우측 가격축 라벨은 흰색 고정(CEO 지시).
+//  ▸ 색 고정(CEO 지시): 직전엔 지지/저항 판정(vwapLineColor: 녹=지지·빨강=저항·흰=중립)으로 봉 단위 동적 변색했으나, CEO 지시로 **고정 중립 흰색(DEFAULT_LINE_COLOR)** 으로 전환한다.
+//    → 지지/저항 "판정 로직"(vwapResistance/vwapSupport/vwapSRColor 블록·enableVwapSRColor 옵션)은 보존하되, 이 VWAP 중앙선 plot의 color 참조만 고정색으로 바꾼다(선색 표시가 판정에 더 반응하지 않음).
+//  ▸ 값·계산 전부 불변 — 렌더 스타일(1px·점선)·표시 게이트도 불변, 오직 선 color 인자만 vwapLineColor → DEFAULT_LINE_COLOR로 교체.
 //  ▸ 표시 게이트(CEO 지시): showVwapLine(기본 ON)이면 pane·상태줄·데이터윈도우에 표시(밴드2와 동일 display.all − display.price_scale), 끄면 display.none으로 선만 숨김.
 //  ▸ 점선/1px: 밴드2선(upperBand_2/lowerBand_2)과 동일하게 plot()의 linestyle=plot.linestyle_dashed·linewidth=1 사용(밴드2와 같은 dash 스타일·굵기).
 //  ▸ 흰색 가격축 라벨 plot: 값·색(흰색)·display 전부 불변(기존 그대로) — 이번 변경 대상 아님. 라벨 동작 유지.
 displayVwapLine = showVwapLine ? display.all - display.price_scale : display.none
-plot(vwapValue, title="브이왑", color=vwapLineColor, offset=offset, linewidth=1, display=displayVwapLine, editable=true, linestyle=plot.linestyle_dashed)
+plot(vwapValue, title="브이왑", color=DEFAULT_LINE_COLOR, offset=offset, linewidth=1, display=displayVwapLine, editable=true, linestyle=plot.linestyle_dashed)
 plot(vwapValue, title="VWAP 가격축 라벨", color=color.white, offset=offset, display=display.none, editable=true)
 
 upperBand_1 = plot(upperBandValue1, title="Upper Band #1", color=activeLineColor, offset=offset, display=display.none, editable=true, linestyle=plot.linestyle_dotted)
@@ -731,14 +732,17 @@ redCnt   = (emaLogRed   ? 1 : 0) + (demaLogRed   ? 1 : 0) + (temaLogRed   ? 1 : 
 blueRaw = noBg and (greenCnt - redCnt) >= 2
 redRaw  = noBg and (redCnt - greenCnt) >= 2
 // [CEO 지시] 꼬리 필터(방안 1) — 불리한 꼬리면 정렬 삼각형 억제(표시 가독성). bodyRatio=1.0 고정·계수 없이 꼬리>몸통 그대로. 도지 가드(몸통 0 폭주 방지).
-//  ▸ blueWickBlock: 파랑(상승·봉 아래)은 윗꼬리(고가 매도거부)>몸통이면 억제. redWickBlock: 빨강(하락·봉 위)은 아랫꼬리(저가 매수흡수)>몸통이면 억제(대칭).
+//  ▸ [CEO 개선] 위/아래 꼬리 상쇄(순 꼬리): 양쪽 꼬리가 함께 달린 봉은 두 꼬리를 상쇄해 순 방향 꼬리 하나로 판정(3행 녹색인데 양쪽 꼬리 봉에서 억제되던 문제 완화).
+//  ▸ blueWickBlock: 파랑(상승·봉 아래)은 순 위 꼬리(윗꼬리−아랫꼬리, 0 하한)>몸통이면 억제. redWickBlock: 빨강(하락·봉 위)은 순 아래 꼬리>몸통이면 억제(대칭).
 //  ▸ 토글 OFF(showWickFilter==false) → block 변수 false → not false=true → 기존 동작(회귀 0). 수치 파라미터 미노출(튜닝 p-hacking 방지·표시 전용).
 triBody      = math.abs(close - open)
 triUpperWick = high - math.max(open, close)
 triLowerWick = math.min(open, close) - low
+triNetUpper  = math.max(0.0, triUpperWick - triLowerWick)   // 순 위 꼬리(아래꼬리로 상쇄, 0 하한)
+triNetLower  = math.max(0.0, triLowerWick - triUpperWick)   // 순 아래 꼬리(윗꼬리로 상쇄, 0 하한)
 triNotDoji   = triBody >= syminfo.mintick   // 도지 가드: 몸통 0(도지)이면 필터 미적용
-blueWickBlock = showWickFilter and triNotDoji and triUpperWick > triBody
-redWickBlock  = showWickFilter and triNotDoji and triLowerWick > triBody
+blueWickBlock = showWickFilter and triNotDoji and triNetUpper > triBody
+redWickBlock  = showWickFilter and triNotDoji and triNetLower > triBody
 // 래치 var(직전 확정봉까지의 값 — 오염 방지). 표시식은 라이브 raw and not latched, 여기에 꼬리 억제 AND.
 var bool blueLatched = false
 var bool redLatched  = false
@@ -881,6 +885,9 @@ vwBandPosText = vwBandStateShort + vwBandPctStr
 // ── 추세 셀 색 공통 상수(원본 이식) ──────────────────────────────────────────────────────
 ltUpColor = #0E9C8A     // 상승계열 청록
 ltDownColor = #C2185B   // 하락계열 자홍
+// 이격도 셀 방향성 오버라이드 색(CEO 지시 — 부호가 성립한 상태에서 현재봉[0]이 과거 4봉 대비 극단(최저/최고)일 때 경고톤). 어두운 톤·셀 투명도(30)와 어울리게.
+DARKBLUE = #1A237E      // 어두운 파랑(네이비 계열) — 양수(벌어짐)인데 현재봉이 과거 4봉 모두보다 작거나 같음(5봉 중 최저 = 벌어짐이 줄어드는 중)
+DARKORANGE = #8B4500    // 어두운 주황 — 음수(좁혀짐)인데 현재봉이 과거 4봉 모두보다 크거나 같음(5봉 중 최고 = 좁혀짐이 줄어드는 중)
 // 추세 셀(단기/중기/장기) 폭 변화 데드밴드용 ATR(14). ⚠️ ltAtrTable은 이제 밴드 배경 필터(공통 스케일 V=ATR/close)에서도 쓰이므로 리본 slope 직후(배경 판정 위)에서 이미 1회 계산됨 — 여기서 재정의하지 않고 그 값을 재사용한다(값 동일, ta.atr(14) 중복 호출 방지).
 ltDeadBand = not na(ltAtrTable) ? ltAtrTable * ltFlatTol : 0.0
 
@@ -915,6 +922,8 @@ slopeArrTooltip = "기울기 배열(추세 확인 4행): 값=TEMA ㄱ | DEMA ㄱ
 // (리본 갭 변화 5행은 CEO 지시로 전면 제거됨 — 테이블 표시 간소화. 관련 로직 gapT/gapD/gapE·ribbonGapChgT/D/E·slopeChgText·slopeChgTooltip 삭제. slopeA(temaSlA/demaSlA/emaSlA)·f_logY·f_slopePctStr는 1~4행·리본 계산에 계속 쓰이므로 유지.)
 // 기울기 3행 셀 툴팁 — 로그 slope 단일 문구.
 slopeCellTooltip = "추세 확인 1~3행(EMA/DEMA/TEMA 로그 기울기): 값=ㄱ | ㄴ | ㄷ 순의 로그 slope, %/봉(로그수익률·×100). ㄱ=봉당 로그수익률(2점), ㄴ=3점 OLS 기울기, ㄷ=5점 OLS 기울기. 표시·셀색 판정 모두 소수2자리 반올림 %(CEO 지시로 표시도 2자리로 일치 — 앞서 표시 1자리·판정 2자리였던 것을 되돌림). 셀색=서열(ㄱ>ㄴ>ㄷ 녹 / ㄱ<ㄴ<ㄷ 적 / na 또는 2자리 반올림 동률 회색), 데드존 없음. ⚠️ ㄱ은 현재봉[0]을 포함하므로 값·셀색이 봉 마감 전 라이브로 갱신되고 봉 마감 시 확정됩니다(미래참조 없음). 표시 전용(매매 신호 아님)."
+// T/D·D/E 이격도 2행 셀 툴팁 — 선 값 이격도의 5봉 시계열(현재봉 왼쪽). 기울기 배열 행과 별개 기준.
+crossCellTooltip = "T/D·D/E 이격도는 리본 선 값의 이격 편차(빠른선/느린선 − 1 × 100, 0 기준(이격 편차 %, 양수=벌어짐·음수=좁혀짐))를 과거 -4봉~현재봉 = 5개 시계열로 표시합니다. 기울기 배열 행(로그 기울기 서열)과 별개 기준입니다. 값 정의: T/D 이격도=(TEMA/DEMA−1)×100(DEMA 기준 TEMA), D/E 이격도=(DEMA/EMA−1)×100(EMA 기준 DEMA). 표시=[0] | [1] | [2] | [3] | [4] 순으로 현재봉([0])이 맨 왼쪽, 가장 과거([4])가 맨 오른쪽입니다(구분자 ' | '). 예 0.2 | 0.2 | 0.1 | -0.1 | -0.2. 빠른선>느린선이면 양수(벌어짐), <면 음수(좁혀짐), 일치면 0.0입니다(0 기준으로 두 선의 이격 방향·크기를 봉별로 읽습니다). 부호=양수는 부호 생략(0.2), 음수만 −(-0.2). 자릿수=소수 1자리(폭 고려, 5개 값). ⚠️ 판독 한계: 1자리는 상대 gap 약 10bp(0.1%) 해상도라, 극완만·횡보 구간(리본 gap 수십 bp 이하)에서는 0.0으로 뭉개져 봉간 변화가 약하게 보일 수 있습니다(활발한 구간은 변별 가능). 분모(느린선) 0·na 또는 해당 봉 워밍업 미확정이면 그 자리 '-'로 표기합니다. 셀 배경색은 5봉 이격도 시계열의 부호로 칠하되, 방향성 오버라이드(현재봉[0] vs 과거 4봉 개별 비교)를 얹습니다(4-상태): 5봉 모두 양수(>0, 벌어진 상태 지속) → 매수 녹, 단 [0]이 [1]·[2]·[3]·[4] 모두보다 작거나 같으면(현재봉이 5봉 중 최저 = 벌어짐이 줄어드는 중) 어두운 파랑. 5봉 모두 음수(<0, 좁혀진 상태 지속) → 매도 적, 단 [0]이 [1]·[2]·[3]·[4] 모두보다 크거나 같으면(현재봉이 5봉 중 최고 = 좁혀짐이 줄어드는 중) 어두운 주황. 그 외(양수·음수 혼재)·0 포함·na('-') → 회색입니다. 중요: 방향성 판정은 오직 현재봉[0]을 과거 4봉 각각과 비교하며(과거봉끼리의 순서는 무관), 부호만 성립하고 현재봉이 극단(최저/최고)이 아닌 경우는 기본색을 유지합니다 — 양수인데 현재봉이 최저가 아니면 녹색, 음수인데 현재봉이 최고가 아니면 빨강. 경계 등호(≤/≥)를 포함해 5봉이 전부 동일값(평탄)이면 양수는 파랑·음수는 주황입니다. 0은 양수도 음수도 아니므로(엄격 부등호), 5봉 중 0이 하나라도 있으면 회색입니다. 5봉 중 하나라도 na('-')면 회색입니다. ⚠️ 리페인팅: [0]은 현재봉 리본을 포함해 봉 마감 전 라이브로 갱신되고, [1..4]는 확정봉으로 고정됩니다(미래참조 없음). 리본 소스(종가/hlc3/ohlc4)와 무관하게 선 자체 비율이라 항상 유효합니다. ⚠️ 표시 전용·매매 신호 아님."
 
 // ── 단기 추세(20선 vs 50선) 셀 — 원본 이식 ────────────────────────────────────────────────
 stReady = not na(vwma20) and not na(vwma50)
@@ -1081,15 +1090,82 @@ f_pctStr(float p) =>
     d = (p - close) / close * 100
     (d > 0 ? "+" : "") + str.tostring(d, "0.0") + "%"
 
+// ── T/D·D/E 이격도 2행(CEO 지시 — 이격도 5봉 시계열, 0 기준 편차) ──────────────────
+//  선 값 자체의 이격 편차(빠른선/느린선 − 1 × 100, 0 기준)를 과거 -4봉~현재봉 = 5개 시계열로 표시한다. 기울기 배열 행(로그 기울기 서열)과 별개 기준.
+//  값(셀 텍스트) = "dispX[0] | dispX[1] | dispX[2] | dispX[3] | dispX[4]" (현재봉[0]이 맨 왼쪽 → [4]가 맨 오른쪽, 구분자 " | "). 표시 전용·매매 신호 아님.
+//  ▸ 이격 편차: dispTD = (temaLine/demaLine − 1)×100(DEMA 기준 TEMA), dispDE = (demaLine/emaLine − 1)×100(EMA 기준 DEMA). 0=일치, 양수=벌어짐, 음수=좁혀짐(CEO 지시 — 100 기준→0 기준 편차).
+//     ▸ 부호: 양수는 부호 생략(0.2), 음수만 −(-0.2), 일치는 0.0(str.tostring 기본 동작 — + 강제 부호 없음).
+//     ▸ 자릿수: 편차라 값은 0 근처(횡보~완만추세는 0.0x~0.x). 5개 값이라 테이블 폭 부담 → 소수 1자리("0.0")로 표기(CEO 지시 — 2자리→1자리).
+//        ⚠️ 판독 한계(개발자·수학자 추정, 본부장 보고): 1자리는 상대 gap 0.001(=10bp) 해상도. 활발한 구간(TEMA/DEMA gap 수십 bp↑)은 0.2 등으로 변별 가능하나,
+//           극완만·횡보 구간(gap 1~10bp)에서는 0.0으로 뭉개져 5봉 변화 판독이 약해질 수 있음(2자리 대비 정밀도↓, 폭 절약과 트레이드오프).
+//     ▸ na 가드: demaLine/emaLine 0·na 또는 해당 봉([0..4] 중 하나) 미확정(워밍업)이면 그 자리 "-".
+//  ▸ 셀 색(CEO 명세 — 부호 기반 + 현재봉 vs 과거4봉 개별 비교 4-상태): 1차로 5봉 부호(모두 양수/모두 음수/혼재)를 판정하고, 부호가 성립한 경우에만 2차로 현재봉[0]을 과거 4봉 각각과 비교해 4색으로 분화한다(과거봉끼리의 순서는 무관).
+//     · 양수 & 현재봉 최저(tdRev, 현재봉이 과거 4봉 모두보다 작거나 같음=벌어짐이 줄어드는 중) → 어두운 파랑(DARKBLUE·30). 양수 & 그 외 → 매수 녹(ltUpColor·30).
+//     · 음수 & 현재봉 최고(tdFwd, 현재봉이 과거 4봉 모두보다 크거나 같음=좁혀짐이 줄어드는 중) → 어두운 주황(DARKORANGE·30). 음수 & 그 외 → 매도 적(ltDownColor·30).
+//     · 혼재(양수·음수 섞임)·0 포함·na → 회색(color.gray·40, 부호 미성립). 0은 엄격 부등호라 양수/음수 어디에도 안 들어가 회색, na도 회색.
+//     ⚠️ CEO 확언: "양수인데 정배열도 역배열도 아님(혼재)이어도 녹색. 오직 명확한 역배열일 때만 어두운 파랑."(빨강도 대칭.) 판정은 td0..td4/de0..de4(아래) 지역 캐싱값으로 산출. 옛 정/역배열 판정(f_dispBull/f_dispBear/f_dispCellColor)·옛 골든/데드 판정·색(f_crossCellColor)은 제거됨.
+//  ▸ 성능·리페인팅: 값은 리본 line[0..4]만 참조(루프 없음·미래참조 없음). 실제 산출·렌더는 barstate.islast 블록에서만 수행.
+//     dispX[0]은 현재봉 리본 포함 라이브(봉 마감 전 갱신), [1..4]는 확정봉(과거봉 고정) — 기존 특성과 동일.
+//  ▸ 리본 소스: temaLine/demaLine/emaLine 자체 비율이라 소스(종가/hlc3/ohlc4)와 무관하게 항상 유효.
+// 이격도 한 봉 헬퍼 — (fast/slow − 1) × 100 = 0 기준 이격 편차 %. slow 0·na 또는 fast na면 na. 시계열 각 오프셋에서 line[k]를 넘겨 호출.
+//  ▸ 0 기준(편차): fast=slow면 0.0, fast>slow(벌어짐)면 양수, fast<slow(좁혀짐)면 음수. 예 100.2%→0.2, 99.8%→-0.2(옛 100 기준을 100 빼서 편차로).
+f_disp(float fastVal, float slowVal) => (na(fastVal) or na(slowVal) or slowVal == 0) ? na : (fastVal / slowVal - 1.0) * 100.0
+// 이격도 한 봉 표시 문자열 — na면 "-", 유효면 소수 1자리("0.0"). 부호=str.tostring 기본(음수만 −, 양수 무부호). (Pine v6는 중첩 함수 미지원 → 톱레벨 헬퍼로 분리.)
+//  ▸ 0 정규화: 1자리 반올림 후 값이 0(=|v|<0.05, 미세 음수 −0.03 등 포함)이면 "0.0"으로 고정 — "-0.0"(음수 0) 표기를 막아 지시("0은 0.0")를 지킨다. 편차(0 기준) 전환으로 새로 생긴 경계라 방어 처리(양수·음수 실값 표기엔 무영향).
+f_dispCell(float v) => na(v) ? "-" : (math.round(v * 10) == 0 ? "0.0" : str.tostring(v, "0.0"))
+// 이격도 5봉 시계열 텍스트 헬퍼 — d0(현재봉)이 맨 왼쪽 → d4(가장 과거)가 맨 오른쪽. 각 봉 na면 "-", 유효면 소수 1자리. 구분자 " | ".
+f_dispSeries(float d0, float d1, float d2, float d3, float d4) =>
+    f_dispCell(d0) + " | " + f_dispCell(d1) + " | " + f_dispCell(d2) + " | " + f_dispCell(d3) + " | " + f_dispCell(d4)
+
+// ── 이격도 2행 셀 배경색 — 이격도 시계열(dispX[0..4])의 부호(양수/음수) 판정(CEO 지시) ──────────────
+//  ⚠️ 기존 정/역배열(단조성) 셀색 로직(f_dispBull/f_dispBear/f_dispCellColor)은 CEO 지시로 폐기하고, 부호 기반으로 재정의한다.
+//  ▸ 5봉 모두 양수(>0, 이격이 벌어진 상태 지속) → 매수 녹(ltUpColor·30).
+//  ▸ 5봉 모두 음수(<0, 이격이 좁혀진 상태 지속) → 매도 적(ltDownColor·30).
+//  ▸ 그 외(양수·음수 혼재)·0 포함·na(dispX[0..4] 중 하나라도) → 회색(color.gray·40, 무판정 행 관례).
+//  ▸ 방향성 오버라이드(CEO 명세 — 현재봉[0] vs 과거 4봉 개별 비교, 단조 폐기·과거봉끼리 순서 무관):
+//     · 현재봉 최저 tdRev = dispX[0] <= dispX[1] AND dispX[0] <= dispX[2] AND dispX[0] <= dispX[3] AND dispX[0] <= dispX[4](현재봉이 5봉 중 최저 = 벌어짐이 줄어드는 중).
+//     · 현재봉 최고 tdFwd = dispX[0] >= dispX[1] AND dispX[0] >= dispX[2] AND dispX[0] >= dispX[3] AND dispX[0] >= dispX[4](현재봉이 5봉 중 최고 = 좁혀짐이 줄어드는 중).
+//     · 녹색(모두 양수)인데 현재봉 최저(tdRev) → 어두운 파랑(DARKBLUE·30). 양수인데 현재봉이 최저가 아니면 기본 녹색 유지(CEO 확언: "혼재여도 녹색, 오직 명확한 최저일 때만 파랑").
+//     · 빨강(모두 음수)인데 현재봉 최고(tdFwd) → 어두운 주황(DARKORANGE·30). 음수인데 현재봉이 최고가 아니면 기본 빨강 유지(대칭).
+//     · 경계 등호(<=/>=) 포함(CEO 문구 그대로) → 5봉 전부 동일값(평탄)이면 tdRev·tdFwd 둘 다 참. 삼항 순서상 양수(tdAllPos)는 tdRev(파랑)를 먼저 평가 → 파랑, 음수(tdAllNeg)는 tdFwd(주황)를 먼저 평가 → 주황(의도대로: 양수 평탄=파랑·음수 평탄=주황).
+//     · na 가드: AllPos/AllNeg가 이미 5봉 전부 양수/음수를 보장하므로 tdRev/tdFwd 비교 시 dispX[0..4]는 na 아님(안전 — 현재봉 vs 과거4봉 비교는 반드시 부호 판정을 통과한 삼항 가지 안에서만 평가됨).
+//  ▸ 0 처리: 엄격 부등호(>0/<0)라 0은 양수도 음수도 아님 → 0이 하나라도 있으면 AllPos·AllNeg 모두 불성립 → 회색.
+//  ▸ na 가드: dispX[0..4] 중 하나라도 na이면 (na>0)=na, (na<0)=na → and 연쇄가 na/false → AllPos·AllNeg 둘 다 참 아님 → 회색.
+//  ▸ 리페인팅: dispX[0]이 현재봉 리본(line[0]) 포함이라 판정·셀색이 봉 마감 전 라이브로 갱신되고 봉 마감 시 확정(미래참조 없음). 워밍업(과거봉 na)엔 회색. 표시 전용·매매 신호 아님.
+//  ▸ 5봉 값은 렌더 텍스트(f_dispSeries)와 동일 산식(f_disp(line[k], slow[k]))이나, 판정용으로 별도 지역 산출(값·표시 인자는 불변 유지 — 셀 배경색만 신설). 현재봉 vs 과거 4봉 비교 4개 반복을 위해 5봉 값을 지역 변수(td0..td4)로 1회 캐싱(CSE — f_disp 중복 호출 방지).
+// T/D 이격도 5봉(현재봉[0]~과거[4]) — 판정 전용(렌더 텍스트 인자와 동일 산식). 지역 캐싱 → 부호(AllPos/AllNeg)·현재봉 최저/최고(Rev/Fwd)에 재사용.
+td0 = f_disp(temaLine, demaLine)
+td1 = f_disp(temaLine[1], demaLine[1])
+td2 = f_disp(temaLine[2], demaLine[2])
+td3 = f_disp(temaLine[3], demaLine[3])
+td4 = f_disp(temaLine[4], demaLine[4])
+tdAllPos = td0 > 0 and td1 > 0 and td2 > 0 and td3 > 0 and td4 > 0
+tdAllNeg = td0 < 0 and td1 < 0 and td2 < 0 and td3 < 0 and td4 < 0
+// 현재봉 vs 과거 4봉 개별 비교(CEO 지시 — 단조 폐기) — tdRev=현재봉[0]이 과거 4봉 모두보다 작거나 같음(5봉 중 최저), tdFwd=현재봉[0]이 과거 4봉 모두보다 크거나 같음(5봉 중 최고). 등호 포함. 과거봉끼리의 순서는 무관.
+tdRev = td0 <= td1 and td0 <= td2 and td0 <= td3 and td0 <= td4
+tdFwd = td0 >= td1 and td0 >= td2 and td0 >= td3 and td0 >= td4
+tdCellColor = tdAllPos ? (tdRev ? color.new(DARKBLUE, 30) : color.new(ltUpColor, 30)) : tdAllNeg ? (tdFwd ? color.new(DARKORANGE, 30) : color.new(ltDownColor, 30)) : color.new(color.gray, 40)
+// D/E 이격도 5봉 — 동일 부호·현재봉 최저/최고 판정(DEMA/EMA).
+de0 = f_disp(demaLine, emaLine)
+de1 = f_disp(demaLine[1], emaLine[1])
+de2 = f_disp(demaLine[2], emaLine[2])
+de3 = f_disp(demaLine[3], emaLine[3])
+de4 = f_disp(demaLine[4], emaLine[4])
+deAllPos = de0 > 0 and de1 > 0 and de2 > 0 and de3 > 0 and de4 > 0
+deAllNeg = de0 < 0 and de1 < 0 and de2 < 0 and de3 < 0 and de4 < 0
+deRev = de0 <= de1 and de0 <= de2 and de0 <= de3 and de0 <= de4
+deFwd = de0 >= de1 and de0 >= de2 and de0 >= de3 and de0 >= de4
+deCellColor = deAllPos ? (deRev ? color.new(DARKBLUE, 30) : color.new(ltUpColor, 30)) : deAllNeg ? (deFwd ? color.new(DARKORANGE, 30) : color.new(ltDownColor, 30)) : color.new(color.gray, 40)
+
 // ⚠️ 상승/하락 전환 임계가격 표시 텍스트(transDelta1/2·transDeltaText·upText/dnText·upCellBg/dnCellBg)와 테이블 전환 2행은 CEO 지시로 전면 제거됨.
 //    전환 판정·전환 임계 역산·전환 후보·전환선이 모두 제거되어 이 표시부도 함께 삭제한다(dangling 방지). 밴드 배경은 TEMA 로그 행 색으로 대체.
 
 // ── 상태 테이블 렌더링(우측 상단) — 추세 3행 / 가격 구조 및 변동성 / 지지·저항 ────────────────
 //  스타일: 원본과 동일(섹션 헤더 딥 네이비 #1B2A4A·병합, 행 라벨 회색 배경, 값 셀 판정색, 흰 글자, size.small).
 //  vwap상태(20)는 가격 구조 섹션 첫 행이다.
-var table statusTable = table.new(position.top_right, 2, 18, border_width=1, border_color=color.new(color.gray, 50))
+var table statusTable = table.new(position.top_right, 2, 20, border_width=1, border_color=color.new(color.gray, 50))
 if showStatusTable and barstate.islast
-    // 섹션1: 추세 확인 (TEMA/DEMA/EMA 로그 기울기 3행 + 기울기 배열 1행 → 단기/중기/장기 = 총 7행). 전환 2행·리본 갭 변화 1행은 CEO 지시로 제거됨.
+    // 섹션1: 추세 확인 (TEMA/DEMA/EMA 로그 기울기 3행 + 기울기 배열 1행 + T/D·D/E 이격도 2행 → 단기/중기/장기 = 총 9행). 전환 2행·리본 갭 변화 1행은 CEO 지시로 제거됨.
     table.cell(statusTable, 0, 0, "추세 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.cell(statusTable, 1, 0, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.merge_cells(statusTable, 0, 0, 1, 0)
@@ -1103,34 +1179,40 @@ if showStatusTable and barstate.islast
     // 기울기 배열 4행(CEO 지시) — TEMA ㄱ | DEMA ㄱ | EMA ㄱ(각 이평선 1봉 로그 기울기). 셀색 = 밴드 배경 판정(bgFillState)과 일치(정배열 녹 / 역배열 적 / 그 외·억제·na 회색).
     table.cell(statusTable, 0, 4, "기울기 배열", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=slopeArrTooltip)
     table.cell(statusTable, 1, 4, slopeArrText, text_color=color.white, bgcolor=slopeArrColor, text_size=size.small, tooltip=slopeArrTooltip)
-    table.cell(statusTable, 0, 5, "단기추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 5, stCellText, text_color=color.white, bgcolor=stCellColor, text_size=size.small)
-    table.cell(statusTable, 0, 6, "중기추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 6, mtCellText, text_color=color.white, bgcolor=mtCellColor, text_size=size.small)
-    table.cell(statusTable, 0, 7, "장기추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 7, ltCellText, text_color=color.white, bgcolor=ltCellColor, text_size=size.small)
+    // T/D·D/E 이격도 2행(CEO 지시 — 이격도 5봉 시계열, 0 기준 편차) — 값=dispX[0] | [1] | [2] | [3] | [4](현재봉[0] 맨 왼쪽). 셀 색(CEO 명세·부호 기반 + 현재봉 vs 과거4봉 개별 비교 4-상태)=양수&현재봉 최저(과거 4봉 모두 이하)=어두운 파랑 / 양수&그 외=매수 녹 / 음수&현재봉 최고(과거 4봉 모두 이상)=어두운 주황 / 음수&그 외=매도 적 / 혼재·0·na=회색(tdCellColor/deCellColor). 기울기 배열 행과 별개 기준(툴팁).
+    //  dispTD = (temaLine/demaLine − 1)×100(DEMA 기준), dispDE = (demaLine/emaLine − 1)×100(EMA 기준). 0=일치·양수=벌어짐(무부호)·음수=좁혀짐(−). 각 오프셋 k=0..4에서 line[k] 참조([0]=현재봉 라이브·[1..4]=확정봉). na/분모0/워밍업이면 그 자리 "-".
+    table.cell(statusTable, 0, 5, "T/D 이격도", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=crossCellTooltip)
+    table.cell(statusTable, 1, 5, f_dispSeries(f_disp(temaLine, demaLine), f_disp(temaLine[1], demaLine[1]), f_disp(temaLine[2], demaLine[2]), f_disp(temaLine[3], demaLine[3]), f_disp(temaLine[4], demaLine[4])), text_color=color.white, bgcolor=tdCellColor, text_size=size.small, tooltip=crossCellTooltip)
+    table.cell(statusTable, 0, 6, "D/E 이격도", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=crossCellTooltip)
+    table.cell(statusTable, 1, 6, f_dispSeries(f_disp(demaLine, emaLine), f_disp(demaLine[1], emaLine[1]), f_disp(demaLine[2], emaLine[2]), f_disp(demaLine[3], emaLine[3]), f_disp(demaLine[4], emaLine[4])), text_color=color.white, bgcolor=deCellColor, text_size=size.small, tooltip=crossCellTooltip)
+    table.cell(statusTable, 0, 7, "단기추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 7, stCellText, text_color=color.white, bgcolor=stCellColor, text_size=size.small)
+    table.cell(statusTable, 0, 8, "중기추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 8, mtCellText, text_color=color.white, bgcolor=mtCellColor, text_size=size.small)
+    table.cell(statusTable, 0, 9, "장기추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 9, ltCellText, text_color=color.white, bgcolor=ltCellColor, text_size=size.small)
     // 섹션2: 가격 구조 및 변동성 확인 (vwap상태20 최상단 → 비정상 → 이격도 → 되돌림)
-    table.cell(statusTable, 0, 8, "가격 구조 및 변동성 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.cell(statusTable, 1, 8, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.merge_cells(statusTable, 0, 8, 1, 8)
+    table.cell(statusTable, 0, 10, "가격 구조 및 변동성 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
+    table.cell(statusTable, 1, 10, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
+    table.merge_cells(statusTable, 0, 10, 1, 10)
     // vwap 상태(20)를 2행으로 분리: 행1=기울기·밴드폭(1·2번째 값), 행2=밴드 국면·내 위치(3번째 값 + % 위치)
-    table.cell(statusTable, 0, 9, "vwap 기울기", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 9, vwSlopeText + " | " + vwBwStateText, text_color=color.white, bgcolor=vwSlopeColor, text_size=size.small)
-    table.cell(statusTable, 0, 10, "vwap 구간", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 10, vwBandPosText, text_color=color.white, bgcolor=vwBandColor, text_size=size.small)
-    table.cell(statusTable, 0, 11, "비정상 매수/매도", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 11, abnCellText, text_color=color.white, bgcolor=abnCellColor, text_size=size.small)
-    table.cell(statusTable, 0, 12, "이격도 (" + str.tostring(disparityMaLen) + ")", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 12, disparityCellText, text_color=color.white, bgcolor=disparityCellColor, text_size=size.small)
-    table.cell(statusTable, 0, 13, "되돌림 가격", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 13, na(disparityPullbackPrice) ? "-" : f_priceStr(disparityPullbackPrice) + " (" + f_pctStr(disparityPullbackPrice) + ")", text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
+    table.cell(statusTable, 0, 11, "vwap 기울기", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 11, vwSlopeText + " | " + vwBwStateText, text_color=color.white, bgcolor=vwSlopeColor, text_size=size.small)
+    table.cell(statusTable, 0, 12, "vwap 구간", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 12, vwBandPosText, text_color=color.white, bgcolor=vwBandColor, text_size=size.small)
+    table.cell(statusTable, 0, 13, "비정상 매수/매도", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 13, abnCellText, text_color=color.white, bgcolor=abnCellColor, text_size=size.small)
+    table.cell(statusTable, 0, 14, "이격도 (" + str.tostring(disparityMaLen) + ")", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 14, disparityCellText, text_color=color.white, bgcolor=disparityCellColor, text_size=size.small)
+    table.cell(statusTable, 0, 15, "되돌림 가격", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 15, na(disparityPullbackPrice) ? "-" : f_priceStr(disparityPullbackPrice) + " (" + f_pctStr(disparityPullbackPrice) + ")", text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
     // 섹션3: 지지·저항 확인 (50선 / 100선 / 200선)
-    table.cell(statusTable, 0, 14, "지지·저항 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.cell(statusTable, 1, 14, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.merge_cells(statusTable, 0, 14, 1, 14)
-    table.cell(statusTable, 0, 15, "50선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 15, vwSrText, text_color=color.white, bgcolor=vwSrColor, text_size=size.small)
-    table.cell(statusTable, 0, 16, "100선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 16, ltM1SrText, text_color=color.white, bgcolor=ltM1SrColor, text_size=size.small)
-    table.cell(statusTable, 0, 17, "200선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 17, ltM2SrText, text_color=color.white, bgcolor=ltM2SrColor, text_size=size.small)
+    table.cell(statusTable, 0, 16, "지지·저항 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
+    table.cell(statusTable, 1, 16, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
+    table.merge_cells(statusTable, 0, 16, 1, 16)
+    table.cell(statusTable, 0, 17, "50선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 17, vwSrText, text_color=color.white, bgcolor=vwSrColor, text_size=size.small)
+    table.cell(statusTable, 0, 18, "100선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 18, ltM1SrText, text_color=color.white, bgcolor=ltM1SrColor, text_size=size.small)
+    table.cell(statusTable, 0, 19, "200선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
+    table.cell(statusTable, 1, 19, ltM2SrText, text_color=color.white, bgcolor=ltM2SrColor, text_size=size.small)
