@@ -119,10 +119,10 @@ ribbonBgTransp = input.int(70, title="배경 투명도", minval=0, maxval=100, g
 //   ▸ 상대 데드존: 갭이 데드존 폭(k×V) 이상이어야 서열 성립(g1≥k·V AND g2≥k·V). 곱셈이라 V=0 안전(기본값).
 //   ▸ 기울기 크기 게이트: 순수 서열 성립 AND 정렬 방향 대표 기울기(TEMA ㄱ) 크기가 m×V 이상(|temaSlA|≥m·V).
 //  ⚠️ 셀 색 컨플루언스(anyCellRed/Green AND)는 모든 모드에 공통으로 그대로 적용된다(이번엔 bgBull/bgBear 계산만 모드 분기). 표시 전용(매매 신호 아님).
-bgFilterMode = input.string("기울기 크기 게이트", title="밴드 배경 필터", options=["미적용", "기울기 크기 게이트", "정규화 갭", "상대 데드존"], group=RIBBON_GROUP, active=showRibbonExpBg, tooltip="정배열/역배열 밴드 배경 서열 판정(bgBull/bgBear)에 적용할 노이즈 필터 방식(기본 '기울기 크기 게이트', CEO 지시). 공통 스케일 V = ATR(14)/close(무차원 per-bar 변동성 근사, close>0 가드), 갭 g1 = TEMA ㄱ − DEMA ㄱ, g2 = DEMA ㄱ − EMA ㄱ(1봉 로그 기울기 원값 차). ▸ '미적용' = 현행 순수 부등호 서열(pctR2 2자리 반올림, 필터 없음). ▸ '정규화 갭' = g1/V≥τ AND g2/V≥τ(역배열은 −g1/V·−g2/V, V>0 가드). ▸ '상대 데드존' = g1≥k·V AND g2≥k·V(역배열 대칭, 곱셈이라 V=0 안전). ▸ '기울기 크기 게이트' = 순수 서열 AND |TEMA ㄱ|≥m·V(정렬 방향 대표 기울기 크기 문턱). 각 모드 파라미터(τ/k/m)는 해당 모드에서만 노출됩니다. ⚠️ 셀 색 컨플루언스(3행 셀 색 정합 AND)는 모든 모드에 공통 적용됩니다. 표시 전용(매매 신호 아님).")
+bgFilterMode = input.string("정규화 갭", title="밴드 배경 필터", options=["미적용", "정규화 갭", "기울기 크기 게이트", "상대 데드존"], group=RIBBON_GROUP, active=showRibbonExpBg, tooltip="정배열/역배열 밴드 배경 서열 판정(bgBull/bgBear)에 적용할 노이즈 필터 방식(기본 '정규화 갭', CEO 지시). 공통 스케일 V = ATR(14)/close(무차원 per-bar 변동성 근사, close>0 가드), 갭 g1 = TEMA ㄱ − DEMA ㄱ, g2 = DEMA ㄱ − EMA ㄱ(1봉 로그 기울기 원값 차). ▸ '미적용' = 현행 순수 부등호 서열(pctR2 2자리 반올림, 필터 없음). ▸ '정규화 갭' = g1/V≥τ AND g2/V≥τ(역배열은 −g1/V·−g2/V, V>0 가드). ▸ '상대 데드존' = g1≥k·V AND g2≥k·V(역배열 대칭, 곱셈이라 V=0 안전). ▸ '기울기 크기 게이트' = 순수 서열 AND |TEMA ㄱ|≥m·V(정렬 방향 대표 기울기 크기 문턱). 각 모드 파라미터(τ/k/m)는 해당 모드에서만 노출됩니다. ⚠️ 셀 색 컨플루언스(3행 셀 색 정합 AND)는 모든 모드에 공통 적용됩니다. 표시 전용(매매 신호 아님).")
 bgGapTau = input.float(0.10, title="정규화 갭 임계 τ", minval=0.0, step=0.01, group=RIBBON_GROUP, active=showRibbonExpBg and bgFilterMode == "정규화 갭", tooltip="'정규화 갭' 모드 전용. 정규화 갭(g/V) 임계. 정배열은 g1/V≥τ AND g2/V≥τ, 역배열은 −g1/V≥τ AND −g2/V≥τ여야 서열 성립. 기본 0.10(라운드넘버). ⚠️ 종목별 튜닝·백테스트 최적화 금지(표시 가독성 파라미터).")
-bgDeadK = input.float(0.10, title="상대 데드존 배수 k", minval=0.0, step=0.01, group=RIBBON_GROUP, active=showRibbonExpBg and bgFilterMode == "상대 데드존", tooltip="'상대 데드존' 모드 전용. 데드존 폭 = k×V. 정배열은 g1≥k·V AND g2≥k·V, 역배열은 (−g1)≥k·V AND (−g2)≥k·V여야 서열 성립(곱셈이라 V=0 안전). 기본 0.10(라운드넘버). ⚠️ 종목별 튜닝·백테스트 최적화 금지(표시 가독성 파라미터).")
 bgSizeM = input.float(0.10, title="기울기 크기 배수 m", minval=0.0, step=0.01, group=RIBBON_GROUP, active=showRibbonExpBg and bgFilterMode == "기울기 크기 게이트", tooltip="'기울기 크기 게이트' 모드 전용. 순수 서열 성립에 더해 정렬 방향 대표 기울기(TEMA ㄱ, temaSlA) 크기가 m×V 이상(|temaSlA|≥m·V)이어야 배경. 기본 0.10(라운드넘버). ⚠️ 종목별 튜닝·백테스트 최적화 금지(표시 가독성 파라미터).")
+bgDeadK = input.float(0.10, title="상대 데드존 배수 k", minval=0.0, step=0.01, group=RIBBON_GROUP, active=showRibbonExpBg and bgFilterMode == "상대 데드존", tooltip="'상대 데드존' 모드 전용. 데드존 폭 = k×V. 정배열은 g1≥k·V AND g2≥k·V, 역배열은 (−g1)≥k·V AND (−g2)≥k·V여야 서열 성립(곱셈이라 V=0 안전). 기본 0.10(라운드넘버). ⚠️ 종목별 튜닝·백테스트 최적화 금지(표시 가독성 파라미터).")
 // ── 추세 확인 테이블 EMA/DEMA/TEMA 기울기 3행 셀 배경색(CEO 재설계 — 로그 slope 순서 규칙) ──
 //  각 행 = 리본 이평선(emaLine/demaLine/temaLine)의 ln(line) 기반 로그 slope 3종(ㄱ 2점·ㄴ 3점 OLS·ㄷ 5점 OLS).
 //  셀색(각 slope를 %(×100) 소수2자리 반올림한 값으로 비교): pctR2(ㄱ)>pctR2(ㄴ)>pctR2(ㄷ)=녹 / pctR2(ㄱ)<pctR2(ㄴ)<pctR2(ㄷ)=적 / 하나라도 na 또는 2자리 동률=회색. 데드존 없음(2자리 반올림 부등호, CEO 명세). 표시도 2자리(f_slopePctStr "0.00")라 자릿수 일치.
@@ -143,6 +143,7 @@ TRI_GROUP = "기울기 정렬 삼각형"
 showAlignTri = input.bool(true, "기울기 정렬 삼각형 표시", group=TRI_GROUP, tooltip="배경색이 없는 봉(밴드 배경 bgFillState==0)에서만, 기울기 3행(EMA/DEMA/TEMA 시간축 셀 색)의 순 개수(반대색 상쇄, 녹셀−적셀)가 2개 이상이면 봉 아래 파랑 삼각형(△), 순 적셀(적셀−녹셀)이 2개 이상이면 봉 위 빨강 역삼각형(▽)을 표시합니다. 예: 녹2·빨1 → 순녹 1 → 파랑 없음, 녹2·회1 → 순녹 2 → 파랑, 녹3 → 순녹 3 → 파랑(적색 대칭). 배경색이 칠해진 봉에는 배경이 정렬을 이미 나타내므로 삼각형을 그리지 않습니다. 중복 억제 래치: 같은 방향은 한 번 뜨면 반대 방향 삼각형이 뜨거나 배경색이 칠해지기 전까지 재표시를 억제합니다(대칭). ⚠️ 셀 색이 현재봉[0]을 포함하므로 삼각형도 라이브 봉 동안 깜빡일 수 있고(%R 원과 동일 특성) 봉 마감 시 확정됩니다 — 래치 커밋은 확정봉에서만 하여 리얼타임 오염이 없습니다. 표시 전용(매매 신호 아님).")
 alignTriUpColor = input.color(#1565C0, title="기울기 정렬 삼각형 색(상승·순녹셀≥2)", group=TRI_GROUP, active=showAlignTri, tooltip="순 녹셀(녹셀−적셀) 2개 이상일 때 봉 아래 삼각형(△) 색. 기본 파랑 #1565C0. %R 강세 원(녹)·정배열 배경(녹)·비정상 캔들과 구분되게 파랑 계열.")
 alignTriDnColor = input.color(#C62828, title="기울기 정렬 삼각형 색(하락·순적셀≥2)", group=TRI_GROUP, active=showAlignTri, tooltip="순 적셀(적셀−녹셀) 2개 이상일 때 봉 위 역삼각형(▽) 색. 기본 빨강 #C62828. %R 약세 원(노랑)과 위치·색으로 구분.")
+showWickFilter = input.bool(true, title="삼각형 꼬리 필터", group=TRI_GROUP, active=showAlignTri, tooltip="불리한 꼬리가 있는 봉의 정렬 삼각형을 억제합니다. 파랑(상승·봉 아래)은 윗꼬리(고가 매도거부, high−max(open,close))가 몸통(|close−open|)보다 크면 억제, 빨강(하락·봉 위)은 아랫꼬리(저가 매수흡수, min(open,close)−low)가 몸통보다 크면 억제(대칭). 도지 가드: 몸통이 1틱(syminfo.mintick) 미만이면 필터 미적용(억제 안 함). 계수 없이 꼬리>몸통 그대로 판정 — 튜닝 대상 아님(수치 파라미터 미노출). ⚠️ 현재봉[0] 꼬리는 봉 마감 전 변동하므로 삼각형이 라이브로 깜빡일 수 있고 확정봉 기준으로 신뢰(셀 색·%R 원과 동일 특성). 표시 가독성 필터, 매매 신호 아님. 기본 ON. OFF면 기존 삼각형 동작(필터 미적용).")
 
 // ⚠️ cRSI 삼각형 필터 그룹(useCrsiTriFilter·crsiDomCycle·crsiNarrowThreshold·triLookback)은 CEO 지시로 전환 후보 삼각형과 함께 전면 제거됨.
 //    (비정상 캔들의 abnCrsi는 이와 무관한 독립 지표로 그대로 유지된다.)
@@ -432,7 +433,7 @@ abnBarColor = abnCandleState == 1 ? abnSellBgColor : abnCandleState == -1 ? abnB
 // =========================
 // 지수 추세 리본(EMA/DEMA/TEMA) 계산 + 로그 slope 3종 + 밴드 배경(TEMA 로그 행 색).
 //  ▸ 페인팅 리본(plot, 리본 소스 기준): e1=EMA(ribbonSource,len), e2=EMA(e1,len), e3=EMA(e2,len). EMA=e1, DEMA=2e1−e2, TEMA=3e1−3e2+e3. ribbonSource=close(기본)/hlc3/ohlc4.
-//     이 3선(emaLine/demaLine/temaLine)만 화면에 plot(각 1px, price scale off). 모두 ta.ema 누적(확정 성격) → 신규 리페인팅 없음.
+//     이 3선(emaLine/demaLine/temaLine)만 화면에 plot(각 1px, 우측 가격축 라벨 ON — CEO 지시, display.all). 모두 ta.ema 누적(확정 성격) → 신규 리페인팅 없음.
 //  ▸ 로그 slope 3종(CEO 재설계 — 수학자 검증 산식): 각 리본선 line의 ln(line) 기준으로 ㄱ(2점 로그수익률)·ㄴ(3점 OLS)·ㄷ(5점 OLS)을 계산한다(아래 f_logSlopes3).
 //     셀 색(각 slope를 %(×100) 소수2자리 반올림한 값으로 비교): pctR2(ㄱ)>pctR2(ㄴ)>pctR2(ㄷ)=녹(정배열) / pctR2(ㄱ)<pctR2(ㄴ)<pctR2(ㄷ)=적(역배열) / 하나라도 na 또는 2자리 동률=회색. 데드존 없음(2자리 반올림 부등호, CEO 명세). 표시도 2자리(f_slopePctStr "0.00")라 자릿수 일치.
 //     x축을 "과거→현재=증가"로 두어 우상향(가속)=양수 → ㄱ>ㄴ>ㄷ(최근 기울기가 더 큼)이 녹(정배열)이다.
@@ -686,11 +687,12 @@ fill(upperBand_2, lowerBand_2, title="Bands Fill #2", color=activeFillColor, dis
 bgFillColor = bgFillState == 1 ? color.new(ribbonBullBgColor, ribbonBgTransp) : bgFillState == -1 ? color.new(ribbonBearBgColor, ribbonBgTransp) : na
 fill(upperBand_2, lowerBand_2, color = (showRibbonExpBg and shouldPlot and bgFillState != 0 and not na(upperBandValue2) and not na(lowerBandValue2)) ? bgFillColor : na, title="밴드 배경", display=display.all, editable=true)
 
-// 지수 추세 리본 3선(EMA/DEMA/TEMA) — 각 1px, price scale 라벨 없음(display.all − display.price_scale). 표시 전용 오버레이.
-//  ⚠️ ta.ema 누적(확정 성격)이라 신규 리페인팅 없음. showRibbon OFF면 na로 미표시.
-plot(showRibbon ? emaLine : na, title="지수 리본 EMA", color=ribbonEmaColor, offset=offset, linewidth=1, display=display.all - display.price_scale, editable=true)
-plot(showRibbon ? demaLine : na, title="지수 리본 DEMA", color=ribbonDemaColor, offset=offset, linewidth=1, display=display.all - display.price_scale, editable=true)
-plot(showRibbon ? temaLine : na, title="지수 리본 TEMA", color=ribbonTemaColor, offset=offset, linewidth=1, display=display.all - display.price_scale, editable=true)
+// 지수 추세 리본 3선(EMA/DEMA/TEMA) — 각 1px, 우측 가격축 라벨 ON(display.all, CEO 지시). 표시 전용 오버레이.
+//  ⚠️ ta.ema 누적(확정 성격)이라 신규 리페인팅 없음. showRibbon OFF면 na로 미표시(라벨도 함께 사라짐).
+//  ▸ 각 plot의 color(ribbonEmaColor/ribbonDemaColor/ribbonTemaColor)가 가격축 라벨 색에 자동 반영(선 색 = 라벨 색). 선 굵기·색·값·리페인팅은 불변, price_scale 라벨만 추가.
+plot(showRibbon ? emaLine : na, title="지수 리본 EMA", color=ribbonEmaColor, offset=offset, linewidth=1, display=display.all, editable=true)
+plot(showRibbon ? demaLine : na, title="지수 리본 DEMA", color=ribbonDemaColor, offset=offset, linewidth=1, display=display.all, editable=true)
+plot(showRibbon ? temaLine : na, title="지수 리본 TEMA", color=ribbonTemaColor, offset=offset, linewidth=1, display=display.all, editable=true)
 
 // 비정상 매수/매도 캔들 몸통색 barcolor()는 위쪽(VWMA 블록 뒤)에서 선언한다(CEO 지시 — 배경 bgcolor → barcolor 전환 주석 참조).
 //  barcolor는 봉의 몸통색을 바꾸는 것이라 밴드 fill·bgcolor와 레이어가 달라 공존한다. 색·조건·판정(abnCandleState 래치)은 불변이다.
@@ -728,11 +730,20 @@ greenCnt = (emaLogGreen ? 1 : 0) + (demaLogGreen ? 1 : 0) + (temaLogGreen ? 1 : 
 redCnt   = (emaLogRed   ? 1 : 0) + (demaLogRed   ? 1 : 0) + (temaLogRed   ? 1 : 0)
 blueRaw = noBg and (greenCnt - redCnt) >= 2
 redRaw  = noBg and (redCnt - greenCnt) >= 2
-// 래치 var(직전 확정봉까지의 값 — 오염 방지). 표시식은 라이브 raw and not latched.
+// [CEO 지시] 꼬리 필터(방안 1) — 불리한 꼬리면 정렬 삼각형 억제(표시 가독성). bodyRatio=1.0 고정·계수 없이 꼬리>몸통 그대로. 도지 가드(몸통 0 폭주 방지).
+//  ▸ blueWickBlock: 파랑(상승·봉 아래)은 윗꼬리(고가 매도거부)>몸통이면 억제. redWickBlock: 빨강(하락·봉 위)은 아랫꼬리(저가 매수흡수)>몸통이면 억제(대칭).
+//  ▸ 토글 OFF(showWickFilter==false) → block 변수 false → not false=true → 기존 동작(회귀 0). 수치 파라미터 미노출(튜닝 p-hacking 방지·표시 전용).
+triBody      = math.abs(close - open)
+triUpperWick = high - math.max(open, close)
+triLowerWick = math.min(open, close) - low
+triNotDoji   = triBody >= syminfo.mintick   // 도지 가드: 몸통 0(도지)이면 필터 미적용
+blueWickBlock = showWickFilter and triNotDoji and triUpperWick > triBody
+redWickBlock  = showWickFilter and triNotDoji and triLowerWick > triBody
+// 래치 var(직전 확정봉까지의 값 — 오염 방지). 표시식은 라이브 raw and not latched, 여기에 꼬리 억제 AND.
 var bool blueLatched = false
 var bool redLatched  = false
-blueShow = blueRaw and not blueLatched   // 파랑: 미래치(정상)면 표시
-redShow  = redRaw  and not redLatched    // 빨강: 미래치면 표시
+blueShow = blueRaw and not blueLatched and not blueWickBlock   // 파랑: 미래치(정상)·불리한 윗꼬리 아니면 표시
+redShow  = redRaw  and not redLatched  and not redWickBlock    // 빨강: 미래치·불리한 아랫꼬리 아니면 표시
 // 리셋 조건(CEO 명세 1:1) — 표시식(blueShow/redShow) 확정 후 평가(순환 해소). 반대 방향 삼각형 출현 or 배경 칠해짐 → 해당 방향 래치 해제.
 resetBlue = redShow or (bgFillState != 0)   // 빨강 역삼각형 or 배경 → 파랑 래치 해제
 resetRed  = blueShow or (bgFillState != 0)  // 파랑 삼각형 or 배경 → 빨강 래치 해제
