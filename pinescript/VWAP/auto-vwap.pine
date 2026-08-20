@@ -919,14 +919,17 @@ temaAngleColor = f_logSlope3Color(temaLogGreen, temaLogRed)
 //  ▸ 리페인팅: temaSlA/demaSlA/emaSlA·bgFillState가 line[0] 포함이라 라이브 봉 동안 갱신·봉 마감 확정(미래참조 없음). na면 해당 값 "-".
 slopeArrText  = f_slopePctStr(temaSlA) + " | " + f_slopePctStr(demaSlA) + " | " + f_slopePctStr(emaSlA)
 slopeArrColor = bgFillState == 1 ? color.new(ltUpColor, 30) : bgFillState == -1 ? color.new(ltDownColor, 30) : color.new(color.gray, 40)
-slopeArrTooltip = "기울기 배열(추세 확인 4행): 값=TEMA ㄱ | DEMA ㄱ | EMA ㄱ 순의 1봉 로그 기울기(ㄱ = ln(line[0])−ln(line[1]), %/봉·×100·소수2자리). 셀 배경색은 밴드 배경 판정(bgFillState)과 일치합니다 — 밴드 배경이 켜지는 최종 상태(밴드 배경 필터 4옵션 + 기울기 3행 셀 색 컨플루언스 AND까지 반영)를 그대로 씁니다: 정배열(TEMA ㄱ>DEMA ㄱ>EMA ㄱ, 가속 상승) → 녹, 역배열(EMA ㄱ>DEMA ㄱ>TEMA ㄱ, 가속 하락) → 적, 그 외/억제/na → 회색. 즉 이 행 색은 차트의 밴드2 배경 색과 항상 동일하게 움직여 '4행 = 밴드 배경 근거'로 읽힙니다. ⚠️ 이 색 기준(지표간 ㄱ 서열)은 1~3행 셀 색(각 행 시간축 ㄱ>ㄴ>ㄷ 서열)과 다른 기준입니다(의도된 분리). ⚠️ ㄱ이 현재봉[0]을 포함하므로 값·색이 봉 마감 전 라이브로 갱신되고 봉 마감 시 확정됩니다(미래참조 없음). 표시 전용(매매 신호 아님)."
+slopeArrTooltip = "세 이평선의 기울기가 한 방향으로 정렬되어 추세가 가속되는 국면인지를 한눈에 확인합니다."
 // (리본 갭 변화 5행은 CEO 지시로 전면 제거됨 — 테이블 표시 간소화. 관련 로직 gapT/gapD/gapE·ribbonGapChgT/D/E·slopeChgText·slopeChgTooltip 삭제. slopeA(temaSlA/demaSlA/emaSlA)·f_logY·f_slopePctStr는 1~4행·리본 계산에 계속 쓰이므로 유지.)
-// 기울기 3행 셀 툴팁 — 로그 slope 단일 문구.
-slopeCellTooltip = "추세 확인 1~3행(EMA/DEMA/TEMA 로그 기울기): 값=ㄱ | ㄴ | ㄷ 순의 로그 slope, %/봉(로그수익률·×100). ㄱ=봉당 로그수익률(2점), ㄴ=3점 OLS 기울기, ㄷ=5점 OLS 기울기. 표시·셀색 판정 모두 소수2자리 반올림 %(CEO 지시로 표시도 2자리로 일치 — 앞서 표시 1자리·판정 2자리였던 것을 되돌림). 셀색=서열(ㄱ>ㄴ>ㄷ 녹 / ㄱ<ㄴ<ㄷ 적 / na 또는 2자리 반올림 동률 회색), 데드존 없음. ⚠️ ㄱ은 현재봉[0]을 포함하므로 값·셀색이 봉 마감 전 라이브로 갱신되고 봉 마감 시 확정됩니다(미래참조 없음). 표시 전용(매매 신호 아님)."
-// T/D·D/E 이격도 2행 셀 툴팁(CEO 재설계 — 현재봉 이격도 | 평균(5), 셀색 4-상태). 기울기 배열 행과 별개 기준.
-crossCellTooltip = "T/D·D/E 이격도는 리본 선 값의 이격 편차(빠른선/느린선 − 1 × 100, 0 기준(이격 편차 %, 양수=벌어짐·음수=좁혀짐))를 '현재봉 이격도 + 5봉 평균' 2값으로 요약합니다. 기울기 배열 행(로그 기울기 서열)과 별개 기준입니다. 값 정의: T/D 이격도=(TEMA/DEMA−1)×100(DEMA 기준 TEMA), D/E 이격도=(DEMA/EMA−1)×100(EMA 기준 DEMA). 표시='{현재봉 이격도} | 평균(5) {5봉 평균}'입니다(예: 0.0 | 평균(5) 5.0). 앞 값=현재봉([0]) 이격도, 뒤 값=현재봉 포함 5봉([0]~[4]) 산술평균((dispX[0]+dispX[1]+dispX[2]+dispX[3]+dispX[4])/5). '평균(5)'는 고정 라벨, 구분자는 ' | '입니다. 빠른선>느린선이면 양수(벌어짐), <면 음수(좁혀짐), 일치면 0.0입니다. 부호=양수는 부호 생략(0.0), 음수만 −(-0.2). 자릿수=소수 1자리. 분모(느린선) 0·na 또는 해당 봉 워밍업 미확정이면 그 자리 '-'로 표기합니다(현재봉 na→앞 값 '-', 평균은 5봉 중 하나라도 na면 '-'). 셀 배경색은 현재봉 이격도(cur=dispX[0])와 5봉 평균(avg)의 관계로 4색입니다: ① 현재봉 양수(cur≥0, 0 포함) & cur≥avg → 매수 녹. ② 현재봉 양수 & cur<avg → 어두운 파랑(벌어짐이 평균 아래로 줄어드는 중). ③ 현재봉 음수(cur<0) & cur≥avg → 어두운 주황(좁혀짐이 평균 위로 완화되는 중). ④ 현재봉 음수 & cur<avg → 매도 적. cur 또는 avg가 na(초기 봉/워밍업)이면 회색입니다. 경계: cur=0은 양수 가지(cur≥0)로 들어가 avg 비교로 녹/파랑, cur=avg는 등호가 'cur≥avg'에 포함되어 양수는 녹·음수는 주황입니다(경계값 상향 유리 처리). ⚠️ 리페인팅: cur=dispX[0]는 현재봉 리본을 포함해 봉 마감 전 라이브로 갱신되고, 평균도 현재봉을 포함하므로 함께 갱신됩니다([1..4]는 확정봉 고정, 미래참조 없음). 리본 소스(종가/hlc3/ohlc4)와 무관하게 선 자체 비율이라 항상 유효합니다. ⚠️ 표시 전용·매매 신호 아님."
-// T/D 크로스 행 셀 툴팁(CEO 지시 재정의 — 예상가격 폐기 → 골든 임계 도달 변화율 % 2값). 이격도 2행 바로 아래.
-tdCrossTooltip = "T/D 크로스는 리본 TEMA선과 DEMA선의 현재 크로스 상태를 셀 색으로, '다음봉 종가가 골든 크로스 임계(TEMA'=DEMA')에 도달하려면 필요한 변화율 %'를 값으로 보여줍니다(예상가격 표시는 CEO 지시로 폐기). 값='{현재봉%} | 평균(5) {5봉 평균%}'(예: +30.0% | 평균(5) +100.0%). 현재봉%=현재봉[0] 변화율, 평균%=현재봉 포함 5봉([0]~[4]) 산술평균. 부호 포함(+/−), 소수 1자리, '%'입니다('평균(5)'는 고정 라벨, 구분자 ' | '). 변화율 정의: 각 봉 t에서 임계가격 X[t]=−B[t]/A(리본은 다음봉 종가 X에 선형, TEMA'−DEMA'=A·X+B, A=α·β²=α(1−α)²>0 상수, B[t]=β·[β²·e1[t]−(2−α)·e2[t]+e3[t]], α=2/(리본 길이+1), β=1−α, e1/e2/e3=봉별 확정 EMA 누적)로 역산하고, pct[t]=(X[t]−close[t])/close[t]×100입니다. A>0이라 X는 '이 값 이상이면 골든'인 단일 임계 — 데드 상태면 pct>0(올라야 골든), 골든 상태면 pct<0(그만큼 빠지면 데드 경계)이라 부호가 방향을 나타냅니다. 셀 색(골든 녹·데드 적 + 방향 오버라이드): 데드크로스(TEMA<DEMA)이고 현재봉%<평균%(평균이 더 큼)면 어두운 주황, 데드 & 현재봉%≥평균%면 매도 적. 골든크로스(TEMA>DEMA)이고 현재봉%>평균%(현재봉이 더 큼)면 어두운 파랑, 골든 & 현재봉%≤평균%면 매수 녹. 두 선 동일(TEMA=DEMA, 부동소수라 드묾)·워밍업(na)은 회색이며, 방향 오버라이드는 현재봉%·평균% 모두 유효할 때만 적용됩니다(그 외엔 골든 녹·데드 적 기본색). 경계: 현재봉%==평균%는 데드는 적(≥), 골든은 녹(≤)에 들어갑니다. 예외 표기 '-': 각 봉 pct는 A≈0(평행·해 없음)·X[t]≤0(비현실 가격)·close≤0·na면 na이고, 평균은 5봉 중 하나라도 na면 na → 값 자리에 '-'를 쓰되 셀 색은 크로스 상태 기준을 유지합니다. ⚠️ 리페인팅: pct[0]·현재 e1/e2/e3(현재봉 라이브값 포함) 기반의 '현재 시점 추정치'로, 미래참조하지 않습니다(과거봉 [1]~[4]는 확정·비리페인팅). 셀 색도 현재봉[0] 포함이라 봉 마감 전 라이브 갱신·봉 마감 시 확정됩니다. ⚠️ 표시 전용·매매 신호 아님."
+// 기울기 3행 셀 툴팁 — ①②③ 행별 개념(TEMA/DEMA/EMA) 분리(변수 3개). col0·col1 각 행 대응 변수 연결.
+slopeTemaTooltip = "리본의 세 이평선 중 방향 전환을 가장 먼저 포착하여 조기 진입과 이탈 판단에 활용합니다."
+slopeDemaTooltip = "가장 빠른 선의 노이즈를 한 단계 걸러, 조기성과 안정성의 균형을 확인하는 데 씁니다."
+slopeEmaTooltip = "빠른 두 선의 신호가 이 기준선과 같은 방향으로 정렬되는지로 추세 신뢰도를 교차검증합니다."
+// T/D·D/E 이격도 2행 셀 툴팁(⑥ T/D, ⑦ D/E — 리본 이평선 간 이격도. ⑬ 종가-이평 이격도와 다른 지표이므로 산식 명시).
+tdDispTooltip = "두 빠른 선이 벌어지는지 좁혀지는지를 크로스 이전에 포착하여 추세 강화와 전환 예고를 읽습니다."
+deDispTooltip = "추세 정렬이 빠른 선에서 느린 선으로, 리본 전체로 확산되는지를 확인합니다."
+// T/D 크로스 행 셀 툴팁(⑤ — 다음봉 종가가 크로스 임계에 도달하는 데 필요한 변화율).
+tdCrossTooltip = "크로스가 얼마나 임박했는지를 다음봉에 필요한 가격 변화로 정량화하여, 크로스 발생 전에 미리 대비하는 조기 경보로 씁니다."
 
 // ── 단기 추세(20선 vs 50선) 셀 — 원본 이식 ────────────────────────────────────────────────
 stReady = not na(vwma20) and not na(vwma50)
@@ -1092,6 +1095,21 @@ f_pctStr(float p) =>
 f_pctSignedStr(float v) =>
     na(v) ? "-" : (math.round(v * 10) == 0 ? "0.0%" : (v > 0 ? "+" : "") + str.tostring(v, "0.0") + "%")
 
+// ── 후행·변동성·지지/저항 섹션 데이터 행 셀 툴팁(선행 축약 툴팁과 톤·분량 통일 — 각 행 신호 의미만 요약) ────────
+//  후행 추세 3행: VWMA 골든/데드크로스로 확정된 추세를 확인하는 후행 신호(선행 대비 늦지만 오신호 적음). MA쌍만 행별 상이.
+laggingStTooltip = "선행 신호가 실제 거래량을 동반해 단기 추세로 확정됐는지를 검증하여 잦은 되돌림(휩쏘)을 걸러냅니다."
+laggingMtTooltip = "단기 노이즈를 걸러낸 중기 추세의 방향을 확정하는 데 씁니다."
+laggingLtTooltip = "시장 대추세의 방향을 확정하여 진입 방향을 결정하는 최종 상위 필터로 씁니다."
+//  변동성 4행: vwap 기울기(방향)·밴드 내 위치(구간)·이격도(과열)·되돌림가(회귀 목표). 각 행 개념+효과.
+volSlopeTooltip = "평균단가가 어디로 움직이는지와 변동성이 팽창(추세)·수축(스퀴즈)하는지를 함께 판단합니다."
+volBandPosTooltip = "가격이 밴드에서 어떤 국면(이탈·밴드워킹·저항·지지·중앙 공방)에 있는지로 진입과 청산의 맥락을 잡습니다."
+volDisparityTooltip = "가격이 평균에서 과도하게 벌어졌는지를 측정하여 추격 진입을 억제하고 되돌림 타이밍을 판단합니다."
+volPullbackTooltip = "과열이 해소되며 되돌아올 것으로 예상되는 목표가를 제시하여 청산 목표나 눌림목 기준으로 씁니다."
+//  지지/저항 3행: 종가가 해당 VWMA선(±σ 밴드) 위=지지·아래=저항. 개념+효과. MA만 행별 상이.
+srVw50Tooltip = "거래량이 실린 단기 평균선을 지지·저항 레벨로 삼아 진입과 손절 기준으로 씁니다."
+srVw100Tooltip = "단기선보다 강한 중기 매물대에서 추세의 지속과 반전을 판단합니다."
+srVw200Tooltip = "시장 대추세의 최종 지지·저항으로, 장기 국면 전환을 가르는 결정적 레벨로 봅니다."
+
 // ── T/D·D/E 이격도 2행(CEO 재설계 — 5봉 시계열 폐기 → 현재봉 이격도 | 평균(5), 0 기준 편차) ──────────────────
 //  선 값 자체의 이격 편차(빠른선/느린선 − 1 × 100, 0 기준)를 "현재봉 이격도 + 현재봉 포함 5봉 평균" 2값으로 요약한다. 기울기 배열 행(로그 기울기 서열)과 별개 기준.
 //  값(셀 텍스트) = "{dispX[0]} | 평균(5) {(dispX[0]+..+dispX[4])/5}" (현재봉 이격도 → " | 평균(5) " 고정 라벨 → 5봉 산술평균). 표시 전용·매매 신호 아님.
@@ -1214,12 +1232,12 @@ if showStatusTable and barstate.islast
     table.cell(statusTable, 1, 0, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.merge_cells(statusTable, 0, 0, 1, 0)
     // TEMA/DEMA/EMA 로그 기울기 3행(CEO 지시로 순서 반전: 1행 TEMA→2행 DEMA→3행 EMA) — ㄱ | ㄴ | ㄷ 순(%/봉). 셀색=로그 slope 서열(ㄱ>ㄴ>ㄷ 녹 / ㄱ<ㄴ<ㄷ 적 / na·그 외 회색). ⚠️ ㄱ이 현재봉[0] 포함이라 값·셀색 라이브 봉 갱신(봉 마감 확정, 미래참조 없음).
-    table.cell(statusTable, 0, 1, "TEMA 기울기", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=slopeCellTooltip)
-    table.cell(statusTable, 1, 1, temaAngleText, text_color=color.white, bgcolor=temaAngleColor, text_size=size.small, tooltip=slopeCellTooltip)
-    table.cell(statusTable, 0, 2, "DEMA 기울기", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=slopeCellTooltip)
-    table.cell(statusTable, 1, 2, demaAngleText, text_color=color.white, bgcolor=demaAngleColor, text_size=size.small, tooltip=slopeCellTooltip)
-    table.cell(statusTable, 0, 3, "EMA 기울기", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=slopeCellTooltip)
-    table.cell(statusTable, 1, 3, emaAngleText, text_color=color.white, bgcolor=emaAngleColor, text_size=size.small, tooltip=slopeCellTooltip)
+    table.cell(statusTable, 0, 1, "TEMA 기울기", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=slopeTemaTooltip)
+    table.cell(statusTable, 1, 1, temaAngleText, text_color=color.white, bgcolor=temaAngleColor, text_size=size.small, tooltip=slopeTemaTooltip)
+    table.cell(statusTable, 0, 2, "DEMA 기울기", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=slopeDemaTooltip)
+    table.cell(statusTable, 1, 2, demaAngleText, text_color=color.white, bgcolor=demaAngleColor, text_size=size.small, tooltip=slopeDemaTooltip)
+    table.cell(statusTable, 0, 3, "EMA 기울기", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=slopeEmaTooltip)
+    table.cell(statusTable, 1, 3, emaAngleText, text_color=color.white, bgcolor=emaAngleColor, text_size=size.small, tooltip=slopeEmaTooltip)
     // 기울기 배열 4행(CEO 지시) — TEMA ㄱ | DEMA ㄱ | EMA ㄱ(각 이평선 1봉 로그 기울기). 셀색 = 밴드 배경 판정(bgFillState)과 일치(정배열 녹 / 역배열 적 / 그 외·억제·na 회색).
     table.cell(statusTable, 0, 4, "기울기 배열", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=slopeArrTooltip)
     table.cell(statusTable, 1, 4, slopeArrText, text_color=color.white, bgcolor=slopeArrColor, text_size=size.small, tooltip=slopeArrTooltip)
@@ -1228,40 +1246,40 @@ if showStatusTable and barstate.islast
     // T/D 크로스 1행(CEO 지시 재배치 — 기울기 배열 바로 아래) — 값=골든 임계 도달 변화율 % 2값(현재봉% | 평균(5) 5봉평균%, 부호 포함), 셀 색=골든 녹·데드 적 + 방향 오버라이드(데드&cur<avg 주황 / 골든&cur>avg 파랑 / 동일·na 회색). pct=(X−close)/close×100, X=−B/A 역산. na면 값 "-".
     table.cell(statusTable, 0, 5, "T/D 크로스", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=tdCrossTooltip)
     table.cell(statusTable, 1, 5, tdxText, text_color=color.white, bgcolor=tdxCellColor, text_size=size.small, tooltip=tdCrossTooltip)
-    table.cell(statusTable, 0, 6, "T/D 이격도", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=crossCellTooltip)
-    table.cell(statusTable, 1, 6, f_dispValText(tdCur, tdAvg), text_color=color.white, bgcolor=tdCellColor, text_size=size.small, tooltip=crossCellTooltip)
-    table.cell(statusTable, 0, 7, "D/E 이격도", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=crossCellTooltip)
-    table.cell(statusTable, 1, 7, f_dispValText(deCur, deAvg), text_color=color.white, bgcolor=deCellColor, text_size=size.small, tooltip=crossCellTooltip)
+    table.cell(statusTable, 0, 6, "T/D 이격도", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=tdDispTooltip)
+    table.cell(statusTable, 1, 6, f_dispValText(tdCur, tdAvg), text_color=color.white, bgcolor=tdCellColor, text_size=size.small, tooltip=tdDispTooltip)
+    table.cell(statusTable, 0, 7, "D/E 이격도", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=deDispTooltip)
+    table.cell(statusTable, 1, 7, f_dispValText(deCur, deAvg), text_color=color.white, bgcolor=deCellColor, text_size=size.small, tooltip=deDispTooltip)
     // 섹션1-2: 후행 추세 확인 (VWMA MA 기반 후행(lagging) 지표 — 단기/중기/장기 추세 3행). (CEO 지시: 단기 추세 위에 머지 헤더 신설.)
     table.cell(statusTable, 0, 8, "후행 추세 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.cell(statusTable, 1, 8, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.merge_cells(statusTable, 0, 8, 1, 8)
-    table.cell(statusTable, 0, 9, "단기추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 9, stCellText, text_color=color.white, bgcolor=stCellColor, text_size=size.small)
-    table.cell(statusTable, 0, 10, "중기추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 10, mtCellText, text_color=color.white, bgcolor=mtCellColor, text_size=size.small)
-    table.cell(statusTable, 0, 11, "장기추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 11, ltCellText, text_color=color.white, bgcolor=ltCellColor, text_size=size.small)
+    table.cell(statusTable, 0, 9, "단기추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=laggingStTooltip)
+    table.cell(statusTable, 1, 9, stCellText, text_color=color.white, bgcolor=stCellColor, text_size=size.small, tooltip=laggingStTooltip)
+    table.cell(statusTable, 0, 10, "중기추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=laggingMtTooltip)
+    table.cell(statusTable, 1, 10, mtCellText, text_color=color.white, bgcolor=mtCellColor, text_size=size.small, tooltip=laggingMtTooltip)
+    table.cell(statusTable, 0, 11, "장기추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=laggingLtTooltip)
+    table.cell(statusTable, 1, 11, ltCellText, text_color=color.white, bgcolor=ltCellColor, text_size=size.small, tooltip=laggingLtTooltip)
     // 섹션2: 변동성 확인 (vwap상태20 최상단 → 이격도 → 되돌림). (CEO 지시: 헤더 "가격 구조 및 변동성 확인"→"변동성 확인", 비정상 매수/매도 행 삭제 — 캔들색으로 이미 표현.)
     table.cell(statusTable, 0, 12, "변동성 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.cell(statusTable, 1, 12, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.merge_cells(statusTable, 0, 12, 1, 12)
     // vwap 상태(20)를 2행으로 분리: 행1=기울기·밴드폭(1·2번째 값), 행2=밴드 국면·내 위치(3번째 값 + % 위치)
-    table.cell(statusTable, 0, 13, "vwap 기울기", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 13, vwSlopeText + " | " + vwBwStateText, text_color=color.white, bgcolor=vwSlopeColor, text_size=size.small)
-    table.cell(statusTable, 0, 14, "vwap 구간", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 14, vwBandPosText, text_color=color.white, bgcolor=vwBandColor, text_size=size.small)
-    table.cell(statusTable, 0, 15, "이격도 (" + str.tostring(disparityMaLen) + ")", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 15, disparityCellText, text_color=color.white, bgcolor=disparityCellColor, text_size=size.small)
-    table.cell(statusTable, 0, 16, "되돌림 가격", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 16, na(disparityPullbackPrice) ? "-" : f_priceStr(disparityPullbackPrice) + " (" + f_pctStr(disparityPullbackPrice) + ")", text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small)
+    table.cell(statusTable, 0, 13, "vwap 기울기", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=volSlopeTooltip)
+    table.cell(statusTable, 1, 13, vwSlopeText + " | " + vwBwStateText, text_color=color.white, bgcolor=vwSlopeColor, text_size=size.small, tooltip=volSlopeTooltip)
+    table.cell(statusTable, 0, 14, "vwap 구간", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=volBandPosTooltip)
+    table.cell(statusTable, 1, 14, vwBandPosText, text_color=color.white, bgcolor=vwBandColor, text_size=size.small, tooltip=volBandPosTooltip)
+    table.cell(statusTable, 0, 15, "이격도 (" + str.tostring(disparityMaLen) + ")", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=volDisparityTooltip)
+    table.cell(statusTable, 1, 15, disparityCellText, text_color=color.white, bgcolor=disparityCellColor, text_size=size.small, tooltip=volDisparityTooltip)
+    table.cell(statusTable, 0, 16, "되돌림 가격", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=volPullbackTooltip)
+    table.cell(statusTable, 1, 16, na(disparityPullbackPrice) ? "-" : f_priceStr(disparityPullbackPrice) + " (" + f_pctStr(disparityPullbackPrice) + ")", text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small, tooltip=volPullbackTooltip)
     // 섹션3: 지지·저항 확인 (50선 / 100선 / 200선)
     table.cell(statusTable, 0, 17, "지지·저항 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.cell(statusTable, 1, 17, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.merge_cells(statusTable, 0, 17, 1, 17)
-    table.cell(statusTable, 0, 18, "50선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 18, vwSrText, text_color=color.white, bgcolor=vwSrColor, text_size=size.small)
-    table.cell(statusTable, 0, 19, "100선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 19, ltM1SrText, text_color=color.white, bgcolor=ltM1SrColor, text_size=size.small)
-    table.cell(statusTable, 0, 20, "200선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small)
-    table.cell(statusTable, 1, 20, ltM2SrText, text_color=color.white, bgcolor=ltM2SrColor, text_size=size.small)
+    table.cell(statusTable, 0, 18, "50선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=srVw50Tooltip)
+    table.cell(statusTable, 1, 18, vwSrText, text_color=color.white, bgcolor=vwSrColor, text_size=size.small, tooltip=srVw50Tooltip)
+    table.cell(statusTable, 0, 19, "100선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=srVw100Tooltip)
+    table.cell(statusTable, 1, 19, ltM1SrText, text_color=color.white, bgcolor=ltM1SrColor, text_size=size.small, tooltip=srVw100Tooltip)
+    table.cell(statusTable, 0, 20, "200선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=srVw200Tooltip)
+    table.cell(statusTable, 1, 20, ltM2SrText, text_color=color.white, bgcolor=ltM2SrColor, text_size=size.small, tooltip=srVw200Tooltip)
