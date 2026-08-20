@@ -1192,7 +1192,7 @@ deCellColor = na(deCur) or na(deAvg) ? color.new(color.gray, 40) : deCur >= 0 ? 
 //     · 골든(temaLine>demaLine) & cur > avg(현재봉이 더 큼) → 50선 "위" 색과 통일(SR50_ABOVE·30).  · 골든 & cur <= avg → 매수 녹(ltUpColor·30).
 //     · 동일(temaLine==demaLine)·na(크로스 상태 na) → 회색(color.gray·40) fallback. 오버라이드는 cur·avg 모두 유효(pct 유효)일 때만, 아니면 골든 녹·데드 적 기본색.
 //    ▸ 경계(보고): 현재봉%==평균%는 데드는 cur>=avg에 들어가 적, 골든은 cur<=avg에 들어가 녹(기본색).
-//  ▸ 경계·na: pct[t]는 A≈0(|A|>1e-12 가드)·X[t]≤0·close[t]≤0·na면 na. 평균은 5봉 중 na 있으면 na → 값 "-".
+//  ▸ 경계·na: pct[t]는 A≈0(|A|>1e-12 가드)·close[t]≤0·na면 na. X[t]≤0은 na 아님(CEO 정책 — 강추세로 임계가가 음수여도 pct를 그대로 표시=강도, 클램핑 없음). 평균은 유효 봉만 부분평균(아래) → 값 "-"는 유효 봉 0일 때만.
 //     셀색은 크로스 상태(녹/적)를 유지하되, 오버라이드는 cur/avg 모두 유효 시만.
 //  ⚠️ 리페인팅: pct[0]·현재 e1/e2/e3(=ribbonE1/E2/E3, 현재봉 라이브값 포함) 기반의 "현재 시점 추정치"로, 미래참조 아님(과거봉 [1..4] 확정·비리페인팅). 셀 색(temaLine vs demaLine)도 현재봉[0] 포함이라 봉 마감 전 라이브 갱신·봉 마감 시 확정. 표시 전용·매매 신호 아님.
 tdxAlpha = 2.0 / (ribbonLen + 1)
@@ -1205,16 +1205,19 @@ f_crossX(int o) =>
     e3 = ribbonE3[o]
     b = tdxBeta * (tdxBeta * tdxBeta * e1 - (2.0 - tdxAlpha) * e2 + e3)      // B[o] = β·[β²·e1 − (2−α)·e2 + e3]
     (na(e1) or na(e2) or na(e3) or math.abs(tdxA) <= 1e-12) ? na : -b / tdxA
-// offset o의 변화율 pct[o] = (X[o] − close[o]) / close[o] × 100. X≤0·close≤0·na면 na.
+// offset o의 변화율 pct[o] = (X[o] − close[o]) / close[o] × 100. close≤0·na(X na=A≈0/워밍업)면 na.
+//  ▸ CEO 정책(X≤0 가드 제거): 임계가 X≤0(강추세로 골든 임계가가 음수)여도 pct를 클램핑 없이 그대로 계산·반환한다.
+//    이때 pct는 −100% 이하(예 −250%)의 큰 음수가 되며, "크로스가 아득히 멀다=강도"를 표현한다(실제 도달가격이 아니라 강도 파악 목적).
+//    ⚠️ na로 남는 조건은 close≤0(비현실)·na(입력 na=워밍업, 또는 A≈0=상수라 사실상 불발생)뿐 — 정상 데이터에선 항상 값이 나온다. 상하한/클램핑 없음.
 f_crossPct(int o) =>
     x = f_crossX(o)
     c = close[o]
-    (na(x) or x <= 0 or na(c) or c <= 0) ? na : (x - c) / c * 100.0
+    (na(x) or na(c) or c <= 0) ? na : (x - c) / c * 100.0
 // pct 5봉(현재봉[0]~과거[4]) — cur=현재봉%, avg=현재봉 포함 5봉 중 "유효 봉만"의 부분평균.
 //  ▸ 버그 수정(CEO 지적): 기존엔 5봉 중 하나라도 na면 avg 전체를 na로 전파 → 현재봉%가 유효한데도 과거 한 봉(X≤0 등)이 na면
 //    평균(5)이 "-"로 비었다. cur(현재봉%)와 avg(평균%)는 서로 독립이어야 하므로, avg는 유효 봉만 합산·개수로 나눈 부분평균으로 계산한다.
 //    유효 봉이 하나도 없을 때만 avg=na("-"). cur은 종전대로 pct[0](유효하면 값·na면 "-") — 두 값이 서로 영향 주지 않음.
-//  ▸ 각 봉 na 조건(불변): A≈0(상수라 사실상 불발생)·X≤0(강추세로 임계가가 음수=현실 도달 불가)·close≤0·na(워밍업). 역산 수식·pct 정의는 불변.
+//  ▸ 각 봉 na 조건(CEO 정책 — X≤0 가드 제거): A≈0(상수라 사실상 불발생)·close≤0(비현실)·na(워밍업)뿐. X≤0(강추세로 임계가가 음수)은 이제 na 아님 → pct를 큰 음수(예 −250%)로 그대로 계산(클램핑 없음, 강도 표현). 정상 데이터에선 항상 값 → 현재봉 '-'가 사라지고 cur/avg 비대칭 해소. 역산 수식·pct 정의는 불변.
 tdxP0 = f_crossPct(0)
 tdxP1 = f_crossPct(1)
 tdxP2 = f_crossPct(2)
@@ -1254,7 +1257,7 @@ if showStatusTable and barstate.islast
     table.cell(statusTable, 1, 4, slopeArrText, text_color=color.white, bgcolor=slopeArrColor, text_size=size.small, tooltip=slopeArrTooltip)
     // T/D·D/E 이격도 2행(CEO 재설계 — 현재봉 이격도 | 평균(5), 0 기준 편차) — 값=f_dispValText(cur, avg)="{현재봉 이격도} | 평균(5) {5봉 평균}". 셀 색(4-상태, cur=dispX[0] vs 5봉 평균 avg)=양수(cur≥0)&cur≥avg=매수 녹 / 양수&cur<avg=어두운 파랑 / 음수(cur<0)&cur≥avg=어두운 주황 / 음수&cur<avg=매도 적 / cur·avg na=회색(tdCellColor/deCellColor). 기울기 배열 행과 별개 기준(툴팁).
     //  dispTD = (temaLine/demaLine − 1)×100(DEMA 기준), dispDE = (demaLine/emaLine − 1)×100(EMA 기준). 0=일치·양수=벌어짐(무부호)·음수=좁혀짐(−). cur=현재봉[0] 라이브, 평균=[0]~[4] 5봉 산술평균(현재봉 포함). na/분모0/워밍업이면 그 자리 "-".
-    // T/D 크로스 1행(CEO 지시 재배치 — 기울기 배열 바로 아래) — 값=골든 임계 도달 변화율 % 2값(현재봉% | 평균(5) 5봉평균%, 부호 포함), 셀 색=골든 녹·데드 적 + 방향 오버라이드(데드&cur<avg 주황 / 골든&cur>avg 파랑 / 동일·na 회색). pct=(X−close)/close×100, X=−B/A 역산. na면 값 "-".
+    // T/D 크로스 1행(CEO 지시 재배치 — 기울기 배열 바로 아래) — 값=골든 임계 도달 변화율 % 2값(현재봉% | 평균(5) 5봉평균%, 부호 포함), 셀 색=골든 녹·데드 적 + 방향 오버라이드(데드&cur<avg 주황 / 골든&cur>avg 파랑 / 동일·na 회색). pct=(X−close)/close×100, X=−B/A 역산. CEO 정책: X≤0(강추세)도 클램핑 없이 큰 음수로 표시(강도). na는 close≤0·워밍업만.
     table.cell(statusTable, 0, 5, "T/D 크로스", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=tdCrossTooltip)
     table.cell(statusTable, 1, 5, tdxText, text_color=color.white, bgcolor=tdxCellColor, text_size=size.small, tooltip=tdCrossTooltip)
     table.cell(statusTable, 0, 6, "T/D 이격도", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=tdDispTooltip)
