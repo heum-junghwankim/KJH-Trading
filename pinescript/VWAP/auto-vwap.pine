@@ -135,7 +135,7 @@ wprLen = input.int(14, "윌리엄스 %R 길이", group=WPR_GROUP, minval=1, tool
 wprLower = input.int(-80, "%R 하단 밴드", group=WPR_GROUP, tooltip="강세 다이버전스 진입 임계. 직전 봉 %R가 이 값 아래이면 과매도 진입으로 본다. 표준 −80.")
 wprUpper = input.int(-20, "%R 상단 밴드", group=WPR_GROUP, tooltip="약세 다이버전스 진입 임계. 직전 봉 %R가 이 값 위이면 과매수 진입으로 본다. 표준 −20.")
 wprBullColor = input.color(color.rgb(0, 255, 0), title="%R 강세 다이버전스 원 색(매수)", group=WPR_GROUP, active=showWprDiv, tooltip="윌리엄스 %R 강세 다이버전스 원 마커 색. 밝은 순수 녹(rgb(0,255,0)), 봉 아래(belowbar). 확정/과거참조라 리페인팅 없음.")
-wprBearColor = input.color(#FFEB3B, title="%R 약세 다이버전스 원 색(매도)", group=WPR_GROUP, active=showWprDiv, tooltip="윌리엄스 %R 약세 다이버전스 원 마커 색. 노랑(#FFEB3B), 봉 위(abovebar). 확정/과거참조라 리페인팅 없음.")
+wprBearColor = input.color(color.orange, title="%R 약세 다이버전스 원 색(매도)", group=WPR_GROUP, active=showWprDiv, tooltip="윌리엄스 %R 약세 다이버전스 원 마커 색. 주황(color.orange), 봉 위(abovebar). 확정/과거참조라 리페인팅 없음.")
 
 // ── 기울기 정렬 삼각형 마커(CEO 지시 재도입) — 배경 없음(bgFillState==0)일 때만, 기울기 3행(EMA/DEMA/TEMA) 셀 색 순 개수(반대색 상쇄)로 표시. ──
 //  ▸ 녹색 셀 ≥2 → 봉 아래 파랑 삼각형(triangleup·belowbar), 빨간 셀 ≥2 → 봉 위 빨강 역삼각형(triangledown·abovebar). 중복 억제 래치는 반대 방향/배경 출현 시 해제.
@@ -1210,21 +1210,27 @@ f_crossPct(int o) =>
     x = f_crossX(o)
     c = close[o]
     (na(x) or x <= 0 or na(c) or c <= 0) ? na : (x - c) / c * 100.0
-// pct 5봉(현재봉[0]~과거[4]) — cur=현재봉%, avg=현재봉 포함 5봉 산술평균(하나라도 na면 na).
+// pct 5봉(현재봉[0]~과거[4]) — cur=현재봉%, avg=현재봉 포함 5봉 중 "유효 봉만"의 부분평균.
+//  ▸ 버그 수정(CEO 지적): 기존엔 5봉 중 하나라도 na면 avg 전체를 na로 전파 → 현재봉%가 유효한데도 과거 한 봉(X≤0 등)이 na면
+//    평균(5)이 "-"로 비었다. cur(현재봉%)와 avg(평균%)는 서로 독립이어야 하므로, avg는 유효 봉만 합산·개수로 나눈 부분평균으로 계산한다.
+//    유효 봉이 하나도 없을 때만 avg=na("-"). cur은 종전대로 pct[0](유효하면 값·na면 "-") — 두 값이 서로 영향 주지 않음.
+//  ▸ 각 봉 na 조건(불변): A≈0(상수라 사실상 불발생)·X≤0(강추세로 임계가가 음수=현실 도달 불가)·close≤0·na(워밍업). 역산 수식·pct 정의는 불변.
 tdxP0 = f_crossPct(0)
 tdxP1 = f_crossPct(1)
 tdxP2 = f_crossPct(2)
 tdxP3 = f_crossPct(3)
 tdxP4 = f_crossPct(4)
 tdxCur = tdxP0
-tdxAvg = (na(tdxP0) or na(tdxP1) or na(tdxP2) or na(tdxP3) or na(tdxP4)) ? na : (tdxP0 + tdxP1 + tdxP2 + tdxP3 + tdxP4) / 5
+tdxSum = (na(tdxP0) ? 0.0 : tdxP0) + (na(tdxP1) ? 0.0 : tdxP1) + (na(tdxP2) ? 0.0 : tdxP2) + (na(tdxP3) ? 0.0 : tdxP3) + (na(tdxP4) ? 0.0 : tdxP4)
+tdxCnt = (na(tdxP0) ? 0 : 1) + (na(tdxP1) ? 0 : 1) + (na(tdxP2) ? 0 : 1) + (na(tdxP3) ? 0 : 1) + (na(tdxP4) ? 0 : 1)
+tdxAvg = tdxCnt == 0 ? na : tdxSum / tdxCnt
 // 현재 크로스 상태(골든/데드) — 셀 색 기본 판정. temaLine==demaLine·na는 회색.
 tdxGold = not na(temaLine) and not na(demaLine) and temaLine > demaLine
 tdxDead = not na(temaLine) and not na(demaLine) and temaLine < demaLine
 // 방향 오버라이드는 cur·avg 모두 유효(pct 유효)일 때만. 그 외엔 골든 녹·데드 적 기본색.
 tdxOvr = not na(tdxCur) and not na(tdxAvg)
 tdxCellColor = tdxDead ? (tdxOvr and tdxCur < tdxAvg ? color.new(SR50_BELOW, 30) : color.new(ltDownColor, 30)) : tdxGold ? (tdxOvr and tdxCur > tdxAvg ? color.new(SR50_ABOVE, 30) : color.new(ltUpColor, 30)) : color.new(color.gray, 40)
-// 값 텍스트 — "{현재봉%} | 평균(5) {평균%}"(부호 포함·소수1자리·%). 각 값 na면 "-".
+// 값 텍스트 — "{현재봉%} | 평균(5) {평균%}"(부호 포함·소수1자리·%). 각 값 na면 그 자리만 "-"(cur/avg 독립 — 한쪽 na가 다른 쪽을 비우지 않음).
 tdxText = f_pctSignedStr(tdxCur) + " | 평균(5) " + f_pctSignedStr(tdxAvg)
 
 // ── 상태 테이블 렌더링(우측 상단) — 선행 추세 확인 / 후행 추세 확인 / 변동성 확인 / 지지·저항 ────────────────
