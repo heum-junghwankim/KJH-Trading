@@ -743,11 +743,16 @@ triNetLower  = math.max(0.0, triLowerWick - triUpperWick)   // 순 아래 꼬리
 triNotDoji   = triBody >= syminfo.mintick   // 도지 가드: 몸통 0(도지)이면 필터 미적용
 blueWickBlock = showWickFilter and triNotDoji and triNetUpper > triBody
 redWickBlock  = showWickFilter and triNotDoji and triNetLower > triBody
+// [CEO 지시] 비정상 캔들 억제 — 비정상 매수 상태(abnCandleState==-1, 붉은 캔들)면 파랑 삼각형 억제, 비정상 매도 상태(abnCandleState==1, 하늘색 캔들)면 빨강 역삼각형 억제.
+//  ▸ 방향-부호 매핑(코드 근거): 379행 abnCandleState 정의(1=비정상 매도, -1=비정상 매수), 396/402행 세팅, 431행 색(abnBuyBgColor=붉은=매수, abnSellBgColor=하늘색=매도). 파랑↔매수억제·빨강↔매도억제로 정합.
+//  ▸ abnCandleState는 확정봉 갱신 래치이나 현재봉은 abnBullCandle/abnBearCandle 라이브 판정과 함께 실시간 반영(기존 barcolor와 동일 거동) — 삼각형도 라이브라 정합. 미래참조 없음.
+abnBuySuppress  = abnCandleState == -1   // 비정상 매수(과매수·붉은 캔들) → 파랑 삼각형 억제
+abnSellSuppress = abnCandleState == 1    // 비정상 매도(과매도·하늘색 캔들) → 빨강 역삼각형 억제
 // 래치 var(직전 확정봉까지의 값 — 오염 방지). 표시식은 라이브 raw and not latched, 여기에 꼬리 억제 AND.
 var bool blueLatched = false
 var bool redLatched  = false
-blueShow = blueRaw and not blueLatched and not blueWickBlock   // 파랑: 미래치(정상)·불리한 윗꼬리 아니면 표시
-redShow  = redRaw  and not redLatched  and not redWickBlock    // 빨강: 미래치·불리한 아랫꼬리 아니면 표시
+blueShow = blueRaw and not blueLatched and not blueWickBlock and not abnBuySuppress    // 파랑: 미래치(정상)·불리한 윗꼬리·비정상 매수 아니면 표시
+redShow  = redRaw  and not redLatched  and not redWickBlock  and not abnSellSuppress   // 빨강: 미래치·불리한 아랫꼬리·비정상 매도 아니면 표시
 // 리셋 조건(CEO 명세 1:1) — 표시식(blueShow/redShow) 확정 후 평가(순환 해소). 반대 방향 삼각형 출현 or 배경 칠해짐 → 해당 방향 래치 해제.
 resetBlue = redShow or (bgFillState != 0)   // 빨강 역삼각형 or 배경 → 파랑 래치 해제
 resetRed  = blueShow or (bgFillState != 0)  // 파랑 삼각형 or 배경 → 빨강 래치 해제
