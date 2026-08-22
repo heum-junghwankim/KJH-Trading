@@ -901,21 +901,27 @@ ltDeadBand = not na(ltAtrTable) ? ltAtrTable * ltFlatTol : 0.0
 //  ▸ 소스: 각 행(EMA/DEMA/TEMA)의 로그 slope 3종(ㄱ 2점·ㄴ 3점 OLS·ㄷ 5점 OLS). 위 리본 블록에서 이미 계산됨(emaSlA/B/C, demaSlA/B/C, temaSlA/B/C). ln(line) 기준·1/3/5 상수 고정.
 //  ▸ 값 표시(CEO 지시 — ㄱ | ㄴ | ㄷ 순): %/봉 스케일(×100), 부호+소수2자리+"%"(예 `+1.00 | +0.70 | +0.50`). na는 "-", 구분자 " | ". (표시=2자리 반올림 — CEO 지시로 판정과 자릿수 일치, 앞서 1자리였던 것을 되돌림)
 //  ▸ 셀 배경색(위 리본 블록 판정 재사용): 각 slope를 %(×100) 소수2자리 반올림한 값으로 서열 비교. green=pctR2(ㄱ)>pctR2(ㄴ)>pctR2(ㄷ) → 녹(ltUpColor·30), red=pctR2(ㄱ)<pctR2(ㄴ)<pctR2(ㄷ) → 적(ltDownColor·30), 하나라도 na 또는 2자리 반올림 후 동률(부등호 불성립) → 회색(중립). 데드존 없음(2자리 반올림 부등호).
+//  ▸ 셀 색 수준(level) 보정(CEO 지시 — **서열=방향 가속, 채도=수준 부호**): 서열(ㄱ/ㄴ/ㄷ 부등호)이 "가속 방향"을, 채도가 "현재 수준의 부호"를 나타낸다. 녹(ㄱ>ㄴ>ㄷ)인데 ㄱ·ㄴ이 **모두 음수**면 아직 하락권에서의 감속일 뿐이므로 저채도 녹 SR50_ABOVE, 적(ㄱ<ㄴ<ㄷ)인데 ㄱ·ㄴ이 **모두 양수**면 상승권에서의 감속이므로 저채도 적 SR50_BELOW(둘 다 transp 30 유지). 그 외는 원색(ltUpColor/ltDownColor) 유지, 중립·na는 회색 40. 부호 판정은 표시값 불일치 방지를 위해 f_pctR2(2자리 반올림) 기준(0.00은 음수도 양수도 아님 → 원색).
 //  ▸ ⚠️ 리페인팅(CEO 명시): slope에 line[0](현재봉)이 포함되어 값·셀색이 라이브 봉 동안 갱신되고 봉 마감 시 확정된다. 미래참조 없음(line[0..4]만). 워밍업(line[3]/[4] na 등)엔 해당 slope na → 셀 회색·해당 값 "-".
 // %/봉 텍스트: 로그수익률×100. 부호(+/−)+소수2자리+"%". na → "-". (표시 전용 2자리 반올림 — 셀 색 판정 f_pctR2(2자리 반올림)와 표시 자릿수가 이제 일치. 앞서 "표시 1자리·판정 2자리"였던 것을 CEO 지시로 표시도 2자리로 되돌림. 이격도용 f_pctStr(942행)과 이름 충돌 방지 위해 slope 전용 별도 명명)
 //  ▸ 1행(TEMA ㄱ|ㄴ|ㄷ)~3행·4행(기울기 배열) 모든 slope 표시가 이 헬퍼를 공유하므로 여기 포맷 한 곳만 2자리로 바꾸면 1~4행이 일괄 2자리가 된다.
 f_slopePctStr(float s) => na(s) ? "-" : (s >= 0 ? "+" : "") + str.tostring(s * 100.0, "0.00") + "%"
 // 3값 표시(ㄱ | ㄴ | ㄷ 순). 각 값 부호+소수2자리+"%", 구분자 " | ".
 f_logSlope3Text(float sA, float sB, float sC) => f_slopePctStr(sA) + " | " + f_slopePctStr(sB) + " | " + f_slopePctStr(sC)
-// 셀 배경색: green→녹·red→적·else→회색(위 f_logGreen/f_logRed 판정 재사용).
-f_logSlope3Color(bool isGreen, bool isRed) => isGreen ? color.new(ltUpColor, 30) : isRed ? color.new(ltDownColor, 30) : color.new(color.gray, 40)
+// 셀 배경색: green→녹·red→적·else→회색(위 f_logGreen/f_logRed 판정 재사용) + 수준 보정(ㄱ·ㄴ 부호로 채도만 조절, 서열 판정 자체는 불변).
+//  ▸ bothNeg(녹 + pctR2(ㄱ)<0 and pctR2(ㄴ)<0) → SR50_ABOVE(저채도 녹, 하락권 감속). bothPos(적 + pctR2(ㄱ)>0 and pctR2(ㄴ)>0) → SR50_BELOW(저채도 적, 상승권 감속). transp는 3행 톤(30) 유지 — T/D 크로스·이격도 행 4-상태 색과 톤 정합.
+//  ▸ na 가드: isGreen/isRed 자체가 f_logGreen/f_logRed로 sA·sB·sC not-na를 이미 보장하지만, 부호 판정에도 명시적 not na(...) 가드를 둬 na 전파를 차단한다(na면 보정 없음=원색).
+f_logSlope3Color(bool isGreen, bool isRed, float sA, float sB) =>
+    bool bothNeg = not na(sA) and not na(sB) and f_pctR2(sA) < 0 and f_pctR2(sB) < 0
+    bool bothPos = not na(sA) and not na(sB) and f_pctR2(sA) > 0 and f_pctR2(sB) > 0
+    isGreen ? color.new(bothNeg ? SR50_ABOVE : ltUpColor, 30) : isRed ? color.new(bothPos ? SR50_BELOW : ltDownColor, 30) : color.new(color.gray, 40)
 
 emaAngleText  = f_logSlope3Text(emaSlA,  emaSlB,  emaSlC)
 demaAngleText = f_logSlope3Text(demaSlA, demaSlB, demaSlC)
 temaAngleText = f_logSlope3Text(temaSlA, temaSlB, temaSlC)
-emaAngleColor  = f_logSlope3Color(emaLogGreen,  emaLogRed)
-demaAngleColor = f_logSlope3Color(demaLogGreen, demaLogRed)
-temaAngleColor = f_logSlope3Color(temaLogGreen, temaLogRed)
+emaAngleColor  = f_logSlope3Color(emaLogGreen,  emaLogRed,  emaSlA,  emaSlB)
+demaAngleColor = f_logSlope3Color(demaLogGreen, demaLogRed, demaSlA, demaSlB)
+temaAngleColor = f_logSlope3Color(temaLogGreen, temaLogRed, temaSlA, temaSlB)
 // ── 기울기 배열 행(4번째 기울기 행) — 표시 전용(CEO 지시) ──────────────────────────
 //  ▸ 값: 각 이평선의 ㄱ(1봉 로그 기울기 slopeA)을 TEMA | DEMA | EMA 순으로 나란히(f_slopePctStr 2자리 재사용).
 //  ▸ 셀 배경색: 밴드 배경 판정(bgFillState, 필터 4옵션+셀 컨플루언스 반영된 최종 배경 상태)과 일치.
@@ -1245,7 +1251,7 @@ if showStatusTable and barstate.islast
     table.cell(statusTable, 0, 0, "선행 추세 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.cell(statusTable, 1, 0, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.merge_cells(statusTable, 0, 0, 1, 0)
-    // TEMA/DEMA/EMA 로그 기울기 3행(CEO 지시로 순서 반전: 1행 TEMA→2행 DEMA→3행 EMA) — ㄱ | ㄴ | ㄷ 순(%/봉). 셀색=로그 slope 서열(ㄱ>ㄴ>ㄷ 녹 / ㄱ<ㄴ<ㄷ 적 / na·그 외 회색). ⚠️ ㄱ이 현재봉[0] 포함이라 값·셀색 라이브 봉 갱신(봉 마감 확정, 미래참조 없음).
+    // TEMA/DEMA/EMA 로그 기울기 3행(CEO 지시로 순서 반전: 1행 TEMA→2행 DEMA→3행 EMA) — ㄱ | ㄴ | ㄷ 순(%/봉). 셀색=로그 slope 서열(ㄱ>ㄴ>ㄷ 녹 / ㄱ<ㄴ<ㄷ 적 / na·그 외 회색) + 수준 보정(녹인데 ㄱ·ㄴ 모두 음수→저채도 녹 SR50_ABOVE / 적인데 ㄱ·ㄴ 모두 양수→저채도 적 SR50_BELOW, transp 30 동일). ⚠️ ㄱ이 현재봉[0] 포함이라 값·셀색 라이브 봉 갱신(봉 마감 확정, 미래참조 없음).
     table.cell(statusTable, 0, 1, "TEMA 기울기", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=slopeTemaTooltip)
     table.cell(statusTable, 1, 1, temaAngleText, text_color=color.white, bgcolor=temaAngleColor, text_size=size.small, tooltip=slopeTemaTooltip)
     table.cell(statusTable, 0, 2, "DEMA 기울기", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=slopeDemaTooltip)
