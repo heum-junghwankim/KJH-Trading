@@ -144,6 +144,10 @@ showAlignTri = input.bool(true, "기울기 정렬 삼각형 표시", group=TRI_G
 alignTriUpColor = input.color(#1565C0, title="기울기 정렬 삼각형 색(상승·순녹셀≥2)", group=TRI_GROUP, active=showAlignTri, tooltip="순 녹셀(녹셀−적셀) 2개 이상일 때 봉 아래 삼각형(△) 색. 기본 파랑 #1565C0. %R 강세 원(녹)·정배열 배경(녹)·비정상 캔들과 구분되게 파랑 계열.")
 alignTriDnColor = input.color(#C62828, title="기울기 정렬 삼각형 색(하락·순적셀≥2)", group=TRI_GROUP, active=showAlignTri, tooltip="순 적셀(적셀−녹셀) 2개 이상일 때 봉 위 역삼각형(▽) 색. 기본 빨강 #C62828. %R 약세 원(노랑)과 위치·색으로 구분.")
 showWickFilter = input.bool(true, title="삼각형 꼬리 필터", group=TRI_GROUP, active=showAlignTri, tooltip="불리한 꼬리가 있는 봉의 정렬 삼각형을 억제합니다. 위/아래 꼬리 상쇄(순 꼬리): 양쪽 꼬리가 함께 달린 봉은 두 꼬리를 상쇄해 순 방향 꼬리 하나로 판정한 뒤 몸통과 비교합니다(예: 윗꼬리 1·아랫꼬리 0.5 → 순 위 꼬리 0.5). 파랑(상승·봉 아래)은 순 위 꼬리(윗꼬리−아랫꼬리, 0 하한)가 몸통(|close−open|)보다 크면 억제, 빨강(하락·봉 위)은 순 아래 꼬리(아랫꼬리−윗꼬리, 0 하한)가 몸통보다 크면 억제(대칭). 도지 가드: 몸통이 1틱(syminfo.mintick) 미만이면 필터 미적용(억제 안 함). 계수 없이 순 꼬리>몸통 그대로 판정 — 튜닝 대상 아님(수치 파라미터 미노출). ⚠️ 현재봉[0] 꼬리는 봉 마감 전 변동하므로 삼각형이 라이브로 깜빡일 수 있고 확정봉 기준으로 신뢰(셀 색·%R 원과 동일 특성). 표시 가독성 필터, 매매 신호 아님. 기본 ON. OFF면 기존 삼각형 동작(필터 미적용).")
+// [CEO 지시] 삼각형 T/D 크로스 필터 — 상태 테이블 "T/D 크로스" 셀이 원색(고채도)일 때 반대 방향 삼각형을 억제.
+//  ▸ 억제 대상은 원색 적(tdxFullRed) / 원색 녹(tdxFullGreen)뿐. 저채도(SR50_BELOW/SR50_ABOVE)·회색(na/중립)은 억제하지 않는다.
+//  ▸ 꼬리 필터(showWickFilter)와 동일 그룹·동일 네이밍(show…Filter)·동일 기본값(true). OFF면 억제 bool이 false → 기존 동작(회귀 0).
+showTdxFilter = input.bool(true, title="삼각형 T/D 크로스 필터", group=TRI_GROUP, active=showAlignTri, tooltip="상태 테이블 'T/D 크로스' 셀 색이 원색(고채도)일 때 그 반대 방향 삼각형을 억제합니다. 파랑 삼각형(△)은 T/D 크로스 셀이 원색 빨강(데드 크로스 + 현재봉%가 평균% 이상 = 크로스 압력이 완화되지 않는 하락 국면)일 때 억제하고, 빨강 역삼각형(▽)은 셀이 원색 녹(골든 크로스 + 현재봉%가 평균% 이하 = 상승 국면)일 때 억제합니다. ⚠️ 둔탁한(저채도) 빨강·녹 셀과 회색(na·중립) 셀은 억제하지 않습니다 — 저채도는 이미 방향이 꺾이는 중이라는 신호이므로 반대 방향 삼각형을 살려 둡니다. 셀 색 판정과 동일한 bool(tdxFullRed/tdxFullGreen)을 재사용하므로 화면의 셀 색과 억제가 항상 일치합니다. 기본 ON. OFF면 기존 삼각형 동작(필터 미적용). 표시 가독성 필터, 매매 신호 아님.")
 
 // ⚠️ cRSI 삼각형 필터 그룹(useCrsiTriFilter·crsiDomCycle·crsiNarrowThreshold·triLookback)은 CEO 지시로 전환 후보 삼각형과 함께 전면 제거됨.
 //    (비정상 캔들의 abnCrsi는 이와 무관한 독립 지표로 그대로 유지된다.)
@@ -717,6 +721,75 @@ plotshape(showWprDiv and bullWprDiv, title="%R 강세 다이버전스(매수)", 
 plotshape(showWprDiv and bearWprDiv, title="%R 약세 다이버전스(매도)", style=shape.circle, location=location.abovebar, color=color.new(wprBearColor, 0), size=size.tiny, offset=0)
 
 // =========================================================================================
+// [T/D 크로스 4-상태 판정 — SSOT(Single Source Of Truth)]
+//  ⚠️ 위치 사유(선언 순서): 이 블록은 원래 상태 테이블 "T/D 크로스 행" 부근(파일 후반)에 있었으나,
+//     아래 "기울기 정렬 삼각형" 블록의 T/D 크로스 필터가 이 판정 bool을 참조하므로 삼각형 렌더보다 위로 옮겼다.
+//     Pine은 선언 순서가 곧 스코프다 — 참조자보다 아래에서 선언되면 컴파일 에러.
+//  ⚠️ 이동에 따른 값 변화 없음: 이 블록은 ribbonLen(input)·ribbonE1/E2/E3(449~451행)·temaLine/demaLine(453~454행)·close 만
+//     참조하는 순수 계산이며, 모두 이 지점보다 위에서 선언된다. 내부에 var/varip·ta.* 상태 함수가 없고
+//     과거참조([o])만 쓰므로 호출 위치가 바뀌어도 봉별 결과가 동일하다(재계산·요청 호출 추가 없음).
+//  ▸ 이 블록이 산출하는 4-상태(테이블 셀 색과 삼각형 억제가 공유하는 단일 진실 공급원):
+//     ① tdxDimRed   = 데드 & (cur<avg, 둘 다 유효) → 저채도 적 SR50_BELOW  … 데드 압력이 완화되는 중 → 삼각형 억제 안 함
+//     ② tdxFullRed  = 데드 & 그 외                 → 원색 적 ltDownColor    … 파랑 삼각형(△) 억제
+//     ③ tdxDimGreen = 골든 & (cur>avg, 둘 다 유효) → 저채도 녹 SR50_ABOVE  … 골든이 되돌려지는 중 → 삼각형 억제 안 함
+//     ④ tdxFullGreen= 골든 & 그 외                 → 원색 녹 ltUpColor      … 빨강 역삼각형(▽) 억제
+//     ⑤ 위 넷 모두 false(temaLine==demaLine·na)   → 회색 gray·40           … 억제 안 함
+//     tdxDead/tdxGold는 상호배타(temaLine<demaLine / >demaLine)이고 각 내부도 이분이라 ①~⑤는 완전·배타 분할이다.
+//  ⚠️ 색 결정은 여전히 SR50_*/ltUp/ltDown 색 상수가 선언된 뒤(파일 후반 tdxCellColor)에서만 하고,
+//     이 블록은 "판정 bool"만 만든다 — 색 상수를 앞으로 끌어오지 않으므로 색 관련 회귀 위험이 없다.
+//  ⚠️ tdxGold/tdxDead/tdxOvr/tdxCur/tdxAvg의 산식·na 처리는 이동 전과 100% 동일(한 글자도 바꾸지 않음).
+// =========================================================================================
+tdxAlpha = 2.0 / (ribbonLen + 1)
+tdxBeta  = 1.0 - tdxAlpha
+tdxA = tdxAlpha * tdxBeta * tdxBeta                                          // A = α·β² (상수 — 리본 길이만 의존)
+// offset o에서 골든 임계가격 X[o] 역산. e1/e2/e3=ribbonE1/E2/E3[o], B[o]=β·[β²·e1 − (2−α)·e2 + e3], X=−B/A. na/A≈0면 na.
+f_crossX(int o) =>
+    e1 = ribbonE1[o]
+    e2 = ribbonE2[o]
+    e3 = ribbonE3[o]
+    b = tdxBeta * (tdxBeta * tdxBeta * e1 - (2.0 - tdxAlpha) * e2 + e3)      // B[o] = β·[β²·e1 − (2−α)·e2 + e3]
+    (na(e1) or na(e2) or na(e3) or math.abs(tdxA) <= 1e-12) ? na : -b / tdxA
+// offset o의 변화율 pct[o] = (X[o] − close[o]) / close[o] × 100. close≤0·na(X na=A≈0/워밍업)면 na.
+//  ▸ CEO 정책(X≤0 가드 제거): 임계가 X≤0(강추세로 골든 임계가가 음수)여도 pct를 클램핑 없이 그대로 계산·반환한다.
+//    이때 pct는 −100% 이하(예 −250%)의 큰 음수가 되며, "크로스가 아득히 멀다=강도"를 표현한다(실제 도달가격이 아니라 강도 파악 목적).
+//    ⚠️ na로 남는 조건은 close≤0(비현실)·na(입력 na=워밍업, 또는 A≈0=상수라 사실상 불발생)뿐 — 정상 데이터에선 항상 값이 나온다. 상하한/클램핑 없음.
+f_crossPct(int o) =>
+    x = f_crossX(o)
+    c = close[o]
+    (na(x) or na(c) or c <= 0) ? na : (x - c) / c * 100.0
+// pct 5봉(현재봉[0]~과거[4]) — cur=현재봉%, avg=현재봉 포함 5봉 중 "유효 봉만"의 부분평균.
+//  ▸ 버그 수정(CEO 지적): 기존엔 5봉 중 하나라도 na면 avg 전체를 na로 전파 → 현재봉%가 유효한데도 과거 한 봉(X≤0 등)이 na면
+//    평균(5)이 "-"로 비었다. cur(현재봉%)와 avg(평균%)는 서로 독립이어야 하므로, avg는 유효 봉만 합산·개수로 나눈 부분평균으로 계산한다.
+//    유효 봉이 하나도 없을 때만 avg=na("-"). cur은 종전대로 pct[0](유효하면 값·na면 "-") — 두 값이 서로 영향 주지 않음.
+//  ▸ 각 봉 na 조건(CEO 정책 — X≤0 가드 제거): A≈0(상수라 사실상 불발생)·close≤0(비현실)·na(워밍업)뿐. X≤0(강추세로 임계가가 음수)은 이제 na 아님 → pct를 큰 음수(예 −250%)로 그대로 계산(클램핑 없음, 강도 표현). 정상 데이터에선 항상 값 → 현재봉 '-'가 사라지고 cur/avg 비대칭 해소. 역산 수식·pct 정의는 불변.
+tdxP0 = f_crossPct(0)
+tdxP1 = f_crossPct(1)
+tdxP2 = f_crossPct(2)
+tdxP3 = f_crossPct(3)
+tdxP4 = f_crossPct(4)
+tdxCur = tdxP0
+tdxSum = (na(tdxP0) ? 0.0 : tdxP0) + (na(tdxP1) ? 0.0 : tdxP1) + (na(tdxP2) ? 0.0 : tdxP2) + (na(tdxP3) ? 0.0 : tdxP3) + (na(tdxP4) ? 0.0 : tdxP4)
+tdxCnt = (na(tdxP0) ? 0 : 1) + (na(tdxP1) ? 0 : 1) + (na(tdxP2) ? 0 : 1) + (na(tdxP3) ? 0 : 1) + (na(tdxP4) ? 0 : 1)
+tdxAvg = tdxCnt == 0 ? na : tdxSum / tdxCnt
+// 현재 크로스 상태(골든/데드) — 셀 색 기본 판정. temaLine==demaLine·na는 회색.
+tdxGold = not na(temaLine) and not na(demaLine) and temaLine > demaLine
+tdxDead = not na(temaLine) and not na(demaLine) and temaLine < demaLine
+// 방향 오버라이드는 cur·avg 모두 유효(pct 유효)일 때만. 그 외엔 골든 녹·데드 적 기본색.
+tdxOvr = not na(tdxCur) and not na(tdxAvg)
+// ── 4-상태 판정 bool(SSOT) — 셀 색(tdxCellColor)과 삼각형 T/D 크로스 필터가 **둘 다 이것만** 소비한다. ──
+//  종전 중첩 삼항식 `tdxDead ? (A ? DIM_R : FULL_R) : tdxGold ? (B ? DIM_G : FULL_G) : GRAY`
+//  (A = tdxOvr and tdxCur < tdxAvg, B = tdxOvr and tdxCur > tdxAvg)와의 동치 증명:
+//   · tdxDead=true  → DimRed=A, FullRed=not A, DimGreen=FullGreen=false → A면 DIM_R·아니면 FULL_R (종전과 동일)
+//   · tdxGold=true  → DimRed=FullRed=false, DimGreen=B, FullGreen=not B → B면 DIM_G·아니면 FULL_G (종전과 동일)
+//   · 둘 다 false   → 넷 모두 false → GRAY (종전과 동일)
+//  ⚠️ 경계값 유지: cur==avg는 데드에서 tdxDimRed=false → 원색 적(FullRed), 골든에서 tdxDimGreen=false → 원색 녹(FullGreen).
+//     tdxOvr=false(cur/avg 중 하나라도 na)도 Dim이 false가 되어 원색으로 떨어진다 — 종전 fallback과 동일.
+tdxDimRed    = tdxDead and tdxOvr and tdxCur < tdxAvg   // 저채도 적(SR50_BELOW) — 데드 압력 완화 중
+tdxFullRed   = tdxDead and not (tdxOvr and tdxCur < tdxAvg)   // 원색 적(ltDownColor) — 파랑 삼각형 억제 대상
+tdxDimGreen  = tdxGold and tdxOvr and tdxCur > tdxAvg   // 저채도 녹(SR50_ABOVE) — 골든 되돌림 중
+tdxFullGreen = tdxGold and not (tdxOvr and tdxCur > tdxAvg)   // 원색 녹(ltUpColor) — 빨강 역삼각형 억제 대상
+
+// =========================================================================================
 // [CEO 지시] 기울기 정렬 삼각형 마커 — 배경 없음(bgFillState==0)일 때만, 기울기 3행 셀 색 순 개수(반대색 상쇄) ≥2로 표시.
 //  ▸ 조건(CEO 명세·순 개수 상쇄): noBg = bgFillState==0. greenCnt = (emaLogGreen)+(demaLogGreen)+(temaLogGreen), redCnt = 적색 3셀 개수(478~483행 셀 색 bool 재사용, 새 판정 파라미터 없음).
 //     blueRaw = noBg and (greenCnt-redCnt)>=2 → 봉 아래 파랑 삼각형(triangleup·belowbar). redRaw = noBg and (redCnt-greenCnt)>=2 → 봉 위 빨강 역삼각형(triangledown·abovebar).
@@ -748,11 +821,22 @@ redWickBlock  = showWickFilter and triNotDoji and triNetLower > triBody
 //  ▸ abnCandleState는 확정봉 갱신 래치이나 현재봉은 abnBullCandle/abnBearCandle 라이브 판정과 함께 실시간 반영(기존 barcolor와 동일 거동) — 삼각형도 라이브라 정합. 미래참조 없음.
 abnBuySuppress  = abnCandleState == -1   // 비정상 매수(과매수·붉은 캔들) → 파랑 삼각형 억제
 abnSellSuppress = abnCandleState == 1    // 비정상 매도(과매도·하늘색 캔들) → 빨강 역삼각형 억제
+// [CEO 지시] T/D 크로스 필터 — 상태 테이블 "T/D 크로스" 셀이 **원색(고채도)** 일 때 그 반대 방향 삼각형을 억제.
+//  ▸ 파랑 삼각형(△) 억제 = 셀이 원색 적(tdxFullRed). 빨강 역삼각형(▽) 억제 = 셀이 원색 녹(tdxFullGreen).
+//  ▸ ⚠️ 억제 "제외"(그대로 표시): 저채도 적 SR50_BELOW(tdxDimRed)·저채도 녹 SR50_ABOVE(tdxDimGreen)·회색(na/중립).
+//     저채도는 크로스 압력이 완화/되돌려지는 중이라는 뜻이므로 반대 방향 정렬 삼각형을 살려 둔다(CEO 명세).
+//  ▸ 판정 근거의 SSOT: 색을 파싱하지 않고, 셀 색(tdxCellColor)이 소비하는 것과 **완전히 동일한 bool**
+//     (위 "T/D 크로스 4-상태 판정" 블록의 tdxFullRed/tdxFullGreen)을 재사용한다 → 화면 셀 색과 억제가 구조적으로 갈라질 수 없다.
+//  ▸ 라이브 특성: tdxFullRed/Green은 temaLine/demaLine·pct[0](현재봉 포함)에 의존해 봉 마감 전 갱신된다 —
+//     셀 색·꼬리 필터·비정상 억제와 동일한 라이브 특성이며 미래참조는 없다(과거봉 [1..4]는 확정값).
+//  ▸ 토글 OFF(showTdxFilter==false) → 억제 bool이 false → not false=true → 기존 삼각형 동작(회귀 0).
+tdxBlueSuppress = showTdxFilter and tdxFullRed    // 원색 적 셀 → 파랑 삼각형 억제
+tdxRedSuppress  = showTdxFilter and tdxFullGreen  // 원색 녹 셀 → 빨강 역삼각형 억제
 // 래치 var(직전 확정봉까지의 값 — 오염 방지). 표시식은 라이브 raw and not latched, 여기에 꼬리 억제 AND.
 var bool blueLatched = false
 var bool redLatched  = false
-blueShow = blueRaw and not blueLatched and not blueWickBlock and not abnBuySuppress    // 파랑: 미래치(정상)·불리한 윗꼬리·비정상 매수 아니면 표시
-redShow  = redRaw  and not redLatched  and not redWickBlock  and not abnSellSuppress   // 빨강: 미래치·불리한 아랫꼬리·비정상 매도 아니면 표시
+blueShow = blueRaw and not blueLatched and not blueWickBlock and not abnBuySuppress and not tdxBlueSuppress    // 파랑: 미래치(정상)·불리한 윗꼬리·비정상 매수·원색 적 T/D 셀 아니면 표시
+redShow  = redRaw  and not redLatched  and not redWickBlock  and not abnSellSuppress and not tdxRedSuppress    // 빨강: 미래치·불리한 아랫꼬리·비정상 매도·원색 녹 T/D 셀 아니면 표시
 // 리셋 조건(CEO 명세 1:1) — 표시식(blueShow/redShow) 확정 후 평가(순환 해소). 반대 방향 삼각형 출현 or 배경 칠해짐 → 해당 방향 래치 해제.
 resetBlue = redShow or (bgFillState != 0)   // 빨강 역삼각형 or 배경 → 파랑 래치 해제
 resetRed  = blueShow or (bgFillState != 0)  // 파랑 삼각형 or 배경 → 빨강 래치 해제
@@ -1202,44 +1286,14 @@ deCellColor = na(deCur) or na(deAvg) ? color.new(color.gray, 40) : deCur >= 0 ? 
 //  ▸ 경계·na: pct[t]는 A≈0(|A|>1e-12 가드)·close[t]≤0·na면 na. X[t]≤0은 na 아님(CEO 정책 — 강추세로 임계가가 음수여도 pct를 그대로 표시=강도, 클램핑 없음). 평균은 유효 봉만 부분평균(아래) → 값 "-"는 유효 봉 0일 때만.
 //     셀색은 크로스 상태(녹/적)를 유지하되, 오버라이드는 cur/avg 모두 유효 시만.
 //  ⚠️ 리페인팅: pct[0]·현재 e1/e2/e3(=ribbonE1/E2/E3, 현재봉 라이브값 포함) 기반의 "현재 시점 추정치"로, 미래참조 아님(과거봉 [1..4] 확정·비리페인팅). 셀 색(temaLine vs demaLine)도 현재봉[0] 포함이라 봉 마감 전 라이브 갱신·봉 마감 시 확정. 표시 전용·매매 신호 아님.
-tdxAlpha = 2.0 / (ribbonLen + 1)
-tdxBeta  = 1.0 - tdxAlpha
-tdxA = tdxAlpha * tdxBeta * tdxBeta                                          // A = α·β² (상수 — 리본 길이만 의존)
-// offset o에서 골든 임계가격 X[o] 역산. e1/e2/e3=ribbonE1/E2/E3[o], B[o]=β·[β²·e1 − (2−α)·e2 + e3], X=−B/A. na/A≈0면 na.
-f_crossX(int o) =>
-    e1 = ribbonE1[o]
-    e2 = ribbonE2[o]
-    e3 = ribbonE3[o]
-    b = tdxBeta * (tdxBeta * tdxBeta * e1 - (2.0 - tdxAlpha) * e2 + e3)      // B[o] = β·[β²·e1 − (2−α)·e2 + e3]
-    (na(e1) or na(e2) or na(e3) or math.abs(tdxA) <= 1e-12) ? na : -b / tdxA
-// offset o의 변화율 pct[o] = (X[o] − close[o]) / close[o] × 100. close≤0·na(X na=A≈0/워밍업)면 na.
-//  ▸ CEO 정책(X≤0 가드 제거): 임계가 X≤0(강추세로 골든 임계가가 음수)여도 pct를 클램핑 없이 그대로 계산·반환한다.
-//    이때 pct는 −100% 이하(예 −250%)의 큰 음수가 되며, "크로스가 아득히 멀다=강도"를 표현한다(실제 도달가격이 아니라 강도 파악 목적).
-//    ⚠️ na로 남는 조건은 close≤0(비현실)·na(입력 na=워밍업, 또는 A≈0=상수라 사실상 불발생)뿐 — 정상 데이터에선 항상 값이 나온다. 상하한/클램핑 없음.
-f_crossPct(int o) =>
-    x = f_crossX(o)
-    c = close[o]
-    (na(x) or na(c) or c <= 0) ? na : (x - c) / c * 100.0
-// pct 5봉(현재봉[0]~과거[4]) — cur=현재봉%, avg=현재봉 포함 5봉 중 "유효 봉만"의 부분평균.
-//  ▸ 버그 수정(CEO 지적): 기존엔 5봉 중 하나라도 na면 avg 전체를 na로 전파 → 현재봉%가 유효한데도 과거 한 봉(X≤0 등)이 na면
-//    평균(5)이 "-"로 비었다. cur(현재봉%)와 avg(평균%)는 서로 독립이어야 하므로, avg는 유효 봉만 합산·개수로 나눈 부분평균으로 계산한다.
-//    유효 봉이 하나도 없을 때만 avg=na("-"). cur은 종전대로 pct[0](유효하면 값·na면 "-") — 두 값이 서로 영향 주지 않음.
-//  ▸ 각 봉 na 조건(CEO 정책 — X≤0 가드 제거): A≈0(상수라 사실상 불발생)·close≤0(비현실)·na(워밍업)뿐. X≤0(강추세로 임계가가 음수)은 이제 na 아님 → pct를 큰 음수(예 −250%)로 그대로 계산(클램핑 없음, 강도 표현). 정상 데이터에선 항상 값 → 현재봉 '-'가 사라지고 cur/avg 비대칭 해소. 역산 수식·pct 정의는 불변.
-tdxP0 = f_crossPct(0)
-tdxP1 = f_crossPct(1)
-tdxP2 = f_crossPct(2)
-tdxP3 = f_crossPct(3)
-tdxP4 = f_crossPct(4)
-tdxCur = tdxP0
-tdxSum = (na(tdxP0) ? 0.0 : tdxP0) + (na(tdxP1) ? 0.0 : tdxP1) + (na(tdxP2) ? 0.0 : tdxP2) + (na(tdxP3) ? 0.0 : tdxP3) + (na(tdxP4) ? 0.0 : tdxP4)
-tdxCnt = (na(tdxP0) ? 0 : 1) + (na(tdxP1) ? 0 : 1) + (na(tdxP2) ? 0 : 1) + (na(tdxP3) ? 0 : 1) + (na(tdxP4) ? 0 : 1)
-tdxAvg = tdxCnt == 0 ? na : tdxSum / tdxCnt
-// 현재 크로스 상태(골든/데드) — 셀 색 기본 판정. temaLine==demaLine·na는 회색.
-tdxGold = not na(temaLine) and not na(demaLine) and temaLine > demaLine
-tdxDead = not na(temaLine) and not na(demaLine) and temaLine < demaLine
-// 방향 오버라이드는 cur·avg 모두 유효(pct 유효)일 때만. 그 외엔 골든 녹·데드 적 기본색.
-tdxOvr = not na(tdxCur) and not na(tdxAvg)
-tdxCellColor = tdxDead ? (tdxOvr and tdxCur < tdxAvg ? color.new(SR50_BELOW, 30) : color.new(ltDownColor, 30)) : tdxGold ? (tdxOvr and tdxCur > tdxAvg ? color.new(SR50_ABOVE, 30) : color.new(ltUpColor, 30)) : color.new(color.gray, 40)
+// ⚠️ 계산부 이동(선언 순서 — 기능·값 불변): tdxAlpha/tdxBeta/tdxA·f_crossX·f_crossPct·tdxP0~4·tdxCur/tdxSum/tdxCnt/tdxAvg·
+//    tdxGold/tdxDead/tdxOvr 및 4-상태 판정 bool(tdxDimRed/tdxFullRed/tdxDimGreen/tdxFullGreen)은
+//    **"T/D 크로스 4-상태 판정(SSOT)" 블록**(기울기 정렬 삼각형 블록 바로 위)으로 옮겼다.
+//    이유: 삼각형 T/D 크로스 필터(원색 적/녹 억제)가 이 bool들을 참조하므로 삼각형 렌더보다 위에서 선언돼야 한다(Pine 선언 순서).
+//    산식·na 처리·값 전부 그대로이며, 이 자리에는 색·텍스트 조립만 남는다(색 결과 100% 불변).
+// 셀 색 — 위 SSOT의 4-상태 bool을 그대로 소비(조건 중복 작성 금지: 색과 삼각형 억제가 갈라지지 않게).
+//  4상태가 상호배타(tdxDead/tdxGold 배타 + 각 내부 이분)이므로 아래 삼항 체인은 종전 중첩 삼항식과 논리적으로 동일하다.
+tdxCellColor = tdxDimRed ? color.new(SR50_BELOW, 30) : tdxFullRed ? color.new(ltDownColor, 30) : tdxDimGreen ? color.new(SR50_ABOVE, 30) : tdxFullGreen ? color.new(ltUpColor, 30) : color.new(color.gray, 40)
 // 값 텍스트 — "{현재봉%} | 평균(5) {평균%}"(부호 포함·소수1자리·%). 각 값 na면 그 자리만 "-"(cur/avg 독립 — 한쪽 na가 다른 쪽을 비우지 않음).
 tdxText = f_pctSignedStr(tdxCur) + " | 평균(5) " + f_pctSignedStr(tdxAvg)
 
