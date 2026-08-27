@@ -134,8 +134,8 @@ showWprDiv = input.bool(true, "%R 다이버전스 원 표시", group=WPR_GROUP, 
 wprLen = input.int(14, "윌리엄스 %R 길이", group=WPR_GROUP, minval=1, tooltip="윌리엄스 %R(ta.wpr) 계산 기간. 표준 14. 종가 기준, 범위 −100~0.")
 wprLower = input.int(-80, "%R 하단 밴드", group=WPR_GROUP, tooltip="강세 다이버전스 진입 임계. 직전 봉 %R가 이 값 아래이면 과매도 진입으로 본다. 표준 −80.")
 wprUpper = input.int(-20, "%R 상단 밴드", group=WPR_GROUP, tooltip="약세 다이버전스 진입 임계. 직전 봉 %R가 이 값 위이면 과매수 진입으로 본다. 표준 −20.")
-wprBullColor = input.color(#00B0FF, title="%R 강세 다이버전스 원 색(매수)", group=WPR_GROUP, active=showWprDiv, tooltip="윌리엄스 %R 강세 다이버전스 원 마커 색. 밝은 순수 녹(rgb(0,255,0)), 봉 아래(belowbar). 확정/과거참조라 리페인팅 없음.")
-wprBearColor = input.color(#FF1744, title="%R 약세 다이버전스 원 색(매도)", group=WPR_GROUP, active=showWprDiv, tooltip="윌리엄스 %R 약세 다이버전스 원 마커 색. 주황(color.orange), 봉 위(abovebar). 확정/과거참조라 리페인팅 없음.")
+wprBullColor = input.color(#81D4FA, title="%R 강세 다이버전스 원 색(매수)", group=WPR_GROUP, active=showWprDiv, tooltip="윌리엄스 %R 강세 다이버전스 원 마커 색. 밝은 순수 녹(rgb(0,255,0)), 봉 아래(belowbar). 확정/과거참조라 리페인팅 없음.")
+wprBearColor = input.color(#FF1493, title="%R 약세 다이버전스 원 색(매도)", group=WPR_GROUP, active=showWprDiv, tooltip="윌리엄스 %R 약세 다이버전스 원 마커 색. 주황(color.orange), 봉 위(abovebar). 확정/과거참조라 리페인팅 없음.")
 
 // ⚠️ 기울기 정렬 삼각형 전용 input 그룹(TRI_GROUP·showAlignTri·alignTriUpColor·alignTriDnColor·showWickFilter·showTdxFilter)은
 //    CEO 지시로 마커·판정 로직과 함께 전면 제거됨(상세는 아래 "기울기 정렬 삼각형 제거" 주석 블록 참조).
