@@ -683,14 +683,70 @@ upperBand_2 = plot(upperBandValue2, title="Upper Band #2", color=activeLineColor
 lowerBand_2 = plot(lowerBandValue2, title="Lower Band #2", color=activeLineColor, offset=offset, display=displayBand2, editable=true, linewidth=1, linestyle=plot.linestyle_dashed)
 // fill(±2σ 채움)은 밴드2 원값 선(upperBand_2/lowerBand_2)에 직접 붙인다. clamp 폐기로 선 자체가 항상 원값이라 별도 fill ref plot 불필요. 현재 display=none.
 fill(upperBand_2, lowerBand_2, title="Bands Fill #2", color=activeFillColor, display=display.none, editable=true)
-// 밴드 배경(밴드2 영역 한정 fill) — bgFillState==1(녹 배경)/−1(빨강 배경)인 봉만 밴드2(상단2~하단2) 영역을 반투명색으로 채운다.
-//  ⚠️ 밴드2 값 유효(not na)·shouldPlot일 때만. bgFillState는 위 리본 블록에서 CEO 재정의(1봉 기울기 ㄱ의 지표간 서열)로 산출한 값이다:
-//   · 녹(+1) = TEMA>DEMA>EMA 정배열 AND 3행 셀 중 적 없음.  · 빨강(−1) = EMA>DEMA>TEMA 역배열 AND 3행 셀 중 녹 없음.  · 0 = 그 외/na/셀색 불일치 → 배경 없음(지표간 서열 AND 셀 색 정합).
-//  색·투명도는 기존 정/역배열 배경 input(ribbonBullBgColor/ribbonBearBgColor + ribbonBgTransp) 그대로 재사용(색 변경 아님, 판정 기준만 지표간 서열로 교체).
-//  ⚠️ 옛 baseState·정규화·전환 임계 역산·전환 후보(±2)·후보 셀색·억제/래치/플립은 CEO 지시로 전면 제거됨(이 배경은 TEMA 로그 행 색만 참조).
-//  ⚠️ 밴드2 선(plot) 색·값은 불변. temaSlA가 temaLine[0]을 포함하므로 배경도 라이브 봉 동안 갱신될 수 있다(테이블 TEMA 로그 행과 동일 거동, 봉 마감 시 확정).
-bgFillColor = bgFillState == 1 ? color.new(ribbonBullBgColor, ribbonBgTransp) : bgFillState == -1 ? color.new(ribbonBearBgColor, ribbonBgTransp) : na
-fill(upperBand_2, lowerBand_2, color = (showRibbonExpBg and shouldPlot and bgFillState != 0 and not na(upperBandValue2) and not na(lowerBandValue2)) ? bgFillColor : na, title="밴드 배경", display=display.all, editable=true)
+// ══ [CEO 지시] 코드 이동(계산 순서만 조정, 산식 100% 불변) — vwap상태(20) 파이프라인 '앞부분'을 여기로 끌어올림 ══
+//  ▸ 이유: 아래 '밴드 배경' fill이 밴드워킹 판정(vwUpperWalk/vwLowerWalk)을 참조해야 하는데, Pine은 선언 전 참조가 불가하다.
+//     fill을 아래로 내리면 explicit_plot_zorder=true 때문에 배경이 리본 위로 올라와 z-order가 바뀌므로, 대신 '순수 계산'인 이 블록을 위로 옮긴다.
+//  ▸ 옮긴 것: f_srBand2 helper 정의 + computeVwapSet(20봉) 호출 + 6상태 파이프라인의 vwLowerWalk까지. 나머지(vwSrGate·vwNotHigher·텍스트·색)는 원위치 유지.
+//  ▸ 무해성: 전부 부작용 없는 전역 스칼라 계산이며 매 봉 무조건 1회 실행된다(조건부 아님). 호출 위치만 앞당겨질 뿐 봉당 누적·과거참조([n])·값이 전부 동일하다.
+//     의존성도 모두 앞에 있다 — src(17행)·srNear*(77~80행)·vwapStateBars(83행)·computeVwapSet(198행). plot/fill 선언 순서는 건드리지 않아 z-order 불변.
+// ── 밴드2 기준선 지지/저항 helper(원본 f_srBand2 이식) — vwap상태(20) 규칙4 전용. near 구간을 밴드2 쪽에 형성 ──
+f_srBand2(float center, float up2, float lo2) =>
+    bool isTop = false
+    bool isBot = false
+    if not na(center) and not na(up2) and not na(lo2)
+        float bandWidth2 = up2 - lo2
+        float rNear2 = center != 0 ? bandWidth2 / center : na
+        float rLow2  = srNearRLowPct / 100.0
+        float rHigh2 = srNearRHighPct / 100.0
+        float tNear2 = (na(rNear2) or rHigh2 <= rLow2) ? 0.0 : math.min(math.max((rNear2 - rLow2) / (rHigh2 - rLow2), 0.0), 1.0)
+        float nearPct2 = srNearMaxPct - tNear2 * (srNearMaxPct - srNearMinPct)
+        float pct2 = math.min(math.max(nearPct2, 0.0), 100.0) / 100.0
+        float upperNear2 = up2 - pct2 * (up2 - center)
+        float lowerNear2 = lo2 + pct2 * (center - lo2)
+        isTop := close > center and ((close >= upperNear2 and close <= up2) or (close < upperNear2 and high > upperNear2))
+        isBot := close < center and ((close >= lo2 and close <= lowerNear2) or (close > lowerNear2 and low < lowerNear2))
+    [isTop, isBot]
+
+// ── vwap 상태(20) 전용 20봉 VWAP·밴드(원본 이식) — computeVwapSet를 20봉으로 한 번 더 호출(함수-로컬 var 독립 누적) ──
+//  화면 VWAP(vwapValue, recentBars=50)와 완전히 별개 인스턴스라 산식은 동일하고 윈도우만 vwapStateBars(20). 확정봉 누적 → 리페인팅 없음.
+[vwapValueS, vwUpper1S, vwLower1S, vwUpper2S, vwLower2S, shouldPlotS] = computeVwapSet(vwapStateBars, src)
+vwHasVwapS = shouldPlotS and not na(vwapValueS)
+
+// ── vwap 상태(20) 6상태 파이프라인(원본 이식, 20봉 값 참조) ──────────────────────────────
+vwSlopeLen = 5
+vwBw2 = vwHasVwapS and not na(vwUpper2S) and not na(vwLower2S) ? vwUpper2S - vwLower2S : na
+vwOutU1 = vwHasVwapS and not na(vwUpper1S) and close > vwUpper1S
+vwOutL1 = vwHasVwapS and not na(vwLower1S) and close < vwLower1S
+vwOutU2 = vwHasVwapS and not na(vwUpper2S) and close > vwUpper2S
+vwOutL2 = vwHasVwapS and not na(vwLower2S) and close < vwLower2S
+vwSlope = vwHasVwapS and not na(vwapValueS[vwSlopeLen]) ? vwapValueS - vwapValueS[vwSlopeLen] : na
+vwFlatThresh = not na(vwBw2) ? vwBw2 * 0.03 : na
+vwSlopeUp = not na(vwSlope) and not na(vwFlatThresh) and vwSlope > vwFlatThresh
+vwSlopeDown = not na(vwSlope) and not na(vwFlatThresh) and vwSlope < -vwFlatThresh
+vwSlopeFlat = vwHasVwapS and not vwSlopeUp and not vwSlopeDown
+vwBwExpanding = vwHasVwapS and not na(vwBw2[vwSlopeLen]) and vwBw2 > vwBw2[vwSlopeLen]
+vwBwContracting = vwHasVwapS and not na(vwBw2[vwSlopeLen]) and vwBw2 < vwBw2[vwSlopeLen]
+[vwB2Top, vwB2Bot] = f_srBand2(vwHasVwapS ? vwapValueS : na, vwHasVwapS ? vwUpper2S : na, vwHasVwapS ? vwLower2S : na)
+vwBreakUpper = vwHasVwapS and vwOutU2 and not vwBwExpanding and (vwSlopeFlat or vwSlopeDown)
+vwBreakLower = vwHasVwapS and vwOutL2 and not vwBwExpanding and (vwSlopeFlat or vwSlopeUp)
+vwWalkUpBase = vwOutU1 and (vwSlopeUp or (vwSlopeFlat and vwBwExpanding))
+vwWalkDnBase = vwOutL1 and (vwSlopeDown or (vwSlopeFlat and vwBwExpanding))
+vwUpperWalk  = vwHasVwapS and vwWalkUpBase and not vwBreakUpper
+vwLowerWalk  = vwHasVwapS and vwWalkDnBase and not vwBreakLower
+
+// 밴드 배경(밴드2 영역 한정 fill) — [CEO 지시] 페인팅 소스를 '밴드워킹'으로 교체.
+//  ▸ 상단 밴드워킹(vwUpperWalk) → 녹 배경 / 하단 밴드워킹(vwLowerWalk) → 빨강 배경 / 그 외 → 배경 없음.
+//  ▸ 판정은 상태 테이블 'vwap 구간' 행·삼각형 억제에서 쓰는 기존 vwUpperWalk/vwLowerWalk를 그대로 재사용한다(새 임계·새 input 0개).
+//    두 bool은 close>상단밴드1 / close<하단밴드1을 각각 요구하므로 상호 배타 — 동시 참 불가(색 충돌 없음).
+//  ▸ 색·투명도·fill 대상 plot(upperBand_2/lowerBand_2)·display·z-order·na 가드는 기존 그대로 재사용(새 색 없음).
+//  ⚠️ 종전 페인팅 소스였던 bgFillState(지표간 ㄱ 서열 + 4모드 필터 + 셀색 컨플루언스)는 '삭제하지 않고 내부 계산으로 보존'한다 —
+//     기울기 배열 4행 셀색(slopeArrColor)과 정렬 삼각형의 noBg(bgFillState==0)·래치 해제(resetBlue/resetRed)가 그대로 참조하므로,
+//     지우면 삼각형·셀색 거동이 바뀐다(CEO 승인 사안). 따라서 bgFilterMode·bgGapTau·bgSizeM·bgDeadK input도 존치한다.
+//  ⚠️ 리페인팅: vwUpperWalk/vwLowerWalk는 20봉 VWAP·밴드와 현재봉 close를 쓰므로 라이브 봉 동안 켜졌다 꺼질 수 있고 봉 마감 시 확정된다
+//     (상태 테이블 'vwap 구간' 행과 100% 동일한 값·동일 특성). 미래참조·request.security 없음.
+bgWalkPaintState = vwUpperWalk ? 1 : vwLowerWalk ? -1 : 0
+bgFillColor = bgWalkPaintState == 1 ? color.new(ribbonBullBgColor, ribbonBgTransp) : bgWalkPaintState == -1 ? color.new(ribbonBearBgColor, ribbonBgTransp) : na
+fill(upperBand_2, lowerBand_2, color = (showRibbonExpBg and shouldPlot and bgWalkPaintState != 0 and not na(upperBandValue2) and not na(lowerBandValue2)) ? bgFillColor : na, title="밴드 배경", display=display.all, editable=true)
 
 // 지수 추세 리본 3선(EMA/DEMA/TEMA) — 각 1px, 우측 가격축 라벨 ON(display.all, CEO 지시). 표시 전용 오버레이.
 //  ⚠️ ta.ema 누적(확정 성격)이라 신규 리페인팅 없음. showRibbon OFF면 na로 미표시(라벨도 함께 사라짐).
@@ -896,52 +952,11 @@ f_srSupportResist(float center, float up1, float lo1) =>
         isSup := not isRes and ((close >= center and close <= upperNear) or (close > upperNear and low < upperNear))
     [isSup, isRes]
 
-// ── 밴드2 기준선 지지/저항 helper(원본 f_srBand2 이식) — vwap상태(20) 규칙4 전용. near 구간을 밴드2 쪽에 형성 ──
-f_srBand2(float center, float up2, float lo2) =>
-    bool isTop = false
-    bool isBot = false
-    if not na(center) and not na(up2) and not na(lo2)
-        float bandWidth2 = up2 - lo2
-        float rNear2 = center != 0 ? bandWidth2 / center : na
-        float rLow2  = srNearRLowPct / 100.0
-        float rHigh2 = srNearRHighPct / 100.0
-        float tNear2 = (na(rNear2) or rHigh2 <= rLow2) ? 0.0 : math.min(math.max((rNear2 - rLow2) / (rHigh2 - rLow2), 0.0), 1.0)
-        float nearPct2 = srNearMaxPct - tNear2 * (srNearMaxPct - srNearMinPct)
-        float pct2 = math.min(math.max(nearPct2, 0.0), 100.0) / 100.0
-        float upperNear2 = up2 - pct2 * (up2 - center)
-        float lowerNear2 = lo2 + pct2 * (center - lo2)
-        isTop := close > center and ((close >= upperNear2 and close <= up2) or (close < upperNear2 and high > upperNear2))
-        isBot := close < center and ((close >= lo2 and close <= lowerNear2) or (close > lowerNear2 and low < lowerNear2))
-    [isTop, isBot]
 
 // ── 거래량 가중 50/100/200선 + 100~200 fill의 페인팅은 z-order 최하단(back-most) 배치를 위해 위쪽 "VWMA z-order 블록"으로 이동함(CEO z-order 지시). 여기서는 제거됨. 계산·plot 산식/색/오프셋 전부 불변.
 
-// ── vwap 상태(20) 전용 20봉 VWAP·밴드(원본 이식) — computeVwapSet를 20봉으로 한 번 더 호출(함수-로컬 var 독립 누적) ──
-//  화면 VWAP(vwapValue, recentBars=50)와 완전히 별개 인스턴스라 산식은 동일하고 윈도우만 vwapStateBars(20). 확정봉 누적 → 리페인팅 없음.
-[vwapValueS, vwUpper1S, vwLower1S, vwUpper2S, vwLower2S, shouldPlotS] = computeVwapSet(vwapStateBars, src)
-vwHasVwapS = shouldPlotS and not na(vwapValueS)
-
-// ── vwap 상태(20) 6상태 파이프라인(원본 이식, 20봉 값 참조) ──────────────────────────────
-vwSlopeLen = 5
-vwBw2 = vwHasVwapS and not na(vwUpper2S) and not na(vwLower2S) ? vwUpper2S - vwLower2S : na
-vwOutU1 = vwHasVwapS and not na(vwUpper1S) and close > vwUpper1S
-vwOutL1 = vwHasVwapS and not na(vwLower1S) and close < vwLower1S
-vwOutU2 = vwHasVwapS and not na(vwUpper2S) and close > vwUpper2S
-vwOutL2 = vwHasVwapS and not na(vwLower2S) and close < vwLower2S
-vwSlope = vwHasVwapS and not na(vwapValueS[vwSlopeLen]) ? vwapValueS - vwapValueS[vwSlopeLen] : na
-vwFlatThresh = not na(vwBw2) ? vwBw2 * 0.03 : na
-vwSlopeUp = not na(vwSlope) and not na(vwFlatThresh) and vwSlope > vwFlatThresh
-vwSlopeDown = not na(vwSlope) and not na(vwFlatThresh) and vwSlope < -vwFlatThresh
-vwSlopeFlat = vwHasVwapS and not vwSlopeUp and not vwSlopeDown
-vwBwExpanding = vwHasVwapS and not na(vwBw2[vwSlopeLen]) and vwBw2 > vwBw2[vwSlopeLen]
-vwBwContracting = vwHasVwapS and not na(vwBw2[vwSlopeLen]) and vwBw2 < vwBw2[vwSlopeLen]
-[vwB2Top, vwB2Bot] = f_srBand2(vwHasVwapS ? vwapValueS : na, vwHasVwapS ? vwUpper2S : na, vwHasVwapS ? vwLower2S : na)
-vwBreakUpper = vwHasVwapS and vwOutU2 and not vwBwExpanding and (vwSlopeFlat or vwSlopeDown)
-vwBreakLower = vwHasVwapS and vwOutL2 and not vwBwExpanding and (vwSlopeFlat or vwSlopeUp)
-vwWalkUpBase = vwOutU1 and (vwSlopeUp or (vwSlopeFlat and vwBwExpanding))
-vwWalkDnBase = vwOutL1 and (vwSlopeDown or (vwSlopeFlat and vwBwExpanding))
-vwUpperWalk  = vwHasVwapS and vwWalkUpBase and not vwBreakUpper
-vwLowerWalk  = vwHasVwapS and vwWalkDnBase and not vwBreakLower
+// ── vwap 상태(20) 파이프라인 '앞부분'(f_srBand2 정의 · computeVwapSet(20봉) 호출 · vwLowerWalk까지)은 밴드 배경 fill이 참조해야 해서
+//    위쪽 '밴드 배경' 블록 바로 앞으로 이동했다(계산 순서만 조정, 산식·값 불변). 아래는 그 뒤를 잇는 나머지 파이프라인이다.
 vwSrGateResist  = vwSlopeFlat or vwSlopeDown
 vwSrGateSupport = vwSlopeFlat or vwSlopeUp
 vwNotHigher = vwHasVwapS and not vwBreakUpper and not vwBreakLower and not vwUpperWalk and not vwLowerWalk
