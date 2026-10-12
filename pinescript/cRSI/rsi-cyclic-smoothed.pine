@@ -37,8 +37,6 @@ showBreakMarker = input.bool(true, title="수축 돌파 원 마커 표시", grou
 
 // 선 색상 (사용자 지정 가능, 기본값은 기존 하드코딩 색 유지)
 crsiColor = input.color(#E6B800, title="cRSI 선 색", group="선 색상")
-showCmfi = input.bool(false, title="cMFI 표시", group="선 색상", tooltip="순환 평활 MFI(cMFI) 선 표시 여부. 기본 미표시.")
-cmfiColor = input.color(#E6B800, title="cMFI 선 색", group="선 색상")
 lowBandColor = input.color(#4DD0E1, title="하단밴드(LowBand) 색", group="선 색상")
 highBandColor = input.color(#4DD0E1, title="상단밴드(HighBand) 색", group="선 색상")
 
@@ -52,15 +50,6 @@ up = ta.rma(math.max(ta.change(src), 0), cyclelen)
 down = ta.rma(-math.min(ta.change(src), 0), cyclelen)
 rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - 100 / (1 + up / down)
 crsi := torque * (2 * rsi - rsi[phasingLag]) + (1 - torque) * nz(crsi[1])
-
-// 순환 평활 MFI (cMFI)
-// cRSI와 동일 파이프라인을 그대로 재사용하되, 입력만 RSI → MFI로 교체한다.
-//  - 주기: cRSI와 같은 cyclelen 사용 (ta.mfi(hlc3, cyclelen))
-//  - 평활: cRSI와 동일한 torque / phasingLag (vibration 기반) 재귀식 적용
-// 신규 파라미터 없이 cRSI 파라미터(domcycle→cyclelen, vibration)를 공유하므로 "동일 간격/주기"가 보장된다.
-cmfi = 0.0
-mfiRaw = ta.mfi(hlc3, cyclelen)
-cmfi := torque * (2 * mfiRaw - mfiRaw[phasingLag]) + (1 - torque) * nz(cmfi[1])
 
 lmax = -999999.0
 lmin = 999999.0
@@ -119,13 +108,10 @@ bandBgColor = not showBandWidthBg or bar_index < cyclicmemory ? na :
 // 불투명성(opacity) 입력을 v6 방식으로 색상에 baking(0=투명, 100=진함). 투명도(transp) = 100 - opacity.
 bgcolor(color.new(bandBgColor, 100 - bgOpacity))
 
-// 밴드 상·하단(ub/db)은 우측 프라이스 스케일 라벨에 값 표시. cMFI만 우측 축 라벨 숨김.
+// 밴드 상·하단(ub/db)은 우측 프라이스 스케일 라벨에 값 표시.
 lowband = plot(db, "LowBand", lowBandColor, display = display.all)
 highband = plot(ub, "HighBand", highBandColor, display = display.all)
 plot(crsi, "CRSI", crsiColor, display = display.all)
-// Pine v6 plot()은 dashed 라인을 직접 지원하지 않음(style은 line/stepline/histogram/cross/circles/area/columns/linebr).
-// cMFI는 매 봉 갱신되는 동적 series라 line.new(dashed)는 비효율 → plot.style_circles로 점선(작은 원 연속) 느낌을 낸다.
-plot(cmfi, "cMFI", cmfiColor, style = plot.style_circles, display = showCmfi ? display.all - display.price_scale : display.none)
 
 // =========================
 // 우측 상단 상태판 (매수 신호 신뢰도)
