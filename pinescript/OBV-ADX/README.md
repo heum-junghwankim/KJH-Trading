@@ -21,7 +21,6 @@
 참고:
 - 기본값은 `DI Length = 20`, `ADX Smoothing = 20`입니다.
 - 극단값은 고정 `20 / 18 / 20`이 아니라, `Extreme Lookback` 구간의 `DI Difference z-score`로 측정합니다.
-- 설정의 `Show Extreme Markers` 입력은 **현재 코드에서 사용되지 않습니다**(값을 바꿔도 화면 변화 없음 — 별도 극단 마커가 없기 때문). 정리 여부는 추후 결정 사항입니다.
 
 ## 내부 로직
 
