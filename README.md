@@ -15,6 +15,7 @@
 | 삼중 스토캐스틱 | Slow(컨텍스트)·Mid(중간축)·Fast(트리거) · 정배열/역배열 웨이브 · 정렬/셋업/트리거 | [코드](./pinescript/TRIPLE-STOCH/triple-stochastic-wave.pine) · [설명](./pinescript/TRIPLE-STOCH/README.md) |
 | cRSI | 순환 평활 RSI · 동적 밴드 · 과매도/과열 · 다이버전스 | [코드](./pinescript/cRSI/rsi-cyclic-smoothed.pine) · [설명](./pinescript/cRSI/README.md) |
 | OBV-ADX | 추세 힘(ADX)·방향(DI)·과열 / 휩쏘 1차 필터 | [코드](./pinescript/OBV-ADX/obv-adx-extreme-background.pine) · [설명](./pinescript/OBV-ADX/README.md) |
+| Squeeze Deluxe(외부 편입) | 스퀴즈 모멘텀·Directional Flux·3단계 압축·Confluence Gauge·다이버전스 (© EliCobra, CC BY-NC-SA 4.0, 원본 기능 유지) | [코드](./pinescript/SQUEEZE-DELUXE/squeeze-momentum-deluxe.pine) · [설명](./pinescript/SQUEEZE-DELUXE/README.md) |
 
 > Auto VWAP은 이치모쿠 인디케이터에 일부 편입돼 테이블 행(`중기 추세`(VWAP·100선)·`VWAP 상태`·`50선 지지/저항`·`장기 추세`·`100선/200선 지지/저항`)으로 내장됩니다. **이평선 리본 추세는 이치모쿠에서 제거**됐고(테이블 `리본 추세` 행·`+` 표식·리본 알림 삭제), 그 자리엔 `중기 추세`(VWAP(50) vs MA100 배열)가 들어갑니다. 리본 기반 **횡보 압축 배경**은 auto-vwap으로 이식돼 밴드2(±2σ) 영역 회색 배경으로 표시됩니다. 보조지표는 각자 별도 스크립트로 각 창에 띄워 상태판을 볼 수도 있습니다.
 
