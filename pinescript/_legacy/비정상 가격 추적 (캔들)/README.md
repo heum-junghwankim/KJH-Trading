@@ -5,9 +5,7 @@
 대상 스크립트:
 - [`abnormal-price-tracker-candles.pine`](./abnormal-price-tracker-candles.pine)
 
-문서 생성 스크립트:
-- [`generate_candle_guide_pdf.py`](./generate_candle_guide_pdf.py): `FPDF`로 초보자용 시각 가이드 PDF를 생성합니다.
-- [`generate_candle_guide_weasy.py`](./generate_candle_guide_weasy.py): `WeasyPrint`로 같은 가이드를 HTML 기반 PDF로 생성합니다.
+> 참고: 과거 이 폴더에 있던 PDF 가이드 생성 스크립트(`generate_candle_guide_pdf.py`·`generate_candle_guide_weasy.py`)는 **현재 저장소에 존재하지 않습니다**(삭제됨). 이 README가 유일한 설명서입니다.
 
 이 지표는 `자리 -> 다이버전스 -> ATR 감시` 흐름을 한 장에서 읽기 위한 도구입니다. `0단계 비정상 캔들`과 `1단계 확정 다이버전스`는 봉 마감 기준으로 확정되고, `1단계 프리뷰`와 `2단계 ATR 배경 / ATR 강화`는 현재 진행 중인 봉에서도 실시간으로 반응할 수 있습니다.
 
@@ -15,7 +13,7 @@
 
 | 요소 | 현재 표시 방식 |
 | --- | --- |
-| 0단계 비정상 캔들 | 과매수는 주황 계열, 과매도는 하늘 계열로 봉 색을 바꿉니다. |
+| 0단계 비정상 캔들 | 과매수는 빨강(`color.red`, `과매수+상단 밴드 초과 캔들 색상`), 과매도는 아쿠아(`color.aqua`, `과매도+하단 밴드 초과 캔들 색상`)로 봉 색을 바꿉니다. |
 | 1단계 다이버전스 | 프리뷰만 실시간 원형으로 표시합니다. 확정 강세/약세 다이버전스는 시각 표시 없이 내부 신호와 알림에만 사용합니다. |
 | 2단계 ATR 배경 / ATR 강화 | 자리 이후 실제 후속 이동이 붙으면 배경이 켜지고, 더 강하면 강화 색으로 바뀌며 현재 진행 중인 봉에서도 바로 반영될 수 있습니다. |
 
