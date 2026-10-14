@@ -1125,6 +1125,35 @@ ltCellText = not ltReady ? "-" : ltDeadCross ? "데드 크로스" : ltGoldCross 
 ltCellTransp = not ltEstablished ? 30 : (ltNearCross or ltNarrowing) ? 55 : ltWidening ? 0 : 30
 ltCellColor = not ltReady ? color.new(color.gray, 50) : ltGoldCross ? color.new(ltUpColor, 0) : ltDeadCross ? color.new(ltDownColor, 0) : ltUp ? color.new(ltUpColor, ltCellTransp) : color.new(ltDownColor, ltCellTransp)
 
+// ── 지지/저항 3행 값 텍스트 헬퍼(CEO 지시) — "선 가격 (현재가 대비 ±%)" 형식(예 140,000 (+10.1%)) ──
+//  ▸ 표시 텍스트 전용: 지지/저항 판정·셀 배경색·이격도(Disp)·연속봉수(Bars) 계산은 아래 각 행 블록에서 그대로 보존(값만 셀에 미표시).
+//  ▸ 가격 = 선 값을 math.round_to_mintick으로 틱 반올림(실제 호가 단위로 표시 — 소수 자릿수 표시와 값의 틱 정합) + 천 단위 쉼표.
+//    소수 자릿수 d = mintick×10^d가 정수가 되는 최소 d(최대 8, cRSI f_crossFmt 방식 — 0.25·0.005 같은 비10진 틱도 자릿수 손실 없음).
+//  ▸ % = (선 값 − 현재 종가 close[0]) / close[0] × 100, 소수 1자리·부호(+/−). 선이 현재가 위면 +, 아래면 −.
+//    반올림 정수 n=round(pct×10)으로 부호·숫자를 만들어 −0.0 방지(n=0 → "0.0%", cRSI f_crossPct 방식).
+//    %는 틱 반올림 전 선 원값 기준(반올림 오차가 %에 섞이지 않게).
+//  ▸ 선 값 na → "-". close[0] ≤ 0·na(비정상 데이터) → % 자리만 "-".
+//  ▸ 기준봉: 현재봉 [0](선·종가 모두 라이브 값) — 봉 마감 전 틱마다 갱신, 봉 마감 시 확정(기존 테이블 컨벤션 동일, 미래참조 없음).
+f_srLineFmt() =>
+    mt = syminfo.mintick
+    int d = 0
+    for i = 0 to 8
+        d := i
+        x = mt * math.pow(10, i)
+        if math.abs(x - math.round(x)) < 1e-6
+            break
+    d == 0 ? "#,##0" : "#,##0." + str.repeat("0", d)
+srLineFmt = f_srLineFmt()
+f_srLineText(float ma) =>
+    string t = "-"
+    if not na(ma)
+        string pctTxt = "-"
+        if not na(close) and close > 0
+            n = math.round((ma - close) / close * 100 * 10)
+            pctTxt := n == 0 ? "0.0%" : (n > 0 ? "+" : "") + str.tostring(n / 10.0, "0.0") + "%"
+        t := str.tostring(math.round_to_mintick(ma), srLineFmt) + " (" + pctTxt + ")"
+    t
+
 // ── 50선(페인팅 거래량 가중 50선 = vwma50) 지지/저항 셀 ──
 //  ⚠️ 버그 수정(CEO 리포트): 이 행은 "50선 지지/저항"이므로 화면에 페인팅되는 **거래량 가중 50선(vwma50 = ta.vwma(close,50), 주황 #FF6D00)**을
 //     기준(reference)으로 판정해야 한다. 이전에는 화면 VWAP 중앙선(vwapValue = 롤링 50봉 VWAP·hlc3)과 그 밴드1(upperBandValue1/lowerBandValue1)을
@@ -1146,7 +1175,8 @@ vwSrDisp = (na(vwma50) or vwma50 == 0) ? na : close / vwma50 * 100
 vwSrSigma = f_vwStdev(vwma50, 50)
 [vwSrSupport, vwSrResist] = f_srSupportResist(vwma50, na(vwSrSigma) ? na : vwma50 + srBandStdMult * vwSrSigma, na(vwSrSigma) ? na : vwma50 - srBandStdMult * vwSrSigma)
 vwSrState = not vwSrHasMa ? "-" : vwSrSupport ? "지지" : vwSrResist ? "저항" : vwAbove ? "위" : "아래"
-vwSrText = not vwSrHasMa ? "-" : vwSrState + " (" + str.tostring(vwSrDisp, "0.0") + " | " + str.tostring(vwSrBars) + "봉)"
+//  셀 값(CEO 지시): 선 가격 + 현재가 대비 % — 상태(vwSrState)·이격도(vwSrDisp)·연속봉수(vwSrBars)는 계산 보존, 셀 배경색(vwSrColor)이 지지/저항 판정을 표시.
+vwSrText = f_srLineText(vwma50)
 vwSrColor = not vwSrHasMa ? color.new(color.gray, 50) : vwSrSupport ? color.new(color.green, 0) : vwSrResist ? color.new(color.red, 0) : vwAbove ? color.new(#6E8F72, 0) : color.new(#A57A7A, 0)
 
 // ── 100선(MA100) 지지/저항 셀 — 원본 이식 ─────────────────────────────────────────────────
@@ -1164,7 +1194,8 @@ ltM1Disp = (na(ltMa1) or ltMa1 == 0) ? na : close / ltMa1 * 100
 ltM1SrSigma = f_vwStdev(ltMa1, ltLen1)
 [ltM1Support, ltM1Resist] = f_srSupportResist(ltMa1, na(ltM1SrSigma) ? na : ltMa1 + srBandStdMult * ltM1SrSigma, na(ltM1SrSigma) ? na : ltMa1 - srBandStdMult * ltM1SrSigma)
 ltM1SrState = not ltM1HasMa ? "-" : ltM1Support ? "지지" : ltM1Resist ? "저항" : ltM1Above ? "위" : "아래"
-ltM1SrText = not ltM1HasMa ? "-" : ltM1SrState + " (" + str.tostring(ltM1Disp, "0.0") + " | " + str.tostring(ltM1Bars) + "봉)"
+//  셀 값(CEO 지시): 선 가격 + 현재가 대비 % — 상태·이격도·연속봉수 계산 보존, 배경색(ltM1SrColor)이 판정 표시.
+ltM1SrText = f_srLineText(ltMa1)
 ltM1SrColor = not ltM1HasMa ? color.new(color.gray, 50) : ltM1Support ? color.new(color.green, 0) : ltM1Resist ? color.new(color.red, 0) : ltM1Above ? color.new(#6E8F72, 0) : color.new(#A57A7A, 0)
 
 // ── 200선(MA200) 지지/저항 셀 — 원본 이식 ─────────────────────────────────────────────────
@@ -1182,7 +1213,8 @@ ltM2Disp = (na(ltMa2) or ltMa2 == 0) ? na : close / ltMa2 * 100
 ltM2SrSigma = f_vwStdev(ltMa2, ltLen2)
 [ltM2Support, ltM2Resist] = f_srSupportResist(ltMa2, na(ltM2SrSigma) ? na : ltMa2 + srBandStdMult * ltM2SrSigma, na(ltM2SrSigma) ? na : ltMa2 - srBandStdMult * ltM2SrSigma)
 ltM2SrState = not ltM2HasMa ? "-" : ltM2Support ? "지지" : ltM2Resist ? "저항" : ltM2Above ? "위" : "아래"
-ltM2SrText = not ltM2HasMa ? "-" : ltM2SrState + " (" + str.tostring(ltM2Disp, "0.0") + " | " + str.tostring(ltM2Bars) + "봉)"
+//  셀 값(CEO 지시): 선 가격 + 현재가 대비 % — 상태·이격도·연속봉수 계산 보존, 배경색(ltM2SrColor)이 판정 표시.
+ltM2SrText = f_srLineText(ltMa2)
 ltM2SrColor = not ltM2HasMa ? color.new(color.gray, 50) : ltM2Support ? color.new(color.green, 0) : ltM2Resist ? color.new(color.red, 0) : ltM2Above ? color.new(#6E8F72, 0) : color.new(#A57A7A, 0)
 
 // ── 비정상 매수/매도 셀: CEO 지시로 테이블 행 삭제(비정상은 이미 캔들 몸통색 barcolor로 표현). ──
@@ -1220,10 +1252,10 @@ volSlopeTooltip = "평균단가가 어디로 움직이는지와 변동성이 팽
 volBandPosTooltip = "가격이 밴드에서 어떤 국면(이탈·밴드워킹·저항·지지·중앙 공방)에 있는지로 진입과 청산의 맥락을 잡습니다."
 volDisparityTooltip = "가격이 평균에서 과도하게 벌어졌는지를 측정하여 추격 진입을 억제하고 되돌림 타이밍을 판단합니다."
 volPullbackTooltip = "과열이 해소되며 되돌아올 것으로 예상되는 목표가를 제시하여 청산 목표나 눌림목 기준으로 씁니다."
-//  지지/저항 3행: 종가가 해당 VWMA선(±σ 밴드) 위=지지·아래=저항. 개념+효과. MA만 행별 상이.
-srVw50Tooltip = "거래량이 실린 단기 평균선을 지지·저항 레벨로 삼아 진입과 손절 기준으로 씁니다."
-srVw100Tooltip = "단기선보다 강한 중기 매물대에서 추세의 지속과 반전을 판단합니다."
-srVw200Tooltip = "시장 대추세의 최종 지지·저항으로, 장기 국면 전환을 가르는 결정적 레벨로 봅니다."
+//  지지/저항 3행(라벨 50선/100선/200선): 값=선 가격(현재가 대비 ±%), 셀 색=지지/저항 판정(VWMA선 ±σ 밴드). 개념+효과. MA만 행별 상이.
+srVw50Tooltip = "거래량 가중 50선의 가격과 현재가 대비 거리(%, 선이 위면 +·아래면 −)를 표시합니다. 셀 색이 지지(녹)·저항(적)·위(둔탁 녹)·아래(둔탁 적) 판정입니다. 거래량이 실린 단기 평균선을 지지·저항 레벨로 삼아 진입과 손절 기준으로 씁니다."
+srVw100Tooltip = "거래량 가중 100선의 가격과 현재가 대비 거리(%, 선이 위면 +·아래면 −)를 표시합니다. 셀 색이 지지(녹)·저항(적)·위(둔탁 녹)·아래(둔탁 적) 판정입니다. 단기선보다 강한 중기 매물대에서 추세의 지속과 반전을 판단합니다."
+srVw200Tooltip = "거래량 가중 200선의 가격과 현재가 대비 거리(%, 선이 위면 +·아래면 −)를 표시합니다. 셀 색이 지지(녹)·저항(적)·위(둔탁 녹)·아래(둔탁 적) 판정입니다. 시장 대추세의 최종 지지·저항으로, 장기 국면 전환을 가르는 결정적 레벨로 봅니다."
 
 // ── T/D 크로스 행(CEO 지시 재정의 — 예상가격 폐기 → 골든 임계 도달 변화율 % 2값) ──────────────────
 //  값(CEO 명세): "{현재봉%} | 평균(5) {평균%}"(예 +30.0% | 평균(5) +100.0%). 예상가격 표시 폐기.
@@ -1314,9 +1346,9 @@ if showStatusTable and barstate.islast
     table.cell(statusTable, 0, 16, "지지·저항 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.cell(statusTable, 1, 16, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.merge_cells(statusTable, 0, 16, 1, 16)
-    table.cell(statusTable, 0, 17, "50선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=srVw50Tooltip)
+    table.cell(statusTable, 0, 17, "50선", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=srVw50Tooltip)
     table.cell(statusTable, 1, 17, vwSrText, text_color=color.white, bgcolor=vwSrColor, text_size=size.small, tooltip=srVw50Tooltip)
-    table.cell(statusTable, 0, 18, "100선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=srVw100Tooltip)
+    table.cell(statusTable, 0, 18, "100선", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=srVw100Tooltip)
     table.cell(statusTable, 1, 18, ltM1SrText, text_color=color.white, bgcolor=ltM1SrColor, text_size=size.small, tooltip=srVw100Tooltip)
-    table.cell(statusTable, 0, 19, "200선 지지/저항", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=srVw200Tooltip)
+    table.cell(statusTable, 0, 19, "200선", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=srVw200Tooltip)
     table.cell(statusTable, 1, 19, ltM2SrText, text_color=color.white, bgcolor=ltM2SrColor, text_size=size.small, tooltip=srVw200Tooltip)
