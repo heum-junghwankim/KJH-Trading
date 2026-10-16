@@ -80,22 +80,19 @@ srNearMaxPct = input.float(60.0, title="지지/저항 근처 구간 최대 %(좁
 srNearRLowPct = input.float(0.5, title="근처 % 저변동성 임계(밴드1폭/기준선, %)", minval=0.0, step=0.1, group=TABLE_GROUP, display=display.none, tooltip="밴드1 폭 ÷ 기준선 비율(%)이 이 값 이하이면 저변동성 → 근처 % 최대. 기본 0.5%. 원본 이식.")
 srNearRHighPct = input.float(2.0, title="근처 % 고변동성 임계(밴드1폭/기준선, %)", minval=0.0, step=0.1, group=TABLE_GROUP, display=display.none, tooltip="밴드1 폭 ÷ 기준선 비율(%)이 이 값 이상이면 고변동성 → 근처 % 최소. 기본 2.0%. 저변동성 임계보다 커야 함. 원본 이식.")
 srBandStdMult = input.float(1.0, minval=0.1, step=0.5, title="100·200선 지지/저항 근처 밴드 σ 배수", group=TABLE_GROUP, display=display.none, tooltip="100선·200선(VWMA)도 VWMA ± (이 배수 × 거래량 가중 표준편차 σ)로 판정 전용 밴드1을 만들어 지지/저항 판정. 기본 1.0(=±1σ). 원본 이식.")
-// vwap 상태(20) 전용 최근 봉 수 — 밴드워킹(밴드 배경) 판정에만 쓰는 별도 20봉 VWAP·밴드. 화면 VWAP(recentBars=50)와 이원화(원본 동일).
-vwapStateBars = input.int(20, minval=1, title="vwap 상태 전용 최근 봉 수(6상태)", group=TABLE_GROUP, tooltip="vwap 상태(20) 밴드워킹·이탈 판정(밴드 배경 녹/빨강) 전용 별도 VWAP·밴드 윈도우(기본 20봉). 화면 VWAP(50)·50선 지지/저항과 이원화. 전략 파라미터(수학자 리뷰 대상).")
 
 // =========================
-// 지수 추세 리본(EMA/DEMA/TEMA) + 밴드 배경 — 표시 전용.
+// 지수 추세 리본(EMA/DEMA/TEMA) + 배열 상태 판정(bgFillState) — 표시 전용. (차트 밴드 배경 페인팅은 'Sonar 모멘텀 배경' 섹션으로 이관 — CEO 지시 2026-10-16)
 //  ▸ 페인팅 리본(plot): 선택 가능한 리본 소스(기본 close, 옵션 hlc3/ohlc4)에 EMA를 3중 누적(e1=EMA(소스), e2=EMA(e1), e3=EMA(e2))해
 //     EMA=e1, DEMA=2e1−e2, TEMA=3e1−3e2+e3 를 그린다(모두 확정 성격 ta.ema 누적 → 신규 리페인팅 없음).
 //     TEMA는 DEMA보다, DEMA는 EMA보다 지연이 작아, 세 선의 상대 위치·기울기가 추세 국면을 압축해 보여준다. 이 3선만 화면에 표시.
-//  ▸ 밴드 배경(CEO 재정의 — 1봉 기울기 지표간 서열): 밴드2(상단2~하단2) 영역 fill 색을 세 이평선의 1봉 로그 기울기(ㄱ) 지표간 서열로 판정한다.
-//     ① TEMA>DEMA>EMA 정배열(pctR2 기준 temaSlA>demaSlA>emaSlA) → 녹색 배경(ribbonBullBgColor).  ② EMA>DEMA>TEMA 역배열(emaSlA>demaSlA>temaSlA) → 빨강 배경(ribbonBearBgColor).  ③ 그 외/na → 배경 없음.
+//  ▸ 배열 상태 bgFillState(이름은 옛 '밴드 배경' 유래 — 현재 차트 페인팅 아님, 추세 진입 '정배열 전환'·'역배열 전환' 행 전용): 세 이평선의 1봉 로그 기울기(ㄱ) 지표간 서열로 판정한다.
+//     ① TEMA>DEMA>EMA 정배열(pctR2 기준 temaSlA>demaSlA>emaSlA) → +1.  ② EMA>DEMA>TEMA 역배열(emaSlA>demaSlA>temaSlA) → −1.  ③ 그 외/na → 0.
 //     ▸ 셀 색 컨플루언스(AND, CEO 지시): 지표간 서열이 성립해도 기울기 3행(EMA/DEMA/TEMA) 셀 색과 어긋나면 억제 — 녹 배경이어도 3행 셀 중 하나라도 적이면 억제, 적 배경이어도 3행 셀 중 하나라도 녹이면 억제(셀 na=회색은 억제 안 함). 배경 = 지표간 서열 AND 3행 셀 색 정합.
 //     ▸ 소스 = 각 이평선의 ㄱ(1봉 로그 기울기 = ln(line[0])−ln(line[1]), f_logSlopes3의 첫 요소). 지표간(EMA/DEMA/TEMA) 서열을 %(×100) 소수2자리 반올림(f_pctR2, 셀색 판정과 동일)으로 비교.
 //     ⚠️ 이제 배경(지표간 서열)과 기울기 3행 셀 색(각 행 시간축 ㄱ>ㄴ>ㄷ 서열)은 서로 다른 기준이다 — 의도된 분리. 셀 색은 불변.
 //     옛 TEMA 로그 행 색 매핑·baseState·정규화 모드·전환 임계 역산·전환 후보(±2)·억제/래치/플립은 CEO 지시로 전면 제거됨.
 //  ▸ 확정봉/리페인팅 특성: ㄱ에 line[0](현재봉)이 포함되어 배경도 라이브 봉 동안 갱신되고 봉 마감 시 확정된다. 미래참조 없음(line[0..1]만). 과거봉 확정 후 고정.
-//  ▸ 색·투명도: 기존 배경 input(ribbonBullBgColor/ribbonBearBgColor + ribbonBgTransp) 그대로 재사용(색 변경 아님, 판정 기준만 지표간 서열로 교체). 밴드2 선(plot) 색·값은 불변.
 //  ⚠️ 매매 신호가 아니라 표시 전용 국면 배경이다. 기존 auto-vwap 기능과 무관.
 // =========================
 RIBBON_GROUP = "지수 추세 리본"
@@ -108,11 +105,6 @@ ribbonLen = input.int(20, title="지수 리본 길이", minval=1, group=RIBBON_G
 ribbonEmaColor = input.color(color.yellow, title="EMA 선 색", group=RIBBON_GROUP, active=showRibbon, tooltip="EMA 선 색. 기본 노랑.")
 ribbonDemaColor = input.color(color.aqua, title="DEMA 선 색", group=RIBBON_GROUP, active=showRibbon, tooltip="DEMA(2·EMA−EMA(EMA)) 선 색. 기본 하늘색.")
 ribbonTemaColor = input.color(#FF80AB, title="TEMA 선 색", group=RIBBON_GROUP, active=showRibbon, tooltip="TEMA(3·EMA−3·EMA(EMA)+EMA(EMA(EMA))) 선 색. 기본 분홍.")
-// 밴드 배경(CEO 재정의) — 세 이평선의 1봉 로그 기울기(ㄱ) 지표간 서열로 판정. 밴드2(±2σ) 영역 fill로 그린다(옛 TEMA 행 색 매핑·baseState·정규화·전환·억제/래치 제거).
-showRibbonExpBg = input.bool(true, title="정배열/역배열 배경 표시", group=RIBBON_GROUP, tooltip="켜면 밴드2(상단2~하단2) 영역을 반투명 배경으로 채웁니다. 배경 판정 소스는 '밴드워킹'입니다(CEO 지시로 기울기 서열 → 밴드워킹 교체): ① 상단 밴드워킹(vwap 상태(20) 전용 20봉 VWAP 기준 — 종가 > 상단밴드1 AND (VWAP 상승 기울기 또는 평탄+밴드폭 확장), 상단 이탈 판정 제외) → 녹색 배경. ② 하단 밴드워킹(대칭: 종가 < 하단밴드1 AND (하락 기울기 또는 평탄+확장), 하단 이탈 제외) → 빨강 배경. ③ 그 외 → 배경 없음. 판정은 vwap 상태(20) 6상태 파이프라인의 밴드워킹 판정 그대로입니다(구 테이블 'vwap 구간' 행은 CEO 지시로 제거). ⚠️ 현재봉 종가를 쓰므로 라이브 봉 동안 켜졌다 꺼질 수 있고 봉 마감 시 확정됩니다(미래참조 없음). 아래 '밴드 배경 필터'(지표간 기울기 서열)는 이 배경이 아니라 상태 테이블 추세 진입 '정배열 전환'·'역배열 전환' 행(셀 색·배열 전환가 문턱)에만 쓰입니다. 표시 전용(매매 신호 아님).")
-ribbonBullBgColor = input.color(#2E7D32, title="정배열 배경색", group=RIBBON_GROUP, active=showRibbonExpBg, tooltip="상단 밴드워킹 구간 밴드2 영역 배경색. 기본 녹색 #2E7D32. 아래 투명도와 합쳐 반투명으로 칠합니다.")
-ribbonBearBgColor = input.color(#C62828, title="역배열 배경색", group=RIBBON_GROUP, active=showRibbonExpBg, tooltip="하단 밴드워킹 구간 밴드2 영역 배경색. 기본 빨강 #C62828. 아래 투명도와 합쳐 반투명으로 칠합니다.")
-ribbonBgTransp = input.int(70, title="배경 투명도", minval=0, maxval=100, group=RIBBON_GROUP, active=showRibbonExpBg, tooltip="밴드워킹 배경색(상단=녹·하단=빨강)의 투명도(0=불투명, 100=완전 투명). 기본 70.")
 // ── 밴드 배경 필터 방식(CEO 지시 — 4모드 선택·수학자 검증 산식) ──
 //  배경 서열 판정(bgBull/bgBear)에 노이즈 필터를 선택 적용한다. 공통: V = ATR(14)/close(무차원 per-bar 변동성 근사, close>0 가드), g1 = temaSlA − demaSlA, g2 = demaSlA − emaSlA(원값 1봉 로그 기울기 갭).
 //   ▸ 미적용: 현행 순수 부등호 서열(pctR2 2자리 반올림). 필터 없음.
@@ -120,11 +112,31 @@ ribbonBgTransp = input.int(70, title="배경 투명도", minval=0, maxval=100, g
 //   ▸ 상대 데드존: 갭이 데드존 폭(k×V) 이상이어야 서열 성립(g1≥k·V AND g2≥k·V). 곱셈이라 V=0 안전(기본값).
 //   ▸ 기울기 크기 게이트: 순수 서열 성립 AND 정렬 방향 대표 기울기(TEMA ㄱ)가 배열 방향으로 m×V 이상(정배열 temaSlA≥+m·V / 역배열 temaSlA≤−m·V — 부호 판정, CEO 승인 B안).
 //  ⚠️ 셀 색 컨플루언스(anyCellRed/Green AND)는 모든 모드에 공통으로 그대로 적용된다(이번엔 bgBull/bgBear 계산만 모드 분기). 표시 전용(매매 신호 아님).
-//  ⚠️ UI: 아래 4개 input은 밴드 배경 토글(showRibbonExpBg)에 active로 묶지 않는다 — 실제 소비처는 bgFillState→추세 진입 '정배열 전환'·'역배열 전환' 행(셀색·전환가 문턱)이라 배경을 꺼도 계속 유효(τ/k/m은 해당 모드에서만 active).
-bgFilterMode = input.string("정규화 갭", title="밴드 배경 필터", options=["미적용", "정규화 갭", "기울기 크기 게이트", "상대 데드존"], group=RIBBON_GROUP, tooltip="⚠️ 이 필터는 현재 차트의 밴드 배경에는 영향이 없습니다(밴드 배경은 밴드워킹 기준). 그래서 '정배열/역배열 배경 표시'를 꺼도 이 설정과 τ/k/m은 비활성(회색)되지 않고 항상 조정 가능합니다. 상태 테이블 추세 진입 '정배열 전환'·'역배열 전환' 행(셀 색·배열 전환가 문턱)(지표간 기울기 서열 정배열/역배열 판정)에만 적용되는 노이즈 필터 방식입니다(기본 '정규화 갭', CEO 지시). 공통 스케일 V = ATR(14)/close(무차원 per-bar 변동성 근사, close>0 가드), 갭 g1 = TEMA ㄱ − DEMA ㄱ, g2 = DEMA ㄱ − EMA ㄱ(1봉 로그 기울기 원값 차). ▸ '미적용' = 순수 부등호 서열(pctR2 2자리 반올림, 필터 없음). ▸ '정규화 갭' = g1/V≥τ AND g2/V≥τ(역배열은 −g1/V·−g2/V, V>0 가드). ▸ '상대 데드존' = g1≥k·V AND g2≥k·V(역배열 대칭, 곱셈이라 V=0 안전). ▸ '기울기 크기 게이트' = 순수 서열 AND 배열 방향 부호 판정(정배열은 TEMA ㄱ≥+m·V, 역배열은 TEMA ㄱ≤−m·V — 정렬 방향 대표 기울기가 그 방향으로 m·V 이상). 각 모드 파라미터(τ/k/m)는 해당 모드에서만 노출됩니다. ⚠️ 셀 색 컨플루언스(TEMA/DEMA/EMA 시간축 ㄱ>ㄴ>ㄷ 판정 정합 AND — 기울기 3행 표시는 제거됐고 판정만 내부 유지)는 모든 모드에 공통 적용됩니다. 표시 전용(매매 신호 아님).")
+//  ⚠️ UI: 아래 4개 input은 배경 토글(Sonar 배경 showSonarBg 등)에 active로 묶지 않는다 — 실제 소비처는 bgFillState→추세 진입 '정배열 전환'·'역배열 전환' 행(셀색·전환가 문턱)이라 배경을 꺼도 계속 유효(τ/k/m은 해당 모드에서만 active).
+bgFilterMode = input.string("정규화 갭", title="밴드 배경 필터", options=["미적용", "정규화 갭", "기울기 크기 게이트", "상대 데드존"], group=RIBBON_GROUP, tooltip="⚠️ 이 필터는 차트 배경에는 영향이 없습니다(차트 배경은 'Sonar 모멘텀 배경' 섹션 기준). 그래서 Sonar 배경을 꺼도 이 설정과 τ/k/m은 비활성(회색)되지 않고 항상 조정 가능합니다. 상태 테이블 추세 진입 '정배열 전환'·'역배열 전환' 행(셀 색·배열 전환가 문턱)(지표간 기울기 서열 정배열/역배열 판정)에만 적용되는 노이즈 필터 방식입니다(기본 '정규화 갭', CEO 지시). 공통 스케일 V = ATR(14)/close(무차원 per-bar 변동성 근사, close>0 가드), 갭 g1 = TEMA ㄱ − DEMA ㄱ, g2 = DEMA ㄱ − EMA ㄱ(1봉 로그 기울기 원값 차). ▸ '미적용' = 순수 부등호 서열(pctR2 2자리 반올림, 필터 없음). ▸ '정규화 갭' = g1/V≥τ AND g2/V≥τ(역배열은 −g1/V·−g2/V, V>0 가드). ▸ '상대 데드존' = g1≥k·V AND g2≥k·V(역배열 대칭, 곱셈이라 V=0 안전). ▸ '기울기 크기 게이트' = 순수 서열 AND 배열 방향 부호 판정(정배열은 TEMA ㄱ≥+m·V, 역배열은 TEMA ㄱ≤−m·V — 정렬 방향 대표 기울기가 그 방향으로 m·V 이상). 각 모드 파라미터(τ/k/m)는 해당 모드에서만 노출됩니다. ⚠️ 셀 색 컨플루언스(TEMA/DEMA/EMA 시간축 ㄱ>ㄴ>ㄷ 판정 정합 AND — 기울기 3행 표시는 제거됐고 판정만 내부 유지)는 모든 모드에 공통 적용됩니다. 표시 전용(매매 신호 아님).")
 bgGapTau = input.float(0.10, title="정규화 갭 임계 τ", minval=0.0, step=0.01, group=RIBBON_GROUP, active=bgFilterMode == "정규화 갭", tooltip="'정규화 갭' 모드 전용(상태 테이블 추세 진입 '정배열 전환'·'역배열 전환' 행(셀 색·배열 전환가 문턱) 판정 — 밴드 배경과 무관). 정규화 갭(g/V) 임계. 정배열은 g1/V≥τ AND g2/V≥τ, 역배열은 −g1/V≥τ AND −g2/V≥τ여야 서열 성립. 기본 0.10(라운드넘버). ⚠️ 종목별 튜닝·백테스트 최적화 금지(표시 가독성 파라미터).")
 bgSizeM = input.float(0.10, title="기울기 크기 배수 m", minval=0.0, step=0.01, group=RIBBON_GROUP, active=bgFilterMode == "기울기 크기 게이트", tooltip="'기울기 크기 게이트' 모드 전용(상태 테이블 추세 진입 '정배열 전환'·'역배열 전환' 행(셀 색·배열 전환가 문턱) 판정 — 밴드 배경과 무관). 순수 서열 성립에 더해 정렬 방향 대표 기울기(TEMA ㄱ, temaSlA)가 배열 방향으로 m×V 이상이어야 인정합니다 — 정배열은 TEMA ㄱ≥+m·V, 역배열은 TEMA ㄱ≤−m·V(부호 판정). 기본 0.10(라운드넘버). ⚠️ 종목별 튜닝·백테스트 최적화 금지(표시 가독성 파라미터).")
 bgDeadK = input.float(0.10, title="상대 데드존 배수 k", minval=0.0, step=0.01, group=RIBBON_GROUP, active=bgFilterMode == "상대 데드존", tooltip="'상대 데드존' 모드 전용(상태 테이블 추세 진입 '정배열 전환'·'역배열 전환' 행(셀 색·배열 전환가 문턱) 판정 — 밴드 배경과 무관). 데드존 폭 = k×V. 정배열은 g1≥k·V AND g2≥k·V, 역배열은 (−g1)≥k·V AND (−g2)≥k·V여야 서열 성립(곱셈이라 V=0 안전). 기본 0.10(라운드넘버). ⚠️ 종목별 튜닝·백테스트 최적화 금지(표시 가독성 파라미터).")
+
+// =========================
+// Sonar 모멘텀 배경 — 국내 MTS "SonarMomentumSignal강세약세(20,9,9)" 이식(CEO 지시 2026-10-16, 구 '밴드워킹' 배경 페인팅 대체). 표시 전용(매매 신호 아님).
+//  ▸ 산식(알고리즘 수학자 조사, 키움 영웅문 정의 차분형): Sonar = EMA(close, n) − EMA(close, n)[k],  Signal = EMA(Sonar, m).  (20,9,9) = (n, k, m).
+//  ▸ 판정(sonarBasis): 'Signal 교차' = Sonar>Signal 상승 / Sonar<Signal 하락,  '0선' = Sonar>0 상승 / Sonar<0 하락.  같으면 이전 상태 유지(var 래치).
+//     ⚠️ 원 MTS 판정식은 미공개 — 'Signal 교차'는 유력 추정(출처 미확정). '0선'은 대안 가설.
+//  ▸ 색: 펀드 컨벤션 상승=녹·하락=빨강(원 MTS의 빨강=상승/파랑=하락 관례를 따르지 않음). 기본 색·투명도는 구 밴드워킹 배경 값(#2E7D32/#C62828, 70) 그대로.
+//  ▸ 소스: close 고정(원 지표 종가 기준). 리본 소스(ribbonSrc)와 공유하지 않는다 — 리본 표시 옵션을 바꿀 때 배경 판정이 함께 바뀌는 결합을 피하기 위함.
+//  ▸ 칠 영역(sonarArea): '밴드 내부' = 밴드 #2(상단2~하단2) 영역 fill(기본, 구 밴드워킹 위치), '차트 전체(bgcolor)' = 원 MTS처럼 차트 전체 세로 배경.
+// =========================
+SONAR_GROUP = "Sonar 모멘텀 배경"
+showSonarBg = input.bool(true, title="Sonar 모멘텀 배경 표시", group=SONAR_GROUP, tooltip="켜면 Sonar 모멘텀 상태로 배경을 칠합니다(상승=녹, 하락=빨강). Sonar = EMA(종가, n) − EMA(종가, n)[k], Signal = EMA(Sonar, m). 국내 MTS 'SonarMomentumSignal강세약세(20,9,9)' 이식. ⚠️ 현재봉 종가를 쓰므로 실시간 봉 동안 틱마다 바뀔 수 있고 봉 마감 시 확정됩니다(미래참조 없음). 워밍업(n+k+m 봉 전후) 구간은 칠하지 않습니다. 표시 전용(매매 신호 아님).")
+sonarLen = input.int(20, title="Sonar EMA 기간 n", minval=1, group=SONAR_GROUP, active=showSonarBg, tooltip="Sonar의 EMA(종가, n) 기간. 기본 20(원 MTS 파라미터 첫째 값). 전략성 파라미터(수학자 리뷰 대상).")
+sonarGap = input.int(9, title="비교 간격 k", minval=1, maxval=500, group=SONAR_GROUP, active=showSonarBg, tooltip="Sonar = EMA(n) − EMA(n)[k]의 비교 간격 k(봉). 기본 9(원 MTS 파라미터 둘째 값). 최대 500(max_bars_back=1000 버퍼 안). 전략성 파라미터(수학자 리뷰 대상).")
+sonarSigLen = input.int(9, title="Signal 기간 m", minval=1, group=SONAR_GROUP, active=showSonarBg, tooltip="Signal = EMA(Sonar, m)의 기간. 기본 9(원 MTS 파라미터 셋째 값). '0선' 판정에서는 쓰이지 않습니다. 전략성 파라미터(수학자 리뷰 대상).")
+sonarBasis = input.string("Signal 교차", title="판정 기준", options=["Signal 교차", "0선"], group=SONAR_GROUP, active=showSonarBg, tooltip="원 MTS 판정식 미공개, Signal 교차가 유력 추정. ▸ 'Signal 교차' = Sonar > Signal이면 상승(녹), Sonar < Signal이면 하락(빨강). ▸ '0선' = Sonar > 0이면 상승, Sonar < 0이면 하락. 두 값이 같으면 이전 상태를 유지합니다.")
+sonarArea = input.string("밴드 내부", title="칠 영역", options=["밴드 내부", "차트 전체(bgcolor)"], group=SONAR_GROUP, active=showSonarBg, tooltip="'밴드 내부' = 밴드 #2(상단2~하단2) 영역만 칠합니다(기본, 구 밴드워킹 배경과 같은 위치). 밴드 #2 선을 꺼도 영역 값은 계속 계산되므로 같은 영역이 칠해지며, VWAP가 표시되지 않는 봉(일/주/월봉 숨김·거래량 0)에서는 칠하지 않습니다. '차트 전체(bgcolor)' = 원 MTS처럼 차트 전체 세로 배경을 칠합니다(VWAP 표시 여부와 무관).")
+sonarBullColor = input.color(#2E7D32, title="상승 색", group=SONAR_GROUP, inline="sonarColor", active=showSonarBg)
+sonarBearColor = input.color(#C62828, title="하락 색", group=SONAR_GROUP, inline="sonarColor", active=showSonarBg, tooltip="상승 배경색(기본 녹 #2E7D32) / 하락 배경색(기본 빨강 #C62828) — 구 밴드워킹 배경 색 그대로. 펀드 컨벤션 상승=녹·하락=빨강(원 MTS의 빨강=상승 관례 미적용).")
+sonarTransp = input.int(70, title="배경 투명도", minval=0, maxval=100, group=SONAR_GROUP, active=showSonarBg, tooltip="Sonar 배경색 투명도(0=불투명, 100=완전 투명). 기본 70(구 밴드워킹 배경과 동일).")
 // ── 추세 확인 테이블 EMA/DEMA/TEMA 기울기 3행 셀 배경색(CEO 재설계 — 로그 slope 순서 규칙) ──
 //  각 행 = 리본 이평선(emaLine/demaLine/temaLine)의 ln(line) 기반 로그 slope 3종(ㄱ 2점·ㄴ 3점 OLS·ㄷ 5점 OLS).
 //  셀색(각 slope를 %(×100) 소수2자리 반올림한 값으로 비교): pctR2(ㄱ)>pctR2(ㄴ)>pctR2(ㄷ)=녹 / pctR2(ㄱ)<pctR2(ㄴ)<pctR2(ㄷ)=적 / 하나라도 na 또는 2자리 동률=회색. 데드존 없음(2자리 반올림 부등호, CEO 명세). (기울기 3행 표시는 2026-10-16 CEO 지시로 제거 — 판정 bool만 bgFillState용으로 존치.)
@@ -448,7 +460,7 @@ abnBarColor = abnCandleStateLive == 1 ? abnSellBgColor : abnCandleStateLive == -
 //  ▸ 로그 slope 3종(CEO 재설계 — 수학자 검증 산식): 각 리본선 line의 ln(line) 기준으로 ㄱ(2점 로그수익률)·ㄴ(3점 OLS)·ㄷ(5점 OLS)을 계산한다(아래 f_logSlopes3).
 //     셀 색(각 slope를 %(×100) 소수2자리 반올림한 값으로 비교): pctR2(ㄱ)>pctR2(ㄴ)>pctR2(ㄷ)=녹(정배열) / pctR2(ㄱ)<pctR2(ㄴ)<pctR2(ㄷ)=적(역배열) / 하나라도 na 또는 2자리 동률=회색. 데드존 없음(2자리 반올림 부등호, CEO 명세). (기울기 3행 표시는 2026-10-16 CEO 지시로 제거 — 판정 bool만 bgFillState용으로 존치.)
 //     x축을 "과거→현재=증가"로 두어 우상향(가속)=양수 → ㄱ>ㄴ>ㄷ(최근 기울기가 더 큼)이 녹(정배열)이다.
-//  ▸ 밴드 배경(CEO 재정의 — 1봉 기울기 지표간 서열): TEMA>DEMA>EMA 정배열(ㄱ, f_pctR2)→배경 녹(ribbonBullBgColor), EMA>DEMA>TEMA 역배열→배경 적(ribbonBearBgColor), 그 외/na→배경 없음. 셀 색(시간축 서열)과 다른 기준(의도된 분리).
+//  ▸ 배열 상태 bgFillState(1봉 기울기 지표간 서열): TEMA>DEMA>EMA 정배열(ㄱ, f_pctR2)→+1, EMA>DEMA>TEMA 역배열→−1, 그 외/na→0. 셀 색(시간축 서열)과 다른 기준(의도된 분리). 차트 페인팅에는 쓰이지 않음(Sonar 배경으로 이관).
 //     옛 baseState·정규화·전환 임계 역산·전환 후보·전환선·억제/래치/플립은 CEO 지시로 전면 제거됨.
 //  ⚠️ 리페인팅(CEO 명시 특성): slope에 line[0](현재봉)이 포함되므로 로그 slope·셀색·배경이 라이브 봉 동안 갱신되고 봉 마감 시 확정된다. 미래참조 없음(line[0..4]만). 과거봉은 확정 후 고정.
 //  ⚠️ 밴드2 값(upperBandValue2/lowerBandValue2)·shouldPlot은 위에서 이미 계산됨(선언순서 안전).
@@ -515,7 +527,6 @@ ltAtrTable = ta.atr(14)
 //     · 크기 게이트   : 순수 서열(위 미적용식) AND 부호 판정 — bgBull은 temaSlA≥+m·V, bgBear는 temaSlA≤−m·V(CEO 승인 B안; 종전 |temaSlA|≥m·V). 기준 slope = TEMA ㄱ(정배열=세 slope 중 최대·역배열=최소, 정렬 방향 대표값).
 //  ▸ 셀 색과 동일한 2자리 반올림(f_pctR2)으로 순수 서열을 비교(미세차 뭉갬 방지, 셀색 판정과 일관). 세 slope 중 na 하나라도 있으면(bgHasSlopes=false) 전 모드에서 배경 없음(0).
 //  ▸ ⚠️ 셀 색(기울기 3행)은 각 행 시간축 ㄱ>ㄴ>ㄷ 서열 기준으로 불변. 배경만 지표간 서열+필터 기준 — 의도된 분리(셀=시간축, 배경=지표간).
-//  ▸ 기존 배경 색·투명도 input(ribbonBullBgColor/ribbonBearBgColor + ribbonBgTransp)·fill 위치·z-order 그대로 재사용(색·매핑 변경 아님, 판정 기준만 교체). 밴드2 선(plot) 색·값 불변.
 //  ▸ 라이브 갱신: emaSlA/demaSlA/temaSlA가 line[0] 포함이라 배경도 라이브 봉 동안 갱신될 수 있다(봉 마감 시 확정). 과거봉 확정.
 // =========================
 bgHasSlopes = not na(emaSlA) and not na(demaSlA) and not na(temaSlA)
@@ -686,58 +697,37 @@ fill(upperBand_1, lowerBand_1, title="Bands Fill #1", color=activeFillColor, dis
 // 최외곽 상/하단 선(Band #2): 위치는 항상 원값. 두께 1px. 선 색은 활성 기본색(activeLineColor) 고정.
 //  ▸ 롤백(CEO 지시): 직전에 넣었던 "밴드2 선색을 paintState(정/역배열)에 따라 순수 녹/빨강으로 바꾸는" 조건식을 완전히 제거하고, 원래대로 activeLineColor(무조건)로 환원한다.
 //    그에 따라 신설했던 input band2BullLineColor/band2BearLineColor도 삭제(참조 끊김). 그 순수 녹/빨강 색값은 아래 "실시간 상승/하락 전환 수평선"(Part C)으로 이관해 재사용한다.
-//  ⚠️ 밴드2 값·산식·fill(정/역배열 배경)은 불변 — 이번 롤백은 선 색만 activeLineColor로 되돌린다.
+//  ⚠️ 밴드2 값·산식·fill(Sonar 배경 '밴드 내부')은 불변 — 이번 롤백은 선 색만 activeLineColor로 되돌린다.
 displayBand2 = showBand_2 ? display.all - display.price_scale : display.none
 upperBand_2 = plot(upperBandValue2, title="Upper Band #2", color=activeLineColor, offset=offset, display=displayBand2, editable=true, linewidth=1, linestyle=plot.linestyle_dashed)
 lowerBand_2 = plot(lowerBandValue2, title="Lower Band #2", color=activeLineColor, offset=offset, display=displayBand2, editable=true, linewidth=1, linestyle=plot.linestyle_dashed)
 // fill(±2σ 채움)은 밴드2 원값 선(upperBand_2/lowerBand_2)에 직접 붙인다. clamp 폐기로 선 자체가 항상 원값이라 별도 fill ref plot 불필요. 현재 display=none.
 fill(upperBand_2, lowerBand_2, title="Bands Fill #2", color=activeFillColor, display=display.none, editable=true)
-// ══ [CEO 지시] 코드 이동(계산 순서만 조정, 산식 100% 불변) — vwap상태(20) 파이프라인 '앞부분'을 여기로 끌어올림 ══
-//  ▸ 이유: 아래 '밴드 배경' fill이 밴드워킹 판정(vwUpperWalk/vwLowerWalk)을 참조해야 하는데, Pine은 선언 전 참조가 불가하다.
-//     fill을 아래로 내리면 explicit_plot_zorder=true 때문에 배경이 리본 위로 올라와 z-order가 바뀌므로, 대신 '순수 계산'인 이 블록을 위로 옮긴다.
-//  ▸ 옮긴 것: computeVwapSet(20봉) 호출 + 6상태 파이프라인의 vwLowerWalk까지. (CEO 지시로 테이블 vwap 기울기·vwap 구간 행 제거 → 그 행 전용이던 f_srBand2·vwB2Top/Bot·vwBwContracting 및 아래 텍스트·색 파이프라인 삭제.)
-//  ▸ 무해성: 전부 부작용 없는 전역 스칼라 계산이며 매 봉 무조건 1회 실행된다(조건부 아님). 호출 위치만 앞당겨질 뿐 봉당 누적·과거참조([n])·값이 전부 동일하다.
-//     의존성도 모두 앞에 있다 — src·vwapStateBars·computeVwapSet. plot/fill 선언 순서는 건드리지 않아 z-order 불변.
-// ── vwap 상태(20) 전용 20봉 VWAP·밴드(원본 이식) — computeVwapSet를 20봉으로 한 번 더 호출(함수-로컬 var 독립 누적) ──
-//  화면 VWAP(vwapValue, recentBars=50)와 완전히 별개 인스턴스라 산식은 동일하고 윈도우만 vwapStateBars(20). 확정봉 누적 → 리페인팅 없음.
-[vwapValueS, vwUpper1S, vwLower1S, vwUpper2S, vwLower2S, shouldPlotS] = computeVwapSet(vwapStateBars, src)
-vwHasVwapS = shouldPlotS and not na(vwapValueS)
-
-// ── vwap 상태(20) 6상태 파이프라인(원본 이식, 20봉 값 참조) ──────────────────────────────
-vwSlopeLen = 5
-vwBw2 = vwHasVwapS and not na(vwUpper2S) and not na(vwLower2S) ? vwUpper2S - vwLower2S : na
-vwOutU1 = vwHasVwapS and not na(vwUpper1S) and close > vwUpper1S
-vwOutL1 = vwHasVwapS and not na(vwLower1S) and close < vwLower1S
-vwOutU2 = vwHasVwapS and not na(vwUpper2S) and close > vwUpper2S
-vwOutL2 = vwHasVwapS and not na(vwLower2S) and close < vwLower2S
-vwSlope = vwHasVwapS and not na(vwapValueS[vwSlopeLen]) ? vwapValueS - vwapValueS[vwSlopeLen] : na
-vwFlatThresh = not na(vwBw2) ? vwBw2 * 0.03 : na
-vwSlopeUp = not na(vwSlope) and not na(vwFlatThresh) and vwSlope > vwFlatThresh
-vwSlopeDown = not na(vwSlope) and not na(vwFlatThresh) and vwSlope < -vwFlatThresh
-vwSlopeFlat = vwHasVwapS and not vwSlopeUp and not vwSlopeDown
-vwBwExpanding = vwHasVwapS and not na(vwBw2[vwSlopeLen]) and vwBw2 > vwBw2[vwSlopeLen]
-vwBreakUpper = vwHasVwapS and vwOutU2 and not vwBwExpanding and (vwSlopeFlat or vwSlopeDown)
-vwBreakLower = vwHasVwapS and vwOutL2 and not vwBwExpanding and (vwSlopeFlat or vwSlopeUp)
-vwWalkUpBase = vwOutU1 and (vwSlopeUp or (vwSlopeFlat and vwBwExpanding))
-vwWalkDnBase = vwOutL1 and (vwSlopeDown or (vwSlopeFlat and vwBwExpanding))
-vwUpperWalk  = vwHasVwapS and vwWalkUpBase and not vwBreakUpper
-vwLowerWalk  = vwHasVwapS and vwWalkDnBase and not vwBreakLower
-
-// 밴드 배경(밴드2 영역 한정 fill) — [CEO 지시] 페인팅 소스를 '밴드워킹'으로 교체.
-//  ▸ 상단 밴드워킹(vwUpperWalk) → 녹 배경 / 하단 밴드워킹(vwLowerWalk) → 빨강 배경 / 그 외 → 배경 없음.
-//  ▸ 판정은 기존 vwUpperWalk/vwLowerWalk(구 상태 테이블 'vwap 구간' 행과 같은 bool — 그 행은 CEO 지시로 제거됨)를 그대로 재사용한다(새 임계·새 input 0개).
-//    두 bool은 close>상단밴드1 / close<하단밴드1을 각각 요구하므로 상호 배타 — 동시 참 불가(색 충돌 없음).
-//  ▸ 색·투명도·fill 대상 plot(upperBand_2/lowerBand_2)·display·z-order·na 가드는 기존 그대로 재사용(새 색 없음).
-//  ⚠️ 종전 페인팅 소스였던 bgFillState(지표간 ㄱ 서열 + 4모드 필터 + 셀색 컨플루언스)는 '삭제하지 않고 내부 계산으로 보존'한다 —
-//     현재 소비자는 추세 진입 '정배열 전환'·'역배열 전환' 행(entArrState → 셀색·표시 규칙, bgFilterMode 문턱은 배열 전환가에도 쓰임)이다 — 지우면 그 행 거동이 바뀐다(CEO 승인 사안).
-//     따라서 bgFillState와 그 계산 경로 input(bgFilterMode·bgGapTau·bgSizeM·bgDeadK)은 삭제 금지·존치한다.
-//     ⚠️ 종전의 또 다른 소비자였던 정렬 삼각형(noBg=bgFillState==0·래치 해제 resetBlue/resetRed)은 CEO 지시로 제거됐다 —
-//        소비자가 하나 줄었을 뿐 '죽은 코드'가 아니다. 정배열 전환·역배열 전환 행이 남아 있으므로 절대 지우지 말 것.
-//  ⚠️ 리페인팅: vwUpperWalk/vwLowerWalk는 20봉 VWAP·밴드와 현재봉 close를 쓰므로 라이브 봉 동안 켜졌다 꺼질 수 있고 봉 마감 시 확정된다
-//     미래참조·request.security 없음.
-bgWalkPaintState = vwUpperWalk ? 1 : vwLowerWalk ? -1 : 0
-bgFillColor = bgWalkPaintState == 1 ? color.new(ribbonBullBgColor, ribbonBgTransp) : bgWalkPaintState == -1 ? color.new(ribbonBearBgColor, ribbonBgTransp) : na
-fill(upperBand_2, lowerBand_2, color = (showRibbonExpBg and shouldPlot and bgWalkPaintState != 0 and not na(upperBandValue2) and not na(lowerBandValue2)) ? bgFillColor : na, title="밴드 배경", display=display.all, editable=true)
+// ══ Sonar 모멘텀 배경(CEO 지시 2026-10-16 — 구 '밴드워킹' 배경 페인팅 대체) ══
+//  ⚠️ 구 밴드워킹 배경과 그 전용 계산(20봉 computeVwapSet(vwapStateBars)·vwOut*/vwSlope*/vwBwExpanding/vwBreak*/vwWalk*·vwUpperWalk/vwLowerWalk·bgWalkPaintState·bgFillColor)
+//     및 전용 input(vwapStateBars·showRibbonExpBg·ribbonBullBgColor·ribbonBearBgColor·ribbonBgTransp)은 전부 제거됨(다른 소비처 없음 — grep 확인).
+//  ▸ 산식: sonarEma = EMA(close, n), sonar = sonarEma − sonarEma[k], sonarSignal = EMA(sonar, m). 판정 diff = (0선 ? sonar : sonar − sonarSignal).
+//  ▸ 상태 래치(var int): diff>0 → +1(상승), diff<0 → −1(하락), diff==0 → 이전 유지. 워밍업(미준비) 봉은 0(배경 없음).
+//  ▸ 워밍업: sonarEma는 n−1번째 봉부터, sonar는 n+k−1번째, sonarSignal은 n+k+m−2번째 봉부터 유효 → bar_index 문턱 + na 이중 가드.
+//  ▸ 리페인팅: close[0] 포함이라 실시간 봉은 틱마다 갱신(var는 틱마다 직전 확정값으로 롤백 후 재계산), 봉 마감 시 확정. 미래참조·request.* 없음. 과거 참조는 [k](k≤500)뿐 → max_bars_back=1000 안.
+//  ▸ z-order: '밴드 내부' fill은 구 밴드워킹 fill과 같은 선언 위치(밴드2 plot 뒤·리본 plot 앞)라 레이어 불변. bgcolor는 차트 배경 레이어.
+sonarEma = ta.ema(close, sonarLen)
+sonar = sonarEma - sonarEma[sonarGap]
+sonarSignal = ta.ema(sonar, sonarSigLen)
+sonarZeroMode = sonarBasis == "0선"
+sonarReady = sonarZeroMode ? (bar_index >= sonarLen + sonarGap - 1 and not na(sonar)) : (bar_index >= sonarLen + sonarGap + sonarSigLen - 2 and not na(sonar) and not na(sonarSignal))
+sonarDiff = sonarZeroMode ? sonar : sonar - sonarSignal
+var int sonarState = 0
+if not sonarReady
+    sonarState := 0
+else if sonarDiff > 0
+    sonarState := 1
+else if sonarDiff < 0
+    sonarState := -1
+sonarFillColor = sonarState == 1 ? color.new(sonarBullColor, sonarTransp) : sonarState == -1 ? color.new(sonarBearColor, sonarTransp) : na
+sonarInBand = sonarArea == "밴드 내부"
+fill(upperBand_2, lowerBand_2, color = (showSonarBg and sonarInBand and shouldPlot and not na(upperBandValue2) and not na(lowerBandValue2)) ? sonarFillColor : na, title="Sonar 배경(밴드 내부)", display=display.all, editable=true)
+bgcolor(showSonarBg and not sonarInBand ? sonarFillColor : na, title="Sonar 배경(차트 전체)", offset=offset, editable=true)
 
 // 지수 추세 리본 3선(EMA/DEMA/TEMA) — 각 1px, 우측 가격축 라벨 ON(display.all, CEO 지시). 표시 전용 오버레이.
 //  ⚠️ ta.ema 누적(확정 성격)이라 신규 리페인팅 없음. showRibbon OFF면 na로 미표시(라벨도 함께 사라짐).
@@ -924,7 +914,7 @@ entArrState = bgFillState[entryOff]            // 기준봉 배열 상태(1=정�
 //     · bgFillState(→ entArrState → 상태 테이블 추세 진입 '정배열 전환'·'역배열 전환' 행 셀색·표시 규칙) 및 그 계산 경로 input(bgFilterMode·bgGapTau·bgSizeM·bgDeadK — 배열 전환가 문턱에도 쓰임)
 //     · emaLogGreen/Red·demaLogGreen/Red·temaLogGreen/Red(→ anyCellRed/Green → bgFillState 컨플루언스). 기울기 3행 표시는 CEO 지시로 제거(2026-10-16)됐으나 이 판정 bool은 bgFillState가 쓰므로 존치
 //     · tdxDimRed/tdxFullRed/tdxDimGreen/tdxFullGreen(→ tdxCellColor → 추세 진입 'T/D 전환' 행 셀색) — 위 SSOT 블록 그대로 유지
-//     · abnCandleState(→ barcolor 비정상 캔들 몸통색), bgWalkPaintState·vwUpperWalk/vwLowerWalk(→ 밴드 배경 fill)
+//     · abnCandleState(→ barcolor 비정상 캔들 몸통색), sonarState(→ Sonar 모멘텀 배경 fill/bgcolor — 구 밴드워킹 bgWalkPaintState 대체)
 //  ▸ 윌리엄스 %R 다이버전스 원(bullWprDiv/bearWprDiv·plotshape 2개)은 무수정 유지 — 삼각형과 참조 관계가 없어 영향 없음.
 // =========================================================================================
 
@@ -973,9 +963,7 @@ f_srSupportResist(float center, float up1, float lo1) =>
 
 // ── 거래량 가중 50/100/200선 + 100~200 fill의 페인팅은 z-order 최하단(back-most) 배치를 위해 위쪽 "VWMA z-order 블록"으로 이동함(CEO z-order 지시). 여기서는 제거됨. 계산·plot 산식/색/오프셋 전부 불변.
 
-// ── vwap 상태(20) 파이프라인은 밴드 배경 fill(밴드워킹)이 참조해야 해서 위쪽 '밴드 배경' 블록 바로 앞에 있다(vwLowerWalk까지).
-//    ⚠️ 그 뒤를 잇던 테이블 표시 전용 파이프라인(vwSrGate*·vwNotHigher·vwResistNear/SupportNear·vwSlopeText·vwBw*Text·vwBandState*·vwBandColor·vwSlopeColor·vwBandPosText)은
-//       CEO 지시로 테이블 'vwap 기울기'·'vwap 구간' 행을 제거하면서 함께 삭제했다(다른 소비처 없음 — 신호·배경·알림 영향 0). 밴드워킹 판정(vwUpperWalk/vwLowerWalk)과 그 의존(slope·밴드폭 확장·이탈)은 배경용으로 존치.
+// ── (제거됨) vwap 상태(20) 파이프라인(밴드워킹 판정) — CEO 지시(2026-10-16)로 밴드 배경이 Sonar 모멘텀 배경으로 교체되며 유일 소비처가 사라져 전부 삭제.
 
 // ── 추세 셀 색 공통 상수(원본 이식) ──────────────────────────────────────────────────────
 ltUpColor = #0E9C8A     // 상승계열 청록
@@ -1108,7 +1096,7 @@ f_srLineText(float ma) =>
 //  ▸ 값 = 화면 주 밴드(Band #2, ±bandMult_2σ — 기본 2.0) 상단/하단 가격 + 현재가 대비 % → "10,000 (+10.0%)" 형식.
 //    포맷은 지지/저항 3행 헬퍼 f_srLineText 재사용(mintick 반올림·천 단위 쉼표, %=(밴드값−close)/close×100 소수1자리·부호, −0.0 방지).
 //  ▸ 주 밴드 선택 근거: Band #1 plot은 display=display.none(기본 숨김), Band #2만 기본 표시(displayBand2 — 점선 1px)되고 밴드 배경 fill도 밴드2 영역이다.
-//    값 세트도 차트에 그려지는 화면 50봉 세트(upperBandValue2/lowerBandValue2, recentBars)와 동일 — 20봉 vwap 상태 세트(vwUpper2S) 아님.
+//    값 세트도 차트에 그려지는 화면 50봉 세트(upperBandValue2/lowerBandValue2, recentBars)와 동일 (구 20봉 vwap 상태 세트는 Sonar 배경 교체로 삭제됨).
 //  ▸ 가드: 밴드2 토글 OFF(showBand_2=false)·워밍업(shouldPlot=false)·na → "-"(f_srLineText가 na를 "-"로 처리).
 //  ▸ 기준봉: 현재봉 [0](밴드값·종가 모두 라이브) — 지지/저항 3행과 동일(봉 마감 전 틱마다 갱신·마감 시 확정, 미래참조 없음).
 //  ▸ 셀 색: 고정 — 상단=둔탁 적(#A57A7A, 저항 계열), 하단=둔탁 녹(#6E8F72, 지지 계열), "-"면 회색(gray 50, 지지/저항 행 na 색과 동일). 표시 전용·판정 아님.
