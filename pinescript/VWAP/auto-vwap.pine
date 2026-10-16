@@ -4,7 +4,11 @@
 //  ⚠️ 비정상 매수/매도는 이제 barcolor(캔들 몸통색)로 표시한다(CEO 지시 — 배경 bgcolor → barcolor 전환). barcolor는 이 인자와 무관하게 봉 몸통색을 바꾸며 밴드 fill과 레이어가 달라 공존한다.
 //     (과거엔 비정상을 bgcolor 전체 화면 배경으로 칠했으나 CEO 지시로 캔들 몸통색 오버라이드로 이관 — 아래 "비정상 매수/매도 — 캔들 몸통색(barcolor)" 참조.)
 //     plotshape/드로잉(label/table)은 이 인자 영향 밖(각자 상위 그룹 최전면 유지).
-indicator(title="Auto VWAP", shorttitle="Auto VWAP", overlay=true, max_bars_back=1000, explicit_plot_zorder=true)
+// behind_chart=true: 이 스크립트의 모든 시각 요소(plot/fill/bgcolor/plotshape/label/table)를 메인 캔들(차트 시리즈) 뒤에 그린다(CEO 지시 2026-10-16 — Sonar 배경을 캔들 뒤로).
+//  ⚠️ 공식 문서상 기본값이 이미 true라 새로 추가한 인스턴스의 거동은 같고, 이 인자는 의도를 명시 고정한다. 스크립트 단위 설정이라 fill 하나만 골라 뒤로 보낼 수는 없다.
+//  ⚠️ 선언부 시각 설정은 차트에 처음 로드될 때 한 번만 평가된다 → 이미 올려둔 인스턴스는 지표를 삭제 후 다시 추가하거나 상태줄 "More(⋯) > Visual order"에서 뒤로 보내야 반영된다.
+//  ⚠️ explicit_plot_zorder와 충돌 없음: 그쪽은 스크립트 내부 plot/hline/fill 상호 순서, behind_chart는 스크립트 전체 ↔ 캔들 간 순서(서로 다른 축).
+indicator(title="Auto VWAP", shorttitle="Auto VWAP", overlay=true, max_bars_back=1000, explicit_plot_zorder=true, behind_chart=true)
 
 // VWAP 중앙선 표시 토글(CEO 지시 — 기본 ON). 켜면 pane에 VWAP 중앙선을 그리고(밴드2와 동일 1px·점선), 끄면 선을 숨긴다(값·색·계산 불변).
 //  ▸ 밴드2(showBand_2)와 동일 패턴: display = 켜짐 ? (display.all − display.price_scale) : display.none. 흰색 가격축 라벨은 이 토글과 독립(항상 price_scale에만 표시).
@@ -123,7 +127,7 @@ bgDeadK = input.float(0.10, title="상대 데드존 배수 k", minval=0.0, step=
 //  ▸ 산식(알고리즘 수학자 조사, 키움 영웅문 정의 차분형): Sonar = EMA(close, n) − EMA(close, n)[k],  Signal = EMA(Sonar, m).  (20,9,9) = (n, k, m).
 //  ▸ 판정(sonarBasis): 'Signal 교차' = Sonar>Signal 상승 / Sonar<Signal 하락,  '0선' = Sonar>0 상승 / Sonar<0 하락.  같으면 이전 상태 유지(var 래치).
 //     ⚠️ 원 MTS 판정식은 미공개 — 'Signal 교차'는 유력 추정(출처 미확정). '0선'은 대안 가설.
-//  ▸ 색: 펀드 컨벤션 상승=녹·하락=빨강(원 MTS의 빨강=상승/파랑=하락 관례를 따르지 않음). 기본 색·투명도는 구 밴드워킹 배경 값(#2E7D32/#C62828, 70) 그대로.
+//  ▸ 색: 펀드 컨벤션 상승=녹·하락=빨강(원 MTS의 빨강=상승/파랑=하락 관례를 따르지 않음). 기본 색은 구 밴드워킹 배경 값(#2E7D32/#C62828) 그대로, 기본 투명도는 85(CEO 지시 2026-10-16 — 구 70에서 더 연하게).
 //  ▸ 소스: close 고정(원 지표 종가 기준). 리본 소스(ribbonSrc)와 공유하지 않는다 — 리본 표시 옵션을 바꿀 때 배경 판정이 함께 바뀌는 결합을 피하기 위함.
 //  ▸ 칠 영역(sonarArea): '밴드 내부' = 밴드 #2(상단2~하단2) 영역 fill(기본, 구 밴드워킹 위치), '차트 전체(bgcolor)' = 원 MTS처럼 차트 전체 세로 배경.
 // =========================
@@ -136,7 +140,7 @@ sonarBasis = input.string("Signal 교차", title="판정 기준", options=["Sign
 sonarArea = input.string("밴드 내부", title="칠 영역", options=["밴드 내부", "차트 전체(bgcolor)"], group=SONAR_GROUP, active=showSonarBg, tooltip="'밴드 내부' = 밴드 #2(상단2~하단2) 영역만 칠합니다(기본, 구 밴드워킹 배경과 같은 위치). 밴드 #2 선을 꺼도 영역 값은 계속 계산되므로 같은 영역이 칠해지며, VWAP가 표시되지 않는 봉(일/주/월봉 숨김·거래량 0)에서는 칠하지 않습니다. '차트 전체(bgcolor)' = 원 MTS처럼 차트 전체 세로 배경을 칠합니다(VWAP 표시 여부와 무관).")
 sonarBullColor = input.color(#2E7D32, title="상승 색", group=SONAR_GROUP, inline="sonarColor", active=showSonarBg)
 sonarBearColor = input.color(#C62828, title="하락 색", group=SONAR_GROUP, inline="sonarColor", active=showSonarBg, tooltip="상승 배경색(기본 녹 #2E7D32) / 하락 배경색(기본 빨강 #C62828) — 구 밴드워킹 배경 색 그대로. 펀드 컨벤션 상승=녹·하락=빨강(원 MTS의 빨강=상승 관례 미적용).")
-sonarTransp = input.int(70, title="배경 투명도", minval=0, maxval=100, group=SONAR_GROUP, active=showSonarBg, tooltip="Sonar 배경색 투명도(0=불투명, 100=완전 투명). 기본 70(구 밴드워킹 배경과 동일).")
+sonarTransp = input.int(85, title="배경 투명도", minval=0, maxval=100, group=SONAR_GROUP, active=showSonarBg, tooltip="Sonar 배경색 투명도(0=불투명, 100=완전 투명). 기본 85(CEO 지시로 구 70보다 연하게 — 불투명도 30%→15%).")
 // ── 추세 확인 테이블 EMA/DEMA/TEMA 기울기 3행 셀 배경색(CEO 재설계 — 로그 slope 순서 규칙) ──
 //  각 행 = 리본 이평선(emaLine/demaLine/temaLine)의 ln(line) 기반 로그 slope 3종(ㄱ 2점·ㄴ 3점 OLS·ㄷ 5점 OLS).
 //  셀색(각 slope를 %(×100) 소수2자리 반올림한 값으로 비교): pctR2(ㄱ)>pctR2(ㄴ)>pctR2(ㄷ)=녹 / pctR2(ㄱ)<pctR2(ㄴ)<pctR2(ㄷ)=적 / 하나라도 na 또는 2자리 동률=회색. 데드존 없음(2자리 반올림 부등호, CEO 명세). (기울기 3행 표시는 2026-10-16 CEO 지시로 제거 — 판정 bool만 bgFillState용으로 존치.)
@@ -710,7 +714,8 @@ fill(upperBand_2, lowerBand_2, title="Bands Fill #2", color=activeFillColor, dis
 //  ▸ 상태 래치(var int): diff>0 → +1(상승), diff<0 → −1(하락), diff==0 → 이전 유지. 워밍업(미준비) 봉은 0(배경 없음).
 //  ▸ 워밍업: sonarEma는 n−1번째 봉부터, sonar는 n+k−1번째, sonarSignal은 n+k+m−2번째 봉부터 유효 → bar_index 문턱 + na 이중 가드.
 //  ▸ 리페인팅: close[0] 포함이라 실시간 봉은 틱마다 갱신(var는 틱마다 직전 확정값으로 롤백 후 재계산), 봉 마감 시 확정. 미래참조·request.* 없음. 과거 참조는 [k](k≤500)뿐 → max_bars_back=1000 안.
-//  ▸ z-order: '밴드 내부' fill은 구 밴드워킹 fill과 같은 선언 위치(밴드2 plot 뒤·리본 plot 앞)라 레이어 불변. bgcolor는 차트 배경 레이어.
+//  ▸ z-order: '밴드 내부' fill은 구 밴드워킹 fill과 같은 선언 위치(밴드2 plot 뒤·리본 plot 앞)라 스크립트 내부 레이어 불변. bgcolor는 스크립트 배경 그룹(최후면).
+//    캔들과의 관계: indicator(behind_chart=true)로 이 fill/bgcolor를 포함한 스크립트 전체가 메인 캔들 뒤에 그려진다(상단 indicator() 주석 참조).
 sonarEma = ta.ema(close, sonarLen)
 sonar = sonarEma - sonarEma[sonarGap]
 sonarSignal = ta.ema(sonar, sonarSigLen)
