@@ -40,8 +40,8 @@ lowBandColor = input.color(#4DD0E1, title="하단밴드(LowBand) 색", group="�
 highBandColor = input.color(#4DD0E1, title="상단밴드(HighBand) 색", group="선 색상")
 
 // 밴드 교차 가격 테이블 옵션 (표시 전용 — 매매 신호 아님)
-showCrossTable = input.bool(true, title="밴드 교차 가격 테이블 표시", group="밴드 교차 가격 테이블", tooltip="기준봉('테이블 기준봉' 설정) 데이터로, 그 다음 봉이 어느 종가로 마감하면 cRSI가 밴드(상단 ub/하단 db)를 넘나드는지 역산한 '종가 기준 조건 가격' 4행(상단 돌파/상단 이탈/하단 돌파/하단 이탈) 테이블. 리페인팅 여부는 기준봉 설정에 따릅니다(실시간봉=틱마다 갱신, 완성봉=고정). 해당 상태에서 의미 없는 행은 '-', 수학적으로 도달할 수 없거나 기준 종가 대비 변동률이 ±30% 초과(표시 기준 ±30.0% 초과)인 경우 '도달불가'. 매매 신호가 아닌 참고용입니다.")
-crossTableBase = input.string("실시간봉", title="테이블 기준봉", options=["실시간봉", "완성봉"], group="밴드 교차 가격 테이블", active=showCrossTable, tooltip="실시간봉: 현재 형성 중 봉(차트 마지막 봉 [0]) 기준, 틱마다 갱신(의도된 리얼타임 리페인팅). 상태는 차트에 보이는 현재 cRSI 위치와 일치하고, 가격은 '다음 봉 종가가 얼마면 교차하는가', %는 현재 봉 종가 대비. 봉 마감 시점 값은 완성봉 모드와 동일.\n완성봉: 가장 최근 완성봉 기준(형성 중=직전봉, 마감된 마지막 봉·바 리플레이=그 봉), 형성 중 봉의 틱 변동에 값 고정(리페인팅 없음). 가격은 형성 중이거나 다음에 올 봉의 종가 조건.")
+showCrossTable = input.bool(true, title="밴드 교차 가격 테이블 표시", group="밴드 교차 가격 테이블", tooltip="기준봉('테이블 기준봉' 설정) 데이터로, 그 다음 봉이 어느 종가로 마감하면 cRSI가 밴드(상단 ub/하단 db)를 넘나드는지 역산한 종가 조건을 기준 종가 대비 %(틱 반올림 가격 기준, 소수 1자리·부호·천 단위 쉼표, 예 +2.3% / -0.8% / +1,234.5%)로 보여 주는 4행(상단 돌파/상단 이탈/하단 돌파/하단 이탈) 테이블. 크기 상한 없이 모든 값을 표시합니다(역산 가격이 0 이하이면 -100.0% 이하). 리페인팅 여부는 기준봉 설정에 따릅니다(실시간봉=틱마다 갱신, 완성봉=고정). 해당 상태에서 의미 없는 행이나 수학적으로 해가 없는 경우는 '-'. 매매 신호가 아닌 참고용입니다.")
+crossTableBase = input.string("실시간봉", title="테이블 기준봉", options=["실시간봉", "완성봉"], group="밴드 교차 가격 테이블", active=showCrossTable, tooltip="실시간봉: 현재 형성 중 봉(차트 마지막 봉 [0]) 기준, 틱마다 갱신(의도된 리얼타임 리페인팅). 상태는 차트에 보이는 현재 cRSI 위치와 일치하고, %는 '다음 봉 종가가 현재 봉 종가 대비 몇 % 변동하면 교차하는가'. 봉 마감 시점 값은 완성봉 모드와 동일.\n완성봉: 가장 최근 완성봉 기준(형성 중=직전봉, 마감된 마지막 봉·바 리플레이=그 봉), 형성 중 봉의 틱 변동에 값 고정(리페인팅 없음). %는 형성 중이거나 다음에 올 봉의 종가 조건(기준봉 종가 대비).")
 crossTablePos  = input.string("우측 상단", title="테이블 위치", options=["우측 상단", "우측 하단", "좌측 상단", "좌측 하단", "중앙 상단", "중앙 하단"], group="밴드 교차 가격 테이블", active=showCrossTable)
 crossTableSize = input.string("작게", title="글자 크기", options=["아주 작게", "작게", "보통", "크게"], group="밴드 교차 가격 테이블", active=showCrossTable)
 
@@ -159,6 +159,7 @@ plotshape(bearDiv and wideBw ? crsi[divLbR] : na, title="cRSI 하락 다이버�
 //  - 목표 RSI: crsi 재귀식 crsi = τ·(2·rsi − rsi[phasingLag]) + (1−τ)·crsi[1] 를 목표봉 기준으로 옮겨 rsi에 대해 역산
 //    (목표봉의 rsi[phasingLag] = 현재 기준 rsi[phasingLag + k − 1], crsi[1] = crsi[k]).
 //  - 목표 가격: rma 재귀식 up/down 갱신을 Δ(= 목표 종가 − 기준 종가 close[k])에 대해 역산.
+//  - 표시: 틱 반올림한 목표 가격의 기준 종가 close[k] 대비 %만 셀에 쓴다(크기 상한 없음, 해가 없으면 '-').
 //  - 기준봉 모드('테이블 기준봉'): 위 k 판정은 '완성봉' 모드에만 적용. '실시간봉'(기본) 모드는 항상 k=0 —
 //    마지막 봉 [0](형성 중이면 형성 중 봉)을 기준봉으로 삼아 틱마다 갱신(의도된 리얼타임 리페인팅).
 //    두 모드는 k만 다르고 역산식·참조 구조는 동일(k=0 경로는 완성봉 모드의 마감봉 경로와 같음 → 봉 마감 시점 값 일치).
@@ -173,22 +174,19 @@ max_bars_back(ub, 2)
 max_bars_back(db, 2)
 max_bars_back(src, 2)
 
-// 목표 cRSI(T) → 목표 종가. 반환 [가격, 상태] — 상태 0='-'(데이터 없음), 1=유효, 2=도달불가
+// 목표 cRSI(T) → 목표 종가(정확 역산). 수학적으로 해가 없으면 na —
+//  입력 na·RMA 분모 0(u1=d1=0)·목표 RSI가 (0,100) 밖(RMA 역산 불가). 역산 가격 ≤ 0도 계산값 그대로 반환(표시 −100% 이하).
 f_crossPrice(float T, float u1, float d1, float c1, float r4, float p1) =>
     float res = na
-    int st = 0
     if not (na(T) or na(u1) or na(d1) or na(c1) or na(r4) or na(p1)) and (u1 > 0 or d1 > 0)
-        st := 2
         rT = ((T - (1 - torque) * c1) / torque + r4) / 2
         if rT > 0 and rT < 100
             R   = rT / (100 - rT)
             r0  = d1 == 0 ? 100.0 : u1 == 0 ? 0.0 : 100 - 100 / (1 + u1 / d1)
             k   = cyclelen - 1
             dlt = rT >= r0 ? k * (R * d1 - u1) : -k * (u1 / R - d1)
-            if p1 + dlt > 0
-                res := p1 + dlt
-                st := 1
-    [res, st]
+            res := p1 + dlt
+    res
 
 // 틱 반올림. mode 1=올림(≥ 조건), 2=내림(≤ 조건), 3=엄격 올림(> 조건: 정확히 틱 위면 +1틱), 4=엄격 내림(< 조건: 정확히 틱 위면 −1틱)
 f_crossTick(float p, int mode) =>
@@ -198,50 +196,26 @@ f_crossTick(float p, int mode) =>
     n   = mode == 1 ? math.ceil(q - eps) : mode == 2 ? math.floor(q + eps) : mode == 3 ? math.floor(q + eps) + 1 : math.ceil(q - eps) - 1
     n * mt
 
-// 부호 포함 % (소수 1자리). 반올림 정수 n=round(v×10) 하나로 부호·숫자를 모두 만든다 —
-//  n=0이면 "0.0%"(−0.0 방지), 아니면 n/10을 표시(문자열 포맷의 반올림 규칙과 어긋날 여지 없음).
+// 부호 포함 % (소수 1자리, 정수부 천 단위 쉼표 — 예 +2.3% / −0.8% / +1,234.5% / −12,345.6%).
+//  반올림 정수 n=round(v×10) 하나로 부호·숫자를 모두 만든다 — n=0이면 "0.0%"(−0.0 방지),
+//  아니면 n/10을 "#,##0.0"으로 표시(음수는 포맷이 "-" 접두, 양수만 "+" 추가). 크기 상한 없음.
 f_crossPct(float v) =>
     n = math.round(v * 10)
-    n == 0 ? "0.0%" : (n > 0 ? "+" : "") + str.tostring(n / 10.0, "0.0") + "%"
+    n == 0 ? "0.0%" : (n > 0 ? "+" : "") + str.tostring(n / 10.0, "#,##0.0") + "%"
 
-// 가격 포맷: 천 단위 쉼표 + 종목 mintick 소수 자릿수(예: 1,000 / 12,345.6 / 0.25틱 → 12,345.25).
-//  auto-vwap priceFmt("#,##0.0…")와 같은 방식이되, 자릿수는 mintick×10^d가 정수가 되는 최소 d로 산출
-//  (0.25·0.005 같은 비10진 틱도 자릿수 손실 없음). 최대 8자리.
-f_crossFmt() =>
-    mt = syminfo.mintick
-    int d = 0
-    for i = 0 to 8
-        d := i
-        x = mt * math.pow(10, i)
-        if math.abs(x - math.round(x)) < 1e-6
-            break
-    d == 0 ? "#,##0" : "#,##0." + str.repeat("0", d)
-
-// 셀 텍스트: "가격 (±%)" / "도달불가" / "-" + 부호 sg(1=+, −1=−, 0=해당 없음)
-//  sg는 실제 부호(틱 반올림 가격 − 기준 종가)로 정하되, 표시 %가 반올림으로 0.0이면 0 —
-//  f_crossPct와 같은 반올림 정수 n=round(pct×10)로 0.0 판정 → 표시 부호와 하이라이트가 항상 일치.
-//  '-'·'도달불가'는 sg=0.
-//  기준 종가 대비 변동률이 표시상 ±CROSS_PCT_CAP(30.0)% 초과(n > 300 or n < −300, n=round(pct×10))이면 '도달불가' —
-//  표시 반올림 정수로 판정해 "±30.0%"로 보이는 값은 항상 표시, "±30.1%" 이상만 도달불가(표시와 판정 일치).
-//  상한은 대칭이라 −쪽도 −30.1% 이하에서 실제로 걸림(가격 ≤ 0 규칙과 별개).
-CROSS_PCT_CAP = 30.0   // 도달불가 판정 변동률 상한(%) — 전략 표시 기준, input 미노출
-f_crossCell(float p, int st, int mode, float p1, string fmt) =>
+// 셀 텍스트: "±x.x%"(기준 종가 대비, 틱 반올림 가격 기준) / "-" + 부호 sg(1=+, −1=−, 0=해당 없음)
+//  p가 na(해 없음)이거나 기준 종가 p1이 0 이하(분모 0)면 '-'. 그 외에는 크기와 무관하게 모두 % 표시
+//  (역산 가격 ≤ 0이면 −100.0% 이하로 그대로 표시).
+//  sg는 표시 %와 같은 반올림 정수 n=round(pct×10)의 부호 — n=0(0.0%)이면 0 → 표시 부호와 하이라이트가 항상 일치. '-'는 sg=0.
+f_crossCell(float p, int mode, float p1) =>
     string s = "-"
     int sg = 0
-    if st == 2
-        s := "도달불가"
-    else if st == 1
-        pr = f_crossTick(p, mode)
-        if pr <= 0
-            s := "도달불가"
-        else
-            pct = (pr - p1) / p1 * 100
-            n   = math.round(pct * 10)   // f_crossPct와 같은 반올림 정수 → 표시 부호·±30% 판정과 동일
-            if n > CROSS_PCT_CAP * 10 or n < -CROSS_PCT_CAP * 10
-                s := "도달불가"
-            else
-                s := str.tostring(pr, fmt) + " (" + f_crossPct(pct) + ")"
-                sg := n == 0 ? 0 : pr > p1 ? 1 : -1
+    if not na(p) and not na(p1) and p1 > 0
+        pr  = f_crossTick(p, mode)
+        pct = (pr - p1) / p1 * 100
+        n   = math.round(pct * 10)   // f_crossPct와 같은 반올림 정수 → 표시 부호와 동일
+        s  := f_crossPct(pct)
+        sg := n > 0 ? 1 : n < 0 ? -1 : 0
     [s, sg]
 
 // 스타일: 테두리 회색 50·두께 1, 흰 글자(auto-vwap 테이블 컨벤션).
@@ -257,12 +231,11 @@ if showCrossTable and barstate.islast
     string sUpExit  = "-"
     string sDnBreak = "-"
     string sDnExit  = "-"
-    // 각 행 값의 % 부호(하이라이트 판정용, 1=+ / −1=− / 0=0.0%·'-'·도달불가)
+    // 각 행 값의 % 부호(하이라이트 판정용, 1=+ / −1=− / 0=0.0%·'-')
     int gUpBreak = 0   // 행 0 상단 돌파
     int gUpExit  = 0   // 행 1 상단 이탈
     int gDnBreak = 0   // 행 2 하단 돌파
     int gDnExit  = 0   // 행 3 하단 이탈
-    fmt = f_crossFmt()
     // 기준 오프셋: 실시간봉 모드 → 항상 0(마지막 봉 [0], 틱마다 갱신)
     //  완성봉 모드 → 끝난 마지막봉(시간 경과 또는 확정) 0, 형성 중(실시간) 1
     //  time_close na(틱·레인지·렌코 등 가격 기반 차트의 열린 실시간 봉) → isconfirmed 폴백(기존 동작)
@@ -307,21 +280,21 @@ if showCrossTable and barstate.islast
                     if cntB / cyclicmemory >= aperc
                         dStar := g
                         break
-        [pU, stU] = f_crossPrice(uStar, crUp1, crDown1, crCrsi1, crRsiLag, crClose1)
-        [pD, stD] = f_crossPrice(dStar, crUp1, crDown1, crCrsi1, crRsiLag, crClose1)
+        pU = f_crossPrice(uStar, crUp1, crDown1, crCrsi1, crRsiLag, crClose1)
+        pD = f_crossPrice(dStar, crUp1, crDown1, crCrsi1, crRsiLag, crClose1)
         if crState == 2
-            [s1, g1] = f_crossCell(pU, stU, 1, crClose1, fmt)   // cRSI ≥ U* → 올림
-            [s2, g2] = f_crossCell(pD, stD, 2, crClose1, fmt)   // cRSI ≤ D* → 내림
+            [s1, g1] = f_crossCell(pU, 1, crClose1)   // cRSI ≥ U* → 올림
+            [s2, g2] = f_crossCell(pD, 2, crClose1)   // cRSI ≤ D* → 내림
             sUpBreak := s1
             gUpBreak := g1
             sDnExit  := s2
             gDnExit  := g2
         else if crState == 1
-            [s3, g3] = f_crossCell(pU, stU, 4, crClose1, fmt)   // cRSI < U* → 엄격 내림
+            [s3, g3] = f_crossCell(pU, 4, crClose1)   // cRSI < U* → 엄격 내림
             sUpExit  := s3
             gUpExit  := g3
         else if crState == -1
-            [s4, g4] = f_crossCell(pD, stD, 3, crClose1, fmt)   // cRSI > D* → 엄격 올림
+            [s4, g4] = f_crossCell(pD, 3, crClose1)   // cRSI > D* → 엄격 올림
             sDnBreak := s4
             gDnBreak := g4
     color GRN       = #2E7D32   // 녹 라벨(활성)
@@ -339,16 +312,16 @@ if showCrossTable and barstate.islast
     dnBrkOn = sDnBreak != "-"
     dnExtOn = sDnExit  != "-"
     // 특수 상황(행 종류 기준 일반 규칙): 돌파 행이 −% / 이탈 행이 +% → 보합·역방향 소폭 움직임에도
-    //  다음 봉 교차 → 값 글자 순수 노랑 + 굵게. 0.0%(sg=0)·'-'·도달불가는 미강조.
+    //  다음 봉 교차 → 값 글자 순수 노랑 + 굵게. 0.0%(sg=0)·'-'는 미강조.
     upBrkHL = upBrkOn and gUpBreak < 0   // 돌파 행: −%
     upExtHL = upExtOn and gUpExit  > 0   // 이탈 행: +%
     dnBrkHL = dnBrkOn and gDnBreak < 0   // 돌파 행: −%
     dnExtHL = dnExtOn and gDnExit  > 0   // 이탈 행: +%
-    table.cell(crossTable, 0, 0, "상단 돌파", text_color=upBrkOn ? color.white : TXT_OFF, bgcolor=upBrkOn ? GRN : GRN_OFF, text_size=crossTxt, tooltip="cRSI가 밴드 안(중간)일 때: 다음 봉 종가가 이 가격 이상이면 cRSI ≥ 상단밴드. 기준봉('테이블 기준봉' 설정) 값 기준 종가 조건 가격(매매 신호 아님). 값이 노란 굵은 글자(−%)면 보합·소폭 하락에도 다음 봉 돌파.")
+    table.cell(crossTable, 0, 0, "상단 돌파", text_color=upBrkOn ? color.white : TXT_OFF, bgcolor=upBrkOn ? GRN : GRN_OFF, text_size=crossTxt, tooltip="cRSI가 밴드 안(중간)일 때: 다음 봉 종가가 기준 종가 대비 이 % 이상이면 cRSI ≥ 상단밴드. 기준봉('테이블 기준봉' 설정) 값 기준 종가 조건(매매 신호 아님). 값이 노란 굵은 글자(−%)면 보합·소폭 하락에도 다음 봉 돌파.")
     table.cell(crossTable, 1, 0, sUpBreak, text_color=upBrkHL ? TXT_HL : upBrkOn ? color.white : TXT_OFF, bgcolor=upBrkOn ? GRN_V : GRN_OFF_V, text_size=crossTxt, text_formatting=upBrkHL ? text.format_bold : text.format_none)
-    table.cell(crossTable, 0, 1, "상단 이탈", text_color=upExtOn ? color.white : TXT_OFF, bgcolor=upExtOn ? RED : RED_OFF, text_size=crossTxt, tooltip="cRSI가 상단밴드 위일 때: 다음 봉 종가가 이 가격 이하이면 cRSI < 상단밴드(밴드 안 복귀). 기준봉('테이블 기준봉' 설정) 값 기준 종가 조건 가격(매매 신호 아님). 값이 노란 굵은 글자(+%)면 보합·소폭 상승에도 다음 봉 이탈.")
+    table.cell(crossTable, 0, 1, "상단 이탈", text_color=upExtOn ? color.white : TXT_OFF, bgcolor=upExtOn ? RED : RED_OFF, text_size=crossTxt, tooltip="cRSI가 상단밴드 위일 때: 다음 봉 종가가 기준 종가 대비 이 % 이하이면 cRSI < 상단밴드(밴드 안 복귀). 기준봉('테이블 기준봉' 설정) 값 기준 종가 조건(매매 신호 아님). 값이 노란 굵은 글자(+%)면 보합·소폭 상승에도 다음 봉 이탈.")
     table.cell(crossTable, 1, 1, sUpExit, text_color=upExtHL ? TXT_HL : upExtOn ? color.white : TXT_OFF, bgcolor=upExtOn ? RED_V : RED_OFF_V, text_size=crossTxt, text_formatting=upExtHL ? text.format_bold : text.format_none)
-    table.cell(crossTable, 0, 2, "하단 돌파", text_color=dnBrkOn ? color.white : TXT_OFF, bgcolor=dnBrkOn ? GRN : GRN_OFF, text_size=crossTxt, tooltip="cRSI가 하단밴드 아래일 때: 다음 봉 종가가 이 가격 이상이면 cRSI > 하단밴드(밴드 안 복귀). 기준봉('테이블 기준봉' 설정) 값 기준 종가 조건 가격(매매 신호 아님). 값이 노란 굵은 글자(−%)면 보합·소폭 하락에도 다음 봉 돌파.")
+    table.cell(crossTable, 0, 2, "하단 돌파", text_color=dnBrkOn ? color.white : TXT_OFF, bgcolor=dnBrkOn ? GRN : GRN_OFF, text_size=crossTxt, tooltip="cRSI가 하단밴드 아래일 때: 다음 봉 종가가 기준 종가 대비 이 % 이상이면 cRSI > 하단밴드(밴드 안 복귀). 기준봉('테이블 기준봉' 설정) 값 기준 종가 조건(매매 신호 아님). 값이 노란 굵은 글자(−%)면 보합·소폭 하락에도 다음 봉 돌파.")
     table.cell(crossTable, 1, 2, sDnBreak, text_color=dnBrkHL ? TXT_HL : dnBrkOn ? color.white : TXT_OFF, bgcolor=dnBrkOn ? GRN_V : GRN_OFF_V, text_size=crossTxt, text_formatting=dnBrkHL ? text.format_bold : text.format_none)
-    table.cell(crossTable, 0, 3, "하단 이탈", text_color=dnExtOn ? color.white : TXT_OFF, bgcolor=dnExtOn ? RED : RED_OFF, text_size=crossTxt, tooltip="cRSI가 밴드 안(중간)일 때: 다음 봉 종가가 이 가격 이하이면 cRSI ≤ 하단밴드. 기준봉('테이블 기준봉' 설정) 값 기준 종가 조건 가격(매매 신호 아님). 값이 노란 굵은 글자(+%)면 보합·소폭 상승에도 다음 봉 이탈.")
+    table.cell(crossTable, 0, 3, "하단 이탈", text_color=dnExtOn ? color.white : TXT_OFF, bgcolor=dnExtOn ? RED : RED_OFF, text_size=crossTxt, tooltip="cRSI가 밴드 안(중간)일 때: 다음 봉 종가가 기준 종가 대비 이 % 이하이면 cRSI ≤ 하단밴드. 기준봉('테이블 기준봉' 설정) 값 기준 종가 조건(매매 신호 아님). 값이 노란 굵은 글자(+%)면 보합·소폭 상승에도 다음 봉 이탈.")
     table.cell(crossTable, 1, 3, sDnExit, text_color=dnExtHL ? TXT_HL : dnExtOn ? color.white : TXT_OFF, bgcolor=dnExtOn ? RED_V : RED_OFF_V, text_size=crossTxt, text_formatting=dnExtHL ? text.format_bold : text.format_none)
