@@ -162,7 +162,7 @@
 | --- | --- |
 | `stoch_*_order` → 웨이브 배경 | 세 스토캐스틱 **서열**이 정확히 정배열(녹)/역배열(적)일 때 배경 강조. 기준선 `Wave Background Basis` — **기본 `D선`**(`fast_d > mid_d > slow_d`), 옵션 `K선`(`fast_k > mid_k > slow_k`). 엄격 부등호 |
 | `all_*_aligned` | Slow·Mid·Fast **각각** %K가 자기 %D 위/아래(셋 다 동일 방향) → 3중 정렬 alert 2종. (서열 `stoch_*_order`와는 별개 개념) |
-| 라인 6개 | 각 %K·%D. %D 3개는 불투명. 우측 프라이스 스케일 라벨은 `Slow`/`Mid`/`Fast`(%K) 세 개만 |
+| 라인 6개 | 각 %K·%D. **기본은 %D 3선만 표시**(title `Slow`/`Mid`/`Fast`, 불투명) → 우측 프라이스 스케일 라벨도 이 세 개만. %K 3선(`Slow %K`/`Mid %K`/`Fast %K`)은 기본 숨김(`display.none`), 스타일 탭에서 켜면 스케일 라벨까지 함께 나옴(Pine 한계) |
 | 수평선 | 과매수 80 · 미드라인 50 · 과매도 20 |
 
 > Fast **골든/데드 크로스**(원 마커·alert·`Cross Trigger Basis`/`Cross Mode`/`Full Alignment Rule` 입력)와 **우측 상단 상태 테이블**(종합·정렬/추세·모멘텀, `Slow Context Lookback` 입력)은 **제거**되었습니다(CEO 지시). 전 계산이 확정 `ta.*`이며 `request.security`·`lookahead` 없음 → **미래참조 없음**.

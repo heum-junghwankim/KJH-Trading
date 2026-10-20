@@ -15,6 +15,8 @@ CEO 확정 제공 "Triple-Stochastic-Wave" 소스코드를 기반으로 합니�
 >
 > 남은 것: 6개 라인, 웨이브 배경, 수평선 3개, 3중 정렬 alert 2종. `Wave Background Basis` 기본값은 **`D선`** 으로 바뀌었습니다.
 
+> **기본 표시 전환 (CEO 지시):** 기본으로 **%D 3선만** 보이고 %K 3선은 숨김(`display.none`)입니다. 우측 스케일 라벨이 %D에 붙도록 plot title을 맞바꿨습니다 — %D = `Slow`/`Mid`/`Fast`, %K = `Slow %K`/`Mid %K`/`Fast %K`.
+
 > **웨이브 배경 재정의 (CEO 지시, 이전 변경):** 원본 배경 조건 `slow_*_trend and mid_*_reset`(컨텍스트+리셋)을 **정확한 정배열/역배열**로 교체했습니다. 이에 따라 `mid_bull_reset`/`mid_bear_reset` 및 `Mid Pullback Lookback` 입력이 제거되었습니다.
 
 ## Pine 버전: v6 채택
@@ -47,8 +49,19 @@ d     = SMA(k, smooth_d)
 
 ## 플롯·배경·alert
 
-- **라인 6개**: 각 스토캐스틱의 %K·%D. %D 3개는 **불투명(투명도 0)** 입니다. %K 투명도는 그대로(Slow·Mid 0, Fast 45)이며, %K·%D는 같은 색이라 선 굵기로 구분합니다.
-- **우측 프라이스 스케일 라벨은 `Slow` / `Mid` / `Fast` 세 개만** 나옵니다(각 %K 값). %D 3개는 `display.pane + display.data_window`라 패널과 데이터 창에만 나오고 스케일 라벨은 없습니다(데이터 창 이름 `Slow %D`/`Mid %D`/`Fast %D`). 수평선(`hline`)과 배경(`bgcolor`)은 스케일 라벨을 만들지 않습니다.
+- **라인 6개**: 각 스토캐스틱의 %K·%D. 색·투명도는 그대로입니다(%D 3개 불투명 0, %K는 Slow·Mid 0 / Fast 45). %K·%D는 같은 색이라 선 굵기로 구분합니다.
+- **기본 표시 상태**:
+  | plot title | 값 | 기본 | 굵기 |
+  | --- | --- | --- | --- |
+  | `Slow` | Slow %D | **켜짐**(`display.all`) | 2 |
+  | `Mid` | Mid %D | **켜짐**(`display.all`) | 1 |
+  | `Fast` | Fast %D | **켜짐**(`display.all`) | 1 |
+  | `Slow %K` | Slow %K | 꺼짐(`display.none`) | 3 |
+  | `Mid %K` | Mid %K | 꺼짐(`display.none`) | 2 |
+  | `Fast %K` | Fast %K | 꺼짐(`display.none`) | 1 |
+- **우측 프라이스 스케일 라벨**: 기본 상태에서 **`Slow` / `Mid` / `Fast` 세 개만**(각 %D 값) 나옵니다. 수평선(`hline`)과 배경(`bgcolor`)은 스케일 라벨을 만들지 않습니다.
+- **%K를 켜면**: 설정 → 스타일 탭에서 `Slow %K` 등을 체크하면 해당 라인이 패널·상태줄·데이터 창·**스케일 라벨까지 전부** 표시됩니다(`display.none` 플롯은 켜질 때 전체 표시로 복원). 즉 %K를 켜면 라벨이 최대 6개가 됩니다. Pine은 plot당 기본 `display` 하나만 지정할 수 있어 "기본 숨김 + 켜면 라벨 없이 표시"는 코드로 만들 수 없습니다(한계). 라벨을 줄이려면 차트 프라이스 스케일 우클릭 → 라벨 설정에서 지표 라벨을 끄는 방식(지표 전체 단위)만 가능합니다.
+- **`Wave Background Basis = K선`** 을 쓸 때는 %K 라인이 숨겨져 있으므로, 배경 근거를 눈으로 확인하려면 스타일 탭에서 %K를 켜세요.
 - **웨이브 배경**: 정배열=녹 `#2E7D32`, 역배열=적 `#C62828`(투명 80).
 - **수평선**: 과매수(80)·미드라인(50)·과매도(20).
 - **alert 2종**: `Triple Stochastic Bull Alignment` / `Triple Stochastic Bear Alignment`(`all_*_aligned`).
@@ -60,6 +73,7 @@ d     = SMA(k, smooth_d)
 ## 리페인팅 / 안전성
 
 - 전 계산이 확정 `ta.*`(`highest`/`lowest`/`sma`)로 이뤄지며 **`request.security`·`lookahead` 없음**. 미래참조가 없습니다.
+- 표시(`display`)·title 변경은 계산과 무관하며 신호·alert 로직에 영향이 없습니다.
 - 라인·배경·alert는 형성 중인 실시간 봉에서 틱마다 갱신될 수 있습니다(스토캐스틱 지표의 정상 거동). 봉 마감 후 값은 확정됩니다.
 - 별도 패널 지표라 가격 차트를 가리지 않습니다.
 
