@@ -12,7 +12,7 @@
 | --- | --- | --- |
 | **슈퍼 이치모쿠**(메인) | 멀티스케일 매수/매도 신호 + 3섹션 종합 테이블 | [코드](./pinescript/SUPER-ICHIMOKU/advanced-ichimoku.pine) · [설명](./pinescript/SUPER-ICHIMOKU/README.md) |
 | 거래량 압력 | 신호 봉에 추진력(매수/매도 우세)이 실렸는지 + 비정상 거래량 판정 | [코드](./pinescript/VOLUME-PRESSURE/volume-pressure-tracker.pine) · [설명](./pinescript/VOLUME-PRESSURE/README.md) |
-| 삼중 스토캐스틱 | Slow·Mid·Fast 3개 스토캐스틱 · 정배열/역배열 웨이브 배경 · 3중 정렬 alert | [코드](./pinescript/TRIPLE-STOCH/triple-stochastic-wave.pine) · [설명](./pinescript/TRIPLE-STOCH/README.md) |
+| 삼중 스토캐스틱 | Slow·Mid·Fast 3개 스토캐스틱 · 정배열/역배열 웨이브 배경 · 서열 전환 가격 테이블 · 3중 정렬 alert | [코드](./pinescript/TRIPLE-STOCH/triple-stochastic-wave.pine) · [설명](./pinescript/TRIPLE-STOCH/README.md) |
 | cRSI | 순환 평활 RSI · 동적 밴드 · 과매도/과열 · 다이버전스 | [코드](./pinescript/cRSI/rsi-cyclic-smoothed.pine) · [설명](./pinescript/cRSI/README.md) |
 | OBV-ADX | 추세 힘(ADX)·방향(DI)·과열 / 휩쏘 1차 필터 | [코드](./pinescript/OBV-ADX/obv-adx-extreme-background.pine) · [설명](./pinescript/OBV-ADX/README.md) |
 | Squeeze Deluxe(외부 편입) | 스퀴즈 모멘텀·Directional Flux·3단계 압축·Confluence Gauge·다이버전스 (© EliCobra, CC BY-NC-SA 4.0, 원본 기능 유지) | [코드](./pinescript/SQUEEZE-DELUXE/squeeze-momentum-deluxe.pine) · [설명](./pinescript/SQUEEZE-DELUXE/README.md) |
@@ -164,8 +164,9 @@
 | `all_*_aligned` | Slow·Mid·Fast **각각** %K가 자기 %D 위/아래(셋 다 동일 방향) → 3중 정렬 alert 2종. (서열 `stoch_*_order`와는 별개 개념) |
 | 라인 3개 | `Line Basis`(기본 `D선`)로 고른 **K선 또는 D선 한 종류만** `Slow`/`Mid`/`Fast` 3선으로 표시(투명도 0) → 우측 프라이스 스케일 라벨도 이 세 개만. 웨이브 배경 기준 `Wave Background Basis`와는 별도 옵션 |
 | 수평선 | 과매수 80 · 미드라인 50 · 과매도 20 |
+| 서열 전환 가격 테이블(우측 상단) | 헤더 없는 3행 `정배열`(녹 `#2E7D32`)/`중립`(검정)/`역배열`(적 `#C62828`) — 각 행 = 그 서열이 되는 **가장 가까운 종가의 기준 종가 대비 %**(cRSI와 같은 부호·소수 1자리·천 단위 쉼표, 틱 반올림, 가격 병기 없음). 이미 그 서열이면 `현재`(라벨 `▶`·굵게, 기준봉이 확정봉이면 `(확정)`), 이번 봉 종가로는 불가하면 `1봉 내 불가`(D선 기준에서 흔함). 현재가 정/역배열이면 `중립` 행이 이탈 임계. 닫힌형(구간별 선형) 해, 격자 탐색 없음. `Table Base Bar`: `실시간봉`(기본)=현재 봉 종가 조건·틱마다 갱신 / `완성봉`=최근 완성봉 기준 다음 봉 조건·고정(cRSI 시간 판정). **종가 기준 참고값이며 매매 신호 아님** |
 
-> Fast **골든/데드 크로스**(원 마커·alert·`Cross Trigger Basis`/`Cross Mode`/`Full Alignment Rule` 입력)와 **우측 상단 상태 테이블**(종합·정렬/추세·모멘텀, `Slow Context Lookback` 입력)은 **제거**되었습니다(CEO 지시). 전 계산이 확정 `ta.*`이며 `request.security`·`lookahead` 없음 → **미래참조 없음**.
+> Fast **골든/데드 크로스**(원 마커·alert·`Cross Trigger Basis`/`Cross Mode`/`Full Alignment Rule` 입력)와 이전 **우측 상단 상태 테이블**(종합·정렬/추세·모멘텀, `Slow Context Lookback` 입력)은 **제거**되었습니다(CEO 지시). 현재 테이블은 위 서열 전환 가격 테이블(신규) 하나입니다. 전 계산이 확정 `ta.*`이며 `request.security`·`lookahead` 없음 → **미래참조 없음**.
 
 ---
 
