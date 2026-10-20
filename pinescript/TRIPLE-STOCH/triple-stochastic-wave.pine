@@ -26,6 +26,11 @@ oversold = input.int(20, "Oversold", minval=0, maxval=50, group="Wave Rules", in
 overbought = input.int(80, "Overbought", minval=50, maxval=100, group="Wave Rules", inline="rule1")
 trend_midline = input.int(50, "Trend Midline", minval=0, maxval=100, group="Wave Rules", inline="rule1")
 slow_context_lookback = input.int(8, "Slow Context Lookback", minval=2, group="Wave Rules", inline="rule2")
+// 기준선 선택(기본 K선 = 기존 동작 그대로). 배경(서열)과 크로스(트리거)는 서로 다른 신호라 각각 선택한다.
+wave_basis = input.string("K선", "Wave Background Basis", options=["K선", "D선"], group="Wave Rules", inline="rule3", tooltip="웨이브 배경(정배열 녹/역배열 적) 서열 판정에 쓸 기준선.\nK선(기본): fast %K > mid %K > slow %K = 정배열, 역순 = 역배열.\nD선: fast %D > mid %D > slow %D = 정배열, 역순 = 역배열 (더 매끄럽고 늦음).\n테이블 모멘텀 행의 웨이브 판정도 이 설정을 따릅니다.")
+cross_basis = input.string("K선", "Cross Trigger Basis", options=["K선", "D선"], group="Wave Rules", inline="rule4", tooltip="Fast 골든/데드 크로스(트리거) 판정에 쓸 기준선.\nK선(기본): Fast %K가 %D를 상향(골든)/하향(데드) 교차 + 교차 지점이 과매도/과매수 영역.\nD선: Fast %D가 과매도선을 상향 돌파(골든 = 과매도 탈출) / 과매수선을 하향 돌파(데드 = 과매수 이탈).\n크로스 원 마커·테이블(모멘텀·종합)도 이 설정을 따릅니다.")
+wave_use_d = wave_basis == "D선"
+cross_use_d = cross_basis == "D선"
 
 [fast_k, fast_d] = stoch_pair(fast_length, fast_smooth_k, fast_smooth_d)
 [mid_k, mid_d] = stoch_pair(mid_length, mid_smooth_k, mid_smooth_d)
@@ -35,16 +40,24 @@ slow_context_lookback = input.int(8, "Slow Context Lookback", minval=2, group="W
 slow_bull_trend = slow_k > slow_d and (slow_k >= trend_midline or ta.lowest(slow_k, slow_context_lookback) <= oversold)
 slow_bear_trend = slow_k < slow_d and (slow_k <= trend_midline or ta.highest(slow_k, slow_context_lookback) >= overbought)
 
-fast_bull_trigger = ta.crossover(fast_k, fast_d) and math.min(fast_k, fast_d) <= oversold
-fast_bear_trigger = ta.crossunder(fast_k, fast_d) and math.max(fast_k, fast_d) >= overbought
+// K선 기준(원본): Fast %K-%D 교차 + 교차 지점이 과매도/과매수 영역.
+// D선 기준: Fast %D가 과매도선 상향 돌파(과매도 탈출) / 과매수선 하향 돌파(과매수 이탈).
+//   K-D 교차는 K·D 대칭이라 "D 기준 K-D 교차"는 동일 신호가 되므로, "극단 영역에서의 전환" 의미를 D 단독 레벨 교차로 대응.
+// ta.crossover/crossunder는 매 봉 일관 실행되도록 두 기준 모두 계산 후 선택한다.
+fast_bull_trigger_k = ta.crossover(fast_k, fast_d) and math.min(fast_k, fast_d) <= oversold
+fast_bear_trigger_k = ta.crossunder(fast_k, fast_d) and math.max(fast_k, fast_d) >= overbought
+fast_bull_trigger_d = ta.crossover(fast_d, oversold)
+fast_bear_trigger_d = ta.crossunder(fast_d, overbought)
+fast_bull_trigger = cross_use_d ? fast_bull_trigger_d : fast_bull_trigger_k
+fast_bear_trigger = cross_use_d ? fast_bear_trigger_d : fast_bear_trigger_k
 
 all_bull_aligned = slow_k > slow_d and mid_k > mid_d and fast_k > fast_d
 all_bear_aligned = slow_k < slow_d and mid_k < mid_d and fast_k < fast_d
 
-// 스토캐스틱 간 서열(정배열/역배열): fast %K가 mid %K 위, mid %K가 slow %K 위이면 정배열(상승 서열).
-// 각 스토캐스틱의 %K를 대표값으로 비교(엄격 부등호). all_*_aligned(각 %K vs 자기 %D)와는 다른 개념.
-stoch_bull_order = fast_k > mid_k and mid_k > slow_k
-stoch_bear_order = fast_k < mid_k and mid_k < slow_k
+// 스토캐스틱 간 서열(정배열/역배열): fast가 mid 위, mid가 slow 위이면 정배열(상승 서열).
+// 대표값 = Wave Background Basis 선택(기본 %K, 옵션 %D). 엄격 부등호. all_*_aligned(각 %K vs 자기 %D)와는 다른 개념.
+stoch_bull_order = wave_use_d ? (fast_d > mid_d and mid_d > slow_d) : (fast_k > mid_k and mid_k > slow_k)
+stoch_bear_order = wave_use_d ? (fast_d < mid_d and mid_d < slow_d) : (fast_k < mid_k and mid_k < slow_k)
 
 // 웨이브 배경 = 스토캐스틱이 정확히 정배열/역배열일 때만.
 bull_wave_background = stoch_bull_order
@@ -64,8 +77,9 @@ plot(mid_d, title="Mid %D (10/6/6)", color=color.new(#00897B, 55), linewidth=1, 
 plot(fast_k, title="Fast %K (5/3/3)", color=color.new(#FB8C00, 45), linewidth=1)
 plot(fast_d, title="Fast %D (5/3/3)", color=color.new(#FB8C00, 75), linewidth=1, display=display.pane + display.data_window)
 
-plot(fast_bull_trigger ? fast_k : na, title="Fast Bull Cross", style=plot.style_circles, color=color.new(#7CB342, 0), linewidth=4, display=display.pane)
-plot(fast_bear_trigger ? fast_k : na, title="Fast Bear Cross", style=plot.style_circles, color=color.new(#D81B60, 0), linewidth=4, display=display.pane)
+trigger_line = cross_use_d ? fast_d : fast_k
+plot(fast_bull_trigger ? trigger_line : na, title="Fast Bull Cross", style=plot.style_circles, color=color.new(#7CB342, 0), linewidth=4, display=display.pane)
+plot(fast_bear_trigger ? trigger_line : na, title="Fast Bear Cross", style=plot.style_circles, color=color.new(#D81B60, 0), linewidth=4, display=display.pane)
 
 alertcondition(all_bull_aligned, title="Triple Stochastic Bull Alignment", message="Triple Stochastic bullish alignment: fast, mid, slow are all above their signal lines")
 alertcondition(all_bear_aligned, title="Triple Stochastic Bear Alignment", message="Triple Stochastic bearish alignment: fast, mid, slow are all below their signal lines")

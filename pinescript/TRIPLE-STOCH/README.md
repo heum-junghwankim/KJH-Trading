@@ -40,8 +40,8 @@ d     = SMA(k, smooth_d)
 **Slow = 컨텍스트, Fast = 트리거** 구조이며, 웨이브 배경은 세 스토캐스틱 %K의 **정배열/역배열 서열**로 판정합니다.
 
 - **`slow_bull_trend` / `slow_bear_trend`** (컨텍스트): Slow %K가 %D 위/아래이고, 추세 미드라인(50)을 넘거나 최근 `slow_context_lookback`(8)봉 내 과매도/과매수를 찍은 상태. (테이블 정렬/추세 행에서 사용)
-- **`fast_bull_trigger` / `fast_bear_trigger`** (트리거): Fast %K가 %D를 상향/하향 교차(`ta.crossover`/`ta.crossunder`)하면서 교차 지점이 과매도/과매수 영역인 상태.
-- **`stoch_bull_order` / `stoch_bear_order`** (정배열/역배열 서열): 세 스토캐스틱의 **%K 값 서열**로 판정. 정배열 = `fast_k > mid_k > slow_k`(위에서 아래로 fast→mid→slow, 상승 서열), 역배열 = `fast_k < mid_k < slow_k`(하락 서열). 엄격 부등호로 "정확히" 순서대로 정렬된 상태만 참.
+- **`fast_bull_trigger` / `fast_bear_trigger`** (트리거): Fast %K가 %D를 상향/하향 교차(`ta.crossover`/`ta.crossunder`)하면서 교차 지점이 과매도/과매수 영역인 상태. *(`Cross Trigger Basis = D선`이면 Fast %D의 과매도선 상향/과매수선 하향 돌파로 대체 — 입력 옵션 참조)*
+- **`stoch_bull_order` / `stoch_bear_order`** (정배열/역배열 서열): 세 스토캐스틱의 **%K 값 서열**로 판정. 정배열 = `fast_k > mid_k > slow_k`(위에서 아래로 fast→mid→slow, 상승 서열), 역배열 = `fast_k < mid_k < slow_k`(하락 서열). 엄격 부등호로 "정확히" 순서대로 정렬된 상태만 참. *(`Wave Background Basis = D선`이면 세 %D 서열로 판정)*
 - **`bull_wave_background` / `bear_wave_background`** (웨이브 배경): 스토캐스틱이 **정확히 정배열/역배열**일 때만(`stoch_bull_order` / `stoch_bear_order`). 배경색으로 강조됩니다.
 - **`all_bull_aligned` / `all_bear_aligned`** (3중 시그널 정렬): Slow·Mid·Fast **각각** %K > 자기 %D(또는 셋 다 < 자기 %D). alert 조건. *(주의: 각 스토캐스틱의 %K vs 자기 %D 비교이며, 스토캐스틱 간 서열인 `stoch_*_order`와는 다른 개념입니다.)*
 
@@ -148,6 +148,10 @@ d     = SMA(k, smooth_d)
 | Overbought | 80 | 과매수 임계 |
 | Trend Midline | 50 | 추세 미드라인 |
 | Slow Context Lookback | 8 | Slow 컨텍스트 룩백(과매수/과매도 흔적 확인 구간) |
+| Wave Background Basis | K선 | 웨이브 배경(정배열/역배열) 서열 기준선. `K선`=세 %K 서열(원본), `D선`=`fast_d > mid_d > slow_d` 정배열 / 역순 역배열. 테이블 웨이브 판정도 따름 |
+| Cross Trigger Basis | K선 | Fast 골든/데드 크로스 기준선. `K선`=Fast %K-%D 교차+과매도/과매수 영역(원본), `D선`=Fast %D의 과매도선 상향 돌파(골든)/과매수선 하향 돌파(데드). 원 마커·테이블 따름 |
+
+> **K선/D선 기준 옵션 (CEO 요청):** 기본값 `K선`은 기존 동작과 100% 동일합니다(기존 차트·alert 불변). `D선` 선택 시 크로스는 K-D 교차가 아니라 **Fast %D의 극단 레벨 탈출**로 정의됩니다(K-D 교차는 K·D 대칭이라 "D 기준"이 같은 신호가 되므로, 원본의 "과매도/과매수 영역에서의 전환" 의미를 D 단독으로 대응). D선은 매끄러운 대신 신호가 늦고 횟수가 줄어듭니다 — 전략 성격 변경이므로 사용 전 백테스트 검토 권장. 3중 정렬 alert(`all_*_aligned`, 각 %K vs 자기 %D)와 과매수/과매도 판정(slow %K)은 이 옵션과 무관합니다.
 
 ## 주의사항
 
