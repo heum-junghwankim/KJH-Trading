@@ -163,7 +163,7 @@
 | 신호 | 의미 |
 | --- | --- |
 | `slow_*_trend` | Slow %K가 %D 위/아래 + 미드라인(50) 돌파 또는 최근 룩백 내 과매도/과매수 흔적 |
-| `fast_*_trigger` | Fast %K가 %D를 과매도/과매수 영역에서 상향/하향 교차 (옵션 `Cross Trigger Basis=D선`: Fast %D의 과매도선 상향/과매수선 하향 돌파 · 옵션 `Cross Mode=완전배열`: 완벽한 정배열/역배열이 처음 성립하는 봉, 기본 정의 서열+시그널) — 원 마커·골든/데드 크로스 alert |
+| `fast_*_trigger` | Fast %K가 %D를 과매도/과매수 영역에서 상향/하향 교차 (옵션 `Cross Trigger Basis=D선`: Fast %D의 과매도선 상향/과매수선 하향 돌파 · 옵션 `Cross Mode=완전배열`: 완벽한 정배열/역배열 성립 봉, CEO 확정 정의 = 서열, 같은 방향은 반대 신호 뒤에만 재발화·봉 마감 확정) — 원 마커·골든/데드 크로스 alert |
 | `stoch_*_order` | **세 %K 값 서열** — 정배열 `fast_k > mid_k > slow_k`(상승), 역배열 `fast_k < mid_k < slow_k`(하락). 엄격 부등호 (옵션 `Wave Background Basis=D선`: 세 %D 서열) |
 | `*_wave_background` | **⚠️ 정배열/역배열 재정의(CEO 지시)** — 세 %K가 **정확히 정배열/역배열**(`stoch_*_order`)일 때만 배경색 강조. 구 `컨텍스트+리셋`(`mid_*_reset`)·`Mid Pullback Lookback` 입력은 제거됨 |
 | `all_*_aligned` | Slow·Mid·Fast **각각** %K가 자기 %D 위/아래(셋 다 동일 방향) → 3중 정렬 alert. (스토캐스틱 간 서열 `stoch_*_order`와는 별개 개념) |

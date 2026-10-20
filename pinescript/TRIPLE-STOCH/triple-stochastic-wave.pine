@@ -30,7 +30,7 @@ slow_context_lookback = input.int(8, "Slow Context Lookback", minval=2, group="W
 wave_basis = input.string("K선", "Wave Background Basis", options=["K선", "D선"], group="Wave Rules", inline="rule3", tooltip="웨이브 배경(정배열 녹/역배열 적) 서열 판정에 쓸 기준선.\nK선(기본): fast %K > mid %K > slow %K = 정배열, 역순 = 역배열.\nD선: fast %D > mid %D > slow %D = 정배열, 역순 = 역배열 (더 매끄럽고 늦음).\n테이블 모멘텀 행의 웨이브 판정도 이 설정을 따릅니다.")
 cross_basis = input.string("K선", "Cross Trigger Basis", options=["K선", "D선"], group="Wave Rules", inline="rule4", tooltip="Fast 골든/데드 크로스(트리거) 판정에 쓸 기준선.\nK선(기본): Fast %K가 %D를 상향(골든)/하향(데드) 교차 + 교차 지점이 과매도/과매수 영역.\nD선: Fast %D가 과매도선을 상향 돌파(골든 = 과매도 탈출) / 과매수선을 하향 돌파(데드 = 과매수 이탈).\nCross Mode=완전배열일 때는 서열(fast>mid>slow) 비교선으로 쓰임(K선=세 %K, D선=세 %D).\n크로스 원 마커·테이블(모멘텀·종합)도 이 설정을 따릅니다.")
 cross_mode = input.string("기존", "Cross Mode", options=["기존", "완전배열"], group="Wave Rules", inline="rule5", tooltip="골든/데드 크로스 판정 방식.\n기존(기본): Cross Trigger Basis에 따른 Fast 크로스(원본 방식, 되돌림용).\n완전배열: 세 스토캐스틱이 완전 정배열을 이루는 '첫 봉' = 골든, 완전 역배열을 이루는 '첫 봉' = 데드. 배열이 유지되는 동안에는 반복 신호 없음.")
-full_align_def = input.string("서열+시그널", "Full Alignment Rule", options=["서열+시그널", "서열", "시그널"], group="Wave Rules", inline="rule6", tooltip="완전배열 모드의 '완벽한' 정배열/역배열 정의.\n서열+시그널(기본): 아래 두 조건 동시 충족(가장 엄격, 신호 최소).\n서열: fast > mid > slow (역배열은 역순). 웨이브 배경과 같은 개념이며, 비교선은 Cross Trigger Basis(K선/D선)를 따름.\n시그널: 세 스토캐스틱 모두 %K > 자기 %D (역배열은 모두 %K < %D) = 기존 3중 정렬. K-D 비교라 K/D 기준선과 무관.", active=cross_mode == "완전배열")
+full_align_def = input.string("서열", "Full Alignment Rule", options=["서열", "서열+시그널", "시그널"], group="Wave Rules", inline="rule6", tooltip="완전배열 모드의 '완벽한' 정배열/역배열 정의.\n서열(기본·CEO 확정): fast > mid > slow = 정배열, 역순 = 역배열. 웨이브 배경과 같은 개념이며, 비교선은 Cross Trigger Basis(K선/D선)를 따름.\n서열+시그널(리서치용): 서열 + 세 스토캐스틱 모두 %K > 자기 %D 동시 충족.\n시그널(리서치용): 세 스토캐스틱 모두 %K > 자기 %D (역배열은 모두 %K < %D) = 기존 3중 정렬. K/D 기준선과 무관.\n같은 방향 신호는 반대 방향 완전배열 신호가 나온 뒤에만 다시 발생(봉 마감 확정).", active=cross_mode == "완전배열")
 wave_use_d = wave_basis == "D선"
 cross_use_d = cross_basis == "D선"
 cross_full_mode = cross_mode == "완전배열"
@@ -63,9 +63,18 @@ cross_bull_order = cross_use_d ? (fast_d > mid_d and mid_d > slow_d) : (fast_k >
 cross_bear_order = cross_use_d ? (fast_d < mid_d and mid_d < slow_d) : (fast_k < mid_k and mid_k < slow_k)
 full_bull_state = full_align_def == "서열" ? cross_bull_order : full_align_def == "시그널" ? all_bull_aligned : (cross_bull_order and all_bull_aligned)
 full_bear_state = full_align_def == "서열" ? cross_bear_order : full_align_def == "시그널" ? all_bear_aligned : (cross_bear_order and all_bear_aligned)
-// 이벤트 = 상태가 거짓→참으로 바뀐 첫 봉만(유지 중 반복 없음). v6 bool 히스토리는 첫 봉에서 false라 na 처리 불필요.
-full_bull_event = full_bull_state and not full_bull_state[1]
-full_bear_event = full_bear_state and not full_bear_state[1]
+// 이벤트 = 방향 래치(재발화 차단). full_last_dir = 마지막 완전배열 신호 방향(0=아직 없음, 1=골든, -1=데드).
+//  - 골든은 직전 신호가 데드였거나 아직 없을 때만, 데드는 그 반대일 때만 → fast 깜빡임으로 같은 방향 재발화 없음.
+//  - barstate.isconfirmed 게이트: 실시간 형성 중 봉에서는 신호를 내지 않고 봉 마감 틱에서만 확정.
+//    과거 봉은 모두 확정봉이라 히스토리 결과와 실시간 결과가 동일(리페인팅 없음). var 래치도 확정봉에서만 갱신.
+//  - 서열/시그널 상태는 상호 배타(정배열·역배열 동시 성립 불가)라 같은 봉 양방향 발화 없음.
+var int full_last_dir = 0
+full_bull_event = barstate.isconfirmed and full_bull_state and full_last_dir != 1
+full_bear_event = barstate.isconfirmed and full_bear_state and full_last_dir != -1
+if full_bull_event
+    full_last_dir := 1
+else if full_bear_event
+    full_last_dir := -1
 
 fast_bull_trigger = cross_full_mode ? full_bull_event : legacy_bull_trigger
 fast_bear_trigger = cross_full_mode ? full_bear_event : legacy_bear_trigger
