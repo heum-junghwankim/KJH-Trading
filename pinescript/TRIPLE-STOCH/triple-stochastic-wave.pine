@@ -26,8 +26,11 @@ oversold = input.int(20, "Oversold", minval=0, maxval=50, group="Wave Rules", in
 overbought = input.int(80, "Overbought", minval=50, maxval=100, group="Wave Rules", inline="rule1")
 trend_midline = input.int(50, "Trend Midline", minval=0, maxval=100, group="Wave Rules", inline="rule1")
 // 웨이브 배경(정배열 녹/역배열 적) 서열 판정 기준선. 기본 D선(CEO 확정).
-wave_basis = input.string("D선", "Wave Background Basis", options=["K선", "D선"], group="Wave Rules", inline="rule2", tooltip="웨이브 배경(정배열 녹/역배열 적) 서열 판정에 쓸 기준선.\nD선(기본): fast %D > mid %D > slow %D = 정배열, 역순 = 역배열 (매끄럽고 늦음).\nK선: fast %K > mid %K > slow %K = 정배열, 역순 = 역배열 (빠르고 민감).\n%K 라인(Slow %K/Mid %K/Fast %K)은 기본 숨김이므로 K선 기준으로 볼 때는 스타일 탭에서 켜서 확인.")
+wave_basis = input.string("D선", "Wave Background Basis", options=["K선", "D선"], group="Wave Rules", inline="rule2", tooltip="웨이브 배경(정배열 녹/역배열 적) 서열 판정에 쓸 기준선.\nD선(기본): fast %D > mid %D > slow %D = 정배열, 역순 = 역배열 (매끄럽고 늦음).\nK선: fast %K > mid %K > slow %K = 정배열, 역순 = 역배열 (빠르고 민감).\n선 표기 기준(Line Basis)과는 별도 옵션이므로, 화면의 선과 배경 기준을 맞추려면 두 옵션을 같은 값으로 두세요.")
 wave_use_d = wave_basis == "D선"
+// 선 표기(페인팅) 기준선: K선 또는 D선 중 하나만 그린다. 기본 D선(CEO 확정).
+line_basis = input.string("D선", "Line Basis", options=["K선", "D선"], group="Wave Rules", inline="rule3", tooltip="패널에 그릴 선을 K선 또는 D선 중 하나만 선택합니다.\nD선(기본): Slow/Mid/Fast 각각의 %D만 표시 (매끄럽고 늦음).\nK선: Slow/Mid/Fast 각각의 %K만 표시 (빠르고 민감).\n선택하지 않은 선은 패널·데이터 창·우측 라벨에 나오지 않습니다.\n웨이브 배경 기준(Wave Background Basis)은 별도 옵션입니다.")
+line_use_d = line_basis == "D선"
 
 [fast_k, fast_d] = stoch_pair(fast_length, fast_smooth_k, fast_smooth_d)
 [mid_k, mid_d] = stoch_pair(mid_length, mid_smooth_k, mid_smooth_d)
@@ -51,15 +54,11 @@ hline(overbought, "Overbought", color=color.new(color.gray, 0))
 hline(trend_midline, "Trend Midline", color=color.new(color.gray, 65))
 hline(oversold, "Oversold", color=color.new(color.gray, 0))
 
-// 기본 표시 = %D 3선(Slow/Mid/Fast, display.all → 우측 프라이스 스케일 라벨 3개). 불투명(투명도 0).
-// %K 3선(Slow %K/Mid %K/Fast %K)은 기본 숨김(display.none). 스타일 탭에서 체크하면 다시 보인다.
-// 주의: %K를 켜면 TradingView가 전체 표시(스케일 라벨 포함)로 복원하므로 라벨이 최대 6개가 될 수 있다(Pine 한계).
-plot(slow_k, title="Slow %K", color=color.new(#1565C0, 0), linewidth=3, display=display.none)
-plot(slow_d, title="Slow", color=color.new(#1565C0, 0), linewidth=2)
-plot(mid_k, title="Mid %K", color=color.new(#00897B, 0), linewidth=2, display=display.none)
-plot(mid_d, title="Mid", color=color.new(#00897B, 0), linewidth=1)
-plot(fast_k, title="Fast %K", color=color.new(#FB8C00, 45), linewidth=1, display=display.none)
-plot(fast_d, title="Fast", color=color.new(#FB8C00, 0), linewidth=1)
+// 선 표기 = Line Basis로 선택한 한 종류(K선 또는 D선)만 3개 plot. display 기본(all) → 우측 프라이스 스케일 라벨은 Slow/Mid/Fast 3개뿐.
+// 선택되지 않은 선은 plot하지 않는다(데이터 창에도 없음). 스타일은 K/D 공통(기존 %D 스타일: 투명도 0, 굵기 Slow 2·Mid 1·Fast 1).
+plot(line_use_d ? slow_d : slow_k, title="Slow", color=color.new(#1565C0, 0), linewidth=2)
+plot(line_use_d ? mid_d : mid_k, title="Mid", color=color.new(#00897B, 0), linewidth=1)
+plot(line_use_d ? fast_d : fast_k, title="Fast", color=color.new(#FB8C00, 0), linewidth=1)
 
 alertcondition(all_bull_aligned, title="Triple Stochastic Bull Alignment", message="Triple Stochastic bullish alignment: fast, mid, slow are all above their signal lines")
 alertcondition(all_bear_aligned, title="Triple Stochastic Bear Alignment", message="Triple Stochastic bearish alignment: fast, mid, slow are all below their signal lines")

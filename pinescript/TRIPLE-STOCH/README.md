@@ -13,9 +13,9 @@ CEO 확정 제공 "Triple-Stochastic-Wave" 소스코드를 기반으로 합니�
 > - Fast **골든/데드 크로스** 전체 — 원 마커, 트리거 계산(`fast_*_trigger`), `Golden Cross`/`Dead Cross` alert, 관련 입력(`Cross Trigger Basis`·`Cross Mode`·`Full Alignment Rule`)과 완전배열 방향 래치.
 > - **우측 상단 상태 테이블** 전체 — 종합·정렬/추세·모멘텀 행 판정, 완성봉 오프셋 로직, `slow_*_trend` 컨텍스트와 `Slow Context Lookback` 입력.
 >
-> 남은 것: 6개 라인, 웨이브 배경, 수평선 3개, 3중 정렬 alert 2종. `Wave Background Basis` 기본값은 **`D선`** 으로 바뀌었습니다.
+> 남은 것: 라인(현재 3개 — 아래 선 표기 단일화), 웨이브 배경, 수평선 3개, 3중 정렬 alert 2종. `Wave Background Basis` 기본값은 **`D선`** 으로 바뀌었습니다.
 
-> **기본 표시 전환 (CEO 지시):** 기본으로 **%D 3선만** 보이고 %K 3선은 숨김(`display.none`)입니다. 우측 스케일 라벨이 %D에 붙도록 plot title을 맞바꿨습니다 — %D = `Slow`/`Mid`/`Fast`, %K = `Slow %K`/`Mid %K`/`Fast %K`.
+> **선 표기 단일화 (CEO 지시):** 패널에는 `Line Basis`로 고른 **K선 또는 D선 한 종류만** 3개(`Slow`/`Mid`/`Fast`) 그립니다(기본 `D선`). 선택하지 않은 선은 plot하지 않습니다. 이전의 6선 구성(%K·%D 동시 표시)과 `display.none` 숨김 방식은 대체되었습니다.
 
 > **웨이브 배경 재정의 (CEO 지시, 이전 변경):** 원본 배경 조건 `slow_*_trend and mid_*_reset`(컨텍스트+리셋)을 **정확한 정배열/역배열**로 교체했습니다. 이에 따라 `mid_bull_reset`/`mid_bear_reset` 및 `Mid Pullback Lookback` 입력이 제거되었습니다.
 
@@ -49,19 +49,17 @@ d     = SMA(k, smooth_d)
 
 ## 플롯·배경·alert
 
-- **라인 6개**: 각 스토캐스틱의 %K·%D. 색·투명도는 그대로입니다(%D 3개 불투명 0, %K는 Slow·Mid 0 / Fast 45). %K·%D는 같은 색이라 선 굵기로 구분합니다.
-- **기본 표시 상태**:
-  | plot title | 값 | 기본 | 굵기 |
-  | --- | --- | --- | --- |
-  | `Slow` | Slow %D | **켜짐**(`display.all`) | 2 |
-  | `Mid` | Mid %D | **켜짐**(`display.all`) | 1 |
-  | `Fast` | Fast %D | **켜짐**(`display.all`) | 1 |
-  | `Slow %K` | Slow %K | 꺼짐(`display.none`) | 3 |
-  | `Mid %K` | Mid %K | 꺼짐(`display.none`) | 2 |
-  | `Fast %K` | Fast %K | 꺼짐(`display.none`) | 1 |
-- **우측 프라이스 스케일 라벨**: 기본 상태에서 **`Slow` / `Mid` / `Fast` 세 개만**(각 %D 값) 나옵니다. 수평선(`hline`)과 배경(`bgcolor`)은 스케일 라벨을 만들지 않습니다.
-- **%K를 켜면**: 설정 → 스타일 탭에서 `Slow %K` 등을 체크하면 해당 라인이 패널·상태줄·데이터 창·**스케일 라벨까지 전부** 표시됩니다(`display.none` 플롯은 켜질 때 전체 표시로 복원). 즉 %K를 켜면 라벨이 최대 6개가 됩니다. Pine은 plot당 기본 `display` 하나만 지정할 수 있어 "기본 숨김 + 켜면 라벨 없이 표시"는 코드로 만들 수 없습니다(한계). 라벨을 줄이려면 차트 프라이스 스케일 우클릭 → 라벨 설정에서 지표 라벨을 끄는 방식(지표 전체 단위)만 가능합니다.
-- **`Wave Background Basis = K선`** 을 쓸 때는 %K 라인이 숨겨져 있으므로, 배경 근거를 눈으로 확인하려면 스타일 탭에서 %K를 켜세요.
+- **라인 3개** (`Line Basis` 선택, 기본 `D선`):
+  | plot title | `D선`(기본) 값 | `K선` 값 | 색 | 굵기 |
+  | --- | --- | --- | --- | --- |
+  | `Slow` | slow %D | slow %K | `#1565C0` | 2 |
+  | `Mid` | mid %D | mid %K | `#00897B` | 1 |
+  | `Fast` | fast %D | fast %K | `#FB8C00` | 1 |
+
+  투명도는 모두 0이며, **K선/D선 어느 쪽을 골라도 색·굵기·투명도가 같습니다**(기존 %D 스타일 기준, 이전 Fast %K 투명도 45 같은 K 전용 스타일 없음). 선택하지 않은 선은 **패널·데이터 창·스케일 라벨 어디에도 나오지 않습니다**.
+- **우측 프라이스 스케일 라벨**: plot이 3개뿐이고 기본 표시(`display.all`)라 **`Slow` / `Mid` / `Fast` 세 개만** 나옵니다(라벨 중복이 구조적으로 생기지 않음). 수평선(`hline`)과 배경(`bgcolor`)은 스케일 라벨을 만들지 않습니다.
+- **`Line Basis`와 `Wave Background Basis`는 별도 옵션**입니다(둘 다 기본 `D선`). 한쪽만 바꾸면 화면의 선(예: K선)과 배경 계산 기준(예: D선)이 달라져, 배경이 보이는 선의 서열과 맞지 않을 수 있습니다. 화면과 배경을 일치시키려면 두 옵션을 같은 값으로 두세요.
+- **3중 정렬 alert는 %K와 %D를 비교**하는데, 화면에는 한 종류 선만 그려지므로 그 교차를 패널에서 직접 볼 수 없습니다. alert 계산은 `Line Basis`와 무관하게 그대로 동작합니다.
 - **웨이브 배경**: 정배열=녹 `#2E7D32`, 역배열=적 `#C62828`(투명 80).
 - **수평선**: 과매수(80)·미드라인(50)·과매도(20).
 - **alert 2종**: `Triple Stochastic Bull Alignment` / `Triple Stochastic Bear Alignment`(`all_*_aligned`).
@@ -73,7 +71,7 @@ d     = SMA(k, smooth_d)
 ## 리페인팅 / 안전성
 
 - 전 계산이 확정 `ta.*`(`highest`/`lowest`/`sma`)로 이뤄지며 **`request.security`·`lookahead` 없음**. 미래참조가 없습니다.
-- 표시(`display`)·title 변경은 계산과 무관하며 신호·alert 로직에 영향이 없습니다.
+- `Line Basis`(선 표기)는 표시 전용이며 계산·웨이브 배경·alert 로직에 영향이 없습니다.
 - 라인·배경·alert는 형성 중인 실시간 봉에서 틱마다 갱신될 수 있습니다(스토캐스틱 지표의 정상 거동). 봉 마감 후 값은 확정됩니다.
 - 별도 패널 지표라 가격 차트를 가리지 않습니다.
 
@@ -107,6 +105,7 @@ d     = SMA(k, smooth_d)
 | Overbought | 80 | 과매수 수평선 |
 | Trend Midline | 50 | 미드라인 수평선 |
 | Wave Background Basis | **D선** | 웨이브 배경(정배열/역배열) 서열 기준선. `D선`=세 %D 서열(기본), `K선`=세 %K 서열(이전 기본값) |
+| Line Basis | **D선** | 패널에 그릴 선 종류. `D선`=Slow/Mid/Fast %D만, `K선`=Slow/Mid/Fast %K만. 표시 전용(신호·alert 무관) |
 
 > **기본값 변경 주의:** `Wave Background Basis` 기본값이 `K선` → `D선`으로 바뀌어, 기존 차트에 새로 추가하면 배경이 더 늦고 덜 자주 켜집니다. 이전 모습을 원하면 `K선`을 선택하세요. 3중 정렬 alert는 이 옵션과 무관합니다.
 
