@@ -12,7 +12,7 @@
 | --- | --- | --- |
 | **슈퍼 이치모쿠**(메인) | 멀티스케일 매수/매도 신호 + 3섹션 종합 테이블 | [코드](./pinescript/SUPER-ICHIMOKU/advanced-ichimoku.pine) · [설명](./pinescript/SUPER-ICHIMOKU/README.md) |
 | 거래량 압력 | 신호 봉에 추진력(매수/매도 우세)이 실렸는지 + 비정상 거래량 판정 | [코드](./pinescript/VOLUME-PRESSURE/volume-pressure-tracker.pine) · [설명](./pinescript/VOLUME-PRESSURE/README.md) |
-| 삼중 스토캐스틱 | Slow(컨텍스트)·Mid(중간축)·Fast(트리거) · 정배열/역배열 웨이브 · 정렬/셋업/트리거 | [코드](./pinescript/TRIPLE-STOCH/triple-stochastic-wave.pine) · [설명](./pinescript/TRIPLE-STOCH/README.md) |
+| 삼중 스토캐스틱 | Slow·Mid·Fast 3개 스토캐스틱 · 정배열/역배열 웨이브 배경 · 3중 정렬 alert | [코드](./pinescript/TRIPLE-STOCH/triple-stochastic-wave.pine) · [설명](./pinescript/TRIPLE-STOCH/README.md) |
 | cRSI | 순환 평활 RSI · 동적 밴드 · 과매도/과열 · 다이버전스 | [코드](./pinescript/cRSI/rsi-cyclic-smoothed.pine) · [설명](./pinescript/cRSI/README.md) |
 | OBV-ADX | 추세 힘(ADX)·방향(DI)·과열 / 휩쏘 1차 필터 | [코드](./pinescript/OBV-ADX/obv-adx-extreme-background.pine) · [설명](./pinescript/OBV-ADX/README.md) |
 | Squeeze Deluxe(외부 편입) | 스퀴즈 모멘텀·Directional Flux·3단계 압축·Confluence Gauge·다이버전스 (© EliCobra, CC BY-NC-SA 4.0, 원본 기능 유지) | [코드](./pinescript/SQUEEZE-DELUXE/squeeze-momentum-deluxe.pine) · [설명](./pinescript/SQUEEZE-DELUXE/README.md) |
@@ -148,36 +148,24 @@
 
 ## 3. 삼중 스토캐스틱 지표 (Triple Stochastic Wave)
 
-서로 다른 기간의 스토캐스틱 3개를 **역할 분담**해 웨이브(파동) 진입 타이밍을 잡는 별도 패널 보조지표입니다. CEO 확정 소스의 **계산·신호·플롯·alert를 원본 보존**하고 저장소 톤앤매너의 **우측 상단 상태 테이블을 추가**했으며, **웨이브 배경은 CEO 지시로 스토캐스틱 정배열/역배열(세 %K 서열)로 재정의**했습니다(그 외 v6 포팅 — 문법만 v6화, 나머지 거동 동일).
+서로 다른 기간의 스토캐스틱 3개로 웨이브(파동) 정렬을 보는 별도 패널 보조지표입니다. CEO 확정 소스를 v6로 포팅했고, **웨이브 배경은 CEO 지시로 스토캐스틱 정배열/역배열 서열로 재정의**했습니다.
 
 | 스토캐스틱 | 기본 (Length/K/D) | 역할 |
 | --- | --- | --- |
 | **Slow** | 20 / 9 / 9 | **컨텍스트**(큰 추세·국면) |
 | **Mid** | 10 / 6 / 6 | **중간축**(정배열/역배열 서열의 가운데) |
-| **Fast** | 5 / 3 / 3 | **트리거**(진입 타이밍 크로스) |
+| **Fast** | 5 / 3 / 3 | **선행축**(가장 빠르게 반응) |
 
 각 스토캐스틱은 표준 정의(`raw_k = 100 × (close − 최저저가)/max(범위, mintick)`, `k = SMA(raw_k, K)`, `d = SMA(k, D)`)로 계산하며, `max(range, mintick)`로 0 나누기를 가드합니다.
 
-**신호 로직 (Slow=컨텍스트 · Mid=중간축 · Fast=트리거)**
-
-| 신호 | 의미 |
+| 요소 | 의미 |
 | --- | --- |
-| `slow_*_trend` | Slow %K가 %D 위/아래 + 미드라인(50) 돌파 또는 최근 룩백 내 과매도/과매수 흔적 |
-| `fast_*_trigger` | Fast %K가 %D를 과매도/과매수 영역에서 상향/하향 교차 (옵션 `Cross Trigger Basis=D선`: Fast %D의 과매도선 상향/과매수선 하향 돌파 · 옵션 `Cross Mode=완전배열`: 완벽한 정배열/역배열 성립 봉, CEO 확정 정의 = 서열, 같은 방향은 반대 신호 뒤에만 재발화·봉 마감 확정) — 원 마커·골든/데드 크로스 alert |
-| `stoch_*_order` | **세 %K 값 서열** — 정배열 `fast_k > mid_k > slow_k`(상승), 역배열 `fast_k < mid_k < slow_k`(하락). 엄격 부등호 (옵션 `Wave Background Basis=D선`: 세 %D 서열) |
-| `*_wave_background` | **⚠️ 정배열/역배열 재정의(CEO 지시)** — 세 %K가 **정확히 정배열/역배열**(`stoch_*_order`)일 때만 배경색 강조. 구 `컨텍스트+리셋`(`mid_*_reset`)·`Mid Pullback Lookback` 입력은 제거됨 |
-| `all_*_aligned` | Slow·Mid·Fast **각각** %K가 자기 %D 위/아래(셋 다 동일 방향) → 3중 정렬 alert. (스토캐스틱 간 서열 `stoch_*_order`와는 별개 개념) |
+| `stoch_*_order` → 웨이브 배경 | 세 스토캐스틱 **서열**이 정확히 정배열(녹)/역배열(적)일 때 배경 강조. 기준선 `Wave Background Basis` — **기본 `D선`**(`fast_d > mid_d > slow_d`), 옵션 `K선`(`fast_k > mid_k > slow_k`). 엄격 부등호 |
+| `all_*_aligned` | Slow·Mid·Fast **각각** %K가 자기 %D 위/아래(셋 다 동일 방향) → 3중 정렬 alert 2종. (서열 `stoch_*_order`와는 별개 개념) |
+| 라인 6개 | 각 %K·%D. %D 3개는 불투명. 우측 프라이스 스케일 라벨은 `Slow`/`Mid`/`Fast`(%K) 세 개만 |
+| 수평선 | 과매수 80 · 미드라인 50 · 과매도 20 |
 
-**우측 상단 상태 테이블** (추가분 — 종합 판정 캐스케이드)
-
-| 포지션 | 판정 순서 |
-| --- | --- |
-| `상승/하락 웨이브+트리거`(선명) | 정배열/역배열(웨이브) + Fast 트리거 |
-| `3중 상승/하락 정렬`(선명) | Slow·Mid·Fast 각각 %K가 자기 %D 대비 동일 방향 |
-| `상승/하락 셋업`(둔탁) | 정배열/역배열만(트리거 전) |
-| `중립`(회색) | 그 외 |
-
-> **밴드워킹 완화** — 3중 정렬(강추세) 중의 과매수/과매도는 반전이 아니라 추세 지속일 수 있어 `과매수(추세중)`·`과매도(추세중)`로 **회색** 표기(정렬 아닌 상태의 과열/침체만 둔탁색). **테이블 판정은 가장 최근 완성봉 기준**(형성 중 실시간 봉이면 직전 확정봉 `[1]`, Bar Replay·장마감 등 이미 끝난 마지막봉이면 그 봉 `[0]`)이라 실시간에서는 원본 플롯·배경보다 1봉 지연(의도된 안정화). 전 계산이 확정 `ta.*`이며 `request.security`·`lookahead` 없음 → **미래참조·리페인팅 없음**.
+> Fast **골든/데드 크로스**(원 마커·alert·`Cross Trigger Basis`/`Cross Mode`/`Full Alignment Rule` 입력)와 **우측 상단 상태 테이블**(종합·정렬/추세·모멘텀, `Slow Context Lookback` 입력)은 **제거**되었습니다(CEO 지시). 전 계산이 확정 `ta.*`이며 `request.security`·`lookahead` 없음 → **미래참조 없음**.
 
 ---
 
