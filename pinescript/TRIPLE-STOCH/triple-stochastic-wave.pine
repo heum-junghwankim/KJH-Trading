@@ -39,15 +39,12 @@ slow_smooth_d = input.int(9, "Smooth D", minval=1, group="Slow Stochastic (20/9/
 oversold = input.int(20, "Oversold", minval=0, maxval=50, group="Wave Rules", inline="rule1")
 overbought = input.int(80, "Overbought", minval=50, maxval=100, group="Wave Rules", inline="rule1")
 trend_midline = input.int(50, "Trend Midline", minval=0, maxval=100, group="Wave Rules", inline="rule1")
-// 웨이브 배경(정배열 녹/역배열 적) 서열 판정 기준선. 기본 D선(CEO 확정).
-wave_basis = input.string("D선", "Wave Background Basis", options=["K선", "D선"], group="Wave Rules", inline="rule2", tooltip="웨이브 배경(정배열 녹/역배열 적) 서열 판정에 쓸 기준선.\nD선(기본): fast %D > mid %D > slow %D = 정배열, 역순 = 역배열 (매끄럽고 늦음).\nK선: fast %K > mid %K > slow %K = 정배열, 역순 = 역배열 (빠르고 민감).\n선 표기 기준(Line Basis)과는 별도 옵션이므로, 화면의 선과 배경 기준을 맞추려면 두 옵션을 같은 값으로 두세요.")
-wave_use_d = wave_basis == "D선"
-// 선 표기(페인팅) 기준선: K선 또는 D선 중 하나만 그린다. 기본 D선(CEO 확정).
-line_basis = input.string("D선", "Line Basis", options=["K선", "D선"], group="Wave Rules", inline="rule3", tooltip="패널에 그릴 선을 K선 또는 D선 중 하나만 선택합니다.\nD선(기본): Slow/Mid/Fast 각각의 %D만 표시 (매끄럽고 늦음).\nK선: Slow/Mid/Fast 각각의 %K만 표시 (빠르고 민감).\n선택하지 않은 선은 패널·데이터 창·우측 라벨에 나오지 않습니다.\n웨이브 배경 기준(Wave Background Basis)은 별도 옵션입니다.")
-line_use_d = line_basis == "D선"
+// 기준선(Basis): 배경 서열 판정·선 표기·서열 전환 가격 테이블 계산을 하나의 옵션으로 함께 결정. 기본 K선(CEO 확정).
+basis = input.string("K선", "Basis", options=["K선", "D선"], group="Wave Rules", inline="rule2", tooltip="배경 서열 판정과 선 표기를 함께 결정하는 기준선입니다(서열 전환 가격 테이블의 계산 기준도 같음).\nK선(기본): Slow/Mid/Fast 각각의 %K를 그리고, fast %K > mid %K > slow %K = 정배열(녹), 역순 = 역배열(적) (빠르고 민감).\nD선: Slow/Mid/Fast 각각의 %D를 그리고, fast %D > mid %D > slow %D = 정배열, 역순 = 역배열 (매끄럽고 늦음).\n화면의 선과 배경 서열은 항상 같은 기준선입니다. 3중 정렬 alert(%K vs 자기 %D)는 이 옵션과 무관합니다.")
+basis_use_d = basis == "D선"
 
 // 서열 전환 가격 테이블 옵션 (표시 전용 — 매매 신호 아님). 기준봉·위치·글자 크기 옵션은 cRSI 밴드 교차 가격 테이블과 같은 방식.
-show_order_table = input.bool(true, "Show Order Table", group="Order Table", tooltip="Wave Background Basis 기준 서열(정배열/중립/역배열) 3행 테이블. 각 행 = 그 서열이 되려면 목표봉 종가가 기준 종가 대비 몇 % 움직여야 하는가(틱 반올림 가격 기준, 소수 1자리·부호·천 단위 쉼표, 예 +2.3% / -0.8%). 닫힌형 해(구간별 선형)로 모든 가격을 확인해 기준 종가에 가장 가까운 해 하나만 표시합니다. 이미 그 서열이면 '현재', 이번 봉 종가만으로는 어떤 가격에서도 그 서열이 될 수 없으면 '1봉 내 불가'. 현재 행 라벨의 '(확정)' = 기준봉이 확정(마감)봉. 매매 신호가 아닌 참고용입니다.")
+show_order_table = input.bool(true, "Show Order Table", group="Order Table", tooltip="Basis 기준 서열(정배열/중립/역배열) 3행 테이블. 각 행 = 그 서열이 되려면 목표봉 종가가 기준 종가 대비 몇 % 움직여야 하는가(틱 반올림 가격 기준, 소수 1자리·부호·천 단위 쉼표, 예 +2.3% / -0.8%). 닫힌형 해(구간별 선형)로 모든 가격을 확인해 기준 종가에 가장 가까운 해 하나만 표시합니다. 이미 그 서열이면 '현재', 이번 봉 종가만으로는 어떤 가격에서도 그 서열이 될 수 없으면 '1봉 내 불가'. 현재 행 라벨의 '(확정)' = 기준봉이 확정(마감)봉. 매매 신호가 아닌 참고용입니다.")
 order_table_base = input.string("실시간봉", "Table Base Bar", options=["실시간봉", "완성봉"], group="Order Table", active=show_order_table, tooltip="실시간봉: 현재 형성 중 봉(차트 마지막 봉 [0])의 종가가 바뀐다고 가정해 그 봉의 스토캐스틱을 재계산(그 봉의 고가/저가 포함). 틱마다 갱신(의도된 리얼타임 리페인팅). '현재' 행은 차트 배경 서열과 일치.\n완성봉: 가장 최근 완성봉(형성 중=직전봉, 마감된 마지막 봉·바 리플레이=그 봉)이 기준. 다음 봉 종가 조건이며, 다음 봉의 고가/저가는 미지이므로 종가 하나로만 범위가 확장된다고 가정. 형성 중 봉의 틱 변동에 값 고정(리페인팅 없음).")
 order_table_pos = input.string("우측 상단", "Table Position", options=["우측 상단", "우측 하단", "좌측 상단", "좌측 하단", "중앙 상단", "중앙 하단"], group="Order Table", active=show_order_table)
 order_table_size = input.string("작게", "Text Size", options=["아주 작게", "작게", "보통", "크게"], group="Order Table", active=show_order_table)
@@ -61,9 +58,9 @@ all_bull_aligned = slow_k > slow_d and mid_k > mid_d and fast_k > fast_d
 all_bear_aligned = slow_k < slow_d and mid_k < mid_d and fast_k < fast_d
 
 // 스토캐스틱 간 서열(정배열/역배열): fast가 mid 위, mid가 slow 위이면 정배열(상승 서열).
-// 대표값 = Wave Background Basis 선택(기본 %D, 옵션 %K). 엄격 부등호.
-stoch_bull_order = wave_use_d ? (fast_d > mid_d and mid_d > slow_d) : (fast_k > mid_k and mid_k > slow_k)
-stoch_bear_order = wave_use_d ? (fast_d < mid_d and mid_d < slow_d) : (fast_k < mid_k and mid_k < slow_k)
+// 대표값 = Basis 선택(기본 %K, 옵션 %D). 엄격 부등호.
+stoch_bull_order = basis_use_d ? (fast_d > mid_d and mid_d > slow_d) : (fast_k > mid_k and mid_k > slow_k)
+stoch_bear_order = basis_use_d ? (fast_d < mid_d and mid_d < slow_d) : (fast_k < mid_k and mid_k < slow_k)
 
 // 웨이브 배경 = 스토캐스틱이 정확히 정배열/역배열일 때만.
 bgcolor(stoch_bull_order ? color.new(#2E7D32, 80) : na, title="Bull Wave Background", editable=true)
@@ -74,11 +71,11 @@ hline(overbought, "Overbought", color=color.new(color.gray, 0))
 hline(trend_midline, "Trend Midline", color=color.new(color.gray, 65))
 hline(oversold, "Oversold", color=color.new(color.gray, 0))
 
-// 선 표기 = Line Basis로 선택한 한 종류(K선 또는 D선)만 3개 plot. display 기본(all) → 우측 프라이스 스케일 라벨은 Slow/Mid/Fast 3개뿐.
+// 선 표기 = Basis로 선택한 한 종류(K선 또는 D선)만 3개 plot. display 기본(all) → 우측 프라이스 스케일 라벨은 Slow/Mid/Fast 3개뿐.
 // 선택되지 않은 선은 plot하지 않는다(데이터 창에도 없음). 스타일은 K/D 공통(기존 %D 스타일: 투명도 0, 굵기 Slow 2·Mid 1·Fast 1).
-plot(line_use_d ? slow_d : slow_k, title="Slow", color=color.new(#1565C0, 0), linewidth=2)
-plot(line_use_d ? mid_d : mid_k, title="Mid", color=color.new(#00897B, 0), linewidth=1)
-plot(line_use_d ? fast_d : fast_k, title="Fast", color=color.new(#FB8C00, 0), linewidth=1)
+plot(basis_use_d ? slow_d : slow_k, title="Slow", color=color.new(#1565C0, 0), linewidth=2)
+plot(basis_use_d ? mid_d : mid_k, title="Mid", color=color.new(#00897B, 0), linewidth=1)
+plot(basis_use_d ? fast_d : fast_k, title="Fast", color=color.new(#FB8C00, 0), linewidth=1)
 
 alertcondition(all_bull_aligned, title="Triple Stochastic Bull Alignment", message="Triple Stochastic bullish alignment: fast, mid, slow are all above their signal lines")
 alertcondition(all_bear_aligned, title="Triple Stochastic Bear Alignment", message="Triple Stochastic bearish alignment: fast, mid, slow are all below their signal lines")
@@ -87,7 +84,7 @@ alertcondition(all_bear_aligned, title="Triple Stochastic Bear Alignment", messa
 // =========================
 // 서열 전환 가격 테이블 (표시 전용 — 매매 신호 아님)
 // =========================
-// 질문: "목표봉 종가가 c로 마감하면 세 스토캐스틱 서열(Wave Background Basis 기준)이 정배열/중립/역배열 중 무엇이 되는가?"
+// 질문: "목표봉 종가가 c로 마감하면 세 스토캐스틱 서열(Basis 기준)이 정배열/중립/역배열 중 무엇이 되는가?"
 //  가상 종가 c는 목표봉의 raw 하나만 바꾼다(직전 이력은 확정값 그대로) → 각 선은 raw에 대해 affine:
 //    line_j(c) = A_j + w_j·raw_j(c),  w_j = 1/(sK·sD)(D선) 또는 1/sK(K선)
 //    raw_j(c)  = clamp(100·(c − ll_j) / R_j, 0, 100),  R_j = max(hh_j − ll_j, mintick)
@@ -210,13 +207,13 @@ if show_order_table and barstate.islast
     StochLine mL = na
     StochLine sL = na
     if isRealtime
-        fL := f_liveLine(wave_use_d ? fast_d : fast_k, fast_raw, f_hhC, f_llC, fast_smooth_k, fast_smooth_d, wave_use_d)
-        mL := f_liveLine(wave_use_d ? mid_d : mid_k, mid_raw, m_hhC, m_llC, mid_smooth_k, mid_smooth_d, wave_use_d)
-        sL := f_liveLine(wave_use_d ? slow_d : slow_k, slow_raw, s_hhC, s_llC, slow_smooth_k, slow_smooth_d, wave_use_d)
+        fL := f_liveLine(basis_use_d ? fast_d : fast_k, fast_raw, f_hhC, f_llC, fast_smooth_k, fast_smooth_d, basis_use_d)
+        mL := f_liveLine(basis_use_d ? mid_d : mid_k, mid_raw, m_hhC, m_llC, mid_smooth_k, mid_smooth_d, basis_use_d)
+        sL := f_liveLine(basis_use_d ? slow_d : slow_k, slow_raw, s_hhC, s_llC, slow_smooth_k, slow_smooth_d, basis_use_d)
     else
-        fL := f_histLine(h1 ? f_hh1 : f_hh0, h1 ? f_ll1 : f_ll0, h1 ? f_rs1 : f_rs0, h1 ? f_ks1 : f_ks0, fast_smooth_k, fast_smooth_d, wave_use_d)
-        mL := f_histLine(h1 ? m_hh1 : m_hh0, h1 ? m_ll1 : m_ll0, h1 ? m_rs1 : m_rs0, h1 ? m_ks1 : m_ks0, mid_smooth_k, mid_smooth_d, wave_use_d)
-        sL := f_histLine(h1 ? s_hh1 : s_hh0, h1 ? s_ll1 : s_ll0, h1 ? s_rs1 : s_rs0, h1 ? s_ks1 : s_ks0, slow_smooth_k, slow_smooth_d, wave_use_d)
+        fL := f_histLine(h1 ? f_hh1 : f_hh0, h1 ? f_ll1 : f_ll0, h1 ? f_rs1 : f_rs0, h1 ? f_ks1 : f_ks0, fast_smooth_k, fast_smooth_d, basis_use_d)
+        mL := f_histLine(h1 ? m_hh1 : m_hh0, h1 ? m_ll1 : m_ll0, h1 ? m_rs1 : m_rs0, h1 ? m_ks1 : m_ks0, mid_smooth_k, mid_smooth_d, basis_use_d)
+        sL := f_histLine(h1 ? s_hh1 : s_hh0, h1 ? s_ll1 : s_ll0, h1 ? s_rs1 : s_rs0, h1 ? s_ks1 : s_ks0, slow_smooth_k, slow_smooth_d, basis_use_d)
     bool ready = bar_index - obK >= order_ready_len and not na(base) and base > 0 and not na(fL.a) and not na(mL.a) and not na(sL.a)
     // 행 텍스트: 인덱스 0=정배열(T=1), 1=중립(T=0), 2=역배열(T=-1)
     array<string> vals = array.from("-", "-", "-")
@@ -284,7 +281,7 @@ if show_order_table and barstate.islast
     color RED_OFF_V = #2E1414   // 적 값(비활성)
     color TXT_OFF   = #9E9E9E   // 비활성 행 글자(회색)
     array<string> names = array.from("정배열", "중립", "역배열")
-    array<string> tips = array.from("정배열(fast > mid > slow, Wave Background Basis 기준선). 값 = 목표봉 종가가 기준 종가 대비 이 %로 마감하면 정배열이 되는 가장 가까운 지점(틱 반올림 가격, 닫힌형 해). '현재' = 이미 정배열, '1봉 내 불가' = 이번 봉 종가만으로는 어떤 가격에서도 불가. 종가 기준 참고값(매매 신호 아님).", "중립(정배열도 역배열도 아닌 서열). 현재가 정배열/역배열이면 그 서열을 벗어나는 가장 가까운 지점. 값 = 기준 종가 대비 %(틱 반올림 가격, 닫힌형 해). '현재' = 이미 중립, '1봉 내 불가' = 이번 봉 종가만으로는 불가. 종가 기준 참고값(매매 신호 아님).", "역배열(fast < mid < slow, Wave Background Basis 기준선). 값 = 목표봉 종가가 기준 종가 대비 이 %로 마감하면 역배열이 되는 가장 가까운 지점(틱 반올림 가격, 닫힌형 해). '현재' = 이미 역배열, '1봉 내 불가' = 이번 봉 종가만으로는 어떤 가격에서도 불가. 종가 기준 참고값(매매 신호 아님).")
+    array<string> tips = array.from("정배열(fast > mid > slow, Basis 기준선). 값 = 목표봉 종가가 기준 종가 대비 이 %로 마감하면 정배열이 되는 가장 가까운 지점(틱 반올림 가격, 닫힌형 해). '현재' = 이미 정배열, '1봉 내 불가' = 이번 봉 종가만으로는 어떤 가격에서도 불가. 종가 기준 참고값(매매 신호 아님).", "중립(정배열도 역배열도 아닌 서열). 현재가 정배열/역배열이면 그 서열을 벗어나는 가장 가까운 지점. 값 = 기준 종가 대비 %(틱 반올림 가격, 닫힌형 해). '현재' = 이미 중립, '1봉 내 불가' = 이번 봉 종가만으로는 불가. 종가 기준 참고값(매매 신호 아님).", "역배열(fast < mid < slow, Basis 기준선). 값 = 목표봉 종가가 기준 종가 대비 이 %로 마감하면 역배열이 되는 가장 가까운 지점(틱 반올림 가격, 닫힌형 해). '현재' = 이미 역배열, '1봉 내 불가' = 이번 봉 종가만으로는 어떤 가격에서도 불가. 종가 기준 참고값(매매 신호 아님).")
     for idx = 0 to 2
         int T = 1 - idx
         string v = array.get(vals, idx)
