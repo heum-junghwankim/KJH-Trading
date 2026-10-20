@@ -28,9 +28,12 @@ trend_midline = input.int(50, "Trend Midline", minval=0, maxval=100, group="Wave
 slow_context_lookback = input.int(8, "Slow Context Lookback", minval=2, group="Wave Rules", inline="rule2")
 // 기준선 선택(기본 K선 = 기존 동작 그대로). 배경(서열)과 크로스(트리거)는 서로 다른 신호라 각각 선택한다.
 wave_basis = input.string("K선", "Wave Background Basis", options=["K선", "D선"], group="Wave Rules", inline="rule3", tooltip="웨이브 배경(정배열 녹/역배열 적) 서열 판정에 쓸 기준선.\nK선(기본): fast %K > mid %K > slow %K = 정배열, 역순 = 역배열.\nD선: fast %D > mid %D > slow %D = 정배열, 역순 = 역배열 (더 매끄럽고 늦음).\n테이블 모멘텀 행의 웨이브 판정도 이 설정을 따릅니다.")
-cross_basis = input.string("K선", "Cross Trigger Basis", options=["K선", "D선"], group="Wave Rules", inline="rule4", tooltip="Fast 골든/데드 크로스(트리거) 판정에 쓸 기준선.\nK선(기본): Fast %K가 %D를 상향(골든)/하향(데드) 교차 + 교차 지점이 과매도/과매수 영역.\nD선: Fast %D가 과매도선을 상향 돌파(골든 = 과매도 탈출) / 과매수선을 하향 돌파(데드 = 과매수 이탈).\n크로스 원 마커·테이블(모멘텀·종합)도 이 설정을 따릅니다.")
+cross_basis = input.string("K선", "Cross Trigger Basis", options=["K선", "D선"], group="Wave Rules", inline="rule4", tooltip="Fast 골든/데드 크로스(트리거) 판정에 쓸 기준선.\nK선(기본): Fast %K가 %D를 상향(골든)/하향(데드) 교차 + 교차 지점이 과매도/과매수 영역.\nD선: Fast %D가 과매도선을 상향 돌파(골든 = 과매도 탈출) / 과매수선을 하향 돌파(데드 = 과매수 이탈).\nCross Mode=완전배열일 때는 서열(fast>mid>slow) 비교선으로 쓰임(K선=세 %K, D선=세 %D).\n크로스 원 마커·테이블(모멘텀·종합)도 이 설정을 따릅니다.")
+cross_mode = input.string("기존", "Cross Mode", options=["기존", "완전배열"], group="Wave Rules", inline="rule5", tooltip="골든/데드 크로스 판정 방식.\n기존(기본): Cross Trigger Basis에 따른 Fast 크로스(원본 방식, 되돌림용).\n완전배열: 세 스토캐스틱이 완전 정배열을 이루는 '첫 봉' = 골든, 완전 역배열을 이루는 '첫 봉' = 데드. 배열이 유지되는 동안에는 반복 신호 없음.")
+full_align_def = input.string("서열+시그널", "Full Alignment Rule", options=["서열+시그널", "서열", "시그널"], group="Wave Rules", inline="rule6", tooltip="완전배열 모드의 '완벽한' 정배열/역배열 정의.\n서열+시그널(기본): 아래 두 조건 동시 충족(가장 엄격, 신호 최소).\n서열: fast > mid > slow (역배열은 역순). 웨이브 배경과 같은 개념이며, 비교선은 Cross Trigger Basis(K선/D선)를 따름.\n시그널: 세 스토캐스틱 모두 %K > 자기 %D (역배열은 모두 %K < %D) = 기존 3중 정렬. K-D 비교라 K/D 기준선과 무관.", active=cross_mode == "완전배열")
 wave_use_d = wave_basis == "D선"
 cross_use_d = cross_basis == "D선"
+cross_full_mode = cross_mode == "완전배열"
 
 [fast_k, fast_d] = stoch_pair(fast_length, fast_smooth_k, fast_smooth_d)
 [mid_k, mid_d] = stoch_pair(mid_length, mid_smooth_k, mid_smooth_d)
@@ -48,11 +51,24 @@ fast_bull_trigger_k = ta.crossover(fast_k, fast_d) and math.min(fast_k, fast_d) 
 fast_bear_trigger_k = ta.crossunder(fast_k, fast_d) and math.max(fast_k, fast_d) >= overbought
 fast_bull_trigger_d = ta.crossover(fast_d, oversold)
 fast_bear_trigger_d = ta.crossunder(fast_d, overbought)
-fast_bull_trigger = cross_use_d ? fast_bull_trigger_d : fast_bull_trigger_k
-fast_bear_trigger = cross_use_d ? fast_bear_trigger_d : fast_bear_trigger_k
+legacy_bull_trigger = cross_use_d ? fast_bull_trigger_d : fast_bull_trigger_k
+legacy_bear_trigger = cross_use_d ? fast_bear_trigger_d : fast_bear_trigger_k
 
 all_bull_aligned = slow_k > slow_d and mid_k > mid_d and fast_k > fast_d
 all_bear_aligned = slow_k < slow_d and mid_k < mid_d and fast_k < fast_d
+
+// --- 완전배열 크로스(Cross Mode = 완전배열) ---
+// 서열 비교선은 Cross Trigger Basis를 따른다(K선=세 %K, D선=세 %D). 시그널 조건은 K-D 비교(= all_*_aligned).
+cross_bull_order = cross_use_d ? (fast_d > mid_d and mid_d > slow_d) : (fast_k > mid_k and mid_k > slow_k)
+cross_bear_order = cross_use_d ? (fast_d < mid_d and mid_d < slow_d) : (fast_k < mid_k and mid_k < slow_k)
+full_bull_state = full_align_def == "서열" ? cross_bull_order : full_align_def == "시그널" ? all_bull_aligned : (cross_bull_order and all_bull_aligned)
+full_bear_state = full_align_def == "서열" ? cross_bear_order : full_align_def == "시그널" ? all_bear_aligned : (cross_bear_order and all_bear_aligned)
+// 이벤트 = 상태가 거짓→참으로 바뀐 첫 봉만(유지 중 반복 없음). v6 bool 히스토리는 첫 봉에서 false라 na 처리 불필요.
+full_bull_event = full_bull_state and not full_bull_state[1]
+full_bear_event = full_bear_state and not full_bear_state[1]
+
+fast_bull_trigger = cross_full_mode ? full_bull_event : legacy_bull_trigger
+fast_bear_trigger = cross_full_mode ? full_bear_event : legacy_bear_trigger
 
 // 스토캐스틱 간 서열(정배열/역배열): fast가 mid 위, mid가 slow 위이면 정배열(상승 서열).
 // 대표값 = Wave Background Basis 선택(기본 %K, 옵션 %D). 엄격 부등호. all_*_aligned(각 %K vs 자기 %D)와는 다른 개념.
@@ -83,6 +99,9 @@ plot(fast_bear_trigger ? trigger_line : na, title="Fast Bear Cross", style=plot.
 
 alertcondition(all_bull_aligned, title="Triple Stochastic Bull Alignment", message="Triple Stochastic bullish alignment: fast, mid, slow are all above their signal lines")
 alertcondition(all_bear_aligned, title="Triple Stochastic Bear Alignment", message="Triple Stochastic bearish alignment: fast, mid, slow are all below their signal lines")
+// 골든/데드 크로스 이벤트 alert — Cross Mode·Cross Trigger Basis·Full Alignment Rule 설정을 그대로 따름(차트 원 마커와 동일 조건).
+alertcondition(fast_bull_trigger, title="Triple Stochastic Golden Cross", message="Triple Stochastic golden cross (per Cross Mode / Basis settings)")
+alertcondition(fast_bear_trigger, title="Triple Stochastic Dead Cross", message="Triple Stochastic dead cross (per Cross Mode / Basis settings)")
 
 // ============================================================================
 // 우측 상단 상태 테이블 (저장소 공통 컨벤션 — 2열×3행, 확정봉 기준 판정)
