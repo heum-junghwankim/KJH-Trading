@@ -57,7 +57,7 @@ bandMult_2 = input.float(2.0, title="Bands Multiplier #2", group=BANDS_GROUP, in
 //     ⚠️ 텐칸·기준·후행 등 다른 이치모쿠 페인팅은 이식하지 않는다(지시 6번).
 //     ⚠️ 50선 색: 원본은 노랑(#FFEB3B)이나 auto-vwap 리본 EMA(노랑)와 겹치므로, 리본(노랑/하늘/분홍)·100선(파랑)·200선(보라)·
 //        신호색(녹/빨강)·비정상 배경(파랑/주황)과 확실히 구분되는 딥 오렌지(#FF6D00)로 변경(CEO 지시 6번). input.color로 노출.
-//  ▸ 테이블(우측 상단): 추세 확인(단기/중기/장기 3행) / 추세 전환가(TEMA 전환·DEMA 전환·정배열 전환·역배열 전환·T/D 전환 — 다음 봉 종가 기준 전환가 P*) /
+//  ▸ 테이블(우측 상단): 추세 확인(단기/중기/장기 3행) / 추세 전환가(Sonar 전환·TEMA 전환·DEMA 전환·정배열 전환·역배열 전환·T/D 전환 — 다음 봉 종가 기준 전환가 P*) /
 //     변동성 임계가(밴드 상단/하단 + 이격도/되돌림) / 지지·저항 임계가(50선/100선/200선 지지·저항). 판정식은 원본 로직 그대로 이식(확정봉·오프셋 불변).
 // =========================
 VWMA_GROUP = "거래량 가중선(VWMA)"
@@ -73,7 +73,7 @@ ltFillTransp = input.int(75, minval=0, maxval=100, title="100~200선 fill 투명
 // 테이블 표시 토글
 TABLE_GROUP = "상태 테이블"
 showStatusTable = input.bool(true, title="상태 테이블 표시(우측 상단)", group=TABLE_GROUP, tooltip="우측 상단 상태 테이블(추세 확인 / 추세 전환가 / 변동성 임계가 / 지지·저항 임계가)을 표시합니다. SUPER-ICHIMOKU 테이블 이식.")
-entryBase = input.string("완성봉", title="추세 진입 기준봉", options=["실시간봉", "완성봉"], group=TABLE_GROUP, active=showStatusTable, tooltip="상태 테이블 '추세 전환가' 5행(TEMA/DEMA/정배열/역배열/T/D 전환가)의 기준봉입니다(cRSI '테이블 기준봉'과 같은 의미).\n완성봉(기본): 가장 최근 완성봉 기준(형성 중=직전봉, 마감된 마지막 봉·바 리플레이=그 봉). 형성 중 봉의 틱 변동에 값이 고정되고(리페인팅 없음), 가격은 '형성 중이거나 다음에 올 봉의 종가'가 얼마면 조건이 바뀌는가, %는 기준봉 종가 대비입니다.\n실시간봉: 현재 형성 중 봉(차트 마지막 봉 [0])까지를 고정으로 보고 '다음 봉 종가' 조건을 역산, 틱마다 갱신(의도된 리얼타임 리페인팅). %는 현재 봉 종가 대비. 봉 마감 시점 값은 완성봉 모드와 동일합니다.")
+entryBase = input.string("완성봉", title="추세 진입 기준봉", options=["실시간봉", "완성봉"], group=TABLE_GROUP, active=showStatusTable, tooltip="상태 테이블 '추세 전환가' 6행(Sonar/TEMA/DEMA/정배열/역배열/T/D 전환가)의 기준봉입니다(cRSI '테이블 기준봉'과 같은 의미).\n완성봉(기본): 가장 최근 완성봉 기준(형성 중=직전봉, 마감된 마지막 봉·바 리플레이=그 봉). 형성 중 봉의 틱 변동에 값이 고정되고(리페인팅 없음), 가격은 '형성 중이거나 다음에 올 봉의 종가'가 얼마면 조건이 바뀌는가, %는 기준봉 종가 대비입니다.\n실시간봉: 현재 형성 중 봉(차트 마지막 봉 [0])까지를 고정으로 보고 '다음 봉 종가' 조건을 역산, 틱마다 갱신(의도된 리얼타임 리페인팅). %는 현재 봉 종가 대비. 봉 마감 시점 값은 완성봉 모드와 동일합니다.")
 // 장기 추세 강도/크로스 판정 파라미터(원본 '장기 추세' 그룹 이식) — 단기/중기/장기 추세 셀이 공유.
 ltTrendLook = input.int(5, minval=1, title="추세 폭 변화 판정 봉수", group=TABLE_GROUP, tooltip="단기/중기/장기 추세 셀 공통. 크로스 후 이 봉수 경과해야 강/약(폭 변화)을 판정합니다(그 전은 빌드업). 기본 5. 원본과 동일. 전략성 파라미터(수학자 리뷰 대상).")
 ltFlatTol = input.float(0.25, minval=0.0, step=0.05, title="평탄 판정 ATR 배수(강↔약 사이 '상승/하락')", group=TABLE_GROUP, tooltip="단기/중기/장기 추세 폭 변화 데드밴드 = ATR(14) × 이 배수. 폭 변화가 이 이내면 평탄('상승/하락'). 기본 0.25. 원본과 동일.")
@@ -908,6 +908,24 @@ entArrBullX = (na(entBullG1) or na(entBullG2) or (entGate and na(entBullGate))) 
 entArrBearX = (na(entBearG1) or na(entBearG2) or (entGate and na(entBearGate))) ? na : entGate ? math.min(entBearG1, entBearG2, entBearGate) : math.min(entBearG1, entBearG2)
 entArrState = bgFillState[entryOff]            // 기준봉 배열 상태(1=정배열·−1=역배열·0=중립) — 표시 규칙·셀 색 공용
 
+// ④ Sonar 전환 — Sonar 모멘텀 배경 상태(sonarState)가 반대로 바뀌는 다음 봉 종가(CEO 지시). TEMA/DEMA 전환과 같은 개념·같은 선형 역산(닫힌 해, 근사 아님).
+//    다음 봉 sonarEma' = αs·C + βs·E[o] (αs=2/(n+1), βs=1−αs). 다음 봉의 k봉 전 EMA = 기준봉 기준 E[o+k−1](고정값) → sonar' = αs·C + βs·E[o] − E[o+k−1].
+//    · '0선'        : sonar' = 0 → C* = (E[o+k−1] − βs·E[o]) / αs.
+//    · 'Signal 교차': signal' = αm·sonar' + βm·sig[o] (αm=2/(m+1), βm=1−αm) → diff' = sonar' − signal' = βm·(sonar' − sig[o]) → diff'=0 ⇔ sonar' = sig[o]
+//                     → C* = (sig[o] + E[o+k−1] − βs·E[o]) / αs. m=1(βm=0)이면 diff'≡0(전환 불가) → na("-").
+//    αs>0이라 C>C*이면 diff'>0(상승), C<C*이면 diff'<0(하락). 기준봉 상태 1(상승)=하락전환가(틱 내림) / −1(하락)=상승전환가(틱 올림) / 0(워밍업)="-".
+//    ▸ 소스: Sonar는 close 고정(리본 소스와 무관) → '소스≠종가' 가드 미적용. sonarEma/sonarSignal/sonarState·배경 판정은 읽기만 한다(불변).
+//    ▸ 과거 참조 최대 [entryOff+k−1] ≤ 500 → max_bars_back=1000 안. 리페인팅 특성은 다른 전환가 행과 동일(완성봉 모드 고정·실시간봉 모드 틱 갱신).
+sonarAlphaE = 2.0 / (sonarLen + 1)
+sonarBetaE = 1.0 - sonarAlphaE
+sonarBetaSig = 1.0 - 2.0 / (sonarSigLen + 1)
+entSonarE0 = sonarEma[entryOff]
+entSonarEk = sonarEma[entryOff + sonarGap - 1]
+entSonarSig = sonarSignal[entryOff]
+entSonarSt = sonarState[entryOff]
+entSonarZeroX = (na(entSonarE0) or na(entSonarEk)) ? na : (entSonarEk - sonarBetaE * entSonarE0) / sonarAlphaE
+entSonarX = sonarZeroMode ? entSonarZeroX : (na(entSonarZeroX) or na(entSonarSig) or sonarBetaSig <= 0) ? na : entSonarZeroX + entSonarSig / sonarAlphaE
+
 // =========================================================================================
 // ⚠️ [CEO 지시] 기울기 정렬 삼각형 마커(파랑 △ belowbar / 빨강 ▽ abovebar)와 그 판정 로직 일체는 전면 제거됨.
 //    제거된 것: noBg(bgFillState==0)·greenCnt/redCnt(셀 순 개수 상쇄)·blueRaw/redRaw·blueShow/redShow·plotshape 2개,
@@ -1209,7 +1227,7 @@ srVw50Tooltip = "거래량 가중 50선의 가격과 현재가 대비 거리(%, 
 srVw100Tooltip = "거래량 가중 100선의 가격과 현재가 대비 거리(%, 선이 위면 +·아래면 −)를 표시합니다. 셀 색이 지지(녹)·저항(적)·위(둔탁 녹)·아래(둔탁 적) 판정입니다. 단기선보다 강한 중기 매물대에서 추세의 지속과 반전을 판단합니다."
 srVw200Tooltip = "거래량 가중 200선의 가격과 현재가 대비 거리(%, 선이 위면 +·아래면 −)를 표시합니다. 셀 색이 지지(녹)·저항(적)·위(둔탁 녹)·아래(둔탁 적) 판정입니다. 시장 대추세의 최종 지지·저항으로, 장기 국면 전환을 가르는 결정적 레벨로 봅니다."
 
-// ── 추세 전환가 5행 셀 텍스트·색(CEO 지시 2026-10-16 — 위 "추세 전환가 — P* 역산" 블록 소비) ──────────────────
+// ── 추세 전환가 6행 셀 텍스트·색(CEO 지시 2026-10-16 · Sonar 전환 행 추가 — 위 "추세 전환가 — P* 역산" 블록 소비) ──────────────────
 //  ▸ 값 포맷: "{이벤트} : {틱 반올림 가격} ({기준봉 종가 대비 %})"(예 `상승전환 : 10,215 (+2.1%)`). 가격 포맷 srLineFmt(천 단위 쉼표·mintick 자릿수), % = f_entPctText(소수1자리·부호 항상·−0.0 방지).
 //     % 기준가 = entBaseC = close[entryOff](cRSI crClose1과 동일): 실시간봉 모드=현재가, 완성봉 모드(형성 중)=직전 완성봉 종가. 도달불가 ±30% 판정도 같은 기준.
 //     %는 **표시된(틱 반올림된) 전환가** 기준 — 트레이더가 보는 가격과 %가 어긋나지 않게(지지/저항 행은 선 원값 기준이지만, 전환가는 표시가 자체가 트리거라 표시가 기준).
@@ -1217,6 +1235,7 @@ srVw200Tooltip = "거래량 가중 200선의 가격과 현재가 대비 거리(%
 //  ▸ 도달불가(cRSI 밴드 교차 테이블과 같은 기준): P*≤0, 또는 표시 반올림 % 정수 n=round(pct×10)이 ±300 초과(±30.0% 초과). "±30.0%"로 보이는 값은 표시.
 //  ▸ "-": 워밍업·na·분모 퇴화. "소스≠종가": 리본 소스가 종가가 아님(entrySrcOk=false — 제안서 권고).
 //  ▸ 셀 색(기존 색 체계 재사용, transp 30·중립 회색 40):
+//     · Sonar 전환: 기준봉 sonarState 1(상승) → 녹 / −1(하락) → 적 / 0(워밍업) → 회색 — f_entSlopeColor 재사용(TEMA 전환과 동일 규칙).
 //     · TEMA/DEMA 전환: 기준봉 ㄱ<0(하락 중 = 상승전환 대기) → 적 ltDownColor / ㄱ>0(상승 중 = 하락전환 대기) → 녹 ltUpColor / 0·na → 회색. 셀 색=현재 상태(T/D 크로스 셀 관례와 같음).
 //     · 정배열 전환·역배열 전환(2행 공통 entArrColor): entArrState(=bgFillState) 1 → 녹 / −1 → 적 / 0 → 회색(구 기울기 배열 행 slopeArrColor와 동일 매핑).
 //     · T/D 전환: 기존 4-상태 tdxCellColor 그대로(골든 녹·데드 적 + cur/avg 저채도 SR50_ABOVE/BELOW). 평균(5) 텍스트만 폐지.
@@ -1257,9 +1276,13 @@ entArrBearText = not entrySrcOk ? "소스≠종가" : entArrState == -1 ? "-" : 
 entArrColor = entArrState == 1 ? color.new(ltUpColor, 30) : entArrState == -1 ? color.new(ltDownColor, 30) : color.new(color.gray, 40)
 entTdText = not entrySrcOk ? "소스≠종가" : na(entTdX) ? "-" : f_entryText(entTdGold ? "데드전환" : "골든전환", entTdX, not entTdGold)
 entTdColor = tdxCellColor[entryOff]
+// Sonar 전환 행 — TEMA 전환 행과 동일 표시 로직(f_entryText·f_entSlopeColor). 상태 0/na(워밍업)면 "-". 소스 가드 없음(Sonar=close 고정).
+entSonarText = (na(entSonarSt) or entSonarSt == 0) ? "-" : f_entryText(entSonarSt > 0 ? "하락전환" : "상승전환", entSonarX, not (entSonarSt > 0))
+entSonarColor = f_entSlopeColor(entSonarSt)
 // 셀 툴팁(공통 문구: 기준봉(entryBase 모드별)·조건부 가격·도달불가 기준)
 ENTRY_TIP_BASE = entryBase == "실시간봉" ? " 기준봉=실시간봉: 현재 형성 중인 봉까지를 고정으로 보고 '다음 봉 종가'가 얼마면 조건이 바뀌는지 역산하며, 틱마다 다시 계산됩니다. %는 현재가 대비입니다." : " 기준봉=완성봉: 가장 최근 완성봉까지를 고정으로 보고 '형성 중이거나 다음에 올 봉의 종가'가 얼마면 조건이 바뀌는지 역산하며, 형성 중 틱 변동에는 값이 고정됩니다. %는 기준봉(완성봉) 종가 대비입니다."
 ENTRY_TIP_COMMON = ENTRY_TIP_BASE + " 0 이하이거나 기준봉 종가 대비 ±30% 초과면 도달불가. ⚠️ 조건부 가격이지 예측이 아닙니다(도달 확률·기대수익과 무관). 매매 신호가 아닌 참고용입니다."
+entSonarTooltip = "Sonar 모멘텀(배경 녹/빨강)이 반대로 바뀌는 다음 봉 종가입니다. Sonar가 상승(녹)이면 하락전환가, 하락(적)이면 상승전환가를 표시합니다. 판정 기준('Signal 교차'/'0선')과 n·k·m은 'Sonar 모멘텀 배경' 설정을 따르며, 근사가 아닌 정확한 역산값입니다(Sonar는 종가 고정이라 리본 소스와 무관). 배경 색이 바뀌는 첫 경계로 씁니다." + ENTRY_TIP_COMMON
 entTemaTooltip = "TEMA가 꺾이는(1봉 기울기 부호가 바뀌는) 다음 봉 종가입니다. TEMA가 하락 중(적)이면 상승전환가, 상승 중(녹)이면 하락전환가를 표시합니다. 가장 빠른 선이라 추세 진입·이탈의 첫 경계로 씁니다." + ENTRY_TIP_COMMON
 entDemaTooltip = "DEMA가 꺾이는(1봉 기울기 부호가 바뀌는) 다음 봉 종가입니다. DEMA가 하락 중(적)이면 상승전환가, 상승 중(녹)이면 하락전환가를 표시합니다. TEMA보다 노이즈가 적어 추세 진입 확인용으로 씁니다." + ENTRY_TIP_COMMON
 ENT_ARR_TIP_TAIL = " 셀 색=현재 배열 상태(녹=정배열·적=역배열·회색=중립). 근사: 변동성 스케일 V(ATR14/종가)를 고정하고 기울기 셀 색 컨플루언스·2자리 반올림을 생략한 필요조건이므로 봉 마감 후 셀 색으로 최종 확인하세요. 문턱은 '밴드 배경 필터' 설정을 따릅니다. '미적용'·'기울기 크기 게이트' 모드에서는 셀 색 판정이 기울기를 소수 2자리(%)로 반올림해 비교하므로, 실제 전환가가 표시가보다 더 멀 수 있습니다(리본 길이 20 기준 최대 약 0.15%, 길이에 거의 비례해 커짐 — 예 50이면 약 0.3%)."
@@ -1269,8 +1292,8 @@ entTdTooltip = "TEMA와 DEMA가 교차하는 다음 봉 종가입니다. 데드 
 
 // ── 상태 테이블 렌더링(우측 상단) — 추세 확인 / 추세 전환가 / 변동성 임계가 / 지지·저항 임계가 ────────────────
 //  스타일: 원본과 동일(섹션 헤더 딥 네이비 #1B2A4A·병합, 행 라벨 회색 배경, 값 셀 판정색, 흰 글자, size.small).
-//  행 배치(총 19행, 0~18): 추세 확인 헤더 0·데이터 1~3 / 추세 전환가 헤더 4·데이터 5~9 / 변동성 임계가 헤더 10·데이터 11~14 / 지지·저항 임계가 헤더 15·데이터 16~18.
-var table statusTable = table.new(position.top_right, 2, 19, border_width=1, border_color=color.new(color.gray, 50))
+//  행 배치(총 20행, 0~19): 추세 확인 헤더 0·데이터 1~3 / 추세 전환가 헤더 4·데이터 5~10(5=Sonar 전환) / 변동성 임계가 헤더 11·데이터 12~15 / 지지·저항 임계가 헤더 16·데이터 17~19.
+var table statusTable = table.new(position.top_right, 2, 20, border_width=1, border_color=color.new(color.gray, 50))
 if showStatusTable and barstate.islast
     // 섹션1: 추세 확인 (VWMA MA 기반 후행(lagging) 지표 — 단기/중기/장기 추세 3행). (CEO 지시: 단기 추세 위에 머지 헤더 신설. 이후 CEO 지시로 헤더 "후행 추세 확인"→"추세 확인" 개명·테이블 최상단으로 이동.)
     table.cell(statusTable, 0, 0, "추세 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
@@ -1282,40 +1305,42 @@ if showStatusTable and barstate.islast
     table.cell(statusTable, 1, 2, mtCellText, text_color=color.white, bgcolor=mtCellColor, text_size=size.small, tooltip=laggingMtTooltip)
     table.cell(statusTable, 0, 3, "장기추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=laggingLtTooltip)
     table.cell(statusTable, 1, 3, ltCellText, text_color=color.white, bgcolor=ltCellColor, text_size=size.small, tooltip=laggingLtTooltip)
-    // 섹션1-2: 추세 전환가 (CEO 지시로 헤더 "추세 진입"→"추세 전환가" 개명) (CEO 지시 2026-10-16 — 구 "선행 추세 확인" 6행을 전환가 P* 4행으로 교체: TEMA 전환 / DEMA 전환 / 배열 전환 / T/D 전환 → 이후 CEO 지시로 배열 전환을 정배열 전환·역배열 전환 2행으로 분리해 5행). 기준봉=entryBase(기본 완성봉 — entryOff 0/1).
+    // 섹션1-2: 추세 전환가 (CEO 지시로 헤더 "추세 진입"→"추세 전환가" 개명) (CEO 지시 2026-10-16 — 구 "선행 추세 확인" 6행을 전환가 P* 4행으로 교체: TEMA 전환 / DEMA 전환 / 배열 전환 / T/D 전환 → 이후 CEO 지시로 배열 전환을 정배열 전환·역배열 전환 2행으로 분리해 5행 → CEO 지시로 첫 행에 Sonar 전환 추가해 6행). 기준봉=entryBase(기본 완성봉 — entryOff 0/1).
     table.cell(statusTable, 0, 4, "추세 전환가", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.cell(statusTable, 1, 4, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.merge_cells(statusTable, 0, 4, 1, 4)
-    table.cell(statusTable, 0, 5, "TEMA 전환", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=entTemaTooltip)
-    table.cell(statusTable, 1, 5, entTemaText, text_color=color.white, bgcolor=entTemaColor, text_size=size.small, tooltip=entTemaTooltip)
-    table.cell(statusTable, 0, 6, "DEMA 전환", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=entDemaTooltip)
-    table.cell(statusTable, 1, 6, entDemaText, text_color=color.white, bgcolor=entDemaColor, text_size=size.small, tooltip=entDemaTooltip)
-    table.cell(statusTable, 0, 7, "정배열 전환", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=entArrBullTooltip)
-    table.cell(statusTable, 1, 7, entArrBullText, text_color=color.white, bgcolor=entArrColor, text_size=size.small, tooltip=entArrBullTooltip)
-    table.cell(statusTable, 0, 8, "역배열 전환", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=entArrBearTooltip)
-    table.cell(statusTable, 1, 8, entArrBearText, text_color=color.white, bgcolor=entArrColor, text_size=size.small, tooltip=entArrBearTooltip)
-    table.cell(statusTable, 0, 9, "T/D 전환", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=entTdTooltip)
-    table.cell(statusTable, 1, 9, entTdText, text_color=color.white, bgcolor=entTdColor, text_size=size.small, tooltip=entTdTooltip)
+    table.cell(statusTable, 0, 5, "Sonar 전환", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=entSonarTooltip)
+    table.cell(statusTable, 1, 5, entSonarText, text_color=color.white, bgcolor=entSonarColor, text_size=size.small, tooltip=entSonarTooltip)
+    table.cell(statusTable, 0, 6, "TEMA 전환", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=entTemaTooltip)
+    table.cell(statusTable, 1, 6, entTemaText, text_color=color.white, bgcolor=entTemaColor, text_size=size.small, tooltip=entTemaTooltip)
+    table.cell(statusTable, 0, 7, "DEMA 전환", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=entDemaTooltip)
+    table.cell(statusTable, 1, 7, entDemaText, text_color=color.white, bgcolor=entDemaColor, text_size=size.small, tooltip=entDemaTooltip)
+    table.cell(statusTable, 0, 8, "정배열 전환", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=entArrBullTooltip)
+    table.cell(statusTable, 1, 8, entArrBullText, text_color=color.white, bgcolor=entArrColor, text_size=size.small, tooltip=entArrBullTooltip)
+    table.cell(statusTable, 0, 9, "역배열 전환", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=entArrBearTooltip)
+    table.cell(statusTable, 1, 9, entArrBearText, text_color=color.white, bgcolor=entArrColor, text_size=size.small, tooltip=entArrBearTooltip)
+    table.cell(statusTable, 0, 10, "T/D 전환", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=entTdTooltip)
+    table.cell(statusTable, 1, 10, entTdText, text_color=color.white, bgcolor=entTdColor, text_size=size.small, tooltip=entTdTooltip)
     // 섹션2: 변동성 임계가 (밴드 상단 → 밴드 하단 → 이격도 → 되돌림). (CEO 지시: 헤더 "가격 구조 및 변동성 확인"→"변동성 확인"→"변동성 임계가", 비정상 매수/매도 행 삭제 — 캔들색으로 이미 표현.)
-    table.cell(statusTable, 0, 10, "변동성 임계가", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.cell(statusTable, 1, 10, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.merge_cells(statusTable, 0, 10, 1, 10)
+    table.cell(statusTable, 0, 11, "변동성 임계가", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
+    table.cell(statusTable, 1, 11, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
+    table.merge_cells(statusTable, 0, 11, 1, 11)
     // 밴드 상단/하단 2행(CEO 지시 — 구 vwap 기울기·vwap 구간 행 대체): 주 밴드(Band #2) 가격 (현재가 대비 ±%).
-    table.cell(statusTable, 0, 11, "밴드 상단", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=volBandUpperTooltip)
-    table.cell(statusTable, 1, 11, bandUpperText, text_color=color.white, bgcolor=bandUpperColor, text_size=size.small, tooltip=volBandUpperTooltip)
-    table.cell(statusTable, 0, 12, "밴드 하단", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=volBandLowerTooltip)
-    table.cell(statusTable, 1, 12, bandLowerText, text_color=color.white, bgcolor=bandLowerColor, text_size=size.small, tooltip=volBandLowerTooltip)
-    table.cell(statusTable, 0, 13, "이격도 (" + str.tostring(disparityMaLen) + ")", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=volDisparityTooltip)
-    table.cell(statusTable, 1, 13, disparityCellText, text_color=color.white, bgcolor=disparityCellColor, text_size=size.small, tooltip=volDisparityTooltip)
-    table.cell(statusTable, 0, 14, "되돌림 가격", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=volPullbackTooltip)
-    table.cell(statusTable, 1, 14, na(disparityPullbackPrice) ? "-" : f_priceStr(disparityPullbackPrice) + " (" + f_pctStr(disparityPullbackPrice) + ")", text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small, tooltip=volPullbackTooltip)
+    table.cell(statusTable, 0, 12, "밴드 상단", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=volBandUpperTooltip)
+    table.cell(statusTable, 1, 12, bandUpperText, text_color=color.white, bgcolor=bandUpperColor, text_size=size.small, tooltip=volBandUpperTooltip)
+    table.cell(statusTable, 0, 13, "밴드 하단", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=volBandLowerTooltip)
+    table.cell(statusTable, 1, 13, bandLowerText, text_color=color.white, bgcolor=bandLowerColor, text_size=size.small, tooltip=volBandLowerTooltip)
+    table.cell(statusTable, 0, 14, "이격도 (" + str.tostring(disparityMaLen) + ")", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=volDisparityTooltip)
+    table.cell(statusTable, 1, 14, disparityCellText, text_color=color.white, bgcolor=disparityCellColor, text_size=size.small, tooltip=volDisparityTooltip)
+    table.cell(statusTable, 0, 15, "되돌림 가격", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=volPullbackTooltip)
+    table.cell(statusTable, 1, 15, na(disparityPullbackPrice) ? "-" : f_priceStr(disparityPullbackPrice) + " (" + f_pctStr(disparityPullbackPrice) + ")", text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small, tooltip=volPullbackTooltip)
     // 섹션3: 지지·저항 임계가 (CEO 지시로 헤더 "지지·저항 확인"→"지지·저항 임계가" 개명) (50선 / 100선 / 200선)
-    table.cell(statusTable, 0, 15, "지지·저항 임계가", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.cell(statusTable, 1, 15, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.merge_cells(statusTable, 0, 15, 1, 15)
-    table.cell(statusTable, 0, 16, "50선", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=srVw50Tooltip)
-    table.cell(statusTable, 1, 16, vwSrText, text_color=color.white, bgcolor=vwSrColor, text_size=size.small, tooltip=srVw50Tooltip)
-    table.cell(statusTable, 0, 17, "100선", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=srVw100Tooltip)
-    table.cell(statusTable, 1, 17, ltM1SrText, text_color=color.white, bgcolor=ltM1SrColor, text_size=size.small, tooltip=srVw100Tooltip)
-    table.cell(statusTable, 0, 18, "200선", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=srVw200Tooltip)
-    table.cell(statusTable, 1, 18, ltM2SrText, text_color=color.white, bgcolor=ltM2SrColor, text_size=size.small, tooltip=srVw200Tooltip)
+    table.cell(statusTable, 0, 16, "지지·저항 임계가", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
+    table.cell(statusTable, 1, 16, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
+    table.merge_cells(statusTable, 0, 16, 1, 16)
+    table.cell(statusTable, 0, 17, "50선", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=srVw50Tooltip)
+    table.cell(statusTable, 1, 17, vwSrText, text_color=color.white, bgcolor=vwSrColor, text_size=size.small, tooltip=srVw50Tooltip)
+    table.cell(statusTable, 0, 18, "100선", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=srVw100Tooltip)
+    table.cell(statusTable, 1, 18, ltM1SrText, text_color=color.white, bgcolor=ltM1SrColor, text_size=size.small, tooltip=srVw100Tooltip)
+    table.cell(statusTable, 0, 19, "200선", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=srVw200Tooltip)
+    table.cell(statusTable, 1, 19, ltM2SrText, text_color=color.white, bgcolor=ltM2SrColor, text_size=size.small, tooltip=srVw200Tooltip)
