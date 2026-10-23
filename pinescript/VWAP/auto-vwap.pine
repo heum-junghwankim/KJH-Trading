@@ -212,34 +212,34 @@ var label lowerBand1LineEndLabel = na
 var label upperBand2LineEndLabel = na
 var label lowerBand2LineEndLabel = na
 
-// VWAP·밴드·밴드2 계산 헬퍼 — window 길이(barsLen)와 **소스(srcArg)**를 파라미터로 받아 기본 화면용(length=50, src) 세트를 계산한다.
+// VWAP·밴드·밴드2 계산 헬퍼 — window 길이(barsLen)를 파라미터로 받아 공유 누적(src 기준)에서 해당 길이 세트를 계산한다(세트 A=recentBars·세트 B=bandSetBBars).
 //  ⚠️ CEO 지시로 앵커모드(Session / Recent Trading Days)를 완전 제거 → **"최근 N봉 롤링(Recent Bars)" 단일 방식 고정**.
 //   앵커 = barsLen 봉 전 누적값(cumulative*[barsLen])이며, window = 현재 누적 − 그 앵커 = 최근 barsLen봉 롤링 누적.
-//  ⚠️ 소스별로 서로 다른 누적이 필요하므로 누적(cumulative*)을 **함수-로컬 var로 내부화**한다.
-//   Pine v6에서 함수 내부 var는 그 호출부(instance)마다 독립 상태를 가지므로, 여러 번 호출하면 각각 독립 누적이 유지된다.
-//  산식 자체(rolling VWAP + 로그/절대 표준편차 밴드)는 앵커모드 제거 전의 Recent Bars 경로와 100% 동일. 확정봉 기준 누적이라 소스가 series여도 신규 리페인팅 없음.
+//  ⚡ perf(CEO 지시 — 동작 동치 리팩토링): 세트 A(recentBars)·세트 B(bandSetBBars)는 **소스(src)가 같아 누적(cumulative*) 시계열이 완전히 동일**하다.
+//   구 구조는 누적을 함수-로컬 var로 두어 호출부마다 같은 누적을 2번 계산(봉당 log 2회·곱 10여 회·누적 12회)했으므로, 누적을 **전역 var 1벌**로 끌어올려 공유한다.
+//   각 세트는 window 길이(barsLen)만큼의 차분(cumulative − cumulative[barsLen])만 따로 계산한다. 누적 덧셈 순서·피연산자가 구 함수-로컬 누적과 동일 → 값 비트 단위 동일.
+//  산식 자체(rolling VWAP + 로그/절대 표준편차 밴드)는 앵커모드 제거 전의 Recent Bars 경로와 100% 동일. 확정봉 기준 누적이라 신규 리페인팅 없음.
 //  반환: [vwapValue, upperBand1, lowerBand1, upperBand2, lowerBand2, shouldPlot].
-computeVwapSet(int barsLen, float srcArg) =>
-    var float cumulativePV = 0.0
-    var float cumulativeVolume = 0.0
-    var float cumulativeP2V = 0.0
-    var float cumulativeLogPV = 0.0
-    var float cumulativeLog2V = 0.0
-    var float cumulativeInvalidLogVolume = 0.0
+var float cumulativePV = 0.0
+var float cumulativeVolume = 0.0
+var float cumulativeP2V = 0.0
+var float cumulativeLogPV = 0.0
+var float cumulativeLog2V = 0.0
+var float cumulativeInvalidLogVolume = 0.0
+barPV = src * volume
+barP2V = src * src * volume
+logSrc = src > 0 ? math.log(src) : na
+barLogPV = na(logSrc) ? 0.0 : logSrc * volume
+barLog2V = na(logSrc) ? 0.0 : logSrc * logSrc * volume
+barInvalidLogVolume = na(logSrc) ? volume : 0.0
+cumulativePV += barPV
+cumulativeVolume += volume
+cumulativeP2V += barP2V
+cumulativeLogPV += barLogPV
+cumulativeLog2V += barLog2V
+cumulativeInvalidLogVolume += barInvalidLogVolume
 
-    barPV = srcArg * volume
-    barP2V = srcArg * srcArg * volume
-    logSrc = srcArg > 0 ? math.log(srcArg) : na
-    barLogPV = na(logSrc) ? 0.0 : logSrc * volume
-    barLog2V = na(logSrc) ? 0.0 : logSrc * logSrc * volume
-    barInvalidLogVolume = na(logSrc) ? volume : 0.0
-    cumulativePV += barPV
-    cumulativeVolume += volume
-    cumulativeP2V += barP2V
-    cumulativeLogPV += barLogPV
-    cumulativeLog2V += barLog2V
-    cumulativeInvalidLogVolume += barInvalidLogVolume
-
+computeVwapSet(int barsLen) =>
     // 앵커 = barsLen 봉 전 누적값(Recent Bars 롤링 단일). 워밍업(barsLen 미만)엔 nz로 0 폴백 → 전체 누적을 창으로 사용.
     anchorPV = nz(cumulativePV[barsLen], 0.0)
     anchorVolume = nz(cumulativeVolume[barsLen], 0.0)
@@ -327,10 +327,10 @@ disparityStatLen = input.int(50, minval=5, title="이격도 통계 구간(적응
 disparityStatMult = input.float(1.5, minval=0.1, step=0.1, title="이격도 통계 시그마 배수", group=DISP_GROUP)
 
 // 기본 화면용 VWAP 세트(length=50, 소스=src) — 화면 plot·밴드·라벨의 기준. 소스는 기존 화면 VWAP src(기본 hlc3) 유지 → 거동 불변.
-[vwapValue, upperBandValue1, lowerBandValue1, upperBandValue2, lowerBandValue2, shouldPlot] = computeVwapSet(recentBars, src)
-// 밴드 세트 B(기본 50봉, CEO 지시) — Band #2 upper/lower 선 2개 표시 전용. computeVwapSet 내부 var는 호출부마다 독립 누적이라 세트 A와 상태 간섭 없음.
+[vwapValue, upperBandValue1, lowerBandValue1, upperBandValue2, lowerBandValue2, shouldPlot] = computeVwapSet(recentBars)
+// 밴드 세트 B(기본 50봉, CEO 지시) — Band #2 upper/lower 선 2개 표시 전용. 누적은 세트 A와 공유(전역 cumulative*, 같은 src), window 차분만 별도.
 //  VWAP·밴드1·shouldPlot(B)은 미사용(밴드값이 이미 shouldPlot 가드로 na 처리됨). 확정봉 누적 → 신규 리페인팅 없음. 과거참조 [bandSetBBars]는 max_bars_back=1000 범위(recentBars와 동일 조건).
-[vwapValueB, upperBandValue1B, lowerBandValue1B, upperBandValue2B, lowerBandValue2B, shouldPlotB] = computeVwapSet(bandSetBBars, src)
+[vwapValueB, upperBandValue1B, lowerBandValue1B, upperBandValue2B, lowerBandValue2B, shouldPlotB] = computeVwapSet(bandSetBBars)
 
 // =========================
 // 비정상 매수/매도 판정 — advanced-ichimoku.pine "비정상 캔들" 블록의 이식(포팅). 산식·기본값 동일.
@@ -508,12 +508,9 @@ temaLine = 3 * ribbonE1 - 3 * ribbonE2 + ribbonE3
 //  ▸ 부호 정합: x축을 과거→현재 증가로 두어 우상향=양수(위 계수 검산 완료). 봉 마감 확정(line[0] 포함=라이브 갱신).
 f_logY(float v) => v > 0 ? math.log(v) : na
 // [slopeA, slopeB, slopeC] 반환. 각 slope는 필요한 yk 중 하나라도 na면 na.
-f_logSlopes3(float line0, float line1, float line2, float line3, float line4) =>
-    float y0 = f_logY(line0)
-    float y1 = f_logY(line1)
-    float y2 = f_logY(line2)
-    float y3 = f_logY(line3)
-    float y4 = f_logY(line4)
+// ⚡ perf(CEO 지시 — 동작 동치): 로그값을 봉당 선마다 1회만 계산(yLine = f_logY(line))하고 과거 4봉은 yLine[1..4] 히스토리로 재사용한다.
+//   f_logY(line[k]) ≡ f_logY(line)[k] (같은 입력·같은 결정적 연산 → 비트 동일, 워밍업 na도 동일). 봉당 math.log 15회 → 3회.
+f_logSlopes3(float y0, float y1, float y2, float y3, float y4) =>
     float sA = (na(y0) or na(y1)) ? na : y0 - y1
     float sB = (na(y0) or na(y1) or na(y2)) ? na : (3.0 * (2.0 * y0 + 1.0 * y1 + 0.0 * y2) - 3.0 * (y0 + y1 + y2)) / 6.0
     float sC = (na(y0) or na(y1) or na(y2) or na(y3) or na(y4)) ? na : (5.0 * (4.0 * y0 + 3.0 * y1 + 2.0 * y2 + 1.0 * y3 + 0.0 * y4) - 10.0 * (y0 + y1 + y2 + y3 + y4)) / 50.0
@@ -525,9 +522,12 @@ f_pctR2(float s) => math.round(s * 10000.0) / 100.0
 f_logGreen(float sA, float sB, float sC) => not na(sA) and not na(sB) and not na(sC) and f_pctR2(sA) > f_pctR2(sB) and f_pctR2(sB) > f_pctR2(sC)
 f_logRed(float sA, float sB, float sC)   => not na(sA) and not na(sB) and not na(sC) and f_pctR2(sA) < f_pctR2(sB) and f_pctR2(sB) < f_pctR2(sC)
 
-[emaSlA, emaSlB, emaSlC]   = f_logSlopes3(emaLine,  emaLine[1],  emaLine[2],  emaLine[3],  emaLine[4])
-[demaSlA, demaSlB, demaSlC] = f_logSlopes3(demaLine, demaLine[1], demaLine[2], demaLine[3], demaLine[4])
-[temaSlA, temaSlB, temaSlC] = f_logSlopes3(temaLine, temaLine[1], temaLine[2], temaLine[3], temaLine[4])
+emaLogY  = f_logY(emaLine)
+demaLogY = f_logY(demaLine)
+temaLogY = f_logY(temaLine)
+[emaSlA, emaSlB, emaSlC]   = f_logSlopes3(emaLogY,  emaLogY[1],  emaLogY[2],  emaLogY[3],  emaLogY[4])
+[demaSlA, demaSlB, demaSlC] = f_logSlopes3(demaLogY, demaLogY[1], demaLogY[2], demaLogY[3], demaLogY[4])
+[temaSlA, temaSlB, temaSlC] = f_logSlopes3(temaLogY, temaLogY[1], temaLogY[2], temaLogY[3], temaLogY[4])
 
 emaLogGreen  = f_logGreen(emaSlA,  emaSlB,  emaSlC)
 emaLogRed    = f_logRed(emaSlA,   emaSlB,  emaSlC)
@@ -830,11 +830,12 @@ f_crossPct(int o) =>
 //    평균(5)이 "-"로 비었다. cur(현재봉%)와 avg(평균%)는 서로 독립이어야 하므로, avg는 유효 봉만 합산·개수로 나눈 부분평균으로 계산한다.
 //    유효 봉이 하나도 없을 때만 avg=na("-"). cur은 종전대로 pct[0](유효하면 값·na면 "-") — 두 값이 서로 영향 주지 않음.
 //  ▸ 각 봉 na 조건(CEO 정책 — X≤0 가드 제거): A≈0(상수라 사실상 불발생)·close≤0(비현실)·na(워밍업)뿐. X≤0(강추세로 임계가가 음수)은 이제 na 아님 → pct를 큰 음수(예 −250%)로 그대로 계산(클램핑 없음, 강도 표현). 정상 데이터에선 항상 값 → 현재봉 '-'가 사라지고 cur/avg 비대칭 해소. 역산 수식·pct 정의는 불변.
+// ⚡ perf(CEO 지시 — 동작 동치): f_crossPct(k)는 ribbonE*[k]·close[k]만 쓰는 순수식이라 f_crossPct(k) ≡ f_crossPct(0)[k](비트 동일, 워밍업 na 동일) → 과거 4봉은 히스토리 재사용.
 tdxP0 = f_crossPct(0)
-tdxP1 = f_crossPct(1)
-tdxP2 = f_crossPct(2)
-tdxP3 = f_crossPct(3)
-tdxP4 = f_crossPct(4)
+tdxP1 = tdxP0[1]
+tdxP2 = tdxP0[2]
+tdxP3 = tdxP0[3]
+tdxP4 = tdxP0[4]
 tdxCur = tdxP0
 tdxSum = (na(tdxP0) ? 0.0 : tdxP0) + (na(tdxP1) ? 0.0 : tdxP1) + (na(tdxP2) ? 0.0 : tdxP2) + (na(tdxP3) ? 0.0 : tdxP3) + (na(tdxP4) ? 0.0 : tdxP4)
 tdxCnt = (na(tdxP0) ? 0 : 1) + (na(tdxP1) ? 0 : 1) + (na(tdxP2) ? 0 : 1) + (na(tdxP3) ? 0 : 1) + (na(tdxP4) ? 0 : 1)
@@ -1050,8 +1051,15 @@ var float stCross20 = na
 if stGoldCross or stDeadCross
     stCross20 := vwma20
 stMovePct = not na(stCross20) and stCross20 != 0 and stReady ? (vwma20 / stCross20 - 1) * 100 : na
-stInfoTxt = (na(stMovePct) or na(stBarsSince)) ? "" : " (" + (stMovePct >= 0 ? "+" : "") + str.tostring(stMovePct, "0.0") + "% | " + str.tostring(stBarsSince) + "봉)"
-stCellText = not stReady ? "-" : stDeadCross ? "데드 크로스" : stGoldCross ? "골든 크로스" : stStateBase + stInfoTxt
+// ⚡ perf(CEO 지시 — 동작 동치): 상태 테이블 셀 문자열(str.tostring·문자열 결합)은 테이블을 그리는 봉(showStatusTable and barstate.islast)에서만 만든다.
+//   이 문자열들의 소비처는 테이블 셀뿐(히스토리 참조·다른 로직 없음)이고, 테이블도 같은 조건에서만 갱신되므로 표시값 동일. 판정(bool·수치·색)은 종전대로 매 봉 계산.
+tableBar = showStatusTable and barstate.islast
+string stInfoTxt = ""
+if tableBar
+    stInfoTxt := (na(stMovePct) or na(stBarsSince)) ? "" : " (" + (stMovePct >= 0 ? "+" : "") + str.tostring(stMovePct, "0.0") + "% | " + str.tostring(stBarsSince) + "봉)"
+string stCellText = ""
+if tableBar
+    stCellText := not stReady ? "-" : stDeadCross ? "데드 크로스" : stGoldCross ? "골든 크로스" : stStateBase + stInfoTxt
 stCellTransp = not stEstablished ? 30 : (stNearCross or stNarrowing) ? 55 : stWidening ? 0 : 30
 stCellColor = not stReady ? color.new(color.gray, 50) : stGoldCross ? color.new(ltUpColor, 0) : stDeadCross ? color.new(ltDownColor, 0) : stUp ? color.new(ltUpColor, stCellTransp) : color.new(ltDownColor, stCellTransp)
 
@@ -1078,8 +1086,12 @@ var float mtCrossVwap = na
 if mtGoldCross or mtDeadCross
     mtCrossVwap := vwma50
 mtMovePct = not na(mtCrossVwap) and mtCrossVwap != 0 and mtReady ? (vwma50 / mtCrossVwap - 1) * 100 : na
-mtInfoTxt = (na(mtMovePct) or na(mtBarsSince)) ? "" : " (" + (mtMovePct >= 0 ? "+" : "") + str.tostring(mtMovePct, "0.0") + "% | " + str.tostring(mtBarsSince) + "봉)"
-mtCellText = not mtReady ? "-" : mtDeadCross ? "데드 크로스" : mtGoldCross ? "골든 크로스" : mtStateBase + mtInfoTxt
+string mtInfoTxt = ""
+if tableBar
+    mtInfoTxt := (na(mtMovePct) or na(mtBarsSince)) ? "" : " (" + (mtMovePct >= 0 ? "+" : "") + str.tostring(mtMovePct, "0.0") + "% | " + str.tostring(mtBarsSince) + "봉)"
+string mtCellText = ""
+if tableBar
+    mtCellText := not mtReady ? "-" : mtDeadCross ? "데드 크로스" : mtGoldCross ? "골든 크로스" : mtStateBase + mtInfoTxt
 mtCellTransp = not mtEstablished ? 30 : (mtNearCross or mtNarrowing) ? 55 : mtWidening ? 0 : 30
 mtCellColor = not mtReady ? color.new(color.gray, 50) : mtGoldCross ? color.new(ltUpColor, 0) : mtDeadCross ? color.new(ltDownColor, 0) : mtUp ? color.new(ltUpColor, mtCellTransp) : color.new(ltDownColor, mtCellTransp)
 
@@ -1104,8 +1116,12 @@ var float ltCrossMa1 = na
 if ltGoldCross or ltDeadCross
     ltCrossMa1 := ltMa1
 ltMovePct = not na(ltCrossMa1) and ltCrossMa1 != 0 and ltReady ? (ltMa1 / ltCrossMa1 - 1) * 100 : na
-ltInfoTxt = (na(ltMovePct) or na(ltBarsSince)) ? "" : " (" + (ltMovePct >= 0 ? "+" : "") + str.tostring(ltMovePct, "0.0") + "% | " + str.tostring(ltBarsSince) + "봉)"
-ltCellText = not ltReady ? "-" : ltDeadCross ? "데드 크로스" : ltGoldCross ? "골든 크로스" : ltStateBase + ltInfoTxt
+string ltInfoTxt = ""
+if tableBar
+    ltInfoTxt := (na(ltMovePct) or na(ltBarsSince)) ? "" : " (" + (ltMovePct >= 0 ? "+" : "") + str.tostring(ltMovePct, "0.0") + "% | " + str.tostring(ltBarsSince) + "봉)"
+string ltCellText = ""
+if tableBar
+    ltCellText := not ltReady ? "-" : ltDeadCross ? "데드 크로스" : ltGoldCross ? "골든 크로스" : ltStateBase + ltInfoTxt
 ltCellTransp = not ltEstablished ? 30 : (ltNearCross or ltNarrowing) ? 55 : ltWidening ? 0 : 30
 ltCellColor = not ltReady ? color.new(color.gray, 50) : ltGoldCross ? color.new(ltUpColor, 0) : ltDeadCross ? color.new(ltDownColor, 0) : ltUp ? color.new(ltUpColor, ltCellTransp) : color.new(ltDownColor, ltCellTransp)
 
@@ -1127,7 +1143,8 @@ f_srLineFmt() =>
         if math.abs(x - math.round(x)) < 1e-6
             break
     d == 0 ? "#,##0" : "#,##0." + str.repeat("0", d)
-srLineFmt = f_srLineFmt()
+// ⚡ perf(CEO 지시 — 동작 동치): syminfo.mintick은 차트 고정 상수 → for 루프(최대 9회 math.pow)를 매 봉이 아닌 첫 봉 1회만 실행(var).
+var string srLineFmt = f_srLineFmt()
 // % 텍스트(현재 종가 close[0] 대비, 소수 1자리·부호 항상, −0.0 방지). close≤0·na면 "-". 지지/저항·밴드·기울기·교차 전환가 행 공용(값 v는 호출부가 정함).
 f_srPctText(float v) =>
     string pctTxt = "-"
@@ -1151,8 +1168,12 @@ f_srLineText(float ma) =>
 //  ▸ 셀 색(CEO 지시): 값 셀은 고정 중립 회색(color.gray 투명도 40 — 같은 섹션 '되돌림 가격' 값 셀과 동일)으로 table.cell에서 직접 지정. 표시 전용·판정 아님.
 //    아래 bandUpperColor/bandLowerColor(구 상단=둔탁 적 #A57A7A·하단=둔탁 녹 #6E8F72·"-"면 gray 50)는 현재 미참조 — 최소 변경 원칙으로 보존.
 bandRowOk = shouldPlot and showBand_2
-bandUpperText = f_srLineText(bandRowOk ? upperBandValue2 : na)
-bandLowerText = f_srLineText(bandRowOk ? lowerBandValue2 : na)
+string bandUpperText = ""
+if tableBar
+    bandUpperText := f_srLineText(bandRowOk ? upperBandValue2 : na)
+string bandLowerText = ""
+if tableBar
+    bandLowerText := f_srLineText(bandRowOk ? lowerBandValue2 : na)
 bandUpperColor = bandRowOk and not na(upperBandValue2) ? color.new(#A57A7A, 0) : color.new(color.gray, 50)
 bandLowerColor = bandRowOk and not na(lowerBandValue2) ? color.new(#6E8F72, 0) : color.new(color.gray, 50)
 
@@ -1178,7 +1199,9 @@ vwSrSigma = f_vwStdev(vwma50, 50)
 [vwSrSupport, vwSrResist] = f_srSupportResist(vwma50, na(vwSrSigma) ? na : vwma50 + srBandStdMult * vwSrSigma, na(vwSrSigma) ? na : vwma50 - srBandStdMult * vwSrSigma)
 vwSrState = not vwSrHasMa ? "-" : vwSrSupport ? "지지" : vwSrResist ? "저항" : vwAbove ? "위" : "아래"
 //  셀 값(CEO 지시): 선 가격 + 현재가 대비 % — 상태(vwSrState)·이격도(vwSrDisp)·연속봉수(vwSrBars)는 계산 보존, 셀 배경색(vwSrColor)이 지지/저항 판정을 표시.
-vwSrText = f_srLineText(vwma50)
+string vwSrText = ""
+if tableBar
+    vwSrText := f_srLineText(vwma50)
 vwSrColor = not vwSrHasMa ? color.new(color.gray, 50) : vwSrSupport ? color.new(color.green, 0) : vwSrResist ? color.new(color.red, 0) : vwAbove ? color.new(#6E8F72, 0) : color.new(#A57A7A, 0)
 
 // ── 100선(MA100) 지지/저항 셀 — 원본 이식 ─────────────────────────────────────────────────
@@ -1197,7 +1220,9 @@ ltM1SrSigma = f_vwStdev(ltMa1, ltLen1)
 [ltM1Support, ltM1Resist] = f_srSupportResist(ltMa1, na(ltM1SrSigma) ? na : ltMa1 + srBandStdMult * ltM1SrSigma, na(ltM1SrSigma) ? na : ltMa1 - srBandStdMult * ltM1SrSigma)
 ltM1SrState = not ltM1HasMa ? "-" : ltM1Support ? "지지" : ltM1Resist ? "저항" : ltM1Above ? "위" : "아래"
 //  셀 값(CEO 지시): 선 가격 + 현재가 대비 % — 상태·이격도·연속봉수 계산 보존, 배경색(ltM1SrColor)이 판정 표시.
-ltM1SrText = f_srLineText(ltMa1)
+string ltM1SrText = ""
+if tableBar
+    ltM1SrText := f_srLineText(ltMa1)
 ltM1SrColor = not ltM1HasMa ? color.new(color.gray, 50) : ltM1Support ? color.new(color.green, 0) : ltM1Resist ? color.new(color.red, 0) : ltM1Above ? color.new(#6E8F72, 0) : color.new(#A57A7A, 0)
 
 // ── 200선(MA200) 지지/저항 셀 — 원본 이식 ─────────────────────────────────────────────────
@@ -1216,7 +1241,9 @@ ltM2SrSigma = f_vwStdev(ltMa2, ltLen2)
 [ltM2Support, ltM2Resist] = f_srSupportResist(ltMa2, na(ltM2SrSigma) ? na : ltMa2 + srBandStdMult * ltM2SrSigma, na(ltM2SrSigma) ? na : ltMa2 - srBandStdMult * ltM2SrSigma)
 ltM2SrState = not ltM2HasMa ? "-" : ltM2Support ? "지지" : ltM2Resist ? "저항" : ltM2Above ? "위" : "아래"
 //  셀 값(CEO 지시): 선 가격 + 현재가 대비 % — 상태·이격도·연속봉수 계산 보존, 배경색(ltM2SrColor)이 판정 표시.
-ltM2SrText = f_srLineText(ltMa2)
+string ltM2SrText = ""
+if tableBar
+    ltM2SrText := f_srLineText(ltMa2)
 ltM2SrColor = not ltM2HasMa ? color.new(color.gray, 50) : ltM2Support ? color.new(color.green, 0) : ltM2Resist ? color.new(color.red, 0) : ltM2Above ? color.new(#6E8F72, 0) : color.new(#A57A7A, 0)
 
 // ── 비정상 매수/매도 셀: CEO 지시로 테이블 행 삭제(비정상은 이미 캔들 몸통색 barcolor로 표현). ──
@@ -1224,7 +1251,9 @@ ltM2SrColor = not ltM2HasMa ? color.new(color.gray, 50) : ltM2Support ? color.ne
 
 // ── 이격도 셀(원본 이식) — auto-vwap의 기존 disparity/overCount/underCount 재사용. 셀 텍스트/색·되돌림 가격만 신설 ──
 disparityState = (overCount == 2 or underCount == 2) ? "되돌림 확실" : (overCount >= 1 or underCount >= 1) ? "되돌림 주의" : "중립"
-disparityCellText = na(disparity) ? "-" : str.tostring(disparity, "0.0") + " (" + disparityState + ")"
+string disparityCellText = ""
+if tableBar
+    disparityCellText := na(disparity) ? "-" : str.tostring(disparity, "0.0") + " (" + disparityState + ")"
 disparityCellColor = overCount == 2 ? color.new(color.red, 0) : underCount == 2 ? color.new(color.green, 0) : overCount >= 1 ? color.new(#A57A7A, 0) : underCount >= 1 ? color.new(#6E8F72, 0) : color.new(color.gray, 40)
 disparityNeutralPct = disparityStatOk ? math.min(disparityThreshold, disparityStatMult * disparityStd) : disparityThreshold
 disparityLowerEdge = not na(disparityMa) ? disparityMa * (1 - disparityNeutralPct / 100) : na
@@ -1292,24 +1321,36 @@ f_entryText(string ev, float p, bool up) =>
 // T/D 셀 색 — 위 SSOT의 4-상태 bool을 그대로 소비(조건 중복 작성 금지). 4상태가 상호배타라 삼항 체인은 종전 중첩 삼항식과 논리적으로 동일하다.
 tdxCellColor = tdxDimRed ? color.new(SR50_BELOW, 30) : tdxFullRed ? color.new(ltDownColor, 30) : tdxDimGreen ? color.new(SR50_ABOVE, 30) : tdxFullGreen ? color.new(ltUpColor, 30) : color.new(color.gray, 40)
 f_entSlopeColor(float sl) => na(sl) ? color.new(color.gray, 40) : sl < 0 ? color.new(ltDownColor, 30) : sl > 0 ? color.new(ltUpColor, 30) : color.new(color.gray, 40)
-entTemaText = not entrySrcOk ? "소스≠종가" : na(entTemaSl) ? "-" : f_entryText(entTemaSl > 0 ? "하락전환" : "상승전환", entTemaX, not (entTemaSl > 0))
-entDemaText = not entrySrcOk ? "소스≠종가" : na(entDemaSl) ? "-" : f_entryText(entDemaSl > 0 ? "하락전환" : "상승전환", entDemaX, not (entDemaSl > 0))
+string entTemaText = ""
+if tableBar
+    entTemaText := not entrySrcOk ? "소스≠종가" : na(entTemaSl) ? "-" : f_entryText(entTemaSl > 0 ? "하락전환" : "상승전환", entTemaX, not (entTemaSl > 0))
+string entDemaText = ""
+if tableBar
+    entDemaText := not entrySrcOk ? "소스≠종가" : na(entDemaSl) ? "-" : f_entryText(entDemaSl > 0 ? "하락전환" : "상승전환", entDemaX, not (entDemaSl > 0))
 entTemaColor = f_entSlopeColor(entTemaSl)
 entDemaColor = f_entSlopeColor(entDemaSl)
 // 배열 2행(CEO 지시 — 구 '배열 전환' 1행의 중립 시 두 줄 표시 방지): 정배열 전환 행 = 역배열·중립이면 정배열 진입가, 이미 정배열이면 "-"(이탈가는 별도 수식·미검증 — 범위 밖).
 //  역배열 전환 행 = 정배열·중립이면 역배열 진입가, 이미 역배열이면 "-". 수식(entArrBullX/entArrBearX)·접두어·도달불가/na/소스≠종가 규칙은 종전 그대로.
-entArrBullText = not entrySrcOk ? "소스≠종가" : entArrState == 1 ? "-" : f_entryText("정배열", entArrBullX, true)
-entArrBearText = not entrySrcOk ? "소스≠종가" : entArrState == -1 ? "-" : f_entryText("역배열", entArrBearX, false)
+string entArrBullText = ""
+if tableBar
+    entArrBullText := not entrySrcOk ? "소스≠종가" : entArrState == 1 ? "-" : f_entryText("정배열", entArrBullX, true)
+string entArrBearText = ""
+if tableBar
+    entArrBearText := not entrySrcOk ? "소스≠종가" : entArrState == -1 ? "-" : f_entryText("역배열", entArrBearX, false)
 entArrColor = entArrState == 1 ? color.new(ltUpColor, 30) : entArrState == -1 ? color.new(ltDownColor, 30) : color.new(color.gray, 40)
-entTdText = not entrySrcOk ? "소스≠종가" : na(entTdX) ? "-" : f_entryText(entTdGold ? "데드교차" : "골든교차", entTdX, not entTdGold)
+string entTdText = ""
+if tableBar
+    entTdText := not entrySrcOk ? "소스≠종가" : na(entTdX) ? "-" : f_entryText(entTdGold ? "데드교차" : "골든교차", entTdX, not entTdGold)
 entTdColor = tdxCellColor[entryOff]
 // Sonar 교차 행(구 Sonar 전환 — CEO 지시로 행 이름·값 접두어 "전환"→"교차", TEMA/DEMA 행 "상승전환/하락전환" 리터럴은 불변) — TEMA 전환 행과 동일 표시 로직(f_entryText·f_entSlopeColor). 상태 0/na(워밍업)면 "-". 소스 가드 없음(Sonar=close 고정).
-entSonarText = (na(entSonarSt) or entSonarSt == 0) ? "-" : f_entryText(entSonarSt > 0 ? "하락교차" : "상승교차", entSonarX, not (entSonarSt > 0))
+string entSonarText = ""
+if tableBar
+    entSonarText := (na(entSonarSt) or entSonarSt == 0) ? "-" : f_entryText(entSonarSt > 0 ? "하락교차" : "상승교차", entSonarX, not (entSonarSt > 0))
 entSonarColor = f_entSlopeColor(entSonarSt)
 // 셀 툴팁 — 각 행은 정의 1문장 + 트레이딩 핵심 최대 2문장(CEO 지시). 공통 문구(기준봉 모드·조건부 가격·도달불가/-/소스≠종가)는 섹션 헤더 툴팁으로 이관 — CEO 지시로 구 ENTRY_TIP_COMMON을 "기울기 전환가"(ENTRY_SLOPE_TIP)·"교차 전환가"(ENTRY_CROSS_TIP) 두 헤더용으로 분할(각 최대 3문장, 기준봉 분기 유지).
-ENTRY_TIP_BASE = entryBase == "실시간봉" ? "다음 봉의 조건부 종가입니다(기준봉=실시간봉, 틱마다 갱신, %는 현재가 대비, 예측·매매 신호 아님)." : "형성 중인(또는 다음) 봉의 조건부 종가입니다(기준봉=완성봉, 틱 변동에 고정, %는 기준봉 종가 대비, 예측·매매 신호 아님)."
-ENTRY_SLOPE_TIP = "TEMA·DEMA의 1봉 기울기 방향이나 세 이평선(TEMA·DEMA·EMA)의 기울기 서열(정배열/역배열)이 바뀌는, " + ENTRY_TIP_BASE + " TEMA 전환은 1차 진입 트리거, DEMA 전환은 진입 확인·비중 확대 기준(TEMA→DEMA 단계적 진입)이고, 정배열/역배열 전환은 정찰 기준입니다. 셀 색은 현재 상태(녹=상승·적=하락)이며, 0 이하이거나 기준봉 종가 대비 ±50%를 넘으면 '도달불가', 계산 전이면 '-', 리본 소스가 종가가 아니면 '소스≠종가'로 표시합니다."
-ENTRY_CROSS_TIP = "두 선의 교차 상태(Sonar↔Signal 또는 0선, TEMA↔DEMA)가 바뀌는, " + ENTRY_TIP_BASE + " Sonar 교차는 가장 이른 반전 경보이고, T/D 교차는 추세 전환이 확정되는 단계이자 반대 포지션의 최종 손절선입니다(표시 규칙은 기울기 전환가와 같고, '소스≠종가'는 T/D만 해당). 단독 신호가 아니므로 이치모쿠·추세 확인·지지/저항과 교차 확인합니다."
+var string ENTRY_TIP_BASE = entryBase == "실시간봉" ? "다음 봉의 조건부 종가입니다(기준봉=실시간봉, 틱마다 갱신, %는 현재가 대비, 예측·매매 신호 아님)." : "형성 중인(또는 다음) 봉의 조건부 종가입니다(기준봉=완성봉, 틱 변동에 고정, %는 기준봉 종가 대비, 예측·매매 신호 아님)."
+var string ENTRY_SLOPE_TIP = "TEMA·DEMA의 1봉 기울기 방향이나 세 이평선(TEMA·DEMA·EMA)의 기울기 서열(정배열/역배열)이 바뀌는, " + ENTRY_TIP_BASE + " TEMA 전환은 1차 진입 트리거, DEMA 전환은 진입 확인·비중 확대 기준(TEMA→DEMA 단계적 진입)이고, 정배열/역배열 전환은 정찰 기준입니다. 셀 색은 현재 상태(녹=상승·적=하락)이며, 0 이하이거나 기준봉 종가 대비 ±50%를 넘으면 '도달불가', 계산 전이면 '-', 리본 소스가 종가가 아니면 '소스≠종가'로 표시합니다."
+var string ENTRY_CROSS_TIP = "두 선의 교차 상태(Sonar↔Signal 또는 0선, TEMA↔DEMA)가 바뀌는, " + ENTRY_TIP_BASE + " Sonar 교차는 가장 이른 반전 경보이고, T/D 교차는 추세 전환이 확정되는 단계이자 반대 포지션의 최종 손절선입니다(표시 규칙은 기울기 전환가와 같고, '소스≠종가'는 T/D만 해당). 단독 신호가 아니므로 이치모쿠·추세 확인·지지/저항과 교차 확인합니다."
 entSonarTooltip = "종가가 이 가격 너머로 마감하면 Sonar가 Signal(또는 0선)을 교차해 Sonar 모멘텀 배경 색이 반대로 바뀝니다(종가 고정이라 리본 소스와 무관). 가장 이른 반전 경보이므로 보유 포지션의 일부 익절·손절 당기기에 쓰고, 반대 방향은 관심 단계로만 봅니다. 이것만 보고 진입하지 않습니다."
 entTemaTooltip = "종가가 이 가격 너머로 마감하면 가장 빠른 선인 TEMA의 1봉 기울기 부호가 바뀌어 TEMA가 꺾입니다. 새 방향의 1차 진입 트리거이자 기존 포지션의 첫 이탈 경계입니다. 휩쏘가 가장 많으니 비중을 작게 잡고 단독으로 쓰지 않습니다."
 entDemaTooltip = "종가가 이 가격 너머로 마감하면 DEMA의 1봉 기울기 부호가 바뀌어, TEMA보다 노이즈가 걸러진 꺾임이 나옵니다. 새 방향은 진입 확인·비중 확대 기준으로 씁니다. 반대 포지션은 이 가격 너머로 마감하면 청산합니다."

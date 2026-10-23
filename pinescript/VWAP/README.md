@@ -101,7 +101,7 @@ VWAP 누적 방식은 **최근 N봉 롤링(Recent Bars) 하나로 고정**되어
 
 를 계산합니다.
 
-`computeVwapSet(barsLen, srcArg)` 헬퍼가 window 길이(Recent Bars 롤링 length)와 **소스**를 파라미터로 받아 화면 세트(`length=20`, `src`)를 계산합니다. 누적값(`cumulative*`)은 **함수-로컬 `var`로 내부화**했습니다 — Pine v6에서 함수 내부 `var`는 호출부마다 독립 상태를 가지므로 확정봉 기준으로 누적하며 리페인팅이 없습니다. window = 현재 누적 − `barsLen`봉 전 누적(`cumulative*[barsLen]`)이라 항상 최근 `barsLen`봉 롤링입니다(앵커모드 제거로 세션/거래일 분기·세션 앵커 배열은 삭제됨). 밴드·밴드2도 이 세트의 window에서 산출됩니다. 산식(rolling VWAP + 로그/절대 표준편차 밴드)은 앵커모드 제거 전의 Recent Bars 경로와 동일합니다.
+`computeVwapSet(barsLen)` 헬퍼가 window 길이(Recent Bars 롤링 length)를 파라미터로 받아 세트 A(`recentBars`, 기본 20)·세트 B(`bandSetBBars`, 기본 50)를 계산합니다. 누적값(`cumulative*`, 소스 `src`)은 **전역 `var` 1벌로 두 세트가 공유**합니다(⚡ perf 리팩토링 — 구 구조는 함수-로컬 `var`라 같은 소스의 같은 누적을 세트마다 중복 계산했음. 덧셈 순서·피연산자가 같아 값은 비트 단위 동일). 확정봉 기준으로 누적하며 리페인팅이 없습니다. window = 현재 누적 − `barsLen`봉 전 누적(`cumulative*[barsLen]`)이라 항상 최근 `barsLen`봉 롤링입니다(앵커모드 제거로 세션/거래일 분기·세션 앵커 배열은 삭제됨). 밴드·밴드2도 이 세트의 window에서 산출됩니다. 산식(rolling VWAP + 로그/절대 표준편차 밴드)은 앵커모드 제거 전의 Recent Bars 경로와 동일합니다.
 
 ### 3. 밴드 계산 방식
 
@@ -195,16 +195,17 @@ CEO 설계로 추가한 **지수형 추세 리본**과 그 리본으로 판정�
 ```pine
 // 로그 slope 3종(수학자 검증 산식). 1/3/5 상수 고정.
 f_logY(v) => v > 0 ? math.log(v) : na
-f_logSlopes3(l0, l1, l2, l3, l4) =>
-    y0 = f_logY(l0), y1 = f_logY(l1), y2 = f_logY(l2), y3 = f_logY(l3), y4 = f_logY(l4)
+// ⚡ perf: 로그는 선마다 봉당 1회(yLine = f_logY(line)), 과거 4봉은 yLine[1..4] 재사용(f_logY(line[k]) ≡ f_logY(line)[k], 값 동일)
+f_logSlopes3(y0, y1, y2, y3, y4) =>
     sA = (na(y0) or na(y1)) ? na : y0 - y1                                   // ㄱ 2점
     sB = (…na…) ? na : (3*(2*y0+1*y1+0*y2) - 3*(y0+y1+y2)) / 6               // ㄴ 3점 OLS
     sC = (…na…) ? na : (5*(4*y0+3*y1+2*y2+1*y3+0*y4) - 10*(y0+y1+y2+y3+y4))/50 // ㄷ 5점 OLS
     [sA, sB, sC]
 // 셀 색: green = sA>sB>sC, red = sA<sB<sC (각 행 시간축 ㄱ>ㄴ>ㄷ, na면 둘 다 false=회색, 데드존 없음)
-[emaSlA, _eB, _eC]   = f_logSlopes3(emaLine,  emaLine[1],  emaLine[2],  emaLine[3],  emaLine[4])
-[demaSlA, _dB, _dC]  = f_logSlopes3(demaLine, demaLine[1], demaLine[2], demaLine[3], demaLine[4])
-[temaSlA, _tB, _tC]  = f_logSlopes3(temaLine, temaLine[1], temaLine[2], temaLine[3], temaLine[4])
+emaLogY = f_logY(emaLine), demaLogY = f_logY(demaLine), temaLogY = f_logY(temaLine)
+[emaSlA, _eB, _eC]   = f_logSlopes3(emaLogY,  emaLogY[1],  emaLogY[2],  emaLogY[3],  emaLogY[4])
+[demaSlA, _dB, _dC]  = f_logSlopes3(demaLogY, demaLogY[1], demaLogY[2], demaLogY[3], demaLogY[4])
+[temaSlA, _tB, _tC]  = f_logSlopes3(temaLogY, temaLogY[1], temaLogY[2], temaLogY[3], temaLogY[4])
 // 배경: 세 이평선 ㄱ(1봉 기울기)의 지표간 서열(pctR2 2자리 반올림, na 가드) + 필터 4모드(공통 V=ATR/close·g1·g2)
 ltAtrTable = ta.atr(14)                        // 추세 셀과 공유. 배경 판정 위로 선언 상향(값·중복 불변)
 bgHasSlopes = not na(emaSlA) and not na(demaSlA) and not na(temaSlA)
@@ -285,6 +286,7 @@ bgFillState = (bgBull and not anyCellRed) ? 1 : (bgBear and not anyCellGreen) ? 
 - **정배열 전환·역배열 전환(근사)**: 갭 `g1 = ㄱT − ㄱD ≥ s` → `K = (T[0]/D[0])·e^s`, `C* = (K·b_D − b_T)/(a_T − K·a_D)`. `g2`(DEMA/EMA)도 같은 형태. **정배열 진입가 = max(C*_g1, C*_g2)**, 역배열은 대칭(`e^{−s}`, min). 문턱 s는 `밴드 배경 필터` 모드를 따릅니다 — `정규화 갭` τ·V, `상대 데드존` k·V, `미적용`·`기울기 크기 게이트` 0(게이트 모드는 TEMA 목표 기울기 `L' = L[0]·e^{±m·V}`를 max/min에 추가). V(ATR14/종가)를 기준봉 값으로 동결하고 셀 색 컨플루언스·2자리 반올림을 생략한 **필요조건**이므로, 봉 마감 후 셀 색으로 최종 확인합니다. 특히 `미적용`·`기울기 크기 게이트` 모드는 셀 색 판정이 기울기를 소수 2자리(%)로 반올림해 비교하므로 **실제 전환가가 표시가보다 더 멀 수 있습니다(리본 길이 20 기준 최대 약 0.15%, 길이에 거의 비례해 커짐 — 예 50이면 약 0.3%)**(셀 툴팁에는 CEO 지시로 "근사값이라 실제 전환가가 표시가보다 조금 멀 수 있으니 봉 마감 후 셀 색으로 확인"으로 요약 표기).
 
 **표시 규칙.**
+- ⚡ perf: 상태 테이블 셀 문자열(`str.tostring`·문자열 결합 — 추세 3행·전환가 6행·밴드/이격도·지지저항 3행)은 테이블을 그리는 봉(`showStatusTable and barstate.islast`)에서만 만들고, `srLineFmt`(mintick 자릿수 루프)·전환가 툴팁 결합 문자열은 `var`로 첫 봉 1회만 계산합니다. 판정(bool·수치·셀 색)은 종전대로 매 봉 계산하므로 표시값은 동일합니다.
 - 포맷 `{이벤트} : {가격} ({기준봉 종가 대비 %})` — 가격 포맷은 지지·저항 행과 같은 `srLineFmt`(천 단위 쉼표, mintick 자릿수), %는 `f_srPctText`와 같은 포맷(소수 1자리·부호 항상, `-0.0` 방지)의 `f_entPctText`로 기준가를 기준봉 종가로 받습니다. %는 표시된(틱 반올림된) 전환가 기준입니다.
 - **틱 반올림**: 상향(상승·골든·정배열) 전환가는 틱 올림(`ceil`), 하향(하락·데드·역배열)은 틱 내림(`floor`) — 표시가에 도달하면 실제로 조건이 성립합니다.
 - **`도달불가`**: P*≤0이거나 기준봉 종가 대비 ±50% 초과(표시 반올림 기준 ±50.0% 초과 — 상수 `ENTRY_PCT_CAP = 50.0`, Sonar 교차 포함 기울기·교차 전환가 6행 공통). CEO 지시로 구 ±30%에서 ±50%로 완화했습니다(구 기준은 cRSI 밴드 교차 테이블과 같았으나, cRSI는 이후 도달불가를 폐지해 지금은 기울기·교차 전환가 섹션 전용 기준입니다).
