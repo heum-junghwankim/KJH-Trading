@@ -10,14 +10,14 @@
 //  ⚠️ explicit_plot_zorder와 충돌 없음: 그쪽은 스크립트 내부 plot/hline/fill 상호 순서, behind_chart는 스크립트 전체 ↔ 캔들 간 순서(서로 다른 축).
 indicator(title="Auto VWAP", shorttitle="Auto VWAP", overlay=true, max_bars_back=1000, explicit_plot_zorder=true, behind_chart=true)
 
-// VWAP 중앙선 표시 토글(CEO 지시 — 기본 ON). 켜면 pane에 VWAP 중앙선을 그리고(밴드2와 동일 1px·점선), 끄면 선을 숨긴다(값·색·계산 불변).
+// VWAP 중앙선 표시 토글(CEO 지시 — 기본 OFF: 토글 false → display.none → 설정 보기(Style) 탭 기본 언체크. 구 기본 ON). 켜면 pane에 VWAP 중앙선을 그리고(밴드2와 동일 1px·점선), 끄면 선을 숨긴다(값·색·계산 불변).
 //  ▸ 밴드2(showBand_2)와 동일 패턴: display = 켜짐 ? (display.all − display.price_scale) : display.none. 흰색 가격축 라벨은 이 토글과 독립(항상 price_scale에만 표시).
-showVwapLine = input.bool(true, title="VWAP 중앙선 표시", group="VWAP Settings", display=display.none, tooltip="켜면 화면 VWAP 중앙선을 차트에 그립니다(기본 ON). 스타일은 밴드2선과 동일하게 굵기 1px·점선(dashed)입니다. 선 색은 CEO 지시로 고정 단색(중립 흰색)입니다 — 지지/저항 판정에 따라 변색하지 않습니다. 끄면 선만 숨기며 VWAP 값·계산·우측 가격축 흰색 라벨에는 영향이 없습니다.")
+showVwapLine = input.bool(false, title="VWAP 중앙선 표시", group="VWAP Settings", display=display.none, tooltip="켜면 화면 VWAP 중앙선을 차트에 그립니다(기본 ON). 스타일은 밴드2선과 동일하게 굵기 1px·점선(dashed)입니다. 선 색은 CEO 지시로 고정 단색(중립 흰색)입니다 — 지지/저항 판정에 따라 변색하지 않습니다. 끄면 선만 숨기며 VWAP 값·계산·우측 가격축 흰색 라벨에는 영향이 없습니다.")
 hideonDWM = input(false, title="Hide VWAP on 1D or Above", group="VWAP Settings", display=display.none)
 // VWAP 누적은 "최근 N봉 롤링(Recent Bars)" 단일 방식으로 고정(CEO 지시 — 앵커모드 제거). 세션/거래일 앵커 분기·입력·세션 리셋 전부 삭제됨.
-//  ▸ 정합성: 원본 이치모쿠의 vwap상태(20)는 앵커 무관 Recent Bars 고정이 정답. 전 VWAP(화면 50봉·vwap상태20·중기추세 vwapValue·지지저항)이 Recent Bars 단일로 계산된다.
-// 기본 화면용 VWAP window 길이(= Recent Bars 롤링 길이). CEO 지시: 기본 화면 VWAP 기본값 50.
-recentBars = input.int(defval=50, title="Recent Bars (기본 화면 VWAP)", minval=1, group="VWAP Settings", display=display.none)
+//  ▸ 정합성: 원본 이치모쿠의 vwap상태(20)는 앵커 무관 Recent Bars 고정이 정답. 전 VWAP(화면 20봉(recentBars)·vwap상태20·중기추세 vwapValue·지지저항)이 Recent Bars 단일로 계산된다.
+// 기본 화면용 VWAP window 길이(= Recent Bars 롤링 길이). CEO 지시: 기본 화면 VWAP 기본값 20(구 50).
+recentBars = input.int(defval=20, title="Recent Bars (기본 화면 VWAP)", minval=1, group="VWAP Settings", display=display.none)
 src = input(title="Source", defval=hlc3, group="VWAP Settings", display=display.none)
 offset = input.int(0, title="Offset", group="VWAP Settings", display=display.none)
 enableDynamicLineColor = input.bool(false, title="Enable Dynamic Line Color", group="VWAP Settings", display=display.none)
@@ -129,7 +129,7 @@ bgDeadK = input.float(0.10, title="상대 데드존 배수 k", minval=0.0, step=
 //     ⚠️ 원 MTS 판정식은 미공개 — 'Signal 교차'는 유력 추정(출처 미확정). '0선'은 대안 가설.
 //  ▸ 색: 펀드 컨벤션 상승=녹·하락=빨강(원 MTS의 빨강=상승/파랑=하락 관례를 따르지 않음). 기본 색은 구 밴드워킹 배경 값(#2E7D32/#C62828) 그대로, 기본 투명도는 85(CEO 지시 2026-10-16 — 구 70에서 더 연하게).
 //  ▸ 소스: close 고정(원 지표 종가 기준). 리본 소스(ribbonSrc)와 공유하지 않는다 — 리본 표시 옵션을 바꿀 때 배경 판정이 함께 바뀌는 결합을 피하기 위함.
-//  ▸ 칠 영역(sonarArea): '밴드 내부' = 밴드 #2(상단2~하단2) 영역 fill(기본, 구 밴드워킹 위치), '차트 전체(bgcolor)' = 원 MTS처럼 차트 전체 세로 배경.
+//  ▸ 칠 영역(sonarArea): '밴드 내부' = 밴드 #2(상단2~하단2) 영역 fill(구 밴드워킹 위치), '차트 전체(bgcolor)' = 원 MTS처럼 차트 전체 세로 배경(기본 — CEO 지시로 구 기본 '밴드 내부'에서 변경).
 // =========================
 SONAR_GROUP = "Sonar 모멘텀 배경"
 showSonarBg = input.bool(true, title="Sonar 모멘텀 배경 표시", group=SONAR_GROUP, tooltip="켜면 Sonar 모멘텀 상태로 배경을 칠합니다(상승=녹, 하락=빨강). Sonar = EMA(종가, n) − EMA(종가, n)[k], Signal = EMA(Sonar, m). 국내 MTS 'SonarMomentumSignal강세약세(20,9,9)' 이식. ⚠️ 현재봉 종가를 쓰므로 실시간 봉 동안 틱마다 바뀔 수 있고 봉 마감 시 확정됩니다(미래참조 없음). 워밍업(n+k+m 봉 전후) 구간은 칠하지 않습니다. 표시 전용(매매 신호 아님).")
@@ -137,7 +137,7 @@ sonarLen = input.int(20, title="Sonar EMA 기간 n", minval=1, group=SONAR_GROUP
 sonarGap = input.int(9, title="비교 간격 k", minval=1, maxval=500, group=SONAR_GROUP, active=showSonarBg, tooltip="Sonar = EMA(n) − EMA(n)[k]의 비교 간격 k(봉). 기본 9(원 MTS 파라미터 둘째 값). 최대 500(max_bars_back=1000 버퍼 안). 전략성 파라미터(수학자 리뷰 대상).")
 sonarSigLen = input.int(9, title="Signal 기간 m", minval=1, group=SONAR_GROUP, active=showSonarBg, tooltip="Signal = EMA(Sonar, m)의 기간. 기본 9(원 MTS 파라미터 셋째 값). '0선' 판정에서는 쓰이지 않습니다. 전략성 파라미터(수학자 리뷰 대상).")
 sonarBasis = input.string("Signal 교차", title="판정 기준", options=["Signal 교차", "0선"], group=SONAR_GROUP, active=showSonarBg, tooltip="원 MTS 판정식 미공개, Signal 교차가 유력 추정. ▸ 'Signal 교차' = Sonar > Signal이면 상승(녹), Sonar < Signal이면 하락(빨강). ▸ '0선' = Sonar > 0이면 상승, Sonar < 0이면 하락. 두 값이 같으면 이전 상태를 유지합니다.")
-sonarArea = input.string("밴드 내부", title="칠 영역", options=["밴드 내부", "차트 전체(bgcolor)"], group=SONAR_GROUP, active=showSonarBg, tooltip="'밴드 내부' = 밴드 #2(상단2~하단2) 영역만 칠합니다(기본, 구 밴드워킹 배경과 같은 위치). 밴드 #2 선을 꺼도 영역 값은 계속 계산되므로 같은 영역이 칠해지며, VWAP가 표시되지 않는 봉(일/주/월봉 숨김·거래량 0)에서는 칠하지 않습니다. '차트 전체(bgcolor)' = 원 MTS처럼 차트 전체 세로 배경을 칠합니다(VWAP 표시 여부와 무관).")
+sonarArea = input.string("차트 전체(bgcolor)", title="칠 영역", options=["밴드 내부", "차트 전체(bgcolor)"], group=SONAR_GROUP, active=showSonarBg, tooltip="'밴드 내부' = 밴드 #2(상단2~하단2) 영역만 칠합니다(기본, 구 밴드워킹 배경과 같은 위치). 밴드 #2 선을 꺼도 영역 값은 계속 계산되므로 같은 영역이 칠해지며, VWAP가 표시되지 않는 봉(일/주/월봉 숨김·거래량 0)에서는 칠하지 않습니다. '차트 전체(bgcolor)' = 원 MTS처럼 차트 전체 세로 배경을 칠합니다(VWAP 표시 여부와 무관).")
 sonarBullColor = input.color(#2E7D32, title="상승 색", group=SONAR_GROUP, inline="sonarColor", active=showSonarBg)
 sonarBearColor = input.color(#C62828, title="하락 색", group=SONAR_GROUP, inline="sonarColor", active=showSonarBg, tooltip="상승 배경색(기본 녹 #2E7D32) / 하락 배경색(기본 빨강 #C62828) — 구 밴드워킹 배경 색 그대로. 펀드 컨벤션 상승=녹·하락=빨강(원 MTS의 빨강=상승 관례 미적용).")
 sonarTransp = input.int(85, title="배경 투명도", minval=0, maxval=100, group=SONAR_GROUP, active=showSonarBg, tooltip="Sonar 배경색 투명도(0=불투명, 100=완전 투명). 기본 85(CEO 지시로 구 70보다 연하게 — 불투명도 30%→15%).")
@@ -149,7 +149,7 @@ sonarTransp = input.int(85, title="배경 투명도", minval=0, maxval=100, grou
 // 윌리엄스 %R 다이버전스(williams-fractal 이식) — %R 라인은 오버레이 부적합이라 다이버전스 봉에 원 마커만 표시.
 WPR_GROUP = "윌리엄스 %R 다이버전스"
 showWprDiv = input.bool(true, "%R 다이버전스 원 표시", group=WPR_GROUP, tooltip="윌리엄스 %R 강세(매수)/약세(매도) 다이버전스 발생 봉에 원 마커 표시. %R 라인 자체는 오버레이라 그리지 않음. 기본 ON. 표시 전용(매매 신호 아님). ⚠️ 옛 전환 후보 삼각형·그 억제 필터는 CEO 지시로 제거됨 — 이 옵션은 이제 %R 원 표시만 제어합니다.")
-wprLen = input.int(14, "윌리엄스 %R 길이", group=WPR_GROUP, minval=1, tooltip="윌리엄스 %R(ta.wpr) 계산 기간. 표준 14. 종가 기준, 범위 −100~0.")
+wprLen = input.int(20, "윌리엄스 %R 길이", group=WPR_GROUP, minval=1, tooltip="윌리엄스 %R(ta.wpr) 계산 기간. 표준 14. 종가 기준, 범위 −100~0.")
 wprLower = input.int(-80, "%R 하단 밴드", group=WPR_GROUP, tooltip="강세 다이버전스 진입 임계. 직전 봉 %R가 이 값 아래이면 과매도 진입으로 본다. 표준 −80.")
 wprUpper = input.int(-20, "%R 상단 밴드", group=WPR_GROUP, tooltip="약세 다이버전스 진입 임계. 직전 봉 %R가 이 값 위이면 과매수 진입으로 본다. 표준 −20.")
 wprBullColor = input.color(#81D4FA, title="%R 강세 다이버전스 원 색(매수)", group=WPR_GROUP, active=showWprDiv, tooltip="윌리엄스 %R 강세 다이버전스 원 마커 색. 기본 라이트 스카이블루(#81D4FA), 봉 아래(belowbar). 확정/과거참조라 리페인팅 없음.")
@@ -687,8 +687,8 @@ barcolor(abnShowBg ? abnBarColor : na, title="비정상 매수/매도 캔들색"
 //  ▸ 색 고정(CEO 지시): 직전엔 지지/저항 판정(vwapLineColor: 녹=지지·빨강=저항·흰=중립)으로 봉 단위 동적 변색했으나, CEO 지시로 **고정 중립 흰색(DEFAULT_LINE_COLOR)** 으로 전환한다.
 //    → 지지/저항 "판정 로직"(vwapResistance/vwapSupport/vwapSRColor 블록·enableVwapSRColor 옵션)은 보존하되, 이 VWAP 중앙선 plot의 color 참조만 고정색으로 바꾼다(선색 표시가 판정에 더 반응하지 않음).
 //  ▸ 값·계산 전부 불변 — 렌더 스타일(1px·점선)·표시 게이트도 불변, 오직 선 color 인자만 vwapLineColor → DEFAULT_LINE_COLOR로 교체.
-//  ▸ 표시 게이트(CEO 지시): showVwapLine(기본 ON)이면 pane·상태줄·데이터윈도우에 표시(밴드2와 동일 display.all − display.price_scale), 끄면 display.none으로 선만 숨김.
-//  ▸ 점선/1px: 밴드2선(upperBand_2/lowerBand_2)과 동일하게 plot()의 linestyle=plot.linestyle_dashed·linewidth=1 사용(밴드2와 같은 dash 스타일·굵기).
+//  ▸ 표시 게이트(CEO 지시): showVwapLine(기본 OFF — 기본 display.none = 보기 탭 언체크)이 켜지면 pane·상태줄·데이터윈도우에 표시(밴드2와 동일 display.all − display.price_scale), 끄면 display.none으로 선만 숨김.
+//  ▸ 점선/1px: plot()의 linestyle=plot.linestyle_dashed·linewidth=1 사용(밴드2선은 이후 CEO 지시로 dotted로 변경 — 중앙선 dashed는 불변).
 //  ▸ 흰색 가격축 라벨 plot: 값·색(흰색)·display 전부 불변(기존 그대로) — 이번 변경 대상 아님. 라벨 동작 유지.
 displayVwapLine = showVwapLine ? display.all - display.price_scale : display.none
 plot(vwapValue, title="브이왑", color=DEFAULT_LINE_COLOR, offset=offset, linewidth=1, display=displayVwapLine, editable=true, linestyle=plot.linestyle_dashed)
@@ -698,13 +698,13 @@ upperBand_1 = plot(upperBandValue1, title="Upper Band #1", color=activeLineColor
 lowerBand_1 = plot(lowerBandValue1, title="Lower Band #1", color=activeLineColor, offset=offset, display=display.none, editable=true, linestyle=plot.linestyle_dotted)
 fill(upperBand_1, lowerBand_1, title="Bands Fill #1", color=activeFillColor, display=display.none, editable=true)
 
-// 최외곽 상/하단 선(Band #2): 위치는 항상 원값. 두께 1px. 선 색은 활성 기본색(activeLineColor) 고정.
+// 최외곽 상/하단 선(Band #2): 위치는 항상 원값. 두께 1px. 기본 선 스타일 도트(dotted, plot.linestyle_dotted — CEO 지시로 구 dashed에서 변경). 선 색은 활성 기본색(activeLineColor) 고정.
 //  ▸ 롤백(CEO 지시): 직전에 넣었던 "밴드2 선색을 paintState(정/역배열)에 따라 순수 녹/빨강으로 바꾸는" 조건식을 완전히 제거하고, 원래대로 activeLineColor(무조건)로 환원한다.
 //    그에 따라 신설했던 input band2BullLineColor/band2BearLineColor도 삭제(참조 끊김). 그 순수 녹/빨강 색값은 아래 "실시간 상승/하락 전환 수평선"(Part C)으로 이관해 재사용한다.
 //  ⚠️ 밴드2 값·산식·fill(Sonar 배경 '밴드 내부')은 불변 — 이번 롤백은 선 색만 activeLineColor로 되돌린다.
 displayBand2 = showBand_2 ? display.all - display.price_scale : display.none
-upperBand_2 = plot(upperBandValue2, title="Upper Band #2", color=activeLineColor, offset=offset, display=displayBand2, editable=true, linewidth=1, linestyle=plot.linestyle_dashed)
-lowerBand_2 = plot(lowerBandValue2, title="Lower Band #2", color=activeLineColor, offset=offset, display=displayBand2, editable=true, linewidth=1, linestyle=plot.linestyle_dashed)
+upperBand_2 = plot(upperBandValue2, title="Upper Band #2", color=activeLineColor, offset=offset, display=displayBand2, editable=true, linewidth=1, linestyle=plot.linestyle_dotted)
+lowerBand_2 = plot(lowerBandValue2, title="Lower Band #2", color=activeLineColor, offset=offset, display=displayBand2, editable=true, linewidth=1, linestyle=plot.linestyle_dotted)
 // fill(±2σ 채움)은 밴드2 원값 선(upperBand_2/lowerBand_2)에 직접 붙인다. clamp 폐기로 선 자체가 항상 원값이라 별도 fill ref plot 불필요. 현재 display=none.
 fill(upperBand_2, lowerBand_2, title="Bands Fill #2", color=activeFillColor, display=display.none, editable=true)
 // ══ Sonar 모멘텀 배경(CEO 지시 2026-10-16 — 구 '밴드워킹' 배경 페인팅 대체) ══
@@ -1030,7 +1030,7 @@ stCellTransp = not stEstablished ? 30 : (stNearCross or stNarrowing) ? 55 : stWi
 stCellColor = not stReady ? color.new(color.gray, 50) : stGoldCross ? color.new(ltUpColor, 0) : stDeadCross ? color.new(ltDownColor, 0) : stUp ? color.new(ltUpColor, stCellTransp) : color.new(ltDownColor, stCellTransp)
 
 // ── 중기 추세(화면 주황 50선 vwma50 vs 100선 ltMa1) 셀 ──
-//  ⚠️ 버그 수정(CEO 명세: "50 vs 100 = 화면 주황선 vs 파랑선"): 이전에는 vwapValue(롤링 50봉 세션 VWAP·hlc3)를 참조해
+//  ⚠️ 버그 수정(CEO 명세: "50 vs 100 = 화면 주황선 vs 파랑선"): 이전에는 vwapValue(롤링 recentBars봉(기본 20) VWAP·hlc3)를 참조해
 //     화면에 그려지는 주황 50선(vwma50 = ta.vwma(close,50))과 **다른 값**으로 판정 → 선과 테이블 불일치였다.
 //     판정 입력을 vwma50으로 통일한다. 판정식(crossover/under·gap·이격) 구조는 불변, 참조 MA만 vwapValue→vwma50.
 mtReady = not na(vwma50) and not na(ltMa1)
@@ -1119,10 +1119,11 @@ f_srLineText(float ma) =>
 //  ▸ 값 = 화면 주 밴드(Band #2, ±bandMult_2σ — 기본 2.0) 상단/하단 가격 + 현재가 대비 % → "10,000 (+10.0%)" 형식.
 //    포맷은 지지/저항 3행 헬퍼 f_srLineText 재사용(mintick 반올림·천 단위 쉼표, %=(밴드값−close)/close×100 소수1자리·부호, −0.0 방지).
 //  ▸ 주 밴드 선택 근거: Band #1 plot은 display=display.none(기본 숨김), Band #2만 기본 표시(displayBand2 — 점선 1px)되고 밴드 배경 fill도 밴드2 영역이다.
-//    값 세트도 차트에 그려지는 화면 50봉 세트(upperBandValue2/lowerBandValue2, recentBars)와 동일 (구 20봉 vwap 상태 세트는 Sonar 배경 교체로 삭제됨).
+//    값 세트도 차트에 그려지는 화면 recentBars봉(기본 20) 세트(upperBandValue2/lowerBandValue2, recentBars)와 동일 (구 20봉 vwap 상태 세트는 Sonar 배경 교체로 삭제됨).
 //  ▸ 가드: 밴드2 토글 OFF(showBand_2=false)·워밍업(shouldPlot=false)·na → "-"(f_srLineText가 na를 "-"로 처리).
 //  ▸ 기준봉: 현재봉 [0](밴드값·종가 모두 라이브) — 지지/저항 3행과 동일(봉 마감 전 틱마다 갱신·마감 시 확정, 미래참조 없음).
-//  ▸ 셀 색: 고정 — 상단=둔탁 적(#A57A7A, 저항 계열), 하단=둔탁 녹(#6E8F72, 지지 계열), "-"면 회색(gray 50, 지지/저항 행 na 색과 동일). 표시 전용·판정 아님.
+//  ▸ 셀 색(CEO 지시): 값 셀은 고정 중립 회색(color.gray 투명도 40 — 같은 섹션 '되돌림 가격' 값 셀과 동일)으로 table.cell에서 직접 지정. 표시 전용·판정 아님.
+//    아래 bandUpperColor/bandLowerColor(구 상단=둔탁 적 #A57A7A·하단=둔탁 녹 #6E8F72·"-"면 gray 50)는 현재 미참조 — 최소 변경 원칙으로 보존.
 bandRowOk = shouldPlot and showBand_2
 bandUpperText = f_srLineText(bandRowOk ? upperBandValue2 : na)
 bandLowerText = f_srLineText(bandRowOk ? lowerBandValue2 : na)
@@ -1131,7 +1132,7 @@ bandLowerColor = bandRowOk and not na(lowerBandValue2) ? color.new(#6E8F72, 0) :
 
 // ── 50선(페인팅 거래량 가중 50선 = vwma50) 지지/저항 셀 ──
 //  ⚠️ 버그 수정(CEO 리포트): 이 행은 "50선 지지/저항"이므로 화면에 페인팅되는 **거래량 가중 50선(vwma50 = ta.vwma(close,50), 주황 #FF6D00)**을
-//     기준(reference)으로 판정해야 한다. 이전에는 화면 VWAP 중앙선(vwapValue = 롤링 50봉 VWAP·hlc3)과 그 밴드1(upperBandValue1/lowerBandValue1)을
+//     기준(reference)으로 판정해야 한다. 이전에는 화면 VWAP 중앙선(vwapValue = 롤링 recentBars봉(기본 20) VWAP·hlc3)과 그 밴드1(upperBandValue1/lowerBandValue1)을
 //     참조해, 페인팅 50선과 **다른 값**(다른 소스·산식: VWMA(close,50) vs rolling-VWAP(hlc3,50))으로 판정 → 선과 테이블 불일치였다.
 //  ▸ 판정식(f_srSupportResist·동적 near·σ 밴드·srBandStdMult)은 100/200선 행과 100% 동일하게 유지하고, **입력 MA만 vwma50**으로 통일한다.
 //     판정 전용 밴드1 = vwma50 ± (srBandStdMult × f_vwStdev(vwma50, 50)) — 100/200선과 완전히 동일한 패턴(σ_vw 거래량 가중 표준편차).
@@ -1333,9 +1334,9 @@ if showStatusTable and barstate.islast
     table.merge_cells(statusTable, 0, 12, 1, 12)
     // 밴드 상단/하단 2행(CEO 지시 — 구 vwap 기울기·vwap 구간 행 대체): 주 밴드(Band #2) 가격 (현재가 대비 ±%).
     table.cell(statusTable, 0, 13, "밴드 상단", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=volBandUpperTooltip)
-    table.cell(statusTable, 1, 13, bandUpperText, text_color=color.white, bgcolor=bandUpperColor, text_size=size.small, tooltip=volBandUpperTooltip)
+    table.cell(statusTable, 1, 13, bandUpperText, text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small, tooltip=volBandUpperTooltip)
     table.cell(statusTable, 0, 14, "밴드 하단", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=volBandLowerTooltip)
-    table.cell(statusTable, 1, 14, bandLowerText, text_color=color.white, bgcolor=bandLowerColor, text_size=size.small, tooltip=volBandLowerTooltip)
+    table.cell(statusTable, 1, 14, bandLowerText, text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small, tooltip=volBandLowerTooltip)
     table.cell(statusTable, 0, 15, "이격도 (" + str.tostring(disparityMaLen) + ")", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=volDisparityTooltip)
     table.cell(statusTable, 1, 15, disparityCellText, text_color=color.white, bgcolor=disparityCellColor, text_size=size.small, tooltip=volDisparityTooltip)
     table.cell(statusTable, 0, 16, "되돌림 가격", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=volPullbackTooltip)
