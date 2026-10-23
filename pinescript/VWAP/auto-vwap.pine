@@ -20,7 +20,7 @@ hideonDWM = input(false, title="Hide VWAP on 1D or Above", group="VWAP Settings"
 //  ▸ 밴드 2세트 페인팅(CEO 지시): 이 recentBars가 곧 **밴드 세트 A(기본 20)의 기간**이다(별도 '세트 A 기간' input을 만들지 않고 단일화 — 중복·혼선 방지).
 //    VWAP 중앙선·밴드1·밴드2(세트 A)·지지/저항 판정·밴드 %라벨·Sonar '밴드 내부' fill·상태 테이블 '밴드 상단/하단(N)' 행이 모두 이 값 하나를 따른다.
 //    세트 B(기본 50)는 Bands Settings 그룹의 bandSetBBars로 별도 계산(표시 전용 — 밴드2 upper/lower 선 2개에만 사용).
-recentBars = input.int(defval=20, title="Recent Bars (기본 화면 VWAP · 밴드 세트 A)", minval=1, group="VWAP Settings", display=display.none, tooltip="화면 VWAP의 롤링 window 길이(최근 N봉). 기본 20. 이 값이 밴드 세트 A(점선 dotted Upper/Lower #2)의 기간이자 상태 테이블 '밴드 상단(N)/밴드 하단(N)' 행의 N입니다. VWAP 중앙선·밴드1·지지/저항 판정도 이 값을 따릅니다.")
+recentBars = input.int(defval=20, title="Recent Bars (기본 화면 VWAP · 밴드 세트 A)", minval=1, group="VWAP Settings", display=display.none, tooltip="화면 VWAP의 롤링 window 길이(최근 N봉). 기본 20. 이 값이 밴드 세트 A(대시 dashed Upper/Lower #2)의 기간이자 상태 테이블 '밴드 상단(N)/밴드 하단(N)' 행의 N입니다. VWAP 중앙선·밴드1·지지/저항 판정도 이 값을 따릅니다.")
 src = input(title="Source", defval=hlc3, group="VWAP Settings", display=display.none)
 offset = input.int(0, title="Offset", group="VWAP Settings", display=display.none)
 enableDynamicLineColor = input.bool(false, title="Enable Dynamic Line Color", group="VWAP Settings", display=display.none)
@@ -54,15 +54,15 @@ bandMult_1 = input.float(1.0, title="Bands Multiplier #1", group=BANDS_GROUP, in
 showBand_2 = input(true, title="", group=BANDS_GROUP, inline="band_2", display=display.none)
 bandMult_2 = input.float(2.0, title="Bands Multiplier #2", group=BANDS_GROUP, inline="band_2", step=0.5, minval=0, display=display.none, active=showBand_2)
 // ── 밴드 #2 2세트 페인팅(CEO 지시) — Recent Bars 20 기준(세트 A) + 50 기준(세트 B)의 Band #2 Upper/Lower 선만 그린다(총 4선). ──
-//  ▸ 세트 A = 기본 화면 세트(recentBars, 기본 20) — 점선(dotted). 세트 B = bandSetBBars(기본 50) — 대시(dashed). 두 세트 모두 같은 소스(src)·계산 모드(calcModeInput)·배수(bandMult_2).
+//  ▸ 세트 A = 기본 화면 세트(recentBars, 기본 20) — 대시(dashed). 세트 B = bandSetBBars(기본 50) — 도트(dotted). (CEO 추가 지시로 20↔50 스타일 교체) 두 세트 모두 같은 소스(src)·계산 모드(calcModeInput)·배수(bandMult_2).
 //  ▸ 위 showBand_2는 Band #2 전체의 마스터 토글(두 세트 선·밴드2 %라벨·상태 테이블 밴드 행·이탈색 판정). 아래 세트/선별 토글은 화면 선 표시만 제어(값·판정 불변).
 //  ▸ Band #1·VWAP 중앙선은 선을 그리지 않는다(Band #1 plot은 display.none 고정, VWAP 중앙선은 'VWAP 중앙선 표시' 기본 OFF — 옵트인으로만 표시).
-showBandSetA = input.bool(true, title="세트 A 표시(기간=Recent Bars, 점선)", group=BANDS_GROUP, inline="setA", display=display.none, active=showBand_2, tooltip="밴드 세트 A(기간 = VWAP Settings의 Recent Bars, 기본 20)의 Band #2 상/하단 선을 점선(dotted)으로 그립니다. 끄면 선만 숨기며 값·상태 테이블·Sonar '밴드 내부' 영역은 그대로입니다.")
+showBandSetA = input.bool(true, title="세트 A 표시(기간=Recent Bars, 대시)", group=BANDS_GROUP, inline="setA", display=display.none, active=showBand_2, tooltip="밴드 세트 A(기간 = VWAP Settings의 Recent Bars, 기본 20)의 Band #2 상/하단 선을 대시(dashed)로 그립니다. 끄면 선만 숨기며 값·상태 테이블·Sonar '밴드 내부' 영역은 그대로입니다.")
 bandSetAColor = input.color(#FFFFFF, title="", group=BANDS_GROUP, inline="setA", active=showBand_2 and showBandSetA)
 showBandSetAUpper = input.bool(true, title="세트 A Upper #2", group=BANDS_GROUP, inline="setALines", display=display.none, active=showBand_2 and showBandSetA)
 showBandSetALower = input.bool(true, title="세트 A Lower #2", group=BANDS_GROUP, inline="setALines", display=display.none, active=showBand_2 and showBandSetA)
 showBandSetB = input.bool(true, title="", group=BANDS_GROUP, inline="setB", display=display.none, active=showBand_2)
-bandSetBBars = input.int(50, title="세트 B 기간(Recent Bars, 대시)", minval=1, group=BANDS_GROUP, inline="setB", display=display.none, active=showBand_2 and showBandSetB, tooltip="밴드 세트 B의 롤링 window 길이(최근 N봉). 기본 50. Band #2 상/하단 선을 대시(dashed)로 그립니다. 세트 A와 같은 소스·계산 모드·Multiplier #2를 씁니다. 표시 전용(상태 테이블·판정에는 쓰이지 않음).")
+bandSetBBars = input.int(50, title="세트 B 기간(Recent Bars, 도트)", minval=1, group=BANDS_GROUP, inline="setB", display=display.none, active=showBand_2 and showBandSetB, tooltip="밴드 세트 B의 롤링 window 길이(최근 N봉). 기본 50. Band #2 상/하단 선을 도트(dotted)로 그립니다. 세트 A와 같은 소스·계산 모드·Multiplier #2를 씁니다. 표시 전용(상태 테이블·판정에는 쓰이지 않음).")
 bandSetBColor = input.color(#B2B5BE, title="", group=BANDS_GROUP, inline="setB", active=showBand_2 and showBandSetB)
 showBandSetBUpper = input.bool(true, title="세트 B Upper #2", group=BANDS_GROUP, inline="setBLines", display=display.none, active=showBand_2 and showBandSetB)
 showBandSetBLower = input.bool(true, title="세트 B Lower #2", group=BANDS_GROUP, inline="setBLines", display=display.none, active=showBand_2 and showBandSetB)
@@ -707,7 +707,7 @@ barcolor(abnShowBg ? abnBarColor : na, title="비정상 매수/매도 캔들색"
 //    → 지지/저항 "판정 로직"(vwapResistance/vwapSupport/vwapSRColor 블록·enableVwapSRColor 옵션)은 보존하되, 이 VWAP 중앙선 plot의 color 참조만 고정색으로 바꾼다(선색 표시가 판정에 더 반응하지 않음).
 //  ▸ 값·계산 전부 불변 — 렌더 스타일(1px·점선)·표시 게이트도 불변, 오직 선 color 인자만 vwapLineColor → DEFAULT_LINE_COLOR로 교체.
 //  ▸ 표시 게이트(CEO 지시): showVwapLine(기본 OFF — 기본 display.none = 보기 탭 언체크)이 켜지면 pane·상태줄·데이터윈도우에 표시(밴드2와 동일 display.all − display.price_scale), 끄면 display.none으로 선만 숨김.
-//  ▸ 점선/1px: plot()의 linestyle=plot.linestyle_dashed·linewidth=1 사용(밴드2선은 이후 CEO 지시로 dotted로 변경 — 중앙선 dashed는 불변).
+//  ▸ 점선/1px: plot()의 linestyle=plot.linestyle_dashed·linewidth=1 사용(밴드2선은 현재 세트 A=dashed·세트 B=dotted — 중앙선 dashed는 불변).
 //  ▸ 흰색 가격축 라벨 plot: 값·색(흰색)·display 전부 불변(기존 그대로) — 이번 변경 대상 아님. 라벨 동작 유지.
 displayVwapLine = showVwapLine ? display.all - display.price_scale : display.none
 plot(vwapValue, title="브이왑", color=DEFAULT_LINE_COLOR, offset=offset, linewidth=1, display=displayVwapLine, editable=true, linestyle=plot.linestyle_dashed)
@@ -717,20 +717,20 @@ upperBand_1 = plot(upperBandValue1, title="Upper Band #1", color=activeLineColor
 lowerBand_1 = plot(lowerBandValue1, title="Lower Band #1", color=activeLineColor, offset=offset, display=display.none, editable=true, linestyle=plot.linestyle_dotted)
 fill(upperBand_1, lowerBand_1, title="Bands Fill #1", color=activeFillColor, display=display.none, editable=true)
 
-// 최외곽 상/하단 선(Band #2): 위치는 항상 원값. 두께 1px. 기본 선 스타일 도트(dotted, plot.linestyle_dotted — CEO 지시로 구 dashed에서 변경). 선 색은 활성 기본색(activeLineColor) 고정.
+// 최외곽 상/하단 선(Band #2): 위치는 항상 원값. 두께 1px. 선 스타일은 세트별(CEO 지시 — 세트 A(20)=대시 dashed, 세트 B(50)=도트 dotted). 선 색은 활성 기본색(activeLineColor) 고정.
 //  ▸ 롤백(CEO 지시): 직전에 넣었던 "밴드2 선색을 paintState(정/역배열)에 따라 순수 녹/빨강으로 바꾸는" 조건식을 완전히 제거하고, 원래대로 activeLineColor(무조건)로 환원한다.
 //    그에 따라 신설했던 input band2BullLineColor/band2BearLineColor도 삭제(참조 끊김). 그 순수 녹/빨강 색값은 아래 "실시간 상승/하락 전환 수평선"(Part C)으로 이관해 재사용한다.
 //  ⚠️ 밴드2 값·산식·fill(Sonar 배경 '밴드 내부')은 불변 — 이번 롤백은 선 색만 activeLineColor로 되돌린다.
-//  ▸ 2세트 페인팅(CEO 지시): 세트 A(recentBars, 기본 20) = 점선(dotted)·activeLineColor(=bandSetAColor, 동적 이탈색 옵션 적용) / 세트 B(bandSetBBars, 기본 50) = 대시(dashed)·bandSetBColor 고정.
+//  ▸ 2세트 페인팅(CEO 지시): 세트 A(recentBars, 기본 20) = 대시(dashed)·activeLineColor(=bandSetAColor, 동적 이탈색 옵션 적용) / 세트 B(bandSetBBars, 기본 50) = 도트(dotted)·bandSetBColor 고정. (CEO 추가 지시로 20↔50 스타일 교체)
 //    표시 게이트 = showBand_2(마스터) AND 세트 토글 AND 선별(Upper/Lower) 토글 — 모두 input이라 display 인자(input 한정자) 요건 충족. 값·fill·판정은 게이트와 무관.
 displayBandSetAUpper = showBand_2 and showBandSetA and showBandSetAUpper ? display.all - display.price_scale : display.none
 displayBandSetALower = showBand_2 and showBandSetA and showBandSetALower ? display.all - display.price_scale : display.none
 displayBandSetBUpper = showBand_2 and showBandSetB and showBandSetBUpper ? display.all - display.price_scale : display.none
 displayBandSetBLower = showBand_2 and showBandSetB and showBandSetBLower ? display.all - display.price_scale : display.none
-upperBand_2 = plot(upperBandValue2, title="Upper Band #2 (세트 A·20)", color=activeLineColor, offset=offset, display=displayBandSetAUpper, editable=true, linewidth=1, linestyle=plot.linestyle_dotted)
-lowerBand_2 = plot(lowerBandValue2, title="Lower Band #2 (세트 A·20)", color=activeLineColor, offset=offset, display=displayBandSetALower, editable=true, linewidth=1, linestyle=plot.linestyle_dotted)
-plot(upperBandValue2B, title="Upper Band #2 (세트 B·50)", color=bandSetBColor, offset=offset, display=displayBandSetBUpper, editable=true, linewidth=1, linestyle=plot.linestyle_dashed)
-plot(lowerBandValue2B, title="Lower Band #2 (세트 B·50)", color=bandSetBColor, offset=offset, display=displayBandSetBLower, editable=true, linewidth=1, linestyle=plot.linestyle_dashed)
+upperBand_2 = plot(upperBandValue2, title="Upper Band #2 (세트 A·20)", color=activeLineColor, offset=offset, display=displayBandSetAUpper, editable=true, linewidth=1, linestyle=plot.linestyle_dashed)
+lowerBand_2 = plot(lowerBandValue2, title="Lower Band #2 (세트 A·20)", color=activeLineColor, offset=offset, display=displayBandSetALower, editable=true, linewidth=1, linestyle=plot.linestyle_dashed)
+plot(upperBandValue2B, title="Upper Band #2 (세트 B·50)", color=bandSetBColor, offset=offset, display=displayBandSetBUpper, editable=true, linewidth=1, linestyle=plot.linestyle_dotted)
+plot(lowerBandValue2B, title="Lower Band #2 (세트 B·50)", color=bandSetBColor, offset=offset, display=displayBandSetBLower, editable=true, linewidth=1, linestyle=plot.linestyle_dotted)
 // fill(±2σ 채움)은 밴드2 원값 선(upperBand_2/lowerBand_2)에 직접 붙인다. clamp 폐기로 선 자체가 항상 원값이라 별도 fill ref plot 불필요. 현재 display=none.
 fill(upperBand_2, lowerBand_2, title="Bands Fill #2", color=activeFillColor, display=display.none, editable=true)
 // ══ Sonar 모멘텀 배경(CEO 지시 2026-10-16 — 구 '밴드워킹' 배경 페인팅 대체) ══
@@ -1144,7 +1144,7 @@ f_srLineText(float ma) =>
 // ── 변동성 임계가: 밴드 상단 / 밴드 하단 2행(CEO 지시 — 구 'vwap 기울기'·'vwap 구간' 행 대체) ──
 //  ▸ 값 = 화면 주 밴드(Band #2, ±bandMult_2σ — 기본 2.0) 상단/하단 가격 + 현재가 대비 % → "10,000 (+10.0%)" 형식.
 //    포맷은 지지/저항 3행 헬퍼 f_srLineText 재사용(mintick 반올림·천 단위 쉼표, %=(밴드값−close)/close×100 소수1자리·부호, −0.0 방지).
-//  ▸ 주 밴드 선택 근거: Band #1 plot은 display=display.none(기본 숨김), Band #2만 기본 표시(세트 A 점선·세트 B 대시 1px — 테이블은 세트 A 값)되고 밴드 배경 fill도 밴드2 영역이다.
+//  ▸ 주 밴드 선택 근거: Band #1 plot은 display=display.none(기본 숨김), Band #2만 기본 표시(세트 A 대시·세트 B 도트 1px — 테이블은 세트 A 값)되고 밴드 배경 fill도 밴드2 영역이다.
 //    값 세트도 차트에 그려지는 화면 recentBars봉(기본 20) 세트(upperBandValue2/lowerBandValue2, recentBars)와 동일 (구 20봉 vwap 상태 세트는 Sonar 배경 교체로 삭제됨).
 //  ▸ 가드: 밴드2 토글 OFF(showBand_2=false)·워밍업(shouldPlot=false)·na → "-"(f_srLineText가 na를 "-"로 처리).
 //  ▸ 기준봉: 현재봉 [0](밴드값·종가 모두 라이브) — 지지/저항 3행과 동일(봉 마감 전 틱마다 갱신·마감 시 확정, 미래참조 없음).
@@ -1245,8 +1245,8 @@ laggingStTooltip = "VWMA 20선과 50선의 배열·골든/데드 크로스로 �
 laggingMtTooltip = "VWMA 50선(주황)과 100선의 배열·크로스로 판정한 중기 추세입니다. 단기 노이즈를 걸러 스윙 방향을 확정하는 데 쓰며, 단기추세와 엇갈리면 관망합니다."
 laggingLtTooltip = "VWMA 100선과 200선의 배열·크로스로 판정한 장기 추세입니다(200봉 미만이면 '-'). 진입 방향을 정하는 최상위 필터로, 이 방향에 역행하는 진입은 피하거나 비중을 줄입니다."
 //  변동성 4행: 밴드 상단·밴드 하단(주 밴드 Band #2 가격·현재가 대비 %)·이격도(과열)·되돌림가(회귀 목표). 각 행 개념+효과.
-volBandUpperTooltip = "밴드 세트 A(Recent Bars 기간, 기본 20 — 점선) Band #2 상단 가격과 현재가 대비 거리(%)입니다. 평균단가 대비 과확장 상한이라 이 부근에서는 추격 매수를 자제하고 롱은 분할 청산을 검토합니다. 밴드2가 꺼져 있거나 계산 전이면 '-'입니다."
-volBandLowerTooltip = "밴드 세트 A(Recent Bars 기간, 기본 20 — 점선) Band #2 하단 가격과 현재가 대비 거리(%)입니다. 평균단가 대비 과확장 하한이라 이 부근에서는 추격 매도를 자제하고 눌림 매수를 대기합니다. 밴드2가 꺼져 있거나 계산 전이면 '-'입니다."
+volBandUpperTooltip = "밴드 세트 A(Recent Bars 기간, 기본 20 — 대시) Band #2 상단 가격과 현재가 대비 거리(%)입니다. 평균단가 대비 과확장 상한이라 이 부근에서는 추격 매수를 자제하고 롱은 분할 청산을 검토합니다. 밴드2가 꺼져 있거나 계산 전이면 '-'입니다."
+volBandLowerTooltip = "밴드 세트 A(Recent Bars 기간, 기본 20 — 대시) Band #2 하단 가격과 현재가 대비 거리(%)입니다. 평균단가 대비 과확장 하한이라 이 부근에서는 추격 매도를 자제하고 눌림 매수를 대기합니다. 밴드2가 꺼져 있거나 계산 전이면 '-'입니다."
 volDisparityTooltip = "종가가 이격도 MA의 몇 %에 있는지(100=MA와 같음)와 과열 판정(중립/되돌림 주의/되돌림 확실)입니다. 과열이 강할수록 평균 회귀 압력이 커지므로 그 방향의 추격 진입을 자제합니다. 강한 추세에서는 과열이 오래 이어질 수 있어 역추세 진입 근거로 단독 사용하지 않습니다."
 volPullbackTooltip = "이격도 과열(주의 이상) 시 중립 구간으로 돌아오는 경계 가격과 현재가 대비 %이며, 과열이 아니면 '-'입니다. 과열 방향 포지션의 청산 목표나 눌림목 재진입 기준으로 씁니다. 도달을 보장하는 목표가는 아닙니다."
 //  지지/저항 3행(라벨 50선/100선/200선): 값=선 가격(현재가 대비 ±%), 셀 색=지지/저항 판정(VWMA선 ±σ 밴드). 개념+효과. MA만 행별 상이.
