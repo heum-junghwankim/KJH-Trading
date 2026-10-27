@@ -1,5 +1,5 @@
 //@version=6
-// explicit_plot_zorder=true: plot()/hline()/fill()의 z-order를 코드 "선언 순서"로 고정(먼저 선언=뒤, 나중 선언=앞). VWMA 50/100/200+fill을 나머지 plot보다 뒤로 두는 근거.
+// explicit_plot_zorder=true: plot()/hline()/fill()의 z-order를 코드 "선언 순서"로 고정(먼저 선언=뒤, 나중 선언=앞). VWMA 50/100/200을 나머지 plot보다 뒤로 두는 근거.
 //  ⚠️ 기존 코드도 이미 "나중 선언=앞" 기본 거동에 부합하게 선언돼 있어(밴드1→밴드2→정역배열 fill→리본) 이 인자는 그 상대 순서를 명시 고정할 뿐 기존 z를 바꾸지 않는다.
 //  ⚠️ 비정상 매수/매도는 이제 barcolor(캔들 몸통색)로 표시한다(CEO 지시 — 배경 bgcolor → barcolor 전환). barcolor는 이 인자와 무관하게 봉 몸통색을 바꾸며 밴드 fill과 레이어가 달라 공존한다.
 //     (과거엔 비정상을 bgcolor 전체 화면 배경으로 칠했으나 CEO 지시로 캔들 몸통색 오버라이드로 이관 — 아래 "비정상 매수/매도 — 캔들 몸통색(barcolor)" 참조.)
@@ -83,10 +83,9 @@ ltLen1 = input.int(100, minval=1, title="장기선 MA #1 길이(100)", group=VWM
 ltLen2 = input.int(200, minval=1, title="장기선 MA #2 길이(200)", group=VWMA_GROUP, tooltip="장기선 #2 길이. 기본 200. 전략성 파라미터(수학자 리뷰 대상).")
 showVwma50 = input.bool(true, title="거래량 가중 50선", group=VWMA_GROUP, tooltip="거래량 가중 50선(VWMA 50)을 딥 오렌지로 표시합니다(2px). 기본 ON. 단기 추세(20선 vs 50선) 행의 느린 선입니다.")
 vwma50Color = input.color(#FF6D00, title="거래량 가중 50선 색", group=VWMA_GROUP, active=showVwma50, tooltip="거래량 가중 50선 색. 리본 EMA(노랑)와 겹치지 않도록 딥 오렌지(#FF6D00) 기본. 리본/장기선/신호색/비정상 배경과 구분됩니다.")
-showLongTrend = input.bool(true, title="장기선 100/200 표시", group=VWMA_GROUP, tooltip="거래량 가중 100선·200선(각 2px)과 그 사이 fill을 표시합니다. 기본 ON.")
+showLongTrend = input.bool(true, title="장기선 100/200 표시", group=VWMA_GROUP, tooltip="거래량 가중 100선·200선(각 2px)을 표시합니다. 기본 ON. (100~200선 사이 fill은 CEO 지시로 제거됨)")
 ltColor1 = input.color(color.blue, title="100선 색", group=VWMA_GROUP, active=showLongTrend, tooltip="거래량 가중 100선 색. 기본 파랑(원본 동일).")
 ltColor2 = input.color(color.purple, title="200선 색", group=VWMA_GROUP, active=showLongTrend, tooltip="거래량 가중 200선 색. 기본 보라(원본 동일).")
-ltFillTransp = input.int(75, minval=0, maxval=100, title="100~200선 fill 투명도", group=VWMA_GROUP, active=showLongTrend, tooltip="100선~200선 사이 fill 투명도(0=불투명, 100=완전 투명). 기본 75. 색은 100선>200선이면 100선 색, 아니면 200선 색.")
 // 테이블 표시 토글
 TABLE_GROUP = "상태 테이블"
 showStatusTable = input.bool(true, title="상태 테이블 표시(우측 상단)", group=TABLE_GROUP, tooltip="우측 상단 상태 테이블(추세 확인 / 기울기 전환가 / 교차 전환가 / 변동성 임계가 / 지지·저항 임계가)을 표시합니다. SUPER-ICHIMOKU 테이블 이식.")
@@ -161,14 +160,22 @@ bgDeadK = input.float(0.10, title="상대 데드존 배수 k", minval=0.0, step=
 //  ▸ 칠 영역(sonarArea): '밴드 내부' = 밴드 #2(상단2~하단2) 영역 fill(구 밴드워킹 위치), '차트 전체(bgcolor)' = 원 MTS처럼 차트 전체 세로 배경(기본 — CEO 지시로 구 기본 '밴드 내부'에서 변경).
 // =========================
 SONAR_GROUP = "Sonar 모멘텀 배경"
-showSonarBg = input.bool(true, title="Sonar 모멘텀 배경 표시", group=SONAR_GROUP, tooltip="켜면 Sonar 모멘텀 상태로 배경을 칠합니다(상승=녹, 하락=빨강). Sonar = EMA(종가, n) − EMA(종가, n)[k], Signal = EMA(Sonar, m). 국내 MTS 'SonarMomentumSignal강세약세(20,9,9)' 이식. ⚠️ 현재봉 종가를 쓰므로 실시간 봉 동안 틱마다 바뀔 수 있고 봉 마감 시 확정됩니다(미래참조 없음). 워밍업(n+k+m 봉 전후) 구간은 칠하지 않습니다. 표시 전용(매매 신호 아님).")
+showSonarBg = input.bool(true, title="Sonar 모멘텀 배경 표시", group=SONAR_GROUP, tooltip="켜면 Sonar 모멘텀 상태로 배경을 칠합니다(골든 = 상승 워킹이면 파랑·그 외 녹 / 데드 = 하락 워킹이면 빨강·그 외 주황). Sonar = EMA(종가, n) − EMA(종가, n)[k], Signal = EMA(Sonar, m). 국내 MTS 'SonarMomentumSignal강세약세(20,9,9)' 이식. ⚠️ 현재봉 종가를 쓰므로 실시간 봉 동안 틱마다 바뀔 수 있고 봉 마감 시 확정됩니다(미래참조 없음). 워밍업(n+k+m 봉 전후) 구간은 칠하지 않습니다. 표시 전용(매매 신호 아님).")
 sonarLen = input.int(20, title="Sonar EMA 기간 n", minval=1, group=SONAR_GROUP, active=showSonarBg, tooltip="Sonar의 EMA(종가, n) 기간. 기본 20(원 MTS 파라미터 첫째 값). 전략성 파라미터(수학자 리뷰 대상).")
 sonarGap = input.int(9, title="비교 간격 k", minval=1, maxval=500, group=SONAR_GROUP, active=showSonarBg, tooltip="Sonar = EMA(n) − EMA(n)[k]의 비교 간격 k(봉). 기본 9(원 MTS 파라미터 둘째 값). 최대 500(max_bars_back=1000 버퍼 안). 전략성 파라미터(수학자 리뷰 대상).")
 sonarSigLen = input.int(9, title="Signal 기간 m", minval=1, group=SONAR_GROUP, active=showSonarBg, tooltip="Signal = EMA(Sonar, m)의 기간. 기본 9(원 MTS 파라미터 셋째 값). '0선' 판정에서는 쓰이지 않습니다. 전략성 파라미터(수학자 리뷰 대상).")
 sonarBasis = input.string("Signal 교차", title="판정 기준", options=["Signal 교차", "0선"], group=SONAR_GROUP, active=showSonarBg, tooltip="원 MTS 판정식 미공개, Signal 교차가 유력 추정. ▸ 'Signal 교차' = Sonar > Signal이면 상승(녹), Sonar < Signal이면 하락(빨강). ▸ '0선' = Sonar > 0이면 상승, Sonar < 0이면 하락. 두 값이 같으면 이전 상태를 유지합니다.")
 sonarArea = input.string("차트 전체(bgcolor)", title="칠 영역", options=["밴드 내부", "차트 전체(bgcolor)"], group=SONAR_GROUP, active=showSonarBg, tooltip="'밴드 내부' = 밴드 #2(상단2~하단2) 영역만 칠합니다(기본, 구 밴드워킹 배경과 같은 위치). 밴드 #2 선을 꺼도 영역 값은 계속 계산되므로 같은 영역이 칠해지며, VWAP가 표시되지 않는 봉(일/주/월봉 숨김·거래량 0)에서는 칠하지 않습니다. '차트 전체(bgcolor)' = 원 MTS처럼 차트 전체 세로 배경을 칠합니다(VWAP 표시 여부와 무관).")
-sonarBullColor = input.color(#2E7D32, title="상승 색", group=SONAR_GROUP, inline="sonarColor", active=showSonarBg)
-sonarBearColor = input.color(#C62828, title="하락 색", group=SONAR_GROUP, inline="sonarColor", active=showSonarBg, tooltip="상승 배경색(기본 녹 #2E7D32) / 하락 배경색(기본 빨강 #C62828) — 구 밴드워킹 배경 색 그대로. 펀드 컨벤션 상승=녹·하락=빨강(원 MTS의 빨강=상승 관례 미적용).")
+sonarBullColor = input.color(#2E7D32, title="골든 색(녹)", group=SONAR_GROUP, inline="sonarColor", active=showSonarBg)
+sonarBearColor = input.color(#C62828, title="하락 색", group=SONAR_GROUP, inline="sonarColor", active=showSonarBg, tooltip="골든 색(기본 녹 #2E7D32 — Sonar 상승이면서 횡보·하락 워킹이거나 판정값 없는 봉) / 하락 색(기본 빨강 #C62828 — Sonar 하락이면서 하락 워킹이거나 판정값 없는 봉). 골든+상승 워킹은 파랑, 데드+비하락 워킹은 주황(아래 색). 색 값은 구 밴드워킹 배경 색 그대로. 펀드 컨벤션 상승=녹·하락=빨강(원 MTS의 빨강=상승 관례 미적용).")
+// Sonar 워킹 연동 색(CEO 지시)
+//  ▸ 골든(sonarState==1): 상승 워킹(vwWalkState==1) = 파랑(sonarUpWalkBullColor) / 횡보·하락 워킹 = 녹(sonarBullColor "골든 색(녹)").
+//  ▸ 데드(sonarState==−1): 하락 워킹(−1) = 빨강(sonarBearColor) / 상승 워킹·횡보 = 주황(sonarWeakBearColor).
+//  ▸ 판정값 없는 봉(vwHasVwapS=false)은 CEO 규칙 밖이라 기본 녹/빨.
+//  ▸ 기본값은 코드에서 이미 쓰는 색 재사용: 파랑 = color.blue(#2196F3, 100선 기본색), 주황 = #FF6D00(거래량 가중 50선 기본색). input.color 관례(inline 한 줄).
+//  ▸ 이 두 input은 마지막 커밋(e0a5276) 이후 추가돼 아직 배포된 적이 없으므로, 의미에 맞게 변수명·표시명을 바꿔도 저장된 사용자 설정이 초기화될 일이 없다.
+sonarUpWalkBullColor = input.color(color.blue, title="골든+상승 워킹 색(파랑)", group=SONAR_GROUP, inline="sonarWalkColor", active=showSonarBg)
+sonarWeakBearColor = input.color(#FF6D00, title="데드+비하락 워킹 색(주황)", group=SONAR_GROUP, inline="sonarWalkColor", active=showSonarBg, tooltip="Sonar 방향과 밴드워킹 판정(상태 테이블 '상승/하락 워킹'과 같은 산식, 기간 = '밴드워킹 판정 기간', 각 봉 자기 판정)에 따른 배경색입니다. 파랑(기본 #2196F3) = 골든(Sonar 상승)이면서 상승 워킹인 봉 — 골든이 횡보·하락 워킹이면 위 '골든 색(녹)'. 주황(기본 #FF6D00) = 데드(Sonar 하락)인데 하락 워킹이 아닌(상승 워킹·횡보) 봉 — 데드+하락 워킹이면 위 '하락 색'(빨강). VWAP가 없는 봉은 위 기본 녹/빨입니다. 투명도는 아래 '배경 투명도'를 따릅니다.")
 sonarTransp = input.int(85, title="배경 투명도", minval=0, maxval=100, group=SONAR_GROUP, active=showSonarBg, tooltip="Sonar 배경색 투명도(0=불투명, 100=완전 투명). 기본 85(CEO 지시로 구 70보다 연하게 — 불투명도 30%→15%).")
 // ── 추세 확인 테이블 EMA/DEMA/TEMA 기울기 3행 셀 배경색(CEO 재설계 — 로그 slope 순서 규칙) ──
 //  각 행 = 리본 이평선(emaLine/demaLine/temaLine)의 ln(line) 기반 로그 slope 3종(ㄱ 2점·ㄴ 3점 OLS·ㄷ 5점 OLS).
@@ -708,7 +715,7 @@ if shouldPlot and not na(vwapValue) and not na(upperBandValue1) and not na(lower
         vwapSRColor := vwapResistance ? UPPER_BREAK_LINE_COLOR : vwapSupport ? LOWER_BREAK_LINE_COLOR : DEFAULT_LINE_COLOR
 
 // =========================================================================================
-// [z-order 블록 #1 — VWMA 50/100/200 + 100~200 fill]  ★ plot/fill 중 가장 뒤(back-most).
+// [z-order 블록 #1 — VWMA 50/100/200 (100~200 fill은 CEO 지시로 제거)]  ★ plot/fill 중 가장 뒤(back-most).
 //  explicit_plot_zorder=true이므로 이 plot/fill들을 파일에서 가장 먼저 선언 → 이후 모든 plot/fill(VWAP·밴드·정역배열·리본)보다 뒤에 그려진다.
 //  ⚠️ 비정상 매수/매도는 이제 barcolor(캔들 몸통색)이라 plot/fill과 레이어가 다르다(봉 몸통 ↔ 밴드 배경) → 이 VWMA/fill과 z-order 경합 없이 캔들 위에 별도로 그려진다.
 //     실제 레이어(뒤→앞) = [이 VWMA 블록] → [나머지 페인팅]; 비정상은 barcolor로 캔들 몸통에 직접(밴드 배경과 공존).
@@ -727,11 +734,11 @@ vwma50 = ta.vwma(close, 50)   // 단기 추세의 느린 선이자 표시선(2px
 ltMa1 = f_ltMa(ltLen1)        // 거래량 가중 100선
 ltMa2 = f_ltMa(ltLen2)        // 거래량 가중 200선
 ltUp = ltMa1 > ltMa2          // 우상향 장기 추세(100선 > 200선)
-// 50선 색 = vwma50Color(딥 오렌지 #FF6D00 기본 — 리본 노랑과 구분). 100/200/fill 색은 원본 따름(파랑/보라).
+// 50선 색 = vwma50Color(딥 오렌지 #FF6D00 기본 — 리본 노랑과 구분). 100/200 색은 원본 따름(파랑/보라).
+// ⚠️ 100~200선 사이 fill(전용 input "100~200선 fill 투명도"·100/200선 plot 핸들 포함)은 CEO 지시로 제거. 100/200선 plot 자체와 ltUp(추세 판정에서 사용)은 유지.
 plot(showVwma50 ? vwma50 : na, title="거래량 가중 50선(VWMA 50)", color=vwma50Color, linewidth=2, display=display.all - display.price_scale, editable=true)
-ltPlot1 = plot(showLongTrend ? ltMa1 : na, title="거래량 가중 100선(VWMA 100)", color=ltColor1, linewidth=2, display=display.all - display.price_scale, editable=true)
-ltPlot2 = plot(showLongTrend ? ltMa2 : na, title="거래량 가중 200선(VWMA 200)", color=ltColor2, linewidth=2, display=display.all - display.price_scale, editable=true)
-fill(ltPlot1, ltPlot2, title="100~200선 fill", color=showLongTrend ? (ltUp ? color.new(ltColor1, ltFillTransp) : color.new(ltColor2, ltFillTransp)) : na, editable=true)
+plot(showLongTrend ? ltMa1 : na, title="거래량 가중 100선(VWMA 100)", color=ltColor1, linewidth=2, display=display.all - display.price_scale, editable=true)
+plot(showLongTrend ? ltMa2 : na, title="거래량 가중 200선(VWMA 200)", color=ltColor2, linewidth=2, display=display.all - display.price_scale, editable=true)
 
 // =========================================================================================
 // [비정상 매수/매도 — 캔들 몸통색(barcolor)]  ★ CEO 지시(배경 bgcolor → 캔들 몸통색 전환).
@@ -797,7 +804,12 @@ else if sonarDiff > 0
     sonarState := 1
 else if sonarDiff < 0
     sonarState := -1
-sonarFillColor = sonarState == 1 ? color.new(sonarBullColor, sonarTransp) : sonarState == -1 ? color.new(sonarBearColor, sonarTransp) : na
+// [CEO 지시] 워킹 연동 색 — 봉별 판정 vwWalkState(그 봉 [0], 매 봉 계산되는 전역 시리즈)로 골든=상승 워킹 파랑/그 외 녹, 데드=하락 워킹 빨강/그 외 주황.
+//  ▸ 테이블 오프셋(volOff)은 쓰지 않는다(각 봉 자기 판정). 판정값 없는 봉(vwHasVwapS=false: VWAP 미표시·거래량 0·숨김)은 기본 녹/빨(종전 유지). Sonar 판정·투명도·칠 영역 불변.
+//  ▸ 리페인팅: vwWalkState는 현재봉 close·src를 쓰므로 형성 중 봉에서 워킹 연동 색이 틱마다 바뀔 수 있고 봉 마감 시 확정(Sonar 상태와 같은 특성). 미래참조·request.* 없음.
+sonarUpColor = vwHasVwapS and vwWalkState == 1 ? sonarUpWalkBullColor : sonarBullColor   // 골든: 상승 워킹이면 파랑, 횡보·하락 워킹(·판정값 없음)이면 녹
+sonarDnColor = vwHasVwapS and vwWalkState != -1 ? sonarWeakBearColor : sonarBearColor    // 데드: 하락 워킹이면 빨강, 상승 워킹·횡보면 주황
+sonarFillColor = sonarState == 1 ? color.new(sonarUpColor, sonarTransp) : sonarState == -1 ? color.new(sonarDnColor, sonarTransp) : na
 sonarInBand = sonarArea == "밴드 내부"
 fill(upperBand_2, lowerBand_2, color = (showSonarBg and sonarInBand and shouldPlot and not na(upperBandValue2) and not na(lowerBandValue2)) ? sonarFillColor : na, title="Sonar 배경(밴드 내부)", display=display.all, editable=true)
 bgcolor(showSonarBg and not sonarInBand ? sonarFillColor : na, title="Sonar 배경(차트 전체)", offset=offset, editable=true)
@@ -1064,7 +1076,7 @@ f_srSupportResist(float center, float up1, float lo1) =>
     [isSup, isRes]
 
 
-// ── 거래량 가중 50/100/200선 + 100~200 fill의 페인팅은 z-order 최하단(back-most) 배치를 위해 위쪽 "VWMA z-order 블록"으로 이동함(CEO z-order 지시). 여기서는 제거됨. 계산·plot 산식/색/오프셋 전부 불변.
+// ── 거래량 가중 50/100/200선(100~200 fill은 제거됨)의 페인팅은 z-order 최하단(back-most) 배치를 위해 위쪽 "VWMA z-order 블록"으로 이동함(CEO z-order 지시). 여기서는 제거됨. 계산·plot 산식/색/오프셋 전부 불변.
 
 // ── (제거됨) vwap 상태(20) 파이프라인(밴드워킹 판정) — CEO 지시(2026-10-16)로 밴드 배경이 Sonar 모멘텀 배경으로 교체되며 유일 소비처가 사라져 전부 삭제.
 
