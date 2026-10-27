@@ -1539,8 +1539,9 @@ entTdTooltip = "종가가 이 가격 너머로 마감하면 TEMA가 DEMA를 교�
 //  (CEO 지시: 구 "추세 전환가" 단일 섹션(헤더 4·데이터 5~10, 총 20행)을 "기울기 전환가"·"교차 전환가" 2섹션으로 분할 — 헤더 1행 추가로 20→21행. 모든 셀은 섹션 토글 없이 showStatusTable 한 조건으로 일괄 렌더링되므로 표시 조합과 무관하게 최대 인덱스 20 < rows 21.)
 var table statusTable = table.new(position.top_right, 2, 21, border_width=1, border_color=color.new(color.gray, 50))
 if showStatusTable and barstate.islast
+    // 섹션 헤더 제목 = "섹션명 (기준봉)"(CEO 지시) — 각 섹션 기준봉 input(baseTrendMode·baseSlopeMode·baseCrossMode·baseVolMode·baseSrMode) 값을 붙인다. islast 블록 안에서만 결합, 스타일 불변.
     // 섹션1: 추세 확인 (VWMA MA 기반 후행(lagging) 지표 — 단기/중기/장기 추세 3행). (CEO 지시: 단기 추세 위에 머지 헤더 신설. 이후 CEO 지시로 헤더 "후행 추세 확인"→"추세 확인" 개명·테이블 최상단으로 이동.)
-    table.cell(statusTable, 0, 0, "추세 확인", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
+    table.cell(statusTable, 0, 0, "추세 확인 (" + baseTrendMode + ")", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.cell(statusTable, 1, 0, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.merge_cells(statusTable, 0, 0, 1, 0)
     table.cell(statusTable, 0, 1, "단기추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=laggingStTooltip)
@@ -1551,7 +1552,7 @@ if showStatusTable and barstate.islast
     table.cell(statusTable, 1, 3, ltCellText, text_color=color.white, bgcolor=ltCellColor[trendOff], text_size=size.small, tooltip=laggingLtTooltip)
     // 섹션1-2·1-3: 기울기 전환가 / 교차 전환가 (CEO 지시로 구 "추세 전환가" 섹션을 2섹션으로 분할 — 행 이름·값·셀 색·표시 규칙 불변, 섹션 안 행 순서는 발동 순서 기준 → 이후 CEO 지시로 기울기 섹션을 TEMA·DEMA·정배열·역배열 순으로 재배치, 교차 섹션 행 이름·값 접두어를 "전환"→"교차"로 변경). 구 이력: 추세 전환가 (CEO 지시로 헤더 "추세 진입"→"추세 전환가" 개명) (CEO 지시 2026-10-16 — 구 "선행 추세 확인" 6행을 전환가 P* 4행으로 교체: TEMA 전환 / DEMA 전환 / 배열 전환 / T/D 전환 → 이후 CEO 지시로 배열 전환을 정배열 전환·역배열 전환 2행으로 분리해 5행 → CEO 지시로 첫 행에 Sonar 전환 추가해 6행). 기준봉=섹션별 input(baseSlopeMode/baseCrossMode, 기본 실시간봉 — slopeOff/crossOff).
     // 섹션1-2: 기울기 전환가 — 이평선 1봉 기울기 부호·서열 전환(정배열 → 역배열 → TEMA → DEMA)
-    table.cell(statusTable, 0, 4, "기울기 전환가", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small, tooltip=ENTRY_SLOPE_TIP)
+    table.cell(statusTable, 0, 4, "기울기 전환가 (" + baseSlopeMode + ")", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small, tooltip=ENTRY_SLOPE_TIP)
     table.cell(statusTable, 1, 4, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.merge_cells(statusTable, 0, 4, 1, 4)
     table.cell(statusTable, 0, 5, "TEMA 전환", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=entTemaTooltip)
@@ -1563,7 +1564,7 @@ if showStatusTable and barstate.islast
     table.cell(statusTable, 0, 8, "역배열 전환", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=entArrBearTooltip)
     table.cell(statusTable, 1, 8, entArrBearText, text_color=color.white, bgcolor=entArrColor, text_size=size.small, tooltip=entArrBearTooltip)
     // 섹션1-3: 교차 전환가 — 두 선 교차 전환(Sonar → T/D)
-    table.cell(statusTable, 0, 9, "교차 전환가", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small, tooltip=ENTRY_CROSS_TIP)
+    table.cell(statusTable, 0, 9, "교차 전환가 (" + baseCrossMode + ")", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small, tooltip=ENTRY_CROSS_TIP)
     table.cell(statusTable, 1, 9, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.merge_cells(statusTable, 0, 9, 1, 9)
     table.cell(statusTable, 0, 10, "Sonar 교차", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=entSonarTooltip)
@@ -1571,7 +1572,7 @@ if showStatusTable and barstate.islast
     table.cell(statusTable, 0, 11, "T/D 교차", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=entTdTooltip)
     table.cell(statusTable, 1, 11, entTdText, text_color=color.white, bgcolor=entTdColor, text_size=size.small, tooltip=entTdTooltip)
     // 섹션2: 변동성 임계가 (상승 워킹 → 하락 워킹 → 이격도 → 되돌림). (CEO 지시: 헤더 "가격 구조 및 변동성 확인"→"변동성 확인"→"변동성 임계가", 비정상 매수/매도 행 삭제 — 캔들색으로 이미 표현.)
-    table.cell(statusTable, 0, 12, "변동성 임계가", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
+    table.cell(statusTable, 0, 12, "변동성 임계가 (" + baseVolMode + ")", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.cell(statusTable, 1, 12, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.merge_cells(statusTable, 0, 12, 1, 12)
     // 상승 워킹/하락 워킹 2행(CEO 지시 — 구 밴드 상단/하단 행 대체): 밴드워킹 상태가 바뀌는 조건부 종가 "{목표 상태} : 가격 (±x.x%)". N = vwapStateBars(판정 기간, 기본 20).
@@ -1585,7 +1586,7 @@ if showStatusTable and barstate.islast
     table.cell(statusTable, 0, 16, "되돌림 가격", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=volPullbackTooltip)
     table.cell(statusTable, 1, 16, na(disparityPullbackPrice[volOff]) ? "-" : f_priceStr(disparityPullbackPrice[volOff]) + " (" + f_pctStrAt(disparityPullbackPrice[volOff], volBaseC) + ")", text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small, tooltip=volPullbackTooltip)
     // 섹션3: 지지·저항 임계가 (CEO 지시로 헤더 "지지·저항 확인"→"지지·저항 임계가" 개명) (50선 / 100선 / 200선)
-    table.cell(statusTable, 0, 17, "지지·저항 임계가", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
+    table.cell(statusTable, 0, 17, "지지·저항 임계가 (" + baseSrMode + ")", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.cell(statusTable, 1, 17, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
     table.merge_cells(statusTable, 0, 17, 1, 17)
     table.cell(statusTable, 0, 18, "50선", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=srVw50Tooltip)
