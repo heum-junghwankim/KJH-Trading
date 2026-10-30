@@ -89,6 +89,9 @@ ltColor2 = input.color(color.purple, title="200선 색", group=VWMA_GROUP, activ
 // 테이블 표시 토글
 TABLE_GROUP = "상태 테이블"
 showStatusTable = input.bool(true, title="상태 테이블 표시(우측 상단)", group=TABLE_GROUP, tooltip="우측 상단 상태 테이블(추세 확인 / 기울기 전환가 / 교차 전환가 / 변동성 임계가 / 지지·저항 임계가)을 표시합니다. SUPER-ICHIMOKU 테이블 이식.")
+// 테이블 레이아웃(CEO 지시) — 가로형(기본) = 5개 섹션을 가로로 나란히(섹션마다 제목·값 2열 → 10열×5행), 세로형 = 기존 2열×21행 배치 그대로.
+//  ▸ 셀 내용(텍스트·배경색·툴팁·기준봉 표기)은 두 레이아웃이 같은 정의를 공유하고 좌표만 다르다(아래 '상태 테이블 렌더링'의 f_tblCol/f_tblRow). 표시 전용.
+tableLayout = input.string("가로형", title="테이블 레이아웃", options=["가로형", "세로형"], group=TABLE_GROUP, active=showStatusTable, tooltip="가로형(기본): 5개 섹션(추세 확인 / 기울기 전환가 / 교차 전환가 / 변동성 임계가 / 지지·저항 임계가)을 왼쪽→오른쪽으로 나란히 놓습니다(섹션마다 제목·값 2열, 총 10열×5행). 행이 적은 섹션의 남는 칸은 빈칸입니다. 차트 위에서 세로 공간을 적게 차지합니다.\n세로형: 기존과 같은 2열×21행 배치(섹션을 위→아래로 쌓음)입니다.\n두 레이아웃의 셀 내용·색·툴팁은 같고 위치만 다릅니다.")
 // ── 섹션별 기준봉(CEO 지시 — 구 단일 input "추세 진입 기준봉"(entryBase) 대체) ──
 //  ▸ 섹션마다 완성봉/실시간봉을 고른다. 완성봉 = 가장 최근 확정봉(tblConfOff: 형성 중 1·마감된 마지막 봉 0), 실시간봉 = 현재 봉 0.
 //  ▸ 섹션 안의 기준봉 상태·셀 색·판정·% 기준가·역산(P*)·워킹 window/거래량 가정이 모두 그 섹션 오프셋(trendOff·slopeOff·crossOff·volOff·srOff)을 따른다.
@@ -1547,63 +1550,69 @@ entTdTooltip = "종가가 이 가격 너머로 마감하면 TEMA가 DEMA를 교�
 
 // ── 상태 테이블 렌더링(우측 상단) — 추세 확인 / 기울기 전환가 / 교차 전환가 / 변동성 임계가 / 지지·저항 임계가 ────────────────
 //  스타일: 원본과 동일(섹션 헤더 딥 네이비 #1B2A4A·병합, 행 라벨 회색 배경, 값 셀 판정색, 흰 글자, size.small).
-//  행 배치(총 21행, 0~20): 추세 확인 헤더 0·데이터 1~3 / 기울기 전환가 헤더 4·데이터 5~8(TEMA·DEMA·정배열·역배열 — CEO 지시로 TEMA→DEMA→배열 순 재배치) / 교차 전환가 헤더 9·데이터 10~11(Sonar·T/D) / 변동성 임계가 헤더 12·데이터 13~16 / 지지·저항 임계가 헤더 17·데이터 18~20.
-//  (CEO 지시: 구 "추세 전환가" 단일 섹션(헤더 4·데이터 5~10, 총 20행)을 "기울기 전환가"·"교차 전환가" 2섹션으로 분할 — 헤더 1행 추가로 20→21행. 모든 셀은 섹션 토글 없이 showStatusTable 한 조건으로 일괄 렌더링되므로 표시 조합과 무관하게 최대 인덱스 20 < rows 21.)
-var table statusTable = table.new(position.top_right, 2, 21, border_width=1, border_color=color.new(color.gray, 50))
+//  ▸ 셀 정의와 좌표 배치를 분리(CEO 지시 — 레이아웃 input tableLayout): 각 셀은 (섹션 s, 섹션 안 행 r, 열 c)로 정의하고 f_tblCol/f_tblRow가 레이아웃별 (col, row)로 바꾼다.
+//     섹션 s: 0 추세 확인(3행) · 1 기울기 전환가(4행) · 2 교차 전환가(2행) · 3 변동성 임계가(4행) · 4 지지·저항 임계가(3행). r = 0 헤더, 1~ 데이터. c = 0 제목, 1 값.
+//  ▸ 세로형(구 배치 그대로, 총 21행 0~20): col = c, row = 섹션 시작 행(0·4·9·12·17) + r
+//     추세 확인 헤더 0·데이터 1~3 / 기울기 전환가 헤더 4·데이터 5~8(TEMA·DEMA·정배열·역배열 — CEO 지시로 TEMA→DEMA→배열 순 재배치) / 교차 전환가 헤더 9·데이터 10~11(Sonar·T/D) / 변동성 임계가 헤더 12·데이터 13~16 / 지지·저항 임계가 헤더 17·데이터 18~20.
+//     (CEO 지시: 구 "추세 전환가" 단일 섹션(헤더 4·데이터 5~10, 총 20행)을 "기울기 전환가"·"교차 전환가" 2섹션으로 분할 — 헤더 1행 추가로 20→21행.)
+//  ▸ 가로형(10열×(1+최장 섹션 4행)=10×5): col = 2s + c, row = r. 5개 섹션 헤더(기준봉 표기 포함)는 첫 행(row 0)에 한 줄로만 놓이고(세로형의 섹션 사이 헤더 행 없음), 각 헤더는 자기 2열을 병합하며, 데이터는 row 1부터 채운다.
+//      행이 4개보다 적은 섹션(추세 확인·교차 전환가·지지·저항)의 남는 칸은 빈 문자열 + 제목 셀과 같은 배경(TBL_LABEL_BG)으로 채운다.
+//  ▸ 모든 셀은 섹션 토글 없이 showStatusTable 한 조건으로 일괄 렌더링 → 최대 인덱스: 세로 col 1·row 20 < 2×21, 가로 col 9·row 4 < 10×5.
+TBL_HORIZONTAL = tableLayout == "가로형"
+TBL_SECTIONS = 5
+TBL_MAX_ROWS = 4   // 섹션 데이터 행 수 최댓값(기울기 전환가·변동성 임계가)
+// 행 제목(label) 셀 배경 — 데이터 행 제목 셀과 가로형 빈칸이 공유(CEO 지시: 빈칸이 차트 배경으로 비쳐 '구멍'처럼 보이지 않게 제목 셀과 같은 톤으로 칠함). 값은 기존 리터럴 color.new(color.gray, 20) 그대로.
+TBL_LABEL_BG = color.new(color.gray, 20)
+f_tblSecRows(int sec) => sec == 0 ? 3 : sec == 1 ? 4 : sec == 2 ? 2 : sec == 3 ? 4 : 3
+f_tblSecStart(int sec) => sec == 0 ? 0 : sec == 1 ? 4 : sec == 2 ? 9 : sec == 3 ? 12 : 17   // 세로형 섹션 헤더 행
+f_tblCol(int sec, int c) => TBL_HORIZONTAL ? 2 * sec + c : c
+f_tblRow(int sec, int r) => TBL_HORIZONTAL ? r : f_tblSecStart(sec) + r
+// 섹션 헤더(제목 셀 + 빈 값 셀 → 2열 병합). tip = na면 툴팁 없음(구 코드에서 툴팁을 생략한 헤더와 동일).
+f_tblHeader(table t, int sec, string title, string tip) =>
+    table.cell(t, f_tblCol(sec, 0), f_tblRow(sec, 0), title, text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small, tooltip=tip)
+    table.cell(t, f_tblCol(sec, 1), f_tblRow(sec, 0), "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
+    table.merge_cells(t, f_tblCol(sec, 0), f_tblRow(sec, 0), f_tblCol(sec, 1), f_tblRow(sec, 0))
+// 데이터 행(제목 셀 회색 배경 + 값 셀 판정색, 두 셀 같은 툴팁).
+f_tblItem(table t, int sec, int r, string label, string val, color valBg, string tip) =>
+    table.cell(t, f_tblCol(sec, 0), f_tblRow(sec, r), label, text_color=color.white, bgcolor=TBL_LABEL_BG, text_size=size.small, tooltip=tip)
+    table.cell(t, f_tblCol(sec, 1), f_tblRow(sec, r), val, text_color=color.white, bgcolor=valBg, text_size=size.small, tooltip=tip)
+var table statusTable = table.new(position.top_right, TBL_HORIZONTAL ? 2 * TBL_SECTIONS : 2, TBL_HORIZONTAL ? 1 + TBL_MAX_ROWS : 21, border_width=1, border_color=color.new(color.gray, 50))
 if showStatusTable and barstate.islast
     // 섹션 헤더 제목 = "섹션명 (기준봉)"(CEO 지시) — 각 섹션 기준봉 input(baseTrendMode·baseSlopeMode·baseCrossMode·baseVolMode·baseSrMode) 값을 붙인다. islast 블록 안에서만 결합, 스타일 불변.
     // 섹션1: 추세 확인 (VWMA MA 기반 후행(lagging) 지표 — 단기/중기/장기 추세 3행). (CEO 지시: 단기 추세 위에 머지 헤더 신설. 이후 CEO 지시로 헤더 "후행 추세 확인"→"추세 확인" 개명·테이블 최상단으로 이동.)
-    table.cell(statusTable, 0, 0, "추세 확인 (" + baseTrendMode + ")", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.cell(statusTable, 1, 0, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.merge_cells(statusTable, 0, 0, 1, 0)
-    table.cell(statusTable, 0, 1, "단기추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=laggingStTooltip)
-    table.cell(statusTable, 1, 1, stCellText, text_color=color.white, bgcolor=stCellColor[trendOff], text_size=size.small, tooltip=laggingStTooltip)
-    table.cell(statusTable, 0, 2, "중기추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=laggingMtTooltip)
-    table.cell(statusTable, 1, 2, mtCellText, text_color=color.white, bgcolor=mtCellColor[trendOff], text_size=size.small, tooltip=laggingMtTooltip)
-    table.cell(statusTable, 0, 3, "장기추세", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=laggingLtTooltip)
-    table.cell(statusTable, 1, 3, ltCellText, text_color=color.white, bgcolor=ltCellColor[trendOff], text_size=size.small, tooltip=laggingLtTooltip)
+    f_tblHeader(statusTable, 0, "추세 확인 (" + baseTrendMode + ")", na)
+    f_tblItem(statusTable, 0, 1, "단기추세", stCellText, stCellColor[trendOff], laggingStTooltip)
+    f_tblItem(statusTable, 0, 2, "중기추세", mtCellText, mtCellColor[trendOff], laggingMtTooltip)
+    f_tblItem(statusTable, 0, 3, "장기추세", ltCellText, ltCellColor[trendOff], laggingLtTooltip)
     // 섹션1-2·1-3: 기울기 전환가 / 교차 전환가 (CEO 지시로 구 "추세 전환가" 섹션을 2섹션으로 분할 — 행 이름·값·셀 색·표시 규칙 불변, 섹션 안 행 순서는 발동 순서 기준 → 이후 CEO 지시로 기울기 섹션을 TEMA·DEMA·정배열·역배열 순으로 재배치, 교차 섹션 행 이름·값 접두어를 "전환"→"교차"로 변경). 구 이력: 추세 전환가 (CEO 지시로 헤더 "추세 진입"→"추세 전환가" 개명) (CEO 지시 2026-10-16 — 구 "선행 추세 확인" 6행을 전환가 P* 4행으로 교체: TEMA 전환 / DEMA 전환 / 배열 전환 / T/D 전환 → 이후 CEO 지시로 배열 전환을 정배열 전환·역배열 전환 2행으로 분리해 5행 → CEO 지시로 첫 행에 Sonar 전환 추가해 6행). 기준봉=섹션별 input(baseSlopeMode/baseCrossMode, 기본 실시간봉 — slopeOff/crossOff).
-    // 섹션1-2: 기울기 전환가 — 이평선 1봉 기울기 부호·서열 전환(정배열 → 역배열 → TEMA → DEMA)
-    table.cell(statusTable, 0, 4, "기울기 전환가 (" + baseSlopeMode + ")", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small, tooltip=ENTRY_SLOPE_TIP)
-    table.cell(statusTable, 1, 4, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.merge_cells(statusTable, 0, 4, 1, 4)
-    table.cell(statusTable, 0, 5, "TEMA 전환", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=entTemaTooltip)
-    table.cell(statusTable, 1, 5, entTemaText, text_color=color.white, bgcolor=entTemaColor, text_size=size.small, tooltip=entTemaTooltip)
-    table.cell(statusTable, 0, 6, "DEMA 전환", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=entDemaTooltip)
-    table.cell(statusTable, 1, 6, entDemaText, text_color=color.white, bgcolor=entDemaColor, text_size=size.small, tooltip=entDemaTooltip)
-    table.cell(statusTable, 0, 7, "정배열 전환", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=entArrBullTooltip)
-    table.cell(statusTable, 1, 7, entArrBullText, text_color=color.white, bgcolor=entArrColor, text_size=size.small, tooltip=entArrBullTooltip)
-    table.cell(statusTable, 0, 8, "역배열 전환", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=entArrBearTooltip)
-    table.cell(statusTable, 1, 8, entArrBearText, text_color=color.white, bgcolor=entArrColor, text_size=size.small, tooltip=entArrBearTooltip)
+    // 섹션1-2: 기울기 전환가 — 이평선 1봉 기울기 부호·서열 전환(TEMA → DEMA → 정배열 → 역배열)
+    f_tblHeader(statusTable, 1, "기울기 전환가 (" + baseSlopeMode + ")", ENTRY_SLOPE_TIP)
+    f_tblItem(statusTable, 1, 1, "TEMA 전환", entTemaText, entTemaColor, entTemaTooltip)
+    f_tblItem(statusTable, 1, 2, "DEMA 전환", entDemaText, entDemaColor, entDemaTooltip)
+    f_tblItem(statusTable, 1, 3, "정배열 전환", entArrBullText, entArrColor, entArrBullTooltip)
+    f_tblItem(statusTable, 1, 4, "역배열 전환", entArrBearText, entArrColor, entArrBearTooltip)
     // 섹션1-3: 교차 전환가 — 두 선 교차 전환(Sonar → T/D)
-    table.cell(statusTable, 0, 9, "교차 전환가 (" + baseCrossMode + ")", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small, tooltip=ENTRY_CROSS_TIP)
-    table.cell(statusTable, 1, 9, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.merge_cells(statusTable, 0, 9, 1, 9)
-    table.cell(statusTable, 0, 10, "Sonar 교차", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=entSonarTooltip)
-    table.cell(statusTable, 1, 10, entSonarText, text_color=color.white, bgcolor=entSonarColor, text_size=size.small, tooltip=entSonarTooltip)
-    table.cell(statusTable, 0, 11, "T/D 교차", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=entTdTooltip)
-    table.cell(statusTable, 1, 11, entTdText, text_color=color.white, bgcolor=entTdColor, text_size=size.small, tooltip=entTdTooltip)
+    f_tblHeader(statusTable, 2, "교차 전환가 (" + baseCrossMode + ")", ENTRY_CROSS_TIP)
+    f_tblItem(statusTable, 2, 1, "Sonar 교차", entSonarText, entSonarColor, entSonarTooltip)
+    f_tblItem(statusTable, 2, 2, "T/D 교차", entTdText, entTdColor, entTdTooltip)
     // 섹션2: 변동성 임계가 (상승확장 → 하락확장 → 이격도 → 되돌림). (CEO 지시: 헤더 "가격 구조 및 변동성 확인"→"변동성 확인"→"변동성 임계가", 비정상 매수/매도 행 삭제 — 캔들색으로 이미 표현.)
-    table.cell(statusTable, 0, 12, "변동성 임계가 (" + baseVolMode + ")", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.cell(statusTable, 1, 12, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.merge_cells(statusTable, 0, 12, 1, 12)
+    f_tblHeader(statusTable, 3, "변동성 임계가 (" + baseVolMode + ")", na)
     // 상승확장/하락확장 2행(CEO 지시 — 구 행 제목 "상승 워킹"/"하락 워킹"에서 제목만 개명, 값·판정·색 불변; 그 이전엔 구 밴드 상단/하단 행 대체): 밴드워킹 상태가 바뀌는 조건부 종가 "{목표 상태} : 가격 (±x.x%)". N = vwapStateBars(판정 기간, 기본 20).
     //  ▸ 셀 색 = 기준봉 밴드워킹 상태(walkColor — 교차 전환가 f_entSlopeColor 규칙, 두 행 공통). 구 고정 회색 제거.
-    table.cell(statusTable, 0, 13, "상승확장(" + str.tostring(vwapStateBars) + ")", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=volWalkUpTooltip)
-    table.cell(statusTable, 1, 13, walkUpText, text_color=color.white, bgcolor=walkColor, text_size=size.small, tooltip=volWalkUpTooltip)
-    table.cell(statusTable, 0, 14, "하락확장(" + str.tostring(vwapStateBars) + ")", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=volWalkDnTooltip)
-    table.cell(statusTable, 1, 14, walkDnText, text_color=color.white, bgcolor=walkColor, text_size=size.small, tooltip=volWalkDnTooltip)
-    table.cell(statusTable, 0, 15, "이격도 (" + str.tostring(disparityMaLen) + ")", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=volDisparityTooltip)
-    table.cell(statusTable, 1, 15, disparityCellText, text_color=color.white, bgcolor=disparityCellColor[volOff], text_size=size.small, tooltip=volDisparityTooltip)
-    table.cell(statusTable, 0, 16, "되돌림 가격", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=volPullbackTooltip)
-    table.cell(statusTable, 1, 16, na(disparityPullbackPrice[volOff]) ? "-" : f_priceStr(disparityPullbackPrice[volOff]) + " (" + f_pctStrAt(disparityPullbackPrice[volOff], volBaseC) + ")", text_color=color.white, bgcolor=color.new(color.gray, 40), text_size=size.small, tooltip=volPullbackTooltip)
+    f_tblItem(statusTable, 3, 1, "상승확장(" + str.tostring(vwapStateBars) + ")", walkUpText, walkColor, volWalkUpTooltip)
+    f_tblItem(statusTable, 3, 2, "하락확장(" + str.tostring(vwapStateBars) + ")", walkDnText, walkColor, volWalkDnTooltip)
+    f_tblItem(statusTable, 3, 3, "이격도 (" + str.tostring(disparityMaLen) + ")", disparityCellText, disparityCellColor[volOff], volDisparityTooltip)
+    f_tblItem(statusTable, 3, 4, "되돌림 가격", na(disparityPullbackPrice[volOff]) ? "-" : f_priceStr(disparityPullbackPrice[volOff]) + " (" + f_pctStrAt(disparityPullbackPrice[volOff], volBaseC) + ")", color.new(color.gray, 40), volPullbackTooltip)
     // 섹션3: 지지·저항 임계가 (CEO 지시로 헤더 "지지·저항 확인"→"지지·저항 임계가" 개명) (50선 / 100선 / 200선)
-    table.cell(statusTable, 0, 17, "지지·저항 임계가 (" + baseSrMode + ")", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.cell(statusTable, 1, 17, "", text_color=color.white, bgcolor=color.new(#1B2A4A, 0), text_size=size.small)
-    table.merge_cells(statusTable, 0, 17, 1, 17)
-    table.cell(statusTable, 0, 18, "50선", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=srVw50Tooltip)
-    table.cell(statusTable, 1, 18, vwSrText, text_color=color.white, bgcolor=vwSrColor[srOff], text_size=size.small, tooltip=srVw50Tooltip)
-    table.cell(statusTable, 0, 19, "100선", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=srVw100Tooltip)
-    table.cell(statusTable, 1, 19, ltM1SrText, text_color=color.white, bgcolor=ltM1SrColor[srOff], text_size=size.small, tooltip=srVw100Tooltip)
-    table.cell(statusTable, 0, 20, "200선", text_color=color.white, bgcolor=color.new(color.gray, 20), text_size=size.small, tooltip=srVw200Tooltip)
-    table.cell(statusTable, 1, 20, ltM2SrText, text_color=color.white, bgcolor=ltM2SrColor[srOff], text_size=size.small, tooltip=srVw200Tooltip)
+    f_tblHeader(statusTable, 4, "지지·저항 임계가 (" + baseSrMode + ")", na)
+    f_tblItem(statusTable, 4, 1, "50선", vwSrText, vwSrColor[srOff], srVw50Tooltip)
+    f_tblItem(statusTable, 4, 2, "100선", ltM1SrText, ltM1SrColor[srOff], srVw100Tooltip)
+    f_tblItem(statusTable, 4, 3, "200선", ltM2SrText, ltM2SrColor[srOff], srVw200Tooltip)
+    // 가로형: 행이 모자란 섹션의 남는 칸 = 빈 문자열(값·'-'·툴팁 없음). 배경은 제목 셀과 같은 TBL_LABEL_BG로 칠해 '빈 행'으로 보이게 한다
+    //  (bgcolor를 비우면 na=투명이라 차트 배경이 비쳐 구멍처럼 보임 — CEO 피드백). 글자색·크기도 다른 셀과 같게 둬 행 높이·톤을 맞춘다. 테두리는 table 단위 설정이라 모든 셀 공통. 세로형에는 해당 칸이 없다.
+    if TBL_HORIZONTAL
+        for sec = 0 to TBL_SECTIONS - 1
+            if f_tblSecRows(sec) < TBL_MAX_ROWS
+                for r = f_tblSecRows(sec) + 1 to TBL_MAX_ROWS
+                    table.cell(statusTable, f_tblCol(sec, 0), f_tblRow(sec, r), "", text_color=color.white, bgcolor=TBL_LABEL_BG, text_size=size.small)
+                    table.cell(statusTable, f_tblCol(sec, 1), f_tblRow(sec, r), "", text_color=color.white, bgcolor=TBL_LABEL_BG, text_size=size.small)
