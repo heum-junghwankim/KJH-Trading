@@ -1,5 +1,7 @@
 # 스크립트 개발자 — 코드베이스 지식 메모리
 
+> **⚠️ 2026-11-02 CEO 결정 — 메인 축 변경:** 메인은 이치모쿠가 아니라 **메인 4종(Auto VWAP · Triple-Stochastic-Wave · cRSI · Volume-Pressure-Tracker)**이다. VRVP(TradingView 내장)는 가격대별 거래량 참고용. 이치모쿠·OBV-ADX·MACD·CCI 등은 **보관 자산**(코드는 저장소에 유지, 신규 작업·분석 기준 아님). 루트 README는 현재 차트 5종만 설명하며 소스코드 링크를 두지 않는다. 아래의 '이치모쿠 메인' 서술은 과거 기록이다.
+
 > **목적:** 스크립트 개발자(Pine Script Engineer) 페르소나가 **세션 시작 시 참조**하는 로컬 지식 메모리.
 > `pinescript/` 하위 전 스크립트의 역할·핵심 파라미터·신호 로직·UI·리페인팅/성능·컨벤션을 사실 중심으로 압축한다.
 > **소설 금지 — 코드에서 확인된 사실만.** 수정 전에는 반드시 대상 `.pine` + 해당 폴더 `README.md`를 직접 다시 읽는다(이 메모리는 지도이지 원본이 아님).
@@ -45,7 +47,7 @@
 - **학습 스크립트:** 활성 7개 `.pine` (SUPER-ICHIMOKU/VWAP/MACD/cRSI/OBV-ADX/CCI/VOLUME-PRESSURE) + 레거시 3개(`pinescript/_legacy/` 하위, 미사용). 각 폴더 `README.md` 유지, **`pinescript/README.md`(하위 가이드)는 삭제됨 → 루트 `README.md`가 안내서.**
 - **학습일:** 2026-07-05
 - **구조 정리 이력(2cf7b8b):** `ICHIMOKU/`→`SUPER-ICHIMOKU/` 리네이밍, `MA-RIBBON`·`비정상 가격 추적(캔들·보조)`을 `_legacy/`로 이동(미사용), `pinescript/README.md` 제거, `거래량 압력 추적`→`VOLUME-PRESSURE`.
-- **⚠️ 메인 해석 축 = SUPER-ICHIMOKU(이치모쿠).** 과거 메모리의 "메인 축 = 비정상 캔들" 서술은 폐기됨(캔들 파일은 레거시). 코드 로직·파라미터·신호 사실은 코드 미변경이라 그대로 유효 — **경로/구조/메인축 서술만 정정됨.**
+- **⚠️ (2026-11-02 폐기) 구 메인 해석 축 = SUPER-ICHIMOKU(이치모쿠) — 현재 메인은 메인 4종(Auto VWAP · Triple-Stochastic-Wave · cRSI · Volume-Pressure-Tracker).** 과거 메모리의 "메인 축 = 비정상 캔들" 서술은 폐기됨(캔들 파일은 레거시). 코드 로직·파라미터·신호 사실은 코드 미변경이라 그대로 유효 — **경로/구조/메인축 서술만 정정됨.**
 
 ---
 
@@ -61,7 +63,7 @@
 - **입력 구조화:** `group`으로 섹션, 짝 토글+값은 `inline`, 종속 입력은 `active=`, 차트 안 어지럽힐 입력은 `display=display.none`, 설명은 `tooltip`.
 - **헬퍼 함수:** 반복 로직은 상단 헬퍼로 추출 (`donchian(len)`, `f_scale`, `f_ltMa`, `ribbonMa`, `maFunc`, `formatPercentGap` 등).
 - **상태 테이블:** 대부분 `var table ... = table.new(position.top_right, ...)` + `if barstate.islast`로 갱신(리페인팅·성능 안전 패턴).
-- **철학:** 이치모쿠 = 메인(overlay), 나머지 = 교차 검증 보조. 단일 신호 불신·자본 보존.
+- **철학:** 메인 4종(Auto VWAP · Triple-Stochastic-Wave · cRSI · Volume-Pressure-Tracker) = 메인, VRVP = 참고, 그 외(이치모쿠 등) = 보관. 단일 신호 불신·자본 보존.
 
 ---
 
@@ -174,7 +176,7 @@
 
 ## 교차검증 아키텍처 요약
 
-**루트 `README.md` 기준 현재 해석 흐름 (메인 축 = SUPER-ICHIMOKU / 이치모쿠):**
+**[과거 기록 — 2026-11-02 메인 축 변경으로 무효] 구 루트 README 해석 흐름 (메인 축 = SUPER-ICHIMOKU / 이치모쿠):**
 1. **SUPER-ICHIMOKU** = 메인 해석 축("자리"·국면·신호·구름/스윕/청산). 그 자체로 VWAP·장기추세·이격도·비정상 캔들·리본을 **한 인디케이터 안에 통합**한 종합 오버레이(테이블 22행).
 2. **Auto VWAP** = 기준 단가(위/아래·밴드워킹 vs 지지저항)
 3. **VOLUME-PRESSURE** = 현재 봉 실제 압력(같은 방향인가)
