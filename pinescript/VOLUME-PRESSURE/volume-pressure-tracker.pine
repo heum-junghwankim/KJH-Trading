@@ -4,8 +4,9 @@ indicator("Volume-Pressure-Tracker", format=format.volume, precision=0)
 // =========================
 // Buy / Sell Volume 계산
 // =========================
-buyVolume  = high == low ? 0 : volume * (close - low) / (high - low)
-sellVolume = high == low ? 0 : volume * (high - close) / (high - low)
+// 고가 = 저가 봉은 종가 위치로 방향을 알 수 없으므로 거래량을 50:50으로 나눈다(매도 쪽 쏠림 방지).
+buyVolume  = high == low ? volume * 0.5 : volume * (close - low) / (high - low)
+sellVolume = high == low ? volume * 0.5 : volume * (high - close) / (high - low)
 
 // =========================
 // 색상 설정
@@ -57,13 +58,14 @@ plot(showAverageLines ? avgTotalVolume : na, title="Total Volume SMA", color=tot
 // =========================
 // 우측 상단 상태판 (매수 신호 신뢰도)
 // =========================
-buyDominant   = buyVolume > sellVolume
+// 방향은 종가와 봉 중간값(hl2)을 직접 비교한다(나눗셈 부동소수 오차 회피).
+buyDominant   = high != low and close > hl2
+sellDominant  = high != low and close < hl2
 aboveAvg      = volume > avgTotalVolume
 // 평균선 상회(추진력 있음)일 때 압력 방향대로 포지션, 평균선 하회면 중립
 longFavored  = aboveAvg and buyDominant
-shortFavored = aboveAvg and not buyDominant
-// ⚠️ 경계 처리(현행 유지, 의도 확인 대기): 동률(종가 = (고가+저가)/2 → 매수 몫 = 매도 몫)과 고가 = 저가 봉(매수·매도 몫 모두 0)은
-//    buyDominant=false라 거래량이 평균 위면 '숏 유리'로 분류된다(롱/숏 비대칭). 판정 로직 변경은 전략 사항이라 손대지 않음.
+shortFavored = aboveAvg and sellDominant
+// 경계 처리: 종가 = 중간값 봉과 고가 = 저가 봉은 방향 정보가 없으므로 거래량과 무관하게 '중립'(롱/숏 대칭).
 posText  = longFavored ? "롱 유리" : shortFavored ? "숏 유리" : "중립"
 posColor = longFavored ? color.new(color.green, 0) : shortFavored ? color.new(color.red, 0) : color.new(color.gray, 40)
 
