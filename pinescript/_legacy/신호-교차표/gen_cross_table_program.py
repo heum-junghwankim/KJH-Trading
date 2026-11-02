@@ -65,7 +65,7 @@
   - `종합해석` = 정렬 강도 서술만("강한 롱 정렬" 등). 수익 뉘앙스 단어 지양.
   - (CCI 축 제거로 osc묶음 컬럼도 제거 — cRSI가 방향에 직접 반영되어 별도 묶음 없음.)
 
-산출물(커밋): pinescript/신호-교차표-프로그램용.csv  (정렬행만)
+산출물(커밋): pinescript/_legacy/신호-교차표/신호-교차표-프로그램용.csv  (정렬행만, 이 스크립트와 같은 폴더 — 보관 자산으로 이동)
 비커밋: 완전열거는 디스크에 담지 않음 — 스트리밍 필터만. 코드(.pine)는 무수정.
 """
 
@@ -244,7 +244,7 @@ def main():
     assert total == 531441, f"완전 열거 행 수 오류: {total}"
     rows = sort_rows(rows)
 
-    out_path = Path(__file__).resolve().parent.parent / "pinescript" / "신호-교차표-프로그램용.csv"
+    out_path = Path(__file__).resolve().parent / "신호-교차표-프로그램용.csv"
     write_csv(rows, out_path)
 
     dist = Counter(DIR_TXT[r["dir"]] for r in rows)

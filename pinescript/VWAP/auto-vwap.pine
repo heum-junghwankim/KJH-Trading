@@ -12,7 +12,7 @@ indicator(title="Auto VWAP", shorttitle="Auto VWAP", overlay=true, max_bars_back
 
 // VWAP 중앙선 표시 토글(CEO 지시 — 기본 OFF: 토글 false → display.none → 설정 보기(Style) 탭 기본 언체크. 구 기본 ON). 켜면 pane에 VWAP 중앙선을 그리고(밴드2와 동일 1px·점선), 끄면 선을 숨긴다(값·색·계산 불변).
 //  ▸ 밴드2(showBand_2)와 동일 패턴: display = 켜짐 ? (display.all − display.price_scale) : display.none. 흰색 가격축 라벨은 이 토글과 독립(항상 price_scale에만 표시).
-showVwapLine = input.bool(false, title="VWAP 중앙선 표시", group="VWAP Settings", display=display.none, tooltip="켜면 화면 VWAP 중앙선을 차트에 그립니다(기본 ON). 스타일은 밴드2선과 동일하게 굵기 1px·점선(dashed)입니다. 선 색은 CEO 지시로 고정 단색(중립 흰색)입니다 — 지지/저항 판정에 따라 변색하지 않습니다. 끄면 선만 숨기며 VWAP 값·계산·우측 가격축 흰색 라벨에는 영향이 없습니다.")
+showVwapLine = input.bool(false, title="VWAP 중앙선 표시", group="VWAP Settings", display=display.none, tooltip="켜면 화면 VWAP 중앙선을 차트에 그립니다(기본 OFF — 꺼짐). 스타일은 밴드2선과 동일하게 굵기 1px·점선(dashed)입니다. 선 색은 CEO 지시로 고정 단색(중립 흰색)입니다 — 지지/저항 판정에 따라 변색하지 않습니다. 끄면 선만 숨기며 VWAP 값·계산·우측 가격축 흰색 라벨에는 영향이 없습니다.")
 hideonDWM = input(false, title="Hide VWAP on 1D or Above", group="VWAP Settings", display=display.none)
 // VWAP 누적은 "최근 N봉 롤링(Recent Bars)" 단일 방식으로 고정(CEO 지시 — 앵커모드 제거). 세션/거래일 앵커 분기·입력·세션 리셋 전부 삭제됨.
 //  ▸ 정합성: 원본 이치모쿠의 vwap상태(20)는 앵커 무관 Recent Bars 고정이 정답. 전 VWAP(화면 20봉(recentBars)·vwap상태20·중기추세 vwapValue·지지저항)이 Recent Bars 단일로 계산된다.
@@ -168,7 +168,7 @@ sonarLen = input.int(20, title="Sonar EMA 기간 n", minval=1, group=SONAR_GROUP
 sonarGap = input.int(9, title="비교 간격 k", minval=1, maxval=500, group=SONAR_GROUP, active=showSonarBg, tooltip="Sonar = EMA(n) − EMA(n)[k]의 비교 간격 k(봉). 기본 9(원 MTS 파라미터 둘째 값). 최대 500(max_bars_back=1000 버퍼 안). 전략성 파라미터(수학자 리뷰 대상).")
 sonarSigLen = input.int(9, title="Signal 기간 m", minval=1, group=SONAR_GROUP, active=showSonarBg, tooltip="Signal = EMA(Sonar, m)의 기간. 기본 9(원 MTS 파라미터 셋째 값). '0선' 판정에서는 쓰이지 않습니다. 전략성 파라미터(수학자 리뷰 대상).")
 sonarBasis = input.string("Signal 교차", title="판정 기준", options=["Signal 교차", "0선"], group=SONAR_GROUP, active=showSonarBg, tooltip="원 MTS 판정식 미공개, Signal 교차가 유력 추정. ▸ 'Signal 교차' = Sonar > Signal이면 상승(녹), Sonar < Signal이면 하락(빨강). ▸ '0선' = Sonar > 0이면 상승, Sonar < 0이면 하락. 두 값이 같으면 이전 상태를 유지합니다.")
-sonarArea = input.string("차트 전체(bgcolor)", title="칠 영역", options=["밴드 내부", "차트 전체(bgcolor)"], group=SONAR_GROUP, active=showSonarBg, tooltip="'밴드 내부' = 밴드 #2(상단2~하단2) 영역만 칠합니다(기본, 구 밴드워킹 배경과 같은 위치). 밴드 #2 선을 꺼도 영역 값은 계속 계산되므로 같은 영역이 칠해지며, VWAP가 표시되지 않는 봉(일/주/월봉 숨김·거래량 0)에서는 칠하지 않습니다. '차트 전체(bgcolor)' = 원 MTS처럼 차트 전체 세로 배경을 칠합니다(VWAP 표시 여부와 무관).")
+sonarArea = input.string("차트 전체(bgcolor)", title="칠 영역", options=["밴드 내부", "차트 전체(bgcolor)"], group=SONAR_GROUP, active=showSonarBg, tooltip="'밴드 내부' = 밴드 #2(상단2~하단2) 영역만 칠합니다(구 기본값, 구 밴드워킹 배경과 같은 위치). 밴드 #2 선을 꺼도 영역 값은 계속 계산되므로 같은 영역이 칠해지며, VWAP가 표시되지 않는 봉(일/주/월봉 숨김·거래량 0)에서는 칠하지 않습니다. '차트 전체(bgcolor)' = 원 MTS처럼 차트 전체 세로 배경을 칠합니다(기본, VWAP 표시 여부와 무관).")
 sonarBullColor = input.color(#2E7D32, title="골든 색(녹)", group=SONAR_GROUP, inline="sonarColor", active=showSonarBg)
 sonarBearColor = input.color(#C62828, title="하락 색", group=SONAR_GROUP, inline="sonarColor", active=showSonarBg, tooltip="골든 색(기본 녹 #2E7D32 — Sonar 상승이면서 횡보·하락 워킹이거나 판정값 없는 봉) / 하락 색(기본 빨강 #C62828 — Sonar 하락이면서 하락 워킹이거나 판정값 없는 봉). 골든+상승 워킹은 파랑, 데드+비하락 워킹은 주황(아래 색). 색 값은 구 밴드워킹 배경 색 그대로. 펀드 컨벤션 상승=녹·하락=빨강(원 MTS의 빨강=상승 관례 미적용).")
 // Sonar 워킹 연동 색(CEO 지시)
@@ -191,8 +191,8 @@ showWprDiv = input.bool(true, "%R 다이버전스 원 표시", group=WPR_GROUP, 
 wprLen = input.int(20, "윌리엄스 %R 길이", group=WPR_GROUP, minval=1, tooltip="윌리엄스 %R(ta.wpr) 계산 기간. 표준 14. 종가 기준, 범위 −100~0.")
 wprLower = input.int(-80, "%R 하단 밴드", group=WPR_GROUP, tooltip="강세 다이버전스 진입 임계. 직전 봉 %R가 이 값 아래이면 과매도 진입으로 본다. 표준 −80.")
 wprUpper = input.int(-20, "%R 상단 밴드", group=WPR_GROUP, tooltip="약세 다이버전스 진입 임계. 직전 봉 %R가 이 값 위이면 과매수 진입으로 본다. 표준 −20.")
-wprBullColor = input.color(#81D4FA, title="%R 강세 다이버전스 원 색(매수)", group=WPR_GROUP, active=showWprDiv, tooltip="윌리엄스 %R 강세 다이버전스 원 마커 색. 기본 라이트 스카이블루(#81D4FA), 봉 아래(belowbar). 확정/과거참조라 리페인팅 없음.")
-wprBearColor = input.color(#FF1493, title="%R 약세 다이버전스 원 색(매도)", group=WPR_GROUP, active=showWprDiv, tooltip="윌리엄스 %R 약세 다이버전스 원 마커 색. 기본 딥 핑크(#FF1493), 봉 위(abovebar). 확정/과거참조라 리페인팅 없음.")
+wprBullColor = input.color(#81D4FA, title="%R 강세 다이버전스 원 색(매수)", group=WPR_GROUP, active=showWprDiv, tooltip="윌리엄스 %R 강세 다이버전스 원 마커 색. 기본 라이트 스카이블루(#81D4FA), 봉 아래(belowbar). 현재봉 종가·%R을 쓰므로 형성 중 봉에서는 틱마다 켜졌다 꺼질 수 있고, 봉 마감 시 확정됩니다(미래참조 없음).")
+wprBearColor = input.color(#FF1493, title="%R 약세 다이버전스 원 색(매도)", group=WPR_GROUP, active=showWprDiv, tooltip="윌리엄스 %R 약세 다이버전스 원 마커 색. 기본 딥 핑크(#FF1493), 봉 위(abovebar). 현재봉 종가·%R을 쓰므로 형성 중 봉에서는 틱마다 켜졌다 꺼질 수 있고, 봉 마감 시 확정됩니다(미래참조 없음).")
 
 // ⚠️ 기울기 정렬 삼각형 전용 input 그룹(TRI_GROUP·showAlignTri·alignTriUpColor·alignTriDnColor·showWickFilter·showTdxFilter)은
 //    CEO 지시로 마커·판정 로직과 함께 전면 제거됨(상세는 아래 "기울기 정렬 삼각형 제거" 주석 블록 참조).
@@ -310,11 +310,11 @@ computeVwapSet(int barsLen) =>
 // 비정상 매수/매도 — SUPER-ICHIMOKU 메인 지표(advanced-ichimoku.pine)의 "비정상 캔들"(비정상 매수/매도) 판정을 이식(포팅).
 //  판정: cRSI 과매수/과매도(도미넌트 사이클) + 볼린저 밴드 이탈(고가/저가 기준). 두 조건이 동시 성립하면 비정상.
 //   ▸ 비정상 매수(과매수 구간, abnCandleState==-1) = cRSI 과매수(abnIsOB) AND 고가가 볼린저 상단 밴드를 초과(초과폭÷캔들범위 ≥ 비율). → 붉은 캔들.
-//   ▸ 비정상 매도(과매도 구간, abnCandleState== 1) = cRSI 과매도(abnIsOS) AND 저가가 볼린저 하단 밴드를 이탈(이탈폭÷캔들범위 ≥ 비율). → 하늘색 캔들.
+//   ▸ 비정상 매도(과매도 구간, abnCandleState== 1) = cRSI 과매도(abnIsOS) AND 저가가 볼린저 하단 밴드를 이탈(이탈폭÷캔들범위 ≥ 비율). → 파랑 캔들(기본 color.blue).
 //   ⚠️ 이치모쿠 원본과 매핑: "비정상 매수 = 과매수(cRSI≥OB + 상단밴드 돌파)"·"비정상 매도 = 과매도(cRSI≤OS + 하단밴드 이탈)". 지시 매핑(비정상매수=과매수·비정상매도=과매도)과 정확히 일치.
 //  ⚠️ 자기완결 포팅(이치모쿠 의존 제거):
 //   (1) 원본은 기준 길이를 베이스 라인(basePeriods)에 연동(abnLen=basePeriods)했으나, auto-vwap엔 이치모쿠 input이 없다. CEO 지시로 **비정상 전체 기준 길이를 abnBbLen(기본 20) 하나로 단일화**한다(구 전용 input abnBaseLen 삭제).
-//       abnBbLen(기본 20) → 볼린저 basis/dev + cRSI 사이클 길이(abnBbLen/2=10)·ATR·RSI·추적 lookback이 모두 이 값 하나에 연동된다(전 기준 길이 22→20으로 통일).
+//       abnBbLen(기본 20) → 볼린저 basis/dev + cRSI 주기(abnBbLen, 20 기준 → RSI 길이 abnBbLen/2=10)·ATR·RSI·추적 lookback이 모두 이 값 하나에 연동된다(전 기준 길이 22→20으로 통일).
 //   (2) 원본은 래치 리셋 트리거로 '이격도 중립 복귀'(abnDisparityNeutral = overCount==0 and underCount==0)를 썼으나, auto-vwap엔 이격도 블록이 없으므로 **이치모쿠 이격도(Disparity) 계산을 그대로 자기완결 이식**한다.
 //       이격도 = 종가 ÷ 선택 이평 × 100, 고정 임계(±%)+적응형(σ 배수)로 되돌림 판정. overCount/underCount==0(중립)이면 abnDisparityNeutral=true. input(이격도 MA 종류·길이·임계·통계 구간·σ 배수)도 원본 명칭/기본값/툴팁 그대로 이식.
 //       ⚠️ 이 이격도는 오직 비정상 상태 래치 리셋(원본과 동일한 종료 조건)에만 쓰이며, 테이블·다른 표시를 새로 만들지 않는다(표시 전용 최소 이식).
@@ -325,8 +325,8 @@ ABN_GROUP = "비정상 매수/매도"
 abnVibration = input.int(10, minval=1, title="비정상 캔들 cRSI Vibration", group=ABN_GROUP)
 abnOB = input.float(70.0, title="비정상 절대 과매수", group=ABN_GROUP)
 abnOS = input.float(30.0, title="비정상 절대 과매도", group=ABN_GROUP)
-// 비정상 전체 기준 길이 — CEO 지시로 abnBaseLen(구 기본 22)을 삭제하고 이 볼린저 길이(기본 20) 하나로 단일화. 볼린저뿐 아니라 cRSI 사이클·RSI·ATR·반등 추적 lookback이 모두 이 값에 연동된다.
-abnBbLen = input.int(20, minval=1, title="비정상 기준 길이(볼린저 등)", group=ABN_GROUP, tooltip="비정상 매수/매도 판정의 전체 기준 길이(기본 20, 표준 볼린저 관례). 볼린저 밴드(basis=SMA·dev=STDEV)뿐 아니라 cRSI 사이클 길이(이 값÷2)·RSI·ATR·반등 추적 lookback이 모두 이 값에 연동됩니다(CEO 지시로 기존 별도 기준 길이 abnBaseLen을 삭제·통합). 전략성 파라미터(수학자 리뷰 대상).")
+// 비정상 전체 기준 길이 — CEO 지시로 abnBaseLen(구 기본 22)을 삭제하고 이 볼린저 길이(기본 20) 하나로 단일화. 볼린저뿐 아니라 cRSI 주기(20 기준, RSI 길이 = 이 값÷2)·RSI·ATR·반등 추적 lookback이 모두 이 값에 연동된다.
+abnBbLen = input.int(20, minval=1, title="비정상 기준 길이(볼린저 등)", group=ABN_GROUP, tooltip="비정상 매수/매도 판정의 전체 기준 길이(기본 20, 표준 볼린저 관례). 볼린저 밴드(basis=SMA·dev=STDEV)뿐 아니라 cRSI 주기(이 값, 20 기준 → RSI 길이 = 이 값÷2)·RSI·ATR·반등 추적 lookback이 모두 이 값에 연동됩니다(CEO 지시로 기존 별도 기준 길이 abnBaseLen을 삭제·통합). 전략성 파라미터(수학자 리뷰 대상).")
 abnBbMult = input.float(2.0, minval=0.1, step=0.1, title="비정상 볼린저 배수", group=ABN_GROUP)
 abnBodyRatio = input.float(0.3, minval=0.0, step=0.05, title="비정상 밴드 초과 비율(고저 기준)", group=ABN_GROUP)
 // 반등 감시(abnWatch) 게이트 입력 2개 — advanced-ichimoku.pine 반등 감시와 title 일치(일관성). CEO 지시.
@@ -506,7 +506,7 @@ if barstate.isconfirmed
     if abnBearBgOn
         abnWatch := -2
 
-// 비정상 캔들 몸통색(CEO 지시 — 배경 bgcolor → barcolor 전환): 비정상 매도(abnCandleStateLive==1)=하늘색(abnSellBgColor), 비정상 매수(abnCandleStateLive==-1)=붉은색(abnBuyBgColor). ※과매수=고점 경고 직관(붉은=위험)에 맞춰 주황→붉은 계열 변경.
+// 비정상 캔들 몸통색(CEO 지시 — 배경 bgcolor → barcolor 전환): 비정상 매도(abnCandleStateLive==1)=파랑(abnSellBgColor, 기본 color.blue), 비정상 매수(abnCandleStateLive==-1)=붉은색(abnBuyBgColor). ※과매수=고점 경고 직관(붉은=위험)에 맞춰 주황→붉은 계열 변경.
 //  ⚠️ 색상(hue)은 기존 배경색을 그대로 승계(톤앤매너 유지)하되, 캔들 몸통은 배경(투명도 82)처럼 은은하면 몸통색이 거의 안 보이므로 불투명(투명도 0)으로 칠한다.
 //   → abnBgTransp(배경 투명도)는 더 이상 캔들색에 적용하지 않는다(캔들은 몸통 전체를 덮는 오버라이드라 반투명이면 원래 캔들색과 뒤섞여 판독 저하). 색·판정(abnCandleState 래치)은 불변, 표현 매체만 배경→캔들.
 //  ⚠️ 비정상 구간이 아닌 봉은 na → barcolor(na)로 캔들 기본색 유지(오버라이드 안 함).
@@ -835,13 +835,13 @@ plot(showRibbon ? temaLine : na, title="지수 리본 TEMA", color=ribbonTemaCol
 // =========================================================================================
 
 // ── 윌리엄스 %R 다이버전스 판정(williams-fractal 원본 그대로 이식) ──
-//  wpr: 확정봉 close 기준. 직전 봉이 밴드 밖 진입(wpr[1]) + 현재 봉 다이버전스 조건 → 현재봉(offset 0) 원. 가격 비교는 종가(close).
-//  리페인팅 0: close[1]·wpr[1]·wpr 모두 확정/과거참조. 미래참조 없음.
+//  wpr: 현재봉 close 기준(형성 중 봉에서는 틱마다 변동). 직전 봉이 밴드 밖 진입(wpr[1]) + 현재 봉 다이버전스 조건 → 현재봉(offset 0) 원. 가격 비교는 종가(close).
+//  리페인팅: close[1]·wpr[1]은 확정값이나 close·wpr(현재봉)은 형성 중 틱마다 바뀌어 원이 켜졌다 꺼질 수 있음 → 봉 마감 시 확정. 미래참조 없음.
 wpr = ta.wpr(wprLen)
 bullWprDiv = wpr[1] < wprLower and (close < close[1] and wpr > wpr[1])   // 강세(매수): 과매도 진입 후 종가↓·%R↑
 bearWprDiv = wpr[1] > wprUpper and (close > close[1] and wpr < wpr[1])   // 약세(매도): 과매수 진입 후 종가↑·%R↓
 
-// ── %R 다이버전스 원 마커 — 확정된 현재봉(offset 0), belowbar(매수)/abovebar(매도). 화면 고정 픽셀 스택(자동 겹침 방지). ──
+// ── %R 다이버전스 원 마커 — 현재봉(offset 0, 마감 시 확정), belowbar(매수)/abovebar(매도). 화면 고정 픽셀 스택(자동 겹침 방지). ──
 plotshape(showWprDiv and bullWprDiv, title="%R 강세 다이버전스(매수)", style=shape.circle, location=location.belowbar, color=color.new(wprBullColor, 0), size=size.tiny, offset=0)
 plotshape(showWprDiv and bearWprDiv, title="%R 약세 다이버전스(매도)", style=shape.circle, location=location.abovebar, color=color.new(wprBearColor, 0), size=size.tiny, offset=0)
 

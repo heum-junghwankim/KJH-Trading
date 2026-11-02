@@ -64,4 +64,4 @@ RSI를 시장 사이클 길이에 맞춰 평활한 선(cRSI)과, 최근 40봉 �
 ## 라이선스 / 출처
 
 - 원작: Lars von Thienen, *Decoding The Hidden Market Rhythm - Part 1: Dynamic Cycles* (2017), Chapter 4 — whentotrade
-- 라이선스: Creative Commons Attribution 4.0 International (CC BY 4.0). 원저자·도서·웹사이트를 표기하고 변경 사항을 밝혀야 합니다. 이 저장소 버전은 v6 포팅, 밴드폭 배경, 확장 구간 다이버전스, 밴드 교차 가격 테이블을 추가했습니다.
+- 라이선스: Creative Commons Attribution 4.0 International (CC BY 4.0). 원저자·도서·웹사이트를 표기하고 변경 사항을 밝혀야 합니다. 이 저장소 버전은 v6 포팅, 밴드폭 배경, 확장 구간 다이버전스, 밴드 교차 가격 테이블을 추가했고, 밴드 계산의 경계 사례를 보정했습니다(2026-11-02: cRSI가 40봉 내내 단조 하락하면 원작 탐색 구조상 하단 밴드가 999999, 상단 밴드가 0으로 깨지던 문제. 이때만 하단 기준값을 40봉 실제 최솟값으로 대신 쓰고, 그 외에는 원작과 같은 값).

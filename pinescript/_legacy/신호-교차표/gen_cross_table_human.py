@@ -62,7 +62,7 @@
         상승/하락 계열에서만 발생. 크기는 기존 사람용에서 쓰던 값 그대로(신설 없음).
   판정 임계: 합≥+3 & 반대0=롱, ≤-3 & 반대0=숏, 그 외 중립·혼조.
 
-산출물: pinescript/신호-교차표.md  (저장소 루트 tools/ 기준 ../pinescript/)
+산출물: pinescript/_legacy/신호-교차표/신호-교차표.md  (이 스크립트와 같은 폴더 — 보관 자산으로 이동)
 결정론적: 재실행 시 동일 결과. 코드(.pine)는 무수정.
 """
 
@@ -175,11 +175,11 @@ HEADER = """# 신호-교차표 (사람 룩업용 · 슬림) — 이치모쿠 단
 
 > **사람 룩업용.** 실차트 우측 상단 이치모쿠 테이블의 6개 상태값을 눈으로 읽고, 같은
 > 조합 행의 **방향·신뢰도·해석**을 3초 안에 찾는 용도. 자동조회용 12축(이치모쿠 10 +
-> 보조 2: cRSI·OBV-ADX) 완전 열거·정렬행-only CSV는 별도 `pinescript/신호-교차표-프로그램용.csv`
+> 보조 2: cRSI·OBV-ADX) 완전 열거·정렬행-only CSV는 별도 `pinescript/_legacy/신호-교차표/신호-교차표-프로그램용.csv`
 > (아래 "프로그램용 CSV 안내" 참조).
 >
 > KJH-Trading Capital · 스크립트 개발자 산출 · 보조 참고 자료(미검증)
-> 생성: `tools/gen_cross_table_human.py` (재실행 시 동일 결과 — 결정론적)
+> 생성: `pinescript/_legacy/신호-교차표/gen_cross_table_human.py` (재실행 시 동일 결과 — 결정론적)
 > 근거 코드: `pinescript/SUPER-ICHIMOKU/advanced-ichimoku.pine` (읽기만, 무수정)
 
 ## 열 범례 (6축 · 차트 어디를 보나)
@@ -215,7 +215,7 @@ HEADER = """# 신호-교차표 (사람 룩업용 · 슬림) — 이치모쿠 단
 
 ## 프로그램용 CSV 안내 (`신호-교차표-프로그램용.csv`)
 
-- **무엇인가:** 펀드 지표군의 **12축**(이치모쿠 메인 10 + 보조 2: cRSI·OBV-ADX)을 각 3상태로 정규화해 **완전 열거(3^12 = 531,441조합)**한 뒤, **정렬행(방향≠중립·혼조)만 필터**해 담은 **CSV(표만·산문 없음)**. 실차트에서 읽은 12개 상태값으로 같은 조합 행을 **자동/프로그램으로 조회**하는 용도. 생성기 `tools/gen_cross_table_program.py`(결정론적·재실행 시 동일).
+- **무엇인가:** 펀드 지표군의 **12축**(이치모쿠 메인 10 + 보조 2: cRSI·OBV-ADX)을 각 3상태로 정규화해 **완전 열거(3^12 = 531,441조합)**한 뒤, **정렬행(방향≠중립·혼조)만 필터**해 담은 **CSV(표만·산문 없음)**. 실차트에서 읽은 12개 상태값으로 같은 조합 행을 **자동/프로그램으로 조회**하는 용도. 생성기 `pinescript/_legacy/신호-교차표/gen_cross_table_program.py`(결정론적·재실행 시 동일).
   - **CCI 축 제거(수학자 지적):** 종전 13축에 있던 **CCI**는 cRSI와 같은 "가격 극단 이탈" 정보원이라 중복 → 축에서 제거. 오실레이터는 **cRSI 단독**이 되어 방향에 **직접 1표** 투표한다(종전 osc묶음 제거). 지표 파일 `pinescript/CCI` 자체는 유지하며, 이 CSV의 축에서만 뺀다.
 - **정렬행-only + 온디맨드 완전열거:** 완전 열거 전체는 디스크에 쌓지 않고 스트리밍 필터로 처리한다(커밋 안 함). 커밋본은 **정렬행 31,104행(약 4.5MB)** 뿐이며(중립·혼조 약 50만 행은 제외), 전체가 필요하면 생성기 내 필터를 끄고 로컬에서 재생성한다.
 - **컬럼:** `No · 추세 · 리본추세 · 이격도 · 구름대 · VWAP기울기 · VWAP밴드폭 · VWAP밴드상태 · VWAP지지저항 · 장기추세 · 장기지지저항 · cRSI · OBV-ADX · 방향 · 정렬도 · 정렬표수 · 유효표수 · lt묶음 · 종합해석`.
@@ -293,7 +293,7 @@ def main():
     rows = build_rows()
     assert len(rows) == 1458, f"행 수 오류: {len(rows)}"
     md = render(rows)
-    out_path = Path(__file__).resolve().parent.parent / "pinescript" / "신호-교차표.md"
+    out_path = Path(__file__).resolve().parent / "신호-교차표.md"
     out_path.write_text(md, encoding="utf-8")
     dist = Counter("롱" if r["dir"] > 0 else "숏" if r["dir"] < 0 else "중립" for r in rows)
     print(f"생성 완료: {out_path}")

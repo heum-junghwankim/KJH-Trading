@@ -62,11 +62,13 @@ aboveAvg      = volume > avgTotalVolume
 // 평균선 상회(추진력 있음)일 때 압력 방향대로 포지션, 평균선 하회면 중립
 longFavored  = aboveAvg and buyDominant
 shortFavored = aboveAvg and not buyDominant
+// ⚠️ 경계 처리(현행 유지, 의도 확인 대기): 동률(종가 = (고가+저가)/2 → 매수 몫 = 매도 몫)과 고가 = 저가 봉(매수·매도 몫 모두 0)은
+//    buyDominant=false라 거래량이 평균 위면 '숏 유리'로 분류된다(롱/숏 비대칭). 판정 로직 변경은 전략 사항이라 손대지 않음.
 posText  = longFavored ? "롱 유리" : shortFavored ? "숏 유리" : "중립"
 posColor = longFavored ? color.new(color.green, 0) : shortFavored ? color.new(color.red, 0) : color.new(color.gray, 40)
 
 // ---- 2행: 압력 방향 (최근 N봉 매수/매도량 합의 비율) ----
-// 전역 스코프에서 series 계산(리페인팅 없음: math.sum은 확정봉 누적).
+// 전역 스코프에서 series 계산. math.sum은 현재봉을 포함하므로 마지막(형성 중) 봉 값은 틱마다 바뀌고 봉 마감 시 확정(과거 봉은 고정, 미래참조 없음).
 sumBuy  = math.sum(buyVolume, pressureLen)
 sumSell = math.sum(sellVolume, pressureLen)
 maxSum  = math.max(sumBuy, sumSell)

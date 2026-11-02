@@ -14,6 +14,11 @@
 // even commercially. You must give appropriate credit to the authors book and website, provide a link to the license, and indicate
 // if changes were made. You may do so in any reasonable manner, but not in any way that suggests the licensor endorses you or your use.
 //
+// Changes (KJH-Trading):
+// - 2026-11-02: lmax/lmin search edge case fixed. When every value in the cyclic-memory window goes to the lmax branch
+//   (e.g. cRSI falls monotonically for the whole window), lmin stayed at its 999999 initial value; it is now replaced
+//   by the window's actual minimum in that case only. Output is unchanged whenever lmin was updated (normal case).
+//
 indicator(title="RSI cyclic smoothed", shorttitle="cRSI")
 
 src = close
@@ -58,6 +63,7 @@ crsi := torque * (2 * rsi - rsi[phasingLag]) + (1 - torque) * nz(crsi[1])
 
 lmax = -999999.0
 lmin = 999999.0
+float wMin = na   // 구간 내 na 아닌 crsi의 실제 최솟값(아래 경계 사례 보정 전용)
 for i = 0 to cyclicmemory - 1 by 1
     if nz(crsi[i], -999999.0) > lmax
         lmax := nz(crsi[i])
@@ -66,6 +72,12 @@ for i = 0 to cyclicmemory - 1 by 1
         if nz(crsi[i], 999999.0) < lmin
             lmin := nz(crsi[i])
             lmin
+    if not na(crsi[i])
+        wMin := na(wMin) ? crsi[i] : math.min(wMin, crsi[i])
+// [변경 2026-11-02] 변경 전: 구간 값이 모두 lmax 분기로 가면(cRSI 구간 내내 단조 하락·워밍업 직후 유효값 1개) lmin=999999 잔류 → 하단 밴드 999999·상단 밴드 0 퇴화.
+//  변경 후: 그 경우에만 lmin = 구간 실제 최솟값. lmin이 갱신된 정상 경우는 이 if가 실행되지 않아 원작과 출력 동일(lmax는 구조상 퇴화 없음).
+if lmin == 999999.0 and not na(wMin)
+    lmin := wMin
 
 mstep = (lmax - lmin) / 100
 aperc = leveling / 100
