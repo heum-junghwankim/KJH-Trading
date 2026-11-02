@@ -8,13 +8,13 @@ CEO 매매 차트(**CME_MINI:NQ1! 일봉**)에 올라간 **5개 지표 — Auto 
 
 > 저장소: [`github.com/heum-junghwankim/KJH-Trading`](https://github.com/heum-junghwankim/KJH-Trading)
 
-| 지표 | 역할 | 링크 |
+| 지표 | 역할 | 가이드 |
 | --- | --- | --- |
-| **Auto VWAP** (overlay) | 최근 20봉 VWAP·±2σ 밴드 · EMA/DEMA/TEMA 리본 · 거래량 가중 50/100/200선 · Sonar 모멘텀 배경 · 5섹션 상태 테이블 | [코드](./pinescript/VWAP/auto-vwap.pine) · [설명](./pinescript/VWAP/README.md) · [가이드 1-1](#1-1-auto-vwap) |
+| **Auto VWAP** (overlay) | 최근 20봉 VWAP·±2σ 밴드 · EMA/DEMA/TEMA 리본 · 거래량 가중 50/100/200선 · Sonar 모멘텀 배경 · 5섹션 상태 테이블 | [가이드 1-1](#1-1-auto-vwap) |
 | **VRVP** (overlay, TradingView 내장) | 화면 구간의 가격대별 거래량(매물대)·POC·Value Area | [가이드 1-2](#1-2-vrvp-visible-range-volume-profile--tradingview-내장) |
-| **Volume-Pressure-Tracker** | 매수/매도 압력 추정 · 비정상 거래량 · 평균선 대비 추진력 | [코드](./pinescript/VOLUME-PRESSURE/volume-pressure-tracker.pine) · [설명](./pinescript/VOLUME-PRESSURE/README.md) · [가이드 1-3](#1-3-volume-pressure-tracker-거래량-압력) |
-| **Triple-Stochastic-Wave** | Slow·Mid·Fast 3개 스토캐스틱 · 정배열/역배열 웨이브 배경 · 서열 전환 가격 테이블 · 3중 정렬 alert | [코드](./pinescript/TRIPLE-STOCH/triple-stochastic-wave.pine) · [설명](./pinescript/TRIPLE-STOCH/README.md) · [가이드 1-4](#1-4-triple-stochastic-wave-삼중-스토캐스틱) |
-| **cRSI** | 순환 평활 RSI · 동적 밴드 · 밴드폭 배경 · 다이버전스 · 밴드 교차 가격 테이블 | [코드](./pinescript/cRSI/rsi-cyclic-smoothed.pine) · [설명](./pinescript/cRSI/README.md) · [가이드 1-5](#1-5-crsi-rsi-cyclic-smoothed) |
+| **Volume-Pressure-Tracker** | 매수/매도 압력 추정 · 비정상 거래량 · 평균선 대비 추진력 | [가이드 1-3](#1-3-volume-pressure-tracker-거래량-압력) |
+| **Triple-Stochastic-Wave** | Slow·Mid·Fast 3개 스토캐스틱 · 정배열/역배열 웨이브 배경 · 서열 전환 가격 테이블 · 3중 정렬 alert | [가이드 1-4](#1-4-triple-stochastic-wave-삼중-스토캐스틱) |
+| **cRSI** | 순환 평활 RSI · 동적 밴드 · 밴드폭 배경 · 다이버전스 · 밴드 교차 가격 테이블 | [가이드 1-5](#1-5-crsi-rsi-cyclic-smoothed) |
 
 **목차**
 
@@ -28,7 +28,7 @@ CEO 매매 차트(**CME_MINI:NQ1! 일봉**)에 올라간 **5개 지표 — Auto 
 
 ## 1. 현재 차트 지표 5종 가이드
 
-CEO 매매 차트(CME_MINI:NQ1! 일봉)에 올라간 5개 지표를 **쉽게** 정리합니다. 지표마다 `무엇을 보여주나 → 차트에서 읽는 법 → 매매에 쓰는 법 → 주의점` 순서입니다. 저장소에 소스가 있는 4종(Auto VWAP·거래량 압력·삼중 스토캐스틱·cRSI)은 `.pine` 소스 기준이고, VRVP는 TradingView 내장 지표라 일반 정의로 설명합니다.
+CEO 매매 차트(CME_MINI:NQ1! 일봉)에 올라간 5개 지표를 **쉽게** 정리합니다. 지표마다 `무엇을 보여주나 → 차트에서 읽는 법 → 매매에 쓰는 법 → 주의점` 순서입니다. 4종(Auto VWAP·거래량 압력·삼중 스토캐스틱·cRSI)은 펀드 자체 스크립트 기준이고, VRVP는 TradingView 내장 지표라 일반 정의로 설명합니다.
 
 | 지표 | 한 줄 역할 | 주로 쓰는 곳 |
 | --- | --- | --- |
@@ -42,7 +42,7 @@ CEO 매매 차트(CME_MINI:NQ1! 일봉)에 올라간 5개 지표를 **쉽게** �
 
 ### 1-1. Auto VWAP
 
-**무엇을 보여주나** — 최근 20봉 거래량 가중 평균 단가(VWAP)와 ±2σ 밴드를 중심으로, 지수 리본(EMA/DEMA/TEMA)·거래량 가중 50/100/200선·Sonar 모멘텀 배경·우측 상단 상태 테이블을 한 지표에 묶었습니다. 소스: [`auto-vwap.pine`](./pinescript/VWAP/auto-vwap.pine) · 상세: [VWAP README](./pinescript/VWAP/README.md)
+**무엇을 보여주나** — 최근 20봉 거래량 가중 평균 단가(VWAP)와 ±2σ 밴드를 중심으로, 지수 리본(EMA/DEMA/TEMA)·거래량 가중 50/100/200선·Sonar 모멘텀 배경·우측 상단 상태 테이블을 한 지표에 묶었습니다.
 
 **차트에서 읽는 법**
 
@@ -129,7 +129,7 @@ CEO 매매 차트(CME_MINI:NQ1! 일봉)에 올라간 5개 지표를 **쉽게** �
 
 - 지지/저항 판정은 각 선 ± (1.0 × 거래량 가중 표준편차) 판정 밴드와 근처 구간(%)으로 평가합니다. 셀에는 가격만 보이고 판정 결과는 **셀 색**으로 읽습니다.
 
-> 근거: `pinescript/VWAP/auto-vwap.pine` — 테이블 input(91~117행), 섹션별 기준봉 오프셋(939~948행), 추세 확인 셀(1102~1194행), 지지·저항 셀(1236~1303행), 이격도·되돌림(1308~1317행), 셀 툴팁(1331~1344행), 전환가 텍스트·색(1346~1409행), 상승/하락확장 행(1410~1538행), 렌더링·레이아웃(1551~1618행). 판정 파라미터는 전략성 값이므로 변경 시 알고리즘 수학자 검토가 필요합니다.
+> 판정 파라미터는 전략성 값이므로 변경 시 알고리즘 수학자 검토가 필요합니다.
 
 ### 1-2. VRVP (Visible Range Volume Profile — TradingView 내장)
 
@@ -152,7 +152,7 @@ CEO 매매 차트(CME_MINI:NQ1! 일봉)에 올라간 5개 지표를 **쉽게** �
 
 ### 1-3. Volume-Pressure-Tracker (거래량 압력)
 
-**무엇을 보여주나** — 각 봉의 거래량을 **종가 위치로 매수/매도 몫으로 나눠** 추정하고, 평소보다 큰 **비정상 거래량**과 최근 압력 방향을 보여줍니다. 소스: [`volume-pressure-tracker.pine`](./pinescript/VOLUME-PRESSURE/volume-pressure-tracker.pine)
+**무엇을 보여주나** — 각 봉의 거래량을 **종가 위치로 매수/매도 몫으로 나눠** 추정하고, 평소보다 큰 **비정상 거래량**과 최근 압력 방향을 보여줍니다.
 
 **차트에서 읽는 법**
 
@@ -171,7 +171,7 @@ CEO 매매 차트(CME_MINI:NQ1! 일봉)에 올라간 5개 지표를 **쉽게** �
 
 ### 1-4. Triple-Stochastic-Wave (삼중 스토캐스틱)
 
-**무엇을 보여주나** — 기간이 다른 스토캐스틱 3개(Fast 5/3/3 · Mid 10/6/6 · Slow 20/9/9)의 **순서(서열)** 로 단기 파동 방향을 보여줍니다. 소스: [`triple-stochastic-wave.pine`](./pinescript/TRIPLE-STOCH/triple-stochastic-wave.pine)
+**무엇을 보여주나** — 기간이 다른 스토캐스틱 3개(Fast 5/3/3 · Mid 10/6/6 · Slow 20/9/9)의 **순서(서열)** 로 단기 파동 방향을 보여줍니다.
 
 **차트에서 읽는 법**
 
@@ -193,7 +193,7 @@ CEO 매매 차트(CME_MINI:NQ1! 일봉)에 올라간 5개 지표를 **쉽게** �
 
 ### 1-5. cRSI (RSI Cyclic Smoothed)
 
-**무엇을 보여주나** — 시장의 지배 사이클(기본 `Dominant Cycle Length = 20` → RSI 길이 10·사이클 메모리 40봉)로 평활한 RSI와, 최근 사이클 동안 cRSI가 실제로 머문 범위로 그린 **동적 과매수/과매도 밴드**입니다. 고정 30/70 대신 "지금 국면 기준으로 과한지"를 봅니다. 소스: [`rsi-cyclic-smoothed.pine`](./pinescript/cRSI/rsi-cyclic-smoothed.pine)
+**무엇을 보여주나** — 시장의 지배 사이클(기본 `Dominant Cycle Length = 20` → RSI 길이 10·사이클 메모리 40봉)로 평활한 RSI와, 최근 사이클 동안 cRSI가 실제로 머문 범위로 그린 **동적 과매수/과매도 밴드**입니다. 고정 30/70 대신 "지금 국면 기준으로 과한지"를 봅니다.
 
 **차트에서 읽는 법**
 
