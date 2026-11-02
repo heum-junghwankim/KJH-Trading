@@ -20,8 +20,7 @@ CEO 매매 차트(**CME_MINI:NQ1! 일봉**)에 올린 지표의 사용 설명서
 **목차**
 
 1. [지표 가이드](#1-지표-가이드) — [1-1 Auto VWAP](#1-1-auto-vwap) · [1-2 Triple-Stochastic-Wave](#1-2-triple-stochastic-wave-삼중-스토캐스틱) · [1-3 cRSI](#1-3-crsi-rsi-cyclic-smoothed) · [1-4 Volume-Pressure-Tracker](#1-4-volume-pressure-tracker-거래량-압력) · [1-5 VRVP](#1-5-vrvp-참고용-tradingview-내장) · [1-6 메인 4종 함께 보는 법](#1-6-메인-4종-함께-보는-법)
-2. [매매 철학](#2-매매-철학)
-3. [Claude Code ↔ TradingView MCP 연결](#3-claude-code--tradingview-mcp-연결)
+2. [Claude Code ↔ TradingView MCP 연결](#2-claude-code--tradingview-mcp-연결) — [2-1 공식 TradingView MCP](#2-1-공식-tradingview-mcp) · [2-2 TradingView Desktop MCP](#2-2-tradingview-desktop-mcp)
 
 > 매매 전략(진입·청산 규칙)은 아직 없습니다. 메인 4종 기준으로 CEO가 새로 정하며, 확정되면 이 문서에 추가합니다.
 
@@ -149,21 +148,7 @@ CEO 매매 차트(**CME_MINI:NQ1! 일봉**)에 올린 지표의 사용 설명서
 
 ---
 
-## 2. 매매 철학
-
-| 원칙 | 내용 |
-| --- | --- |
-| **단일 신호 불신** | 메인 4종(추세·위치 / 모멘텀 / 과열·사이클 / 거래량)이 같은 방향인지 함께 본다. 하나만 보고 들어가지 않는다 |
-| **자본 보존 우선** | 얼마 벌지보다 얼마 잃을지를 먼저 정한다 |
-| **국면 먼저** | 추세인지 횡보인지 먼저 정한다(Auto VWAP 추세 확인·밴드워킹). 지표마다 잘 맞는 국면이 다르다 |
-| **마감봉으로 판단** | 형성 중인 봉의 값은 바뀐다. 결정은 마감된 봉으로 한다 |
-| **R:R 미확보 진입 배제** | 손절 가격을 먼저 정하고, 손익비가 안 나오면 들어가지 않는다 |
-| **기다림도 매매** | 지표가 서로 엇갈리면 관망한다 |
-| **검증 전 규칙 없음** | 지표 조합의 엣지는 아직 검증되지 않았다. 규칙은 거래비용을 넣은 표본 외 검증을 통과한 뒤에만 채택한다 |
-
----
-
-## 3. Claude Code ↔ TradingView MCP 연결
+## 2. Claude Code ↔ TradingView MCP 연결
 
 Claude Code가 TradingView 데이터를 읽게 하는 MCP는 **두 종류**이며 용도가 다릅니다. 시장 데이터 조회는 공식 MCP, **지금 데스크탑에 열린 차트**(지표 값·테이블·스크린샷)를 읽으려면 Desktop MCP가 필요합니다.
 
@@ -175,7 +160,7 @@ Claude Code가 TradingView 데이터를 읽게 하는 MCP는 **두 종류**이�
 | 연결 방식 | 원격 URL + TradingView OAuth | 로컬 디버그 연결 (맥) |
 | 요구 사항 | TradingView Essential 이상 유료 플랜(체험판 불가), API Key 불필요 | Node.js 20.19 이상 |
 
-### 3-1. 공식 TradingView MCP
+### 2-1. 공식 TradingView MCP
 
 ```bash
 claude mcp add --transport http --scope user mcp-tradingview https://mcp.tradingview.com/mcp
@@ -185,7 +170,7 @@ claude mcp add --transport http --scope user mcp-tradingview https://mcp.trading
 2. 브라우저에서 TradingView 로그인 → 권한 승인
 3. 확인: `claude mcp list` 또는 Claude Code 안에서 `/mcp`
 
-### 3-2. TradingView Desktop MCP
+### 2-2. TradingView Desktop MCP
 
 ```bash
 node -v                                              # 20.19 이상인지 확인
