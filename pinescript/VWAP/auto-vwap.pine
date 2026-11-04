@@ -382,6 +382,11 @@ vwWalkDnBase = vwOutL1 and (vwSlopeDown or (vwSlopeFlat and vwBwExpanding))
 vwUpperWalk  = vwHasVwapS and vwWalkUpBase and not vwBreakUpper
 vwLowerWalk  = vwHasVwapS and vwWalkDnBase and not vwBreakLower
 vwWalkState = vwUpperWalk ? 1 : vwLowerWalk ? -1 : 0
+// 밴드워킹 국면 연속 봉수(CEO 지시 — 상승확장/하락확장 행 값 괄호에 ' | N봉' 표시): vwWalkState와 같은 판정 기준으로, 현재 국면(1 상승·−1 하락·0 횡보)이 몇 봉째인지 센다.
+//  ▸ 직전 봉과 국면이 같으면 +1, 바뀌면(또는 직전 봉이 판정값 없음) 1부터 다시. 판정값 없는 봉(vwHasVwapS=false)은 0.
+//  ▸ 전역 스코프에서 봉마다 1회 평가. 실시간 봉은 틱마다 var가 직전 확정값으로 롤백된 뒤 재계산되므로 이중 증가 없음(형성 중 봉 = N봉째에 포함, 국면이 틱 중 바뀌면 1로 즉시 반영·마감 시 확정).
+var int vwWalkRun = 0
+vwWalkRun := not vwHasVwapS ? 0 : (vwHasVwapS[1] and vwWalkState == vwWalkState[1]) ? vwWalkRun + 1 : 1
 
 // =========================
 // 비정상 매수/매도 판정 — advanced-ichimoku.pine "비정상 캔들" 블록의 이식(포팅). 산식·기본값 동일.
@@ -1334,8 +1339,8 @@ laggingStTooltip = "VWMA 20선과 50선의 배열·골든/데드 크로스로 �
 laggingMtTooltip = "VWMA 50선(주황)과 100선의 배열·크로스로 판정한 중기 추세입니다. 단기 노이즈를 걸러 스윙 방향을 확정하는 데 쓰며, 단기추세와 엇갈리면 관망합니다. 기준봉은 '기준봉: 추세 확인' 설정(기본 완성봉 = 가장 최근 확정봉·형성 중 틱에 고정, 실시간봉 = 현재 봉·틱마다 갱신)입니다."
 laggingLtTooltip = "VWMA 100선과 200선의 배열·크로스로 판정한 장기 추세입니다(200봉 미만이면 '-'). 진입 방향을 정하는 최상위 필터로, 이 방향에 역행하는 진입은 피하거나 비중을 줄입니다. 기준봉은 '기준봉: 추세 확인' 설정(기본 완성봉 = 가장 최근 확정봉·형성 중 틱에 고정, 실시간봉 = 현재 봉·틱마다 갱신)입니다."
 //  변동성 4행: 상승확장·하락확장(구 행 제목 상승 워킹·하락 워킹 — 밴드워킹 상태 전환 조건부 종가 — 교차 전환가와 같은 기준봉·색·도달불가 규칙)·이격도(과열)·되돌림가(회귀 목표). 각 행 개념+효과.
-volWalkUpTooltip = "판정 기간(N봉) VWAP 기준 상승 밴드워킹(종가 > +1σ이면서 VWAP 상승, 또는 기울기 평탄+밴드폭 확장 — +2σ 위 상단 이탈은 제외)으로 바뀌는(횡보일 때) 또는 상승 워킹에서 횡보로 돌아가는(상승 워킹일 때) 조건부 종가로, 값 앞 접두어(상승·횡보)는 그 가격에 도달하면 바뀌는 상태입니다(예 '상승 : 10,320 (+1.2%)'), 하락 워킹 중이면 '-'입니다(셀 색=기준봉 상태: 녹 상승 워킹·적 하락 워킹·회색 횡보). 상승 워킹은 밴드를 타고 오르는 추세 구간이라 롱 보유·눌림 추가의 근거이고, 횡보 복귀가는 롱 익절·손절을 당기는 기준입니다. 종가 하나로 VWAP·σ·기울기·밴드폭이 함께 움직이는 값을 수치 탐색한 근사(다음 봉 거래량=기준봉 거래량, 소스=종가 가정)이며, 경계가 둘이면 기준가에 가까운 쪽을 표시합니다. 기준봉은 '기준봉: 변동성 임계가' 설정(기본 실시간봉 = 현재 형성 중 봉 상태·현재가 기준, 틱마다 갱신 / 완성봉 = 가장 최근 확정봉 기준, 틱에 고정)입니다."
-volWalkDnTooltip = "판정 기간(N봉) VWAP 기준 하락 밴드워킹(종가 < −1σ이면서 VWAP 하락, 또는 기울기 평탄+밴드폭 확장 — −2σ 아래 하단 이탈은 제외)으로 바뀌는(횡보일 때) 또는 하락 워킹에서 횡보로 돌아가는(하락 워킹일 때) 조건부 종가로, 값 앞 접두어(하락·횡보)는 그 가격에 도달하면 바뀌는 상태입니다(예 '하락 : 9,870 (-1.3%)'), 상승 워킹 중이면 '-'입니다(셀 색=기준봉 상태: 녹 상승 워킹·적 하락 워킹·회색 횡보). 하락 워킹은 밴드를 타고 내리는 추세 구간이라 숏 보유·롱 진입 보류의 근거이고, 횡보 복귀가는 숏 익절·손절을 당기는 기준입니다. 종가 하나로 VWAP·σ·기울기·밴드폭이 함께 움직이는 값을 수치 탐색한 근사(다음 봉 거래량=기준봉 거래량, 소스=종가 가정)이며, 경계가 둘이면 기준가에 가까운 쪽을 표시합니다. 기준봉은 '기준봉: 변동성 임계가' 설정(기본 실시간봉 = 현재 형성 중 봉 상태·현재가 기준, 틱마다 갱신 / 완성봉 = 가장 최근 확정봉 기준, 틱에 고정)입니다."
+volWalkUpTooltip = "판정 기간(N봉) VWAP 기준 상승 밴드워킹(종가 > +1σ이면서 VWAP 상승, 또는 기울기 평탄+밴드폭 확장 — +2σ 위 상단 이탈은 제외)으로 바뀌는(횡보일 때) 또는 상승 워킹에서 횡보로 돌아가는(상승 워킹일 때) 조건부 종가로, 값 앞 접두어(상승·횡보)는 그 가격에 도달하면 바뀌는 상태입니다(예 '상승 : 10,320 (+1.2% | 3봉)' — N봉 = 기준봉의 현재 국면(상승 워킹·하락 워킹·횡보)이 이어진 봉 수, 국면이 바뀌면 1부터 다시 셈), 하락 워킹 중이면 '-'입니다(셀 색=기준봉 상태: 녹 상승 워킹·적 하락 워킹·회색 횡보). 상승 워킹은 밴드를 타고 오르는 추세 구간이라 롱 보유·눌림 추가의 근거이고, 횡보 복귀가는 롱 익절·손절을 당기는 기준입니다. 종가 하나로 VWAP·σ·기울기·밴드폭이 함께 움직이는 값을 수치 탐색한 근사(다음 봉 거래량=기준봉 거래량, 소스=종가 가정)이며, 경계가 둘이면 기준가에 가까운 쪽을 표시합니다. 기준봉은 '기준봉: 변동성 임계가' 설정(기본 실시간봉 = 현재 형성 중 봉 상태·현재가 기준, 틱마다 갱신 / 완성봉 = 가장 최근 확정봉 기준, 틱에 고정)입니다."
+volWalkDnTooltip = "판정 기간(N봉) VWAP 기준 하락 밴드워킹(종가 < −1σ이면서 VWAP 하락, 또는 기울기 평탄+밴드폭 확장 — −2σ 아래 하단 이탈은 제외)으로 바뀌는(횡보일 때) 또는 하락 워킹에서 횡보로 돌아가는(하락 워킹일 때) 조건부 종가로, 값 앞 접두어(하락·횡보)는 그 가격에 도달하면 바뀌는 상태입니다(예 '하락 : 9,870 (-1.3% | 3봉)' — N봉 = 기준봉의 현재 국면(상승 워킹·하락 워킹·횡보)이 이어진 봉 수, 국면이 바뀌면 1부터 다시 셈), 상승 워킹 중이면 '-'입니다(셀 색=기준봉 상태: 녹 상승 워킹·적 하락 워킹·회색 횡보). 하락 워킹은 밴드를 타고 내리는 추세 구간이라 숏 보유·롱 진입 보류의 근거이고, 횡보 복귀가는 숏 익절·손절을 당기는 기준입니다. 종가 하나로 VWAP·σ·기울기·밴드폭이 함께 움직이는 값을 수치 탐색한 근사(다음 봉 거래량=기준봉 거래량, 소스=종가 가정)이며, 경계가 둘이면 기준가에 가까운 쪽을 표시합니다. 기준봉은 '기준봉: 변동성 임계가' 설정(기본 실시간봉 = 현재 형성 중 봉 상태·현재가 기준, 틱마다 갱신 / 완성봉 = 가장 최근 확정봉 기준, 틱에 고정)입니다."
 volDisparityTooltip = "종가가 이격도 MA의 몇 %에 있는지(100=MA와 같음)와 과열 판정(중립/되돌림 주의/되돌림 확실)입니다. 과열이 강할수록 평균 회귀 압력이 커지므로 그 방향의 추격 진입을 자제합니다. 강한 추세에서는 과열이 오래 이어질 수 있어 역추세 진입 근거로 단독 사용하지 않습니다. 기준봉은 '기준봉: 변동성 임계가' 설정(기본 실시간봉 = 현재 봉·현재가 대비, 완성봉 = 가장 최근 확정봉·그 봉 종가 대비)입니다."
 volPullbackTooltip = "이격도 과열(주의 이상) 시 중립 구간으로 돌아오는 경계 가격과 기준봉 종가 대비 %이며, 과열이 아니면 '-'입니다. 과열 방향 포지션의 청산 목표나 눌림목 재진입 기준으로 씁니다. 도달을 보장하는 목표가는 아닙니다. 기준봉은 '기준봉: 변동성 임계가' 설정(기본 실시간봉 = 현재 봉·현재가 대비, 완성봉 = 가장 최근 확정봉·그 봉 종가 대비)입니다."
 //  지지/저항 3행(라벨 50선/100선/200선): 값=선 가격(현재가 대비 ±%), 셀 색=지지/저항 판정(VWMA선 ±σ 밴드). 개념+효과. MA만 행별 상이.
@@ -1409,7 +1414,7 @@ if tableBar
 entSonarColor = f_entSlopeColor(entSonarSt)
 // ── 상승확장(N)·하락확장(N) 행(구 제목 상승 워킹·하락 워킹 — 제목만 개명, 아래 주석의 '상승 워킹 행/하락 워킹 행'은 이 두 행) — 밴드워킹 상태가 바뀌는 조건부 종가(CEO 지시) ─────────────────────────
 //  ▸ 표시 시점·색·도달불가는 교차 전환가 행과 같다: 기준봉 = volOff(input baseVolMode, 기본 실시간봉 0), % 기준 = volBaseC, 셀 색 = 기준봉 상태(f_entSlopeColor — 상승 워킹 녹·하락 워킹 적·횡보 회색),
-//    도달불가 = 표시가 ≤0 또는 기준봉 종가 대비 ±ENTRY_PCT_CAP(50%) 초과(f_entryText와 같은 반올림 % 판정). 값 포맷은 기울기 전환가 행과 같은 "{목표 상태} : 가격 (±x.x%)"(접두어 상승·횡보·하락 — CEO 추가 지시, f_entryText 재사용).
+//    도달불가 = 표시가 ≤0 또는 기준봉 종가 대비 ±ENTRY_PCT_CAP(50%) 초과(f_entryText와 같은 반올림 % 판정). 값 포맷은 기울기 전환가 행과 같은 "{목표 상태} : 가격 (±x.x%)"(접두어 상승·횡보·하락 — CEO 추가 지시, f_entryText 재사용)에 기준봉 국면 연속 봉수를 덧붙인 "(±x.x% | N봉)"(vwWalkRun[volOff]).
 //  ▸ 행별 값(기준봉 상태 vwWalkState[o]):
 //     횡보     → 상승 워킹 행 = 다음 봉이 상승 워킹이 되는 종가 / 하락 워킹 행 = 다음 봉이 하락 워킹이 되는 종가
 //     상승 워킹 → 상승 워킹 행 = 다음 봉이 횡보로 돌아가는 종가 / 하락 워킹 행 = "-"
@@ -1505,9 +1510,15 @@ f_walkEdge(int tgt, float base, float fPV, float fV, float fP2V, float fLogPV, f
 //  (틱 반올림 f_entryTick·% 기준 volBaseC·소수 1자리·도달불가 ±50%/≤0 규칙 동일). 접두어 = 그 가격에 도달하면 바뀌는 상태(상승·횡보·하락).
 //  ▸ 탐색 범위(±51%) 안에 경계가 없으면(p=na) f_entryText는 na를 "-"로 쓰므로, 여기서만 "{접두어} : 도달불가"로 바꾼다(경계가 너무 멀다는 뜻이라 도달불가가 맞음).
 //  ▸ 해당 없음(반대 워킹 중인 행)·워밍업은 기울기 전환가 행 관례대로 접두어 없는 "-"(호출부에서 처리).
-f_walkText(string ev, float p, bool up) => na(p) ? ev + " : 도달불가" : f_entryText(ev, p, up, volBaseC)
+//  ▸ 국면 봉수(CEO 지시): 기준봉 국면(walkRefState)의 연속 봉수 run을 괄호 안에 ' | N봉'으로 덧붙인다 → "{목표 상태} : 가격 (±x.x% | N봉)". 도달불가면 "{접두어} : 도달불가 (N봉)".
+//    f_entryText는 기울기·교차 전환가 행과 공유하므로 수정하지 않고, 그 결과 문자열의 끝 ')' 앞에 삽입한다.
+f_walkText(string ev, float p, bool up, int run) =>
+    string t = na(p) ? ev + " : 도달불가" : f_entryText(ev, p, up, volBaseC)
+    string rs = str.tostring(run) + "봉"
+    str.endswith(t, ")") ? str.substring(t, 0, str.length(t) - 1) + " | " + rs + ")" : t + " (" + rs + ")"
 walkRefState = vwWalkState[volOff]
 walkRefOk = vwHasVwapS[volOff]
+walkRefRun = vwWalkRun[volOff]   // 기준봉 국면의 연속 봉수(기준봉 포함)
 string walkUpText = ""
 string walkDnText = ""
 if tableBar
@@ -1529,12 +1540,12 @@ if tableBar
         if walkRefState == 0
             [pUp, upUp] = f_walkEdge(1, volBaseC, wfPV, wfV, wfP2V, wfLogPV, wfLog2V, wfInv, wvU, wVwOld, wBwOld)
             [pDn, upDn] = f_walkEdge(-1, volBaseC, wfPV, wfV, wfP2V, wfLogPV, wfLog2V, wfInv, wvU, wVwOld, wBwOld)
-            walkUpText := f_walkText("상승", pUp, upUp)
-            walkDnText := f_walkText("하락", pDn, upDn)
+            walkUpText := f_walkText("상승", pUp, upUp, walkRefRun)
+            walkDnText := f_walkText("하락", pDn, upDn, walkRefRun)
         else
             [pFl, upFl] = f_walkEdge(0, volBaseC, wfPV, wfV, wfP2V, wfLogPV, wfLog2V, wfInv, wvU, wVwOld, wBwOld)
-            walkUpText := walkRefState == 1 ? f_walkText("횡보", pFl, upFl) : "-"
-            walkDnText := walkRefState == -1 ? f_walkText("횡보", pFl, upFl) : "-"
+            walkUpText := walkRefState == 1 ? f_walkText("횡보", pFl, upFl, walkRefRun) : "-"
+            walkDnText := walkRefState == -1 ? f_walkText("횡보", pFl, upFl, walkRefRun) : "-"
 walkColor = f_entSlopeColor(walkRefOk ? float(walkRefState) : na)
 // 셀 툴팁 — 각 행은 정의 1문장 + 트레이딩 핵심 최대 2문장(CEO 지시). 공통 문구(기준봉 모드·조건부 가격·도달불가/-/소스≠종가)는 섹션 헤더 툴팁으로 이관 — CEO 지시로 구 ENTRY_TIP_COMMON을 "기울기 전환가"(ENTRY_SLOPE_TIP)·"교차 전환가"(ENTRY_CROSS_TIP) 두 헤더용으로 분할(각 최대 3문장, 기준봉 분기 유지).
 // 헤더 툴팁 기준봉 문구 — 섹션별 input(baseSlopeMode/baseCrossMode)에 따라 분기(var: 첫 봉 1회 평가, input은 상수라 안전).
@@ -1597,7 +1608,7 @@ if showStatusTable and barstate.islast
     f_tblItem(statusTable, 2, 2, "T/D 교차", entTdText, entTdColor, entTdTooltip)
     // 섹션2: 변동성 임계가 (상승확장 → 하락확장 → 이격도 → 되돌림). (CEO 지시: 헤더 "가격 구조 및 변동성 확인"→"변동성 확인"→"변동성 임계가", 비정상 매수/매도 행 삭제 — 캔들색으로 이미 표현.)
     f_tblHeader(statusTable, 3, "변동성 임계가 (" + baseVolMode + ")", na)
-    // 상승확장/하락확장 2행(CEO 지시 — 구 행 제목 "상승 워킹"/"하락 워킹"에서 제목만 개명, 값·판정·색 불변; 그 이전엔 구 밴드 상단/하단 행 대체): 밴드워킹 상태가 바뀌는 조건부 종가 "{목표 상태} : 가격 (±x.x%)". N = vwapStateBars(판정 기간, 기본 20).
+    // 상승확장/하락확장 2행(CEO 지시 — 구 행 제목 "상승 워킹"/"하락 워킹"에서 제목만 개명, 값·판정·색 불변; 그 이전엔 구 밴드 상단/하단 행 대체): 밴드워킹 상태가 바뀌는 조건부 종가 "{목표 상태} : 가격 (±x.x% | N봉)"(N봉 = 기준봉 국면 연속 봉수). 제목 N = vwapStateBars(판정 기간, 기본 20).
     //  ▸ 셀 색 = 기준봉 밴드워킹 상태(walkColor — 교차 전환가 f_entSlopeColor 규칙, 두 행 공통). 구 고정 회색 제거.
     f_tblItem(statusTable, 3, 1, "상승확장(" + str.tostring(vwapStateBars) + ")", walkUpText, walkColor, volWalkUpTooltip)
     f_tblItem(statusTable, 3, 2, "하락확장(" + str.tostring(vwapStateBars) + ")", walkDnText, walkColor, volWalkDnTooltip)
