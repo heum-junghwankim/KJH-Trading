@@ -75,7 +75,7 @@ showBandSetBLower = input.bool(true, title="세트 B Lower #2", group=BANDS_GROU
 //     ⚠️ 50선 색: 원본은 노랑(#FFEB3B)이나 auto-vwap 리본 EMA(노랑)와 겹치므로, 리본(노랑/하늘/분홍)·100선(파랑)·200선(보라)·
 //        신호색(녹/빨강)·비정상 배경(파랑/주황)과 확실히 구분되는 딥 오렌지(#FF6D00)로 변경(CEO 지시 6번). input.color로 노출.
 //  ▸ 테이블(우측 상단): 추세 확인(단기/중기/장기 3행) / 기울기 전환가(TEMA 전환·DEMA 전환·정배열 전환·역배열 전환) / 교차 전환가(Sonar 교차·T/D 교차) — 다음 봉 종가 기준 전환가 P* /
-//     변동성 임계가(상승확장/하락확장(구 상승 워킹/하락 워킹) + 이격도/되돌림) / 지지·저항 임계가(50선/100선/200선 지지·저항). 판정식은 원본 로직 그대로 이식(확정봉·오프셋 불변).
+//     변동성 임계가(상승확장/하락확장 20·50(구 상승 워킹/하락 워킹) + 이격도 20|50) / 지지·저항 임계가(50선/100선/200선 지지·저항). 판정식은 원본 로직 그대로 이식(확정봉·오프셋 불변).
 // =========================
 VWMA_GROUP = "거래량 가중선(VWMA)"
 ltMaType = input.string("VWMA", title="장기선 MA 종류(100/200)", options=["SMA", "EMA", "WMA", "VWMA"], group=VWMA_GROUP, tooltip="장기선(100/200) 이동평균 종류. 기본 VWMA(거래량 가중). 원본(advanced-ichimoku.pine)과 동일. 50선은 항상 VWMA(ta.vwma).")
@@ -91,7 +91,7 @@ TABLE_GROUP = "상태 테이블"
 showStatusTable = input.bool(true, title="상태 테이블 표시(우측 상단)", group=TABLE_GROUP, tooltip="우측 상단 상태 테이블(추세 확인 / 기울기 전환가 / 교차 전환가 / 변동성 임계가 / 지지·저항 임계가)을 표시합니다. SUPER-ICHIMOKU 테이블 이식.")
 // 테이블 레이아웃(CEO 지시) — 가로형(기본) = 5개 섹션을 가로로 나란히(섹션마다 제목·값 2열 → 10열×5행), 세로형 = 기존 2열×21행 배치 그대로.
 //  ▸ 셀 내용(텍스트·배경색·툴팁·기준봉 표기)은 두 레이아웃이 같은 정의를 공유하고 좌표만 다르다(아래 '상태 테이블 렌더링'의 f_tblCol/f_tblRow). 표시 전용.
-tableLayout = input.string("가로형", title="테이블 레이아웃", options=["가로형", "세로형"], group=TABLE_GROUP, active=showStatusTable, tooltip="가로형(기본): 5개 섹션(추세 확인 / 기울기 전환가 / 교차 전환가 / 변동성 임계가 / 지지·저항 임계가)을 왼쪽→오른쪽으로 나란히 놓습니다(섹션마다 제목·값 2열, 총 10열×5행). 행이 적은 섹션의 남는 칸은 빈칸입니다. 차트 위에서 세로 공간을 적게 차지합니다.\n세로형: 기존과 같은 2열×21행 배치(섹션을 위→아래로 쌓음)입니다.\n두 레이아웃의 셀 내용·색·툴팁은 같고 위치만 다릅니다.")
+tableLayout = input.string("가로형", title="테이블 레이아웃", options=["가로형", "세로형"], group=TABLE_GROUP, active=showStatusTable, tooltip="가로형(기본): 5개 섹션(추세 확인 / 기울기 전환가 / 교차 전환가 / 변동성 임계가 / 지지·저항 임계가)을 왼쪽→오른쪽으로 나란히 놓습니다(섹션마다 제목·값 2열, 총 10열×6행). 행이 적은 섹션의 남는 칸은 빈칸입니다. 차트 위에서 세로 공간을 적게 차지합니다.\n세로형: 2열×22행 배치(섹션을 위→아래로 쌓음)입니다.\n두 레이아웃의 셀 내용·색·툴팁은 같고 위치만 다릅니다.")
 // ── 섹션별 기준봉(CEO 지시 — 구 단일 input "추세 진입 기준봉"(entryBase) 대체) ──
 //  ▸ 섹션마다 완성봉/실시간봉을 고른다. 완성봉 = 가장 최근 확정봉(tblConfOff: 형성 중 1·마감된 마지막 봉 0), 실시간봉 = 현재 봉 0.
 //  ▸ 섹션 안의 기준봉 상태·셀 색·판정·% 기준가·역산(P*)·워킹 window/거래량 가정이 모두 그 섹션 오프셋(trendOff·slopeOff·crossOff·volOff·srOff)을 따른다.
@@ -100,7 +100,7 @@ baseTrendMode = input.string("완성봉", title="기준봉: 추세 확인", opti
 baseSrMode = input.string("완성봉", title="지지·저항 임계가", options=["완성봉", "실시간봉"], group=TABLE_GROUP, inline="tblBase1", active=showStatusTable, tooltip="추세 확인 3행·지지·저항 임계가 3행의 기준봉(기본 둘 다 완성봉).\n완성봉: 가장 최근 확정봉(형성 중이면 직전봉, 마감된 마지막 봉이면 그 봉)의 판정·셀 색·값을 쓰고, %는 그 봉 종가 대비입니다. 형성 중 봉의 틱 변동에 값이 고정됩니다.\n실시간봉: 현재 형성 중인 봉 [0] 기준으로 틱마다 갱신하고, %는 현재가 대비입니다.")
 baseSlopeMode = input.string("실시간봉", title="기준봉: 기울기 전환가", options=["완성봉", "실시간봉"], group=TABLE_GROUP, inline="tblBase2", active=showStatusTable)
 baseCrossMode = input.string("실시간봉", title="교차 전환가", options=["완성봉", "실시간봉"], group=TABLE_GROUP, inline="tblBase2", active=showStatusTable, tooltip="기울기 전환가 4행(TEMA/DEMA/정배열/역배열)·교차 전환가 2행(Sonar/T/D)의 기준봉(기본 둘 다 실시간봉).\n실시간봉: 현재 형성 중 봉 [0]까지를 고정으로 보고 '다음 봉 종가' 조건을 역산, 틱마다 갱신(의도된 리얼타임 리페인팅), %는 현재가 대비.\n완성봉: 가장 최근 확정봉 기준으로 '형성 중이거나 다음에 올 봉의 종가' 조건을 역산, 틱 변동에 고정, %는 그 봉 종가 대비. 봉 마감 시점 값은 두 모드가 같습니다.")
-baseVolMode = input.string("실시간봉", title="기준봉: 변동성 임계가", options=["완성봉", "실시간봉"], group=TABLE_GROUP, inline="tblBase3", active=showStatusTable, tooltip="변동성 임계가 섹션(상승확장·하락확장·이격도·되돌림 가격)의 기준봉(기본 실시간봉).\n실시간봉: 현재 봉 [0]의 상태·값, 워킹 전환가(상승확장·하락확장 행)는 다음 봉 종가를 역산(틱마다 갱신), %는 현재가 대비.\n완성봉: 가장 최근 확정봉의 상태·값, 워킹 전환가는 그 다음 봉(형성 중 봉) 종가를 역산(틱 변동에 고정), %는 그 봉 종가 대비.")
+baseVolMode = input.string("실시간봉", title="기준봉: 변동성 임계가", options=["완성봉", "실시간봉"], group=TABLE_GROUP, inline="tblBase3", active=showStatusTable, tooltip="변동성 임계가 섹션(상승확장·하락확장 20·50, 이격도)의 기준봉(기본 실시간봉).\n실시간봉: 현재 봉 [0]의 상태·값, 워킹 전환가(상승확장·하락확장 행, 20·50 공통)는 다음 봉 종가를 역산(틱마다 갱신), %는 현재가 대비.\n완성봉: 가장 최근 확정봉의 상태·값, 워킹 전환가는 그 다음 봉(형성 중 봉) 종가를 역산(틱 변동에 고정), %는 그 봉 종가 대비.")
 // 장기 추세 강도/크로스 판정 파라미터(원본 '장기 추세' 그룹 이식) — 단기/중기/장기 추세 셀이 공유.
 ltTrendLook = input.int(5, minval=1, title="추세 폭 변화 판정 봉수", group=TABLE_GROUP, tooltip="단기/중기/장기 추세 셀 공통. 크로스 후 이 봉수 경과해야 강/약(폭 변화)을 판정합니다(그 전은 빌드업). 기본 5. 원본과 동일. 전략성 파라미터(수학자 리뷰 대상).")
 ltFlatTol = input.float(0.25, minval=0.0, step=0.05, title="평탄 판정 ATR 배수(강↔약 사이 '상승/하락')", group=TABLE_GROUP, tooltip="단기/중기/장기 추세 폭 변화 데드밴드 = ATR(14) × 이 배수. 폭 변화가 이 이내면 평탄('상승/하락'). 기본 0.25. 원본과 동일.")
@@ -115,6 +115,9 @@ srBandStdMult = input.float(1.0, minval=0.1, step=0.5, title="100·200선 지지
 //  ▸ 과거 로직(705f3bc 이식 ~ b9beec7^)은 화면 VWAP(recentBars)와 이원화된 별도 20봉 VWAP·밴드로 밴드워킹을 판정했다 → 그 설계를 그대로 따른다(세트 A 기간 recentBars와 분리).
 //  ▸ 테이블 계산 전용: 차트 페인팅(Sonar 배경)·밴드선·다른 행에는 쓰이지 않는다. 전략 파라미터(수학자 리뷰 대상).
 vwapStateBars = input.int(20, minval=1, title="밴드워킹 판정 기간(상승확장/하락확장 행)", group=TABLE_GROUP, active=showStatusTable, tooltip="상태 테이블 '상승확장(N)'·'하락확장(N)' 행(구 제목 상승 워킹·하락 워킹)의 밴드워킹 판정 전용 VWAP·밴드 window 길이(최근 N봉, 기본 20). 행 제목의 N이 이 값입니다. 화면 VWAP·밴드 세트 A(Recent Bars)와 별개로 계산합니다(과거 'vwap 상태(20)' 판정과 같은 이원화 구조). 차트 배경·밴드선에는 영향이 없습니다. 전략 파라미터(수학자 리뷰 대상).")
+// 밴드워킹 판정 기간 #2(CEO 지시 — 상태 테이블 '상승확장(50)'·'하락확장(50)' 행 추가). vwapStateBars(20)와 같은 산식·같은 기울기 lookback(5봉)·평탄 3%·확장 비교를 window 길이만 바꿔 적용한다.
+//  ▸ 테이블 계산 전용(차트 배경·밴드선·Sonar 워킹 연동 색에는 쓰이지 않음 — 그쪽은 20 판정 vwWalkState 그대로). 세트 B(bandSetBBars, 표시 전용)와는 분리(표시용 input이 판정을 바꾸지 않게). 전략 파라미터(수학자 리뷰 대상).
+vwapStateBarsLong = input.int(50, minval=1, title="밴드워킹 판정 기간 #2(상승확장/하락확장 행)", group=TABLE_GROUP, active=showStatusTable, tooltip="상태 테이블 '상승확장(N)'·'하락확장(N)' 두 번째 쌍(기본 50)의 밴드워킹 판정 전용 VWAP·밴드 window 길이입니다. 판정식·기울기 기간(5봉)·평탄 기준(밴드2 폭×3%)·밴드폭 확장 비교는 첫 번째 쌍(기본 20)과 같고 길이만 다릅니다. 차트 배경·밴드선에는 영향이 없습니다. 전략 파라미터(수학자 리뷰 대상).")
 
 // =========================
 // 지수 추세 리본(EMA/DEMA/TEMA) + 배열 상태 판정(bgFillState) — 표시 전용. (차트 밴드 배경 페인팅은 'Sonar 모멘텀 배경' 섹션으로 이관 — CEO 지시 2026-10-16)
@@ -345,6 +348,8 @@ abnBuyBgColor = input.color(#E53935, title="비정상 매수 캔들색(붉은색
 DISP_GROUP = "이격도"
 disparityMaType = input.string("SMA", title="이격도 MA 종류", options=["SMA", "EMA", "WMA", "VWMA"], group=DISP_GROUP)
 disparityMaLen = input.int(20, minval=1, title="이격도 MA 길이", group=DISP_GROUP)
+// 이격도 #2 MA 길이(CEO 지시 — 테이블 '이격도' 행 값 '{20 기준} | {50 기준}' 표시용). 같은 MA 종류(disparityMaType)·같은 산식(종가 ÷ MA × 100)이며 표시 전용(과열 판정·셀 색·비정상 래치 리셋은 위 disparityMaLen 기준 그대로).
+disparityMaLenLong = input.int(50, minval=1, title="이격도 MA 길이 #2(표시 전용)", group=DISP_GROUP, tooltip="상태 테이블 '이격도' 행의 두 번째 값(기본 50)을 계산하는 MA 길이입니다. MA 종류는 위 '이격도 MA 종류'를 따릅니다. 표시 전용 — 중립/되돌림 주의/되돌림 확실 판정·셀 색·비정상 캔들 래치 리셋은 첫 번째 길이(기본 20) 기준입니다.")
 disparityThreshold = input.float(10.0, minval=0.1, step=0.1, title="이격도 임계(±%, 고정)", group=DISP_GROUP)
 disparityStatLen = input.int(50, minval=5, title="이격도 통계 구간(적응형)", group=DISP_GROUP)
 disparityStatMult = input.float(1.5, minval=0.1, step=0.1, title="이격도 통계 시그마 배수", group=DISP_GROUP)
@@ -387,6 +392,31 @@ vwWalkState = vwUpperWalk ? 1 : vwLowerWalk ? -1 : 0
 //  ▸ 전역 스코프에서 봉마다 1회 평가. 실시간 봉은 틱마다 var가 직전 확정값으로 롤백된 뒤 재계산되므로 이중 증가 없음(형성 중 봉 = N봉째에 포함, 국면이 틱 중 바뀌면 1로 즉시 반영·마감 시 확정).
 var int vwWalkRun = 0
 vwWalkRun := not vwHasVwapS ? 0 : (vwHasVwapS[1] and vwWalkState == vwWalkState[1]) ? vwWalkRun + 1 : 1
+// ── 밴드워킹 판정 #2(window = vwapStateBarsLong, 기본 50 — CEO 지시 '상승확장(50)'·'하락확장(50)' 행) ──
+//  ▸ 위 20 판정과 1:1 대응(접미사 L): computeVwapSet(N) → ±1σ/±2σ, 5봉 기울기 vwSlopeLen 공유, 평탄 = 밴드2 총폭×3%, 확장 = 밴드2 총폭 > 5봉 전. 임계·상수 동일, window 길이만 다름.
+//  ▸ 테이블 계산 전용 — Sonar 워킹 연동 색(sonarUpColor/sonarDnColor)은 20 판정 vwWalkState만 쓴다(불변). 리페인팅 특성은 20 판정과 같다(현재봉 close·src, 마감 시 확정, request.* 없음).
+[vwapValueL, vwUpper1L, vwLower1L, vwUpper2L, vwLower2L, shouldPlotL] = computeVwapSet(vwapStateBarsLong)
+vwHasVwapL = shouldPlotL and not na(vwapValueL)
+vwBw2L = vwHasVwapL and not na(vwUpper2L) and not na(vwLower2L) ? vwUpper2L - vwLower2L : na
+vwOutU1L = vwHasVwapL and not na(vwUpper1L) and close > vwUpper1L
+vwOutL1L = vwHasVwapL and not na(vwLower1L) and close < vwLower1L
+vwOutU2L = vwHasVwapL and not na(vwUpper2L) and close > vwUpper2L
+vwOutL2L = vwHasVwapL and not na(vwLower2L) and close < vwLower2L
+vwSlopeL = vwHasVwapL and not na(vwapValueL[vwSlopeLen]) ? vwapValueL - vwapValueL[vwSlopeLen] : na
+vwFlatThreshL = not na(vwBw2L) ? vwBw2L * 0.03 : na
+vwSlopeUpL = not na(vwSlopeL) and not na(vwFlatThreshL) and vwSlopeL > vwFlatThreshL
+vwSlopeDownL = not na(vwSlopeL) and not na(vwFlatThreshL) and vwSlopeL < -vwFlatThreshL
+vwSlopeFlatL = vwHasVwapL and not vwSlopeUpL and not vwSlopeDownL
+vwBwExpandingL = vwHasVwapL and not na(vwBw2L[vwSlopeLen]) and vwBw2L > vwBw2L[vwSlopeLen]
+vwBreakUpperL = vwHasVwapL and vwOutU2L and not vwBwExpandingL and (vwSlopeFlatL or vwSlopeDownL)
+vwBreakLowerL = vwHasVwapL and vwOutL2L and not vwBwExpandingL and (vwSlopeFlatL or vwSlopeUpL)
+vwWalkUpBaseL = vwOutU1L and (vwSlopeUpL or (vwSlopeFlatL and vwBwExpandingL))
+vwWalkDnBaseL = vwOutL1L and (vwSlopeDownL or (vwSlopeFlatL and vwBwExpandingL))
+vwUpperWalkL = vwHasVwapL and vwWalkUpBaseL and not vwBreakUpperL
+vwLowerWalkL = vwHasVwapL and vwWalkDnBaseL and not vwBreakLowerL
+vwWalkStateL = vwUpperWalkL ? 1 : vwLowerWalkL ? -1 : 0
+var int vwWalkRunL = 0
+vwWalkRunL := not vwHasVwapL ? 0 : (vwHasVwapL[1] and vwWalkStateL == vwWalkStateL[1]) ? vwWalkRunL + 1 : 1
 
 // =========================
 // 비정상 매수/매도 판정 — advanced-ichimoku.pine "비정상 캔들" 블록의 이식(포팅). 산식·기본값 동일.
@@ -400,6 +430,13 @@ disparityMa = switch disparityMaType
     "WMA" => ta.wma(close, disparityMaLen)
     "VWMA" => ta.vwma(close, disparityMaLen)
 disparity = not na(disparityMa) and disparityMa != 0 ? close / disparityMa * 100 : na
+// 이격도 #2(기본 50) — 테이블 '이격도' 행 두 번째 값 표시 전용. 같은 MA 종류·같은 산식. 판정(overCount/underCount)·래치 리셋에는 쓰지 않는다.
+disparityMaLong = switch disparityMaType
+    "SMA" => ta.sma(close, disparityMaLenLong)
+    "EMA" => ta.ema(close, disparityMaLenLong)
+    "WMA" => ta.wma(close, disparityMaLenLong)
+    "VWMA" => ta.vwma(close, disparityMaLenLong)
+disparityLong = not na(disparityMaLong) and disparityMaLong != 0 ? close / disparityMaLong * 100 : na
 disparityStd = ta.stdev(disparity, disparityStatLen)
 disparityStatOk = not na(disparity) and not na(disparityStd) and disparityStd > 0
 overFixed  = not na(disparity) and disparity - 100 >= disparityThreshold
@@ -1310,39 +1347,27 @@ ltM2SrColor = not ltM2HasMa ? color.new(color.gray, 50) : ltM2Support ? color.ne
 // ── 비정상 매수/매도 셀: CEO 지시로 테이블 행 삭제(비정상은 이미 캔들 몸통색 barcolor로 표현). ──
 //  ⚠️ 판정 래치(abnCandleState/abnWatch)·캔들색(abnBarColor·barcolor)은 전부 불변 — 삭제한 것은 테이블 셀 전용 변수(abnCandleTxt/abnWatchTxt/abnCellText/abnCellColor)뿐이다.
 
-// ── 이격도 셀(원본 이식) — auto-vwap의 기존 disparity/overCount/underCount 재사용. 셀 텍스트/색·되돌림 가격만 신설 ──
+// ── 이격도 셀(원본 이식) — auto-vwap의 기존 disparity/overCount/underCount 재사용. 셀 텍스트/색만 신설 ──
+//  ▸ 값(CEO 지시): "{20 기준값} | {50 기준값}" — 20 기준값 = 기존 포맷 그대로 "값 (판정)", 50 기준값 = 같은 숫자 포맷(소수 1자리, 판정 없음). 각 값 na면 "-".
+//  ▸ 셀 색·판정 텍스트는 기존 20 기준(disparityMaLen) 그대로. (CEO 지시로 '되돌림 가격' 행과 그 전용 계산·포맷 헬퍼(disparityNeutralPct·Edge·PullbackPrice·f_priceStr·f_pctStrAt·f_pctStr) 제거.)
 disparityState = (overCount == 2 or underCount == 2) ? "되돌림 확실" : (overCount >= 1 or underCount >= 1) ? "되돌림 주의" : "중립"
 string disparityCellText = ""
 if tableBar
-    disparityCellText := na(disparity[volOff]) ? "-" : str.tostring(disparity[volOff], "0.0") + " (" + disparityState[volOff] + ")"
+    disparityCellText := (na(disparity[volOff]) ? "-" : str.tostring(disparity[volOff], "0.0") + " (" + disparityState[volOff] + ")") + " | " + (na(disparityLong[volOff]) ? "-" : str.tostring(disparityLong[volOff], "0.0"))
 disparityCellColor = overCount == 2 ? color.new(color.red, 0) : underCount == 2 ? color.new(color.green, 0) : overCount >= 1 ? color.new(#A57A7A, 0) : underCount >= 1 ? color.new(#6E8F72, 0) : color.new(color.gray, 40)
-disparityNeutralPct = disparityStatOk ? math.min(disparityThreshold, disparityStatMult * disparityStd) : disparityThreshold
-disparityLowerEdge = not na(disparityMa) ? disparityMa * (1 - disparityNeutralPct / 100) : na
-disparityUpperEdge = not na(disparityMa) ? disparityMa * (1 + disparityNeutralPct / 100) : na
-disparityPullbackPrice = overCount >= 1 ? disparityUpperEdge : underCount >= 1 ? disparityLowerEdge : na
-
-// 되돌림 가격 셀 텍스트 포맷 헬퍼 — 원본 f_price/f_pct 그대로 이식(천 단위 쉼표 + mintick 자릿수, 종가 대비 %).
-priceDecimals = syminfo.mintick >= 1 ? 0 : syminfo.mintick >= 0.1 ? 1 : syminfo.mintick >= 0.01 ? 2 : syminfo.mintick >= 0.001 ? 3 : syminfo.mintick >= 0.0001 ? 4 : 5
-priceFmt = priceDecimals == 0 ? "#,##0" : priceDecimals == 1 ? "#,##0.0" : priceDecimals == 2 ? "#,##0.00" : priceDecimals == 3 ? "#,##0.000" : priceDecimals == 4 ? "#,##0.0000" : "#,##0.00000"
-f_priceStr(float p) => str.tostring(p, priceFmt)
-// 기준가 base 대비 %(변동성 임계가 섹션 기준봉 종가 volBaseC — 실시간봉이면 close와 같음). 포맷은 f_pctStr과 동일.
-f_pctStrAt(float p, float base) =>
-    d = (p - base) / base * 100
-    (d > 0 ? "+" : "") + str.tostring(d, "0.0") + "%"
-f_pctStr(float p) =>
-    d = (p - close) / close * 100
-    (d > 0 ? "+" : "") + str.tostring(d, "0.0") + "%"
 
 // ── 후행·변동성·지지/저항 섹션 데이터 행 셀 툴팁(기울기·교차 전환가 툴팁과 톤 통일 — 각 행 신호 의미만 요약) ────────
 //  후행 추세 3행: VWMA 골든/데드크로스로 확정된 추세를 확인하는 후행 신호(기울기·교차 전환가 대비 늦지만 오신호 적음). MA쌍만 행별 상이.
 laggingStTooltip = "VWMA 20선과 50선의 배열·골든/데드 크로스로 판정한 단기 추세이며, 값은 방향·변화율·유지 봉수입니다. 기울기·교차 전환가 신호가 거래량을 동반한 실제 추세로 확정됐는지 검증해 휩쏘를 거릅니다. 후행 지표라 늦지만 오신호가 적습니다. 기준봉은 '기준봉: 추세 확인' 설정(기본 완성봉 = 가장 최근 확정봉·형성 중 틱에 고정, 실시간봉 = 현재 봉·틱마다 갱신)입니다."
 laggingMtTooltip = "VWMA 50선(주황)과 100선의 배열·크로스로 판정한 중기 추세입니다. 단기 노이즈를 걸러 스윙 방향을 확정하는 데 쓰며, 단기추세와 엇갈리면 관망합니다. 기준봉은 '기준봉: 추세 확인' 설정(기본 완성봉 = 가장 최근 확정봉·형성 중 틱에 고정, 실시간봉 = 현재 봉·틱마다 갱신)입니다."
 laggingLtTooltip = "VWMA 100선과 200선의 배열·크로스로 판정한 장기 추세입니다(200봉 미만이면 '-'). 진입 방향을 정하는 최상위 필터로, 이 방향에 역행하는 진입은 피하거나 비중을 줄입니다. 기준봉은 '기준봉: 추세 확인' 설정(기본 완성봉 = 가장 최근 확정봉·형성 중 틱에 고정, 실시간봉 = 현재 봉·틱마다 갱신)입니다."
-//  변동성 4행: 상승확장·하락확장(구 행 제목 상승 워킹·하락 워킹 — 밴드워킹 상태 전환 조건부 종가 — 교차 전환가와 같은 기준봉·색·도달불가 규칙)·이격도(과열)·되돌림가(회귀 목표). 각 행 개념+효과.
+//  변동성 5행: 상승확장·하락확장 ×2쌍(20·50 — 구 행 제목 상승 워킹·하락 워킹 — 밴드워킹 상태 전환 조건부 종가 — 교차 전환가와 같은 기준봉·색·도달불가 규칙)·이격도(과열, 20|50). 각 행 개념+효과. (구 되돌림가 행은 CEO 지시로 제거)
 volWalkUpTooltip = "판정 기간(N봉) VWAP 기준 상승 밴드워킹(종가 > +1σ이면서 VWAP 상승, 또는 기울기 평탄+밴드폭 확장 — +2σ 위 상단 이탈은 제외)으로 바뀌는(횡보일 때) 또는 상승 워킹에서 횡보로 돌아가는(상승 워킹일 때) 조건부 종가로, 값 앞 접두어(상승·횡보)는 그 가격에 도달하면 바뀌는 상태입니다(예 '상승 : 10,320 (+1.2% | 3봉)' — N봉 = 기준봉의 현재 국면(상승 워킹·하락 워킹·횡보)이 이어진 봉 수, 국면이 바뀌면 1부터 다시 셈), 하락 워킹 중이면 '-'입니다(셀 색=기준봉 상태: 녹 상승 워킹·적 하락 워킹·회색 횡보). 상승 워킹은 밴드를 타고 오르는 추세 구간이라 롱 보유·눌림 추가의 근거이고, 횡보 복귀가는 롱 익절·손절을 당기는 기준입니다. 종가 하나로 VWAP·σ·기울기·밴드폭이 함께 움직이는 값을 수치 탐색한 근사(다음 봉 거래량=기준봉 거래량, 소스=종가 가정)이며, 경계가 둘이면 기준가에 가까운 쪽을 표시합니다. 기준봉은 '기준봉: 변동성 임계가' 설정(기본 실시간봉 = 현재 형성 중 봉 상태·현재가 기준, 틱마다 갱신 / 완성봉 = 가장 최근 확정봉 기준, 틱에 고정)입니다."
 volWalkDnTooltip = "판정 기간(N봉) VWAP 기준 하락 밴드워킹(종가 < −1σ이면서 VWAP 하락, 또는 기울기 평탄+밴드폭 확장 — −2σ 아래 하단 이탈은 제외)으로 바뀌는(횡보일 때) 또는 하락 워킹에서 횡보로 돌아가는(하락 워킹일 때) 조건부 종가로, 값 앞 접두어(하락·횡보)는 그 가격에 도달하면 바뀌는 상태입니다(예 '하락 : 9,870 (-1.3% | 3봉)' — N봉 = 기준봉의 현재 국면(상승 워킹·하락 워킹·횡보)이 이어진 봉 수, 국면이 바뀌면 1부터 다시 셈), 상승 워킹 중이면 '-'입니다(셀 색=기준봉 상태: 녹 상승 워킹·적 하락 워킹·회색 횡보). 하락 워킹은 밴드를 타고 내리는 추세 구간이라 숏 보유·롱 진입 보류의 근거이고, 횡보 복귀가는 숏 익절·손절을 당기는 기준입니다. 종가 하나로 VWAP·σ·기울기·밴드폭이 함께 움직이는 값을 수치 탐색한 근사(다음 봉 거래량=기준봉 거래량, 소스=종가 가정)이며, 경계가 둘이면 기준가에 가까운 쪽을 표시합니다. 기준봉은 '기준봉: 변동성 임계가' 설정(기본 실시간봉 = 현재 형성 중 봉 상태·현재가 기준, 틱마다 갱신 / 완성봉 = 가장 최근 확정봉 기준, 틱에 고정)입니다."
-volDisparityTooltip = "종가가 이격도 MA의 몇 %에 있는지(100=MA와 같음)와 과열 판정(중립/되돌림 주의/되돌림 확실)입니다. 과열이 강할수록 평균 회귀 압력이 커지므로 그 방향의 추격 진입을 자제합니다. 강한 추세에서는 과열이 오래 이어질 수 있어 역추세 진입 근거로 단독 사용하지 않습니다. 기준봉은 '기준봉: 변동성 임계가' 설정(기본 실시간봉 = 현재 봉·현재가 대비, 완성봉 = 가장 최근 확정봉·그 봉 종가 대비)입니다."
-volPullbackTooltip = "이격도 과열(주의 이상) 시 중립 구간으로 돌아오는 경계 가격과 기준봉 종가 대비 %이며, 과열이 아니면 '-'입니다. 과열 방향 포지션의 청산 목표나 눌림목 재진입 기준으로 씁니다. 도달을 보장하는 목표가는 아닙니다. 기준봉은 '기준봉: 변동성 임계가' 설정(기본 실시간봉 = 현재 봉·현재가 대비, 완성봉 = 가장 최근 확정봉·그 봉 종가 대비)입니다."
+// 50 쌍 툴팁 = 20 쌍 툴팁 앞에 판정 기간 #2 안내만 덧붙임(산식·표시 규칙 동일 — 문구 중복 방지).
+volWalkUpTooltipL = "판정 기간 #2(기본 50봉) 기준 — 위 20 행과 판정식·표시 규칙이 같고 window 길이만 다르며, N봉은 이 50 기준 국면이 이어진 봉 수입니다. " + volWalkUpTooltip
+volWalkDnTooltipL = "판정 기간 #2(기본 50봉) 기준 — 위 20 행과 판정식·표시 규칙이 같고 window 길이만 다르며, N봉은 이 50 기준 국면이 이어진 봉 수입니다. " + volWalkDnTooltip
+volDisparityTooltip = "왼쪽 = 종가가 이격도 MA(기본 20)의 몇 %에 있는지(100=MA와 같음)와 과열 판정(중립/되돌림 주의/되돌림 확실), 오른쪽 = 같은 MA 종류의 이격도 MA #2(기본 50) 기준 값(판정 없이 값만)입니다. 셀 색·판정은 20 기준입니다. 과열이 강할수록 평균 회귀 압력이 커지므로 그 방향의 추격 진입을 자제합니다. 강한 추세에서는 과열이 오래 이어질 수 있어 역추세 진입 근거로 단독 사용하지 않습니다. 기준봉은 '기준봉: 변동성 임계가' 설정(기본 실시간봉 = 현재 봉·현재가 대비, 완성봉 = 가장 최근 확정봉·그 봉 종가 대비)입니다."
 //  지지/저항 3행(라벨 50선/100선/200선): 값=선 가격(현재가 대비 ±%), 셀 색=지지/저항 판정(VWMA선 ±σ 밴드). 개념+효과. MA만 행별 상이.
 srVw50Tooltip = "거래량 가중 50선의 가격과 기준봉 종가 대비 %이며, 셀 색은 지지(녹)·저항(적)·위(둔탁 녹)·아래(둔탁 적) 판정입니다. 단기 지지·저항 레벨로 눌림 진입과 손절 기준에 씁니다. 지지 판정에서 이 선 아래로 마감하면 롱 손절, 저항 판정에서 위로 마감하면 숏 손절을 검토합니다. 기준봉은 '지지·저항 임계가' 기준봉 설정(기본 완성봉 = 가장 최근 확정봉의 선 값·종가·판정, 형성 중 틱에 고정 / 실시간봉 = 현재 봉)입니다."
 srVw100Tooltip = "거래량 가중 100선의 가격과 기준봉 종가 대비 %이며, 셀 색은 지지(녹)·저항(적)·위(둔탁 녹)·아래(둔탁 적) 판정입니다. 단기선보다 강한 중기 매물대로, 지지 유지는 추세 지속, 종가 이탈은 반전 경계로 봅니다. 기준봉은 '지지·저항 임계가' 기준봉 설정(기본 완성봉 = 가장 최근 확정봉의 선 값·종가·판정, 형성 중 틱에 고정 / 실시간봉 = 현재 봉)입니다."
@@ -1547,6 +1572,40 @@ if tableBar
             walkUpText := walkRefState == 1 ? f_walkText("횡보", pFl, upFl, walkRefRun) : "-"
             walkDnText := walkRefState == -1 ? f_walkText("횡보", pFl, upFl, walkRefRun) : "-"
 walkColor = f_entSlopeColor(walkRefOk ? float(walkRefState) : na)
+// ── 상승확장(50)·하락확장(50) 행(CEO 지시) — 위 20 행과 같은 모형·역산·포맷·색 규칙, window = vwapStateBarsLong(기본 50)·판정 시리즈 접미사 L ──
+//  ▸ 고정값 = cumulative*[o] − cumulative*[o+N₂−1], 기울기 기준 = vwapValueL[o+4], 밴드폭 기준 = vwBw2L[o+4], u 거래량 = volume[o]. 판정 함수 f_walkStateAt·역산 f_walkEdge·텍스트 f_walkText 공유.
+//  ▸ 비용: 20 행과 같은 규모의 탐색 1벌 추가(islast에서만).
+walkRefStateL = vwWalkStateL[volOff]
+walkRefOkL = vwHasVwapL[volOff]
+walkRefRunL = vwWalkRunL[volOff]   // 50 기준 기준봉 국면의 연속 봉수(기준봉 포함)
+string walkUpTextL = ""
+string walkDnTextL = ""
+if tableBar
+    if not walkRefOkL or na(volBaseC) or volBaseC <= 0
+        walkUpTextL := "-"
+        walkDnTextL := "-"
+    else
+        int wo = volOff
+        int wAnc = wo + vwapStateBarsLong - 1
+        float wfPV = cumulativePV[wo] - nz(cumulativePV[wAnc], 0.0)
+        float wfV = cumulativeVolume[wo] - nz(cumulativeVolume[wAnc], 0.0)
+        float wfP2V = cumulativeP2V[wo] - nz(cumulativeP2V[wAnc], 0.0)
+        float wfLogPV = cumulativeLogPV[wo] - nz(cumulativeLogPV[wAnc], 0.0)
+        float wfLog2V = cumulativeLog2V[wo] - nz(cumulativeLog2V[wAnc], 0.0)
+        float wfInv = cumulativeInvalidLogVolume[wo] - nz(cumulativeInvalidLogVolume[wAnc], 0.0)
+        float wvU = nz(volume[wo], 0.0)
+        float wVwOld = vwapValueL[wo + vwSlopeLen - 1]
+        float wBwOld = vwBw2L[wo + vwSlopeLen - 1]
+        if walkRefStateL == 0
+            [pUp, upUp] = f_walkEdge(1, volBaseC, wfPV, wfV, wfP2V, wfLogPV, wfLog2V, wfInv, wvU, wVwOld, wBwOld)
+            [pDn, upDn] = f_walkEdge(-1, volBaseC, wfPV, wfV, wfP2V, wfLogPV, wfLog2V, wfInv, wvU, wVwOld, wBwOld)
+            walkUpTextL := f_walkText("상승", pUp, upUp, walkRefRunL)
+            walkDnTextL := f_walkText("하락", pDn, upDn, walkRefRunL)
+        else
+            [pFl, upFl] = f_walkEdge(0, volBaseC, wfPV, wfV, wfP2V, wfLogPV, wfLog2V, wfInv, wvU, wVwOld, wBwOld)
+            walkUpTextL := walkRefStateL == 1 ? f_walkText("횡보", pFl, upFl, walkRefRunL) : "-"
+            walkDnTextL := walkRefStateL == -1 ? f_walkText("횡보", pFl, upFl, walkRefRunL) : "-"
+walkColorL = f_entSlopeColor(walkRefOkL ? float(walkRefStateL) : na)
 // 셀 툴팁 — 각 행은 정의 1문장 + 트레이딩 핵심 최대 2문장(CEO 지시). 공통 문구(기준봉 모드·조건부 가격·도달불가/-/소스≠종가)는 섹션 헤더 툴팁으로 이관 — CEO 지시로 구 ENTRY_TIP_COMMON을 "기울기 전환가"(ENTRY_SLOPE_TIP)·"교차 전환가"(ENTRY_CROSS_TIP) 두 헤더용으로 분할(각 최대 3문장, 기준봉 분기 유지).
 // 헤더 툴팁 기준봉 문구 — 섹션별 input(baseSlopeMode/baseCrossMode)에 따라 분기(var: 첫 봉 1회 평가, input은 상수라 안전).
 f_entryTipBase(string mode) => mode == "실시간봉" ? "다음 봉의 조건부 종가입니다(기준봉=실시간봉, 틱마다 갱신, %는 현재가 대비, 예측·매매 신호 아님)." : "형성 중인(또는 다음) 봉의 조건부 종가입니다(기준봉=완성봉, 틱 변동에 고정, %는 기준봉 종가 대비, 예측·매매 신호 아님)."
@@ -1562,20 +1621,20 @@ entTdTooltip = "종가가 이 가격 너머로 마감하면 TEMA가 DEMA를 교�
 // ── 상태 테이블 렌더링(우측 상단) — 추세 확인 / 기울기 전환가 / 교차 전환가 / 변동성 임계가 / 지지·저항 임계가 ────────────────
 //  스타일: 원본과 동일(섹션 헤더 딥 네이비 #1B2A4A·병합, 행 라벨 회색 배경, 값 셀 판정색, 흰 글자, size.small).
 //  ▸ 셀 정의와 좌표 배치를 분리(CEO 지시 — 레이아웃 input tableLayout): 각 셀은 (섹션 s, 섹션 안 행 r, 열 c)로 정의하고 f_tblCol/f_tblRow가 레이아웃별 (col, row)로 바꾼다.
-//     섹션 s: 0 추세 확인(3행) · 1 기울기 전환가(4행) · 2 교차 전환가(2행) · 3 변동성 임계가(4행) · 4 지지·저항 임계가(3행). r = 0 헤더, 1~ 데이터. c = 0 제목, 1 값.
-//  ▸ 세로형(구 배치 그대로, 총 21행 0~20): col = c, row = 섹션 시작 행(0·4·9·12·17) + r
-//     추세 확인 헤더 0·데이터 1~3 / 기울기 전환가 헤더 4·데이터 5~8(TEMA·DEMA·정배열·역배열 — CEO 지시로 TEMA→DEMA→배열 순 재배치) / 교차 전환가 헤더 9·데이터 10~11(Sonar·T/D) / 변동성 임계가 헤더 12·데이터 13~16 / 지지·저항 임계가 헤더 17·데이터 18~20.
+//     섹션 s: 0 추세 확인(3행) · 1 기울기 전환가(4행) · 2 교차 전환가(2행) · 3 변동성 임계가(5행) · 4 지지·저항 임계가(3행). r = 0 헤더, 1~ 데이터. c = 0 제목, 1 값.
+//  ▸ 세로형(총 22행 0~21): col = c, row = 섹션 시작 행(0·4·9·12·18) + r
+//     추세 확인 헤더 0·데이터 1~3 / 기울기 전환가 헤더 4·데이터 5~8(TEMA·DEMA·정배열·역배열 — CEO 지시로 TEMA→DEMA→배열 순 재배치) / 교차 전환가 헤더 9·데이터 10~11(Sonar·T/D) / 변동성 임계가 헤더 12·데이터 13~17(상승확장20·하락확장20·상승확장50·하락확장50·이격도 — CEO 지시로 되돌림 가격 제거·50 쌍 추가해 4→5행) / 지지·저항 임계가 헤더 18·데이터 19~21.
 //     (CEO 지시: 구 "추세 전환가" 단일 섹션(헤더 4·데이터 5~10, 총 20행)을 "기울기 전환가"·"교차 전환가" 2섹션으로 분할 — 헤더 1행 추가로 20→21행.)
-//  ▸ 가로형(10열×(1+최장 섹션 4행)=10×5): col = 2s + c, row = r. 5개 섹션 헤더(기준봉 표기 포함)는 첫 행(row 0)에 한 줄로만 놓이고(세로형의 섹션 사이 헤더 행 없음), 각 헤더는 자기 2열을 병합하며, 데이터는 row 1부터 채운다.
-//      행이 4개보다 적은 섹션(추세 확인·교차 전환가·지지·저항)의 남는 칸은 빈 문자열 + 제목 셀과 같은 배경(TBL_LABEL_BG)으로 채운다.
-//  ▸ 모든 셀은 섹션 토글 없이 showStatusTable 한 조건으로 일괄 렌더링 → 최대 인덱스: 세로 col 1·row 20 < 2×21, 가로 col 9·row 4 < 10×5.
+//  ▸ 가로형(10열×(1+최장 섹션 5행)=10×6): col = 2s + c, row = r. 5개 섹션 헤더(기준봉 표기 포함)는 첫 행(row 0)에 한 줄로만 놓이고(세로형의 섹션 사이 헤더 행 없음), 각 헤더는 자기 2열을 병합하며, 데이터는 row 1부터 채운다.
+//      행이 5개보다 적은 섹션(추세 확인·기울기 전환가·교차 전환가·지지·저항)의 남는 칸은 빈 문자열 + 제목 셀과 같은 배경(TBL_LABEL_BG)으로 채운다.
+//  ▸ 모든 셀은 섹션 토글 없이 showStatusTable 한 조건으로 일괄 렌더링 → 최대 인덱스: 세로 col 1·row 21 < 2×22, 가로 col 9·row 5 < 10×6.
 TBL_HORIZONTAL = tableLayout == "가로형"
 TBL_SECTIONS = 5
-TBL_MAX_ROWS = 4   // 섹션 데이터 행 수 최댓값(기울기 전환가·변동성 임계가)
+TBL_MAX_ROWS = 5   // 섹션 데이터 행 수 최댓값(변동성 임계가)
 // 행 제목(label) 셀 배경 — 데이터 행 제목 셀과 가로형 빈칸이 공유(CEO 지시: 빈칸이 차트 배경으로 비쳐 '구멍'처럼 보이지 않게 제목 셀과 같은 톤으로 칠함). 값은 기존 리터럴 color.new(color.gray, 20) 그대로.
 TBL_LABEL_BG = color.new(color.gray, 20)
-f_tblSecRows(int sec) => sec == 0 ? 3 : sec == 1 ? 4 : sec == 2 ? 2 : sec == 3 ? 4 : 3
-f_tblSecStart(int sec) => sec == 0 ? 0 : sec == 1 ? 4 : sec == 2 ? 9 : sec == 3 ? 12 : 17   // 세로형 섹션 헤더 행
+f_tblSecRows(int sec) => sec == 0 ? 3 : sec == 1 ? 4 : sec == 2 ? 2 : sec == 3 ? 5 : 3
+f_tblSecStart(int sec) => sec == 0 ? 0 : sec == 1 ? 4 : sec == 2 ? 9 : sec == 3 ? 12 : 18   // 세로형 섹션 헤더 행
 f_tblCol(int sec, int c) => TBL_HORIZONTAL ? 2 * sec + c : c
 f_tblRow(int sec, int r) => TBL_HORIZONTAL ? r : f_tblSecStart(sec) + r
 // 섹션 헤더(제목 셀 + 빈 값 셀 → 2열 병합). tip = na면 툴팁 없음(구 코드에서 툴팁을 생략한 헤더와 동일).
@@ -1587,7 +1646,7 @@ f_tblHeader(table t, int sec, string title, string tip) =>
 f_tblItem(table t, int sec, int r, string label, string val, color valBg, string tip) =>
     table.cell(t, f_tblCol(sec, 0), f_tblRow(sec, r), label, text_color=color.white, bgcolor=TBL_LABEL_BG, text_size=size.small, tooltip=tip)
     table.cell(t, f_tblCol(sec, 1), f_tblRow(sec, r), val, text_color=color.white, bgcolor=valBg, text_size=size.small, tooltip=tip)
-var table statusTable = table.new(position.top_right, TBL_HORIZONTAL ? 2 * TBL_SECTIONS : 2, TBL_HORIZONTAL ? 1 + TBL_MAX_ROWS : 21, border_width=1, border_color=color.new(color.gray, 50))
+var table statusTable = table.new(position.top_right, TBL_HORIZONTAL ? 2 * TBL_SECTIONS : 2, TBL_HORIZONTAL ? 1 + TBL_MAX_ROWS : 22, border_width=1, border_color=color.new(color.gray, 50))
 if showStatusTable and barstate.islast
     // 섹션 헤더 제목 = "섹션명 (기준봉)"(CEO 지시) — 각 섹션 기준봉 input(baseTrendMode·baseSlopeMode·baseCrossMode·baseVolMode·baseSrMode) 값을 붙인다. islast 블록 안에서만 결합, 스타일 불변.
     // 섹션1: 추세 확인 (VWMA MA 기반 후행(lagging) 지표 — 단기/중기/장기 추세 3행). (CEO 지시: 단기 추세 위에 머지 헤더 신설. 이후 CEO 지시로 헤더 "후행 추세 확인"→"추세 확인" 개명·테이블 최상단으로 이동.)
@@ -1606,14 +1665,17 @@ if showStatusTable and barstate.islast
     f_tblHeader(statusTable, 2, "교차 전환가 (" + baseCrossMode + ")", ENTRY_CROSS_TIP)
     f_tblItem(statusTable, 2, 1, "Sonar 교차", entSonarText, entSonarColor, entSonarTooltip)
     f_tblItem(statusTable, 2, 2, "T/D 교차", entTdText, entTdColor, entTdTooltip)
-    // 섹션2: 변동성 임계가 (상승확장 → 하락확장 → 이격도 → 되돌림). (CEO 지시: 헤더 "가격 구조 및 변동성 확인"→"변동성 확인"→"변동성 임계가", 비정상 매수/매도 행 삭제 — 캔들색으로 이미 표현.)
+    // 섹션2: 변동성 임계가 (상승확장(20) → 하락확장(20) → 상승확장(50) → 하락확장(50) → 이격도 — CEO 지시로 되돌림 가격 행 제거·50 쌍 추가). (CEO 지시: 헤더 "가격 구조 및 변동성 확인"→"변동성 확인"→"변동성 임계가", 비정상 매수/매도 행 삭제 — 캔들색으로 이미 표현.)
     f_tblHeader(statusTable, 3, "변동성 임계가 (" + baseVolMode + ")", na)
     // 상승확장/하락확장 2행(CEO 지시 — 구 행 제목 "상승 워킹"/"하락 워킹"에서 제목만 개명, 값·판정·색 불변; 그 이전엔 구 밴드 상단/하단 행 대체): 밴드워킹 상태가 바뀌는 조건부 종가 "{목표 상태} : 가격 (±x.x% | N봉)"(N봉 = 기준봉 국면 연속 봉수). 제목 N = vwapStateBars(판정 기간, 기본 20).
     //  ▸ 셀 색 = 기준봉 밴드워킹 상태(walkColor — 교차 전환가 f_entSlopeColor 규칙, 두 행 공통). 구 고정 회색 제거.
     f_tblItem(statusTable, 3, 1, "상승확장(" + str.tostring(vwapStateBars) + ")", walkUpText, walkColor, volWalkUpTooltip)
     f_tblItem(statusTable, 3, 2, "하락확장(" + str.tostring(vwapStateBars) + ")", walkDnText, walkColor, volWalkDnTooltip)
-    f_tblItem(statusTable, 3, 3, "이격도 (" + str.tostring(disparityMaLen) + ")", disparityCellText, disparityCellColor[volOff], volDisparityTooltip)
-    f_tblItem(statusTable, 3, 4, "되돌림 가격", na(disparityPullbackPrice[volOff]) ? "-" : f_priceStr(disparityPullbackPrice[volOff]) + " (" + f_pctStrAt(disparityPullbackPrice[volOff], volBaseC) + ")", color.new(color.gray, 40), volPullbackTooltip)
+    // 상승확장(50)/하락확장(50) 2행(CEO 지시): 20 행과 같은 포맷·색 규칙, 판정 기간 #2(vwapStateBarsLong, 기본 50). 셀 색 = 50 기준 기준봉 상태(walkColorL).
+    f_tblItem(statusTable, 3, 3, "상승확장(" + str.tostring(vwapStateBarsLong) + ")", walkUpTextL, walkColorL, volWalkUpTooltipL)
+    f_tblItem(statusTable, 3, 4, "하락확장(" + str.tostring(vwapStateBarsLong) + ")", walkDnTextL, walkColorL, volWalkDnTooltipL)
+    // 이격도(CEO 지시 — 라벨 '이격도 (20)'→'이격도', 값 '{20 기준} | {50 기준}'). 셀 색은 기존 20 기준 disparityCellColor 그대로.
+    f_tblItem(statusTable, 3, 5, "이격도", disparityCellText, disparityCellColor[volOff], volDisparityTooltip)
     // 섹션3: 지지·저항 임계가 (CEO 지시로 헤더 "지지·저항 확인"→"지지·저항 임계가" 개명) (50선 / 100선 / 200선)
     f_tblHeader(statusTable, 4, "지지·저항 임계가 (" + baseSrMode + ")", na)
     f_tblItem(statusTable, 4, 1, "50선", vwSrText, vwSrColor[srOff], srVw50Tooltip)
