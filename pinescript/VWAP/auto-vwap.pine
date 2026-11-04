@@ -1348,12 +1348,12 @@ ltM2SrColor = not ltM2HasMa ? color.new(color.gray, 50) : ltM2Support ? color.ne
 //  ⚠️ 판정 래치(abnCandleState/abnWatch)·캔들색(abnBarColor·barcolor)은 전부 불변 — 삭제한 것은 테이블 셀 전용 변수(abnCandleTxt/abnWatchTxt/abnCellText/abnCellColor)뿐이다.
 
 // ── 이격도 셀(원본 이식) — auto-vwap의 기존 disparity/overCount/underCount 재사용. 셀 텍스트/색만 신설 ──
-//  ▸ 값(CEO 지시): "{20 기준값} | {50 기준값}" — 20 기준값 = 기존 포맷 그대로 "값 (판정)", 50 기준값 = 같은 숫자 포맷(소수 1자리, 판정 없음). 각 값 na면 "-".
+//  ▸ 값(CEO 지시): "{20 기준값} | {50 기준값} ({판정})" — 두 값 모두 소수 1자리, 판정은 20 기준이며 맨 뒤 괄호. 각 값 na면 "-", 20 기준값이 na면 판정 괄호 생략.
 //  ▸ 셀 색·판정 텍스트는 기존 20 기준(disparityMaLen) 그대로. (CEO 지시로 '되돌림 가격' 행과 그 전용 계산·포맷 헬퍼(disparityNeutralPct·Edge·PullbackPrice·f_priceStr·f_pctStrAt·f_pctStr) 제거.)
 disparityState = (overCount == 2 or underCount == 2) ? "되돌림 확실" : (overCount >= 1 or underCount >= 1) ? "되돌림 주의" : "중립"
 string disparityCellText = ""
 if tableBar
-    disparityCellText := (na(disparity[volOff]) ? "-" : str.tostring(disparity[volOff], "0.0") + " (" + disparityState[volOff] + ")") + " | " + (na(disparityLong[volOff]) ? "-" : str.tostring(disparityLong[volOff], "0.0"))
+    disparityCellText := (na(disparity[volOff]) ? "-" : str.tostring(disparity[volOff], "0.0")) + " | " + (na(disparityLong[volOff]) ? "-" : str.tostring(disparityLong[volOff], "0.0")) + (na(disparity[volOff]) ? "" : " (" + disparityState[volOff] + ")")
 disparityCellColor = overCount == 2 ? color.new(color.red, 0) : underCount == 2 ? color.new(color.green, 0) : overCount >= 1 ? color.new(#A57A7A, 0) : underCount >= 1 ? color.new(#6E8F72, 0) : color.new(color.gray, 40)
 
 // ── 후행·변동성·지지/저항 섹션 데이터 행 셀 툴팁(기울기·교차 전환가 툴팁과 톤 통일 — 각 행 신호 의미만 요약) ────────
@@ -1367,7 +1367,7 @@ volWalkDnTooltip = "판정 기간(N봉) VWAP 기준 하락 밴드워킹(종가 <
 // 50 쌍 툴팁 = 20 쌍 툴팁 앞에 판정 기간 #2 안내만 덧붙임(산식·표시 규칙 동일 — 문구 중복 방지).
 volWalkUpTooltipL = "판정 기간 #2(기본 50봉) 기준 — 위 20 행과 판정식·표시 규칙이 같고 window 길이만 다르며, N봉은 이 50 기준 국면이 이어진 봉 수입니다. " + volWalkUpTooltip
 volWalkDnTooltipL = "판정 기간 #2(기본 50봉) 기준 — 위 20 행과 판정식·표시 규칙이 같고 window 길이만 다르며, N봉은 이 50 기준 국면이 이어진 봉 수입니다. " + volWalkDnTooltip
-volDisparityTooltip = "왼쪽 = 종가가 이격도 MA(기본 20)의 몇 %에 있는지(100=MA와 같음)와 과열 판정(중립/되돌림 주의/되돌림 확실), 오른쪽 = 같은 MA 종류의 이격도 MA #2(기본 50) 기준 값(판정 없이 값만)입니다. 셀 색·판정은 20 기준입니다. 과열이 강할수록 평균 회귀 압력이 커지므로 그 방향의 추격 진입을 자제합니다. 강한 추세에서는 과열이 오래 이어질 수 있어 역추세 진입 근거로 단독 사용하지 않습니다. 기준봉은 '기준봉: 변동성 임계가' 설정(기본 실시간봉 = 현재 봉·현재가 대비, 완성봉 = 가장 최근 확정봉·그 봉 종가 대비)입니다."
+volDisparityTooltip = "값은 '20 기준 | 50 기준 (판정)'입니다. 왼쪽 = 종가가 이격도 MA(기본 20)의 몇 %에 있는지(100=MA와 같음), 오른쪽 = 같은 MA 종류의 이격도 MA #2(기본 50) 기준 값, 괄호 = 20 기준 과열 판정(중립/되돌림 주의/되돌림 확실)입니다. 셀 색·판정은 20 기준입니다. 과열이 강할수록 평균 회귀 압력이 커지므로 그 방향의 추격 진입을 자제합니다. 강한 추세에서는 과열이 오래 이어질 수 있어 역추세 진입 근거로 단독 사용하지 않습니다. 기준봉은 '기준봉: 변동성 임계가' 설정(기본 실시간봉 = 현재 봉·현재가 대비, 완성봉 = 가장 최근 확정봉·그 봉 종가 대비)입니다."
 //  지지/저항 3행(라벨 50선/100선/200선): 값=선 가격(현재가 대비 ±%), 셀 색=지지/저항 판정(VWMA선 ±σ 밴드). 개념+효과. MA만 행별 상이.
 srVw50Tooltip = "거래량 가중 50선의 가격과 기준봉 종가 대비 %이며, 셀 색은 지지(녹)·저항(적)·위(둔탁 녹)·아래(둔탁 적) 판정입니다. 단기 지지·저항 레벨로 눌림 진입과 손절 기준에 씁니다. 지지 판정에서 이 선 아래로 마감하면 롱 손절, 저항 판정에서 위로 마감하면 숏 손절을 검토합니다. 기준봉은 '지지·저항 임계가' 기준봉 설정(기본 완성봉 = 가장 최근 확정봉의 선 값·종가·판정, 형성 중 틱에 고정 / 실시간봉 = 현재 봉)입니다."
 srVw100Tooltip = "거래량 가중 100선의 가격과 기준봉 종가 대비 %이며, 셀 색은 지지(녹)·저항(적)·위(둔탁 녹)·아래(둔탁 적) 판정입니다. 단기선보다 강한 중기 매물대로, 지지 유지는 추세 지속, 종가 이탈은 반전 경계로 봅니다. 기준봉은 '지지·저항 임계가' 기준봉 설정(기본 완성봉 = 가장 최근 확정봉의 선 값·종가·판정, 형성 중 틱에 고정 / 실시간봉 = 현재 봉)입니다."
@@ -1674,7 +1674,7 @@ if showStatusTable and barstate.islast
     // 상승확장(50)/하락확장(50) 2행(CEO 지시): 20 행과 같은 포맷·색 규칙, 판정 기간 #2(vwapStateBarsLong, 기본 50). 셀 색 = 50 기준 기준봉 상태(walkColorL).
     f_tblItem(statusTable, 3, 3, "상승확장(" + str.tostring(vwapStateBarsLong) + ")", walkUpTextL, walkColorL, volWalkUpTooltipL)
     f_tblItem(statusTable, 3, 4, "하락확장(" + str.tostring(vwapStateBarsLong) + ")", walkDnTextL, walkColorL, volWalkDnTooltipL)
-    // 이격도(CEO 지시 — 라벨 '이격도 (20)'→'이격도', 값 '{20 기준} | {50 기준}'). 셀 색은 기존 20 기준 disparityCellColor 그대로.
+    // 이격도(CEO 지시 — 라벨 '이격도 (20)'→'이격도', 값 '{20 기준} | {50 기준} ({20 판정})'). 셀 색은 기존 20 기준 disparityCellColor 그대로.
     f_tblItem(statusTable, 3, 5, "이격도", disparityCellText, disparityCellColor[volOff], volDisparityTooltip)
     // 섹션3: 지지·저항 임계가 (CEO 지시로 헤더 "지지·저항 확인"→"지지·저항 임계가" 개명) (50선 / 100선 / 200선)
     f_tblHeader(statusTable, 4, "지지·저항 임계가 (" + baseSrMode + ")", na)
